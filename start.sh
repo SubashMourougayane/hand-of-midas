@@ -1,28 +1,33 @@
 #!/bin/bash
-# GoldDigger — Start backend + frontend
+# GoldDigger + OilMiner — Start all services
 cd "$(dirname "$0")"
 
-echo "Starting GoldDigger..."
-echo "  Backend: http://localhost:5053"
-echo "  Frontend: http://localhost:3001"
+echo "Starting GoldDigger + OilMiner..."
+echo "  Gold Backend: http://localhost:5053"
+echo "  Oil Backend:  http://localhost:5054"
+echo "  Frontend:     http://localhost:3001"
 echo ""
 
-# Start backend (no reload — M3 data is too large for reload watcher, timeout 300s for backtests)
+# Start Gold backend
 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 &
-BACKEND_PID=$!
+GOLD_PID=$!
 
-# Wait for backend to be ready before starting frontend
-echo "  Waiting for backend to load data..."
-sleep 8
+# Start Oil backend
+cd backend-oil && python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 &
+OIL_PID=$!
+cd ..
+
+# Wait for backends to load data
+echo "  Waiting for data to load..."
+sleep 10
 
 # Start frontend
 cd frontend && npm run dev -- -p 3001 &
 FRONTEND_PID=$!
-
 cd ..
 
-echo "PIDs: backend=$BACKEND_PID, frontend=$FRONTEND_PID"
-echo "Press Ctrl+C to stop both"
+echo "PIDs: gold=$GOLD_PID, oil=$OIL_PID, frontend=$FRONTEND_PID"
+echo "Press Ctrl+C to stop all"
 
-trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit" SIGINT SIGTERM
+trap "kill $GOLD_PID $OIL_PID $FRONTEND_PID 2>/dev/null; exit" SIGINT SIGTERM
 wait
