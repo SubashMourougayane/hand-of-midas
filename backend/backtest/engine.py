@@ -137,11 +137,16 @@ def run_backtest(
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
         trade_year = trade_date.year
 
-        # Fresh capital each year
+        # Fresh capital each year (uses the capital param, not hardcoded)
         if trade_year != current_year:
             if current_year is not None:
                 pass  # year ended
-            state.reset_year(trade_year)
+            state.equity = capital
+            state.peak_equity = capital
+            state.consecutive_losses = 0
+            state.pause_counter = 0
+            state.equity_history = []
+            state.current_year = trade_year
             current_year = trade_year
 
         if state.equity < 100:
