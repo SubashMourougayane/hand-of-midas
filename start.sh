@@ -11,6 +11,10 @@ echo ""
 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 &
 BACKEND_PID=$!
 
+# Wait for backend to be ready before starting frontend
+echo "  Waiting for backend to load data..."
+sleep 8
+
 # Start frontend
 cd frontend && npm run dev -- -p 3001 &
 FRONTEND_PID=$!
