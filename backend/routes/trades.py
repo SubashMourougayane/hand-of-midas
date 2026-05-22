@@ -61,6 +61,7 @@ def get_backtest_trades(
         "risk": float(r["risk"]),
         "r_mult": float(r["r_mult"]),
         "equity_after": float(r["equity_after"]),
+        "bars_held": r["bars_held"],
     } for r in rows]
 
     pnls = [t["pnl_sized"] for t in trades]

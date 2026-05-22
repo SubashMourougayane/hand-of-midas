@@ -10,6 +10,7 @@ from backend.routes.backtest import router as backtest_router
 from backend.routes.state import router as state_router
 from backend.routes.trades import router as trades_router
 from backend.routes.journal import router as journal_router
+from backend.routes.journey import router as journey_router
 
 from contextlib import asynccontextmanager
 
@@ -47,6 +48,7 @@ app.include_router(backtest_router, prefix="/api/gold")
 app.include_router(state_router, prefix="/api/gold")
 app.include_router(trades_router, prefix="/api/gold")
 app.include_router(journal_router, prefix="/api/gold")
+app.include_router(journey_router, prefix="/api/gold")
 
 
 @app.get("/api/health")
