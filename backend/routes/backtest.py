@@ -199,9 +199,9 @@ def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
             total_pnl, max_drawdown_pct, avg_win, avg_loss, risk_reward, duration_ms)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            RETURNING id""",
-        (req.strategies, req.start_date, req.end_date, req.capital, req.risk_pct,
-         stats.total_trades, stats.wins, stats.losses, stats.win_rate, stats.profit_factor,
-         stats.total_pnl, stats.max_drawdown_pct, stats.avg_win, stats.avg_loss, stats.risk_reward, duration_ms)
+        (req.strategies, req.start_date, req.end_date, float(req.capital), float(req.risk_pct),
+         int(stats.total_trades), int(stats.wins), int(stats.losses), float(stats.win_rate), float(stats.profit_factor),
+         float(stats.total_pnl), float(stats.max_drawdown_pct), float(stats.avg_win), float(stats.avg_loss), float(stats.risk_reward), int(duration_ms))
     )
 
     if not run_id:
@@ -218,15 +218,16 @@ def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
                         entry, sl, tp, exit_price, pnl_unit, pnl_sized, units,
                         status, bars_held, hold_human, risk, r_mult, equity_after)
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (run_id, i, t.date, t.year, t.month, t.strategy, t.direction,
-                     t.entry, t.sl, t.tp, t.exit_price, t.pnl_unit, t.pnl_sized, t.units,
-                     t.status, t.bars_held, t.hold_human, t.risk, t.r_mult, t.equity_after)
+                    (run_id, i, str(t.date), int(t.year), int(t.month), t.strategy, t.direction,
+                     float(t.entry), float(t.sl), float(t.tp), float(t.exit_price),
+                     float(t.pnl_unit), float(t.pnl_sized), float(t.units),
+                     t.status, int(t.bars_held), t.hold_human, float(t.risk), float(t.r_mult), float(t.equity_after))
                 )
             # Insert equity curve
             for pt in equity_curve:
                 cur.execute(
                     "INSERT INTO gd_backtest_equity (run_id, date, cumulative_pnl, equity) VALUES (%s,%s,%s,%s)",
-                    (run_id, pt["date"], pt["pnl"], pt["equity"])
+                    (run_id, str(pt["date"]), float(pt["pnl"]), float(pt["equity"]))
                 )
             conn.commit()
     except Exception as e:

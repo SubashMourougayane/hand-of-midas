@@ -261,7 +261,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_read_timeout 60;
+        proxy_read_timeout 300;
     }
 
     # Auth API (served by Gold backend)
@@ -283,7 +283,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_read_timeout 60;
+        proxy_read_timeout 300;
     }
 }
 NGINX
