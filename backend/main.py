@@ -18,14 +18,18 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     from backend.backtest.engine import _get_cached_data
     from backend.scanner.scheduler import start_scheduler, stop_scheduler
+    from backend.scanner.price_stream import start_stream, stop_stream
 
     print("Pre-loading market data for backtest...")
     _get_cached_data()
     print("Starting live trading scheduler...")
     start_scheduler()
+    print("Starting real-time price stream...")
+    start_stream()
     print("GoldDigger ready.")
     yield
-    print("Shutting down scheduler...")
+    print("Shutting down...")
+    stop_stream()
     stop_scheduler()
 
 
