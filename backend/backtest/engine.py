@@ -6,13 +6,34 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
 from typing import Optional
+import time
 
 from backend.data.cache import load_candles, load_inter_market
 from backend.strategies.base import Signal
 from backend.strategies import alpha_sweep, mean_rev, cross_market
 from backend.strategies.dd_protection import DDState, should_skip_signal, get_risk_multiplier, update_after_trade
 from backend.execution.fill_model import execute_trade, TradeResult
-from backend.config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS
+from backend.config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK
+
+# Module-level data cache — loaded once, reused across requests
+_DATA_CACHE = {}
+
+
+def _get_cached_data():
+    """Load data once and cache in memory."""
+    if not _DATA_CACHE:
+        t0 = time.time()
+        _DATA_CACHE["gold_d"] = load_candles("XAU_USD_D.csv")
+        _DATA_CACHE["gold_h1"] = load_candles("XAU_USD_H1.csv")
+        _DATA_CACHE["gold_m3"] = load_candles("XAU_USD_M3.csv")
+        _DATA_CACHE["eur"] = load_inter_market("EUR_USD")
+        _DATA_CACHE["us10y"] = load_inter_market("USB10Y_USD")
+        _DATA_CACHE["spx"] = load_inter_market("SPX500_USD")
+        _DATA_CACHE["silver"] = load_inter_market("XAG_USD")
+        _DATA_CACHE["oil"] = load_inter_market("BCO_USD")
+        _DATA_CACHE["us2y"] = load_inter_market("USB02Y_USD")
+        print(f"  Data loaded in {time.time()-t0:.1f}s ({len(_DATA_CACHE['gold_m3'])} M3 bars)")
+    return _DATA_CACHE
 
 
 @dataclass
@@ -63,10 +84,11 @@ def run_backtest(
 
     np.random.seed(seed)
 
-    # Load data
-    gold_d = load_candles("XAU_USD_D.csv")
-    gold_h1 = load_candles("XAU_USD_H1.csv")
-    gold_m3 = load_candles("XAU_USD_M3.csv")
+    # Load data (cached after first call)
+    data = _get_cached_data()
+    gold_d = data["gold_d"]
+    gold_h1 = data["gold_h1"]
+    gold_m3 = data["gold_m3"]
 
     # Daily bias + 50MA
     daily_bias = {}
@@ -86,13 +108,9 @@ def run_backtest(
 
     if "cross_market" in strategies:
         np.random.seed(seed)
-        eur = load_inter_market("EUR_USD")
-        us10y = load_inter_market("USB10Y_USD")
-        spx = load_inter_market("SPX500_USD")
-        silver = load_inter_market("XAG_USD")
-        oil = load_inter_market("BCO_USD")
-        us2y = load_inter_market("USB02Y_USD")
-        all_signals.extend(cross_market.generate_signals(gold_d, eur, us10y, spx, silver, oil, us2y))
+        all_signals.extend(cross_market.generate_signals(
+            gold_d, data["eur"], data["us10y"], data["spx"], data["silver"], data["oil"], data["us2y"]
+        ))
 
     if "mean_rev" in strategies:
         np.random.seed(seed)
@@ -135,9 +153,10 @@ def run_backtest(
         if should_skip_signal(signal.strategy, signal.direction, gp, gma, state):
             continue
 
-        # Position sizing
+        # Position sizing — tiered by strategy
         risk_mult = get_risk_multiplier(state)
-        risk_dollar = state.equity * (risk_pct / 100) * risk_mult
+        strat_risk_pct = STRATEGY_RISK.get(signal.strategy, risk_pct)
+        risk_dollar = state.equity * (strat_risk_pct / 100) * risk_mult
         if signal.risk <= 0:
             continue
         units = min(risk_dollar / signal.risk, MAX_UNITS)

@@ -57,8 +57,13 @@ DD_PROTECTION = {
     "equity_ma_period": 20,
 }
 
-# Position Sizing
-RISK_PCT = 3.0
+# Position Sizing — Tiered by strategy (reward strength, dampen weakness)
+STRATEGY_RISK = {
+    "alpha_sweep": 4.0,   # Best edge (PF 6.09, 73% WR) — reward it
+    "mean_rev": 3.0,      # Solid — keep as-is
+    "cross_market": 2.0,  # Most frequent, weakest per-trade, biggest DD contributor
+}
+RISK_PCT = 3.0  # fallback if strategy not in map
 MAX_UNITS = 100
 YEARLY_CAPITAL = 5000.0
 

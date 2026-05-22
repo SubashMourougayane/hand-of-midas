@@ -7,8 +7,8 @@ echo "  Backend: http://localhost:5053"
 echo "  Frontend: http://localhost:3001"
 echo ""
 
-# Start backend
-python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --reload &
+# Start backend (no reload — M3 data is too large for reload watcher, timeout 300s for backtests)
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 &
 BACKEND_PID=$!
 
 # Start frontend
