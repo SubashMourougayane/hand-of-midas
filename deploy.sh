@@ -123,11 +123,21 @@ setup_app() {
   pip install --upgrade pip -q
   pip install -r requirements.txt -q
 
+  # Ensure swap exists (needed for npm build on small instances)
+  if [ ! -f /swapfile ]; then
+    log "Creating 2GB swap file..."
+    sudo fallocate -l 2G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  fi
+
   # Frontend build
   log "Building frontend..."
   cd frontend
   npm install --legacy-peer-deps 2>/dev/null
-  npm run build
+  NODE_OPTIONS="--max-old-space-size=1024" npm run build
   cd "$APP_DIR"
 
   # Create .env if not exists
