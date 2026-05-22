@@ -48,13 +48,14 @@ def get_trades(
             "sl": float(r["sl_price"]) if r["sl_price"] else None,
             "tp": float(r["tp_price"]) if r["tp_price"] else None,
             "units": r["units"],
-            "pnl": float(r["pnl_usd"]) if r["pnl_usd"] else 0,
+            "pnl_gbp": float(r["pnl_gbp"]) if r["pnl_gbp"] else 0,
+            "pnl_usd": float(r["pnl_usd"]) if r["pnl_usd"] else 0,
             "exit_reason": r["exit_reason"],
             "mode": r["mode"],
         })
 
-    # Compute stats
-    pnls = [t["pnl"] for t in trades]
+    # Compute stats (using USD P&L)
+    pnls = [t["pnl_usd"] for t in trades]
     wins = [p for p in pnls if p > 0]
     losses = [p for p in pnls if p <= 0]
     stats = {

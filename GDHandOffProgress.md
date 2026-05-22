@@ -71,11 +71,11 @@
 | Project init (Next.js 16 + Tailwind v4) | ✅ DONE | + Recharts + Lucide icons |
 | Retro terminal theme (globals.css) | ✅ DONE | Copied from VibeTrader (JetBrains Mono, dark, scanlines) |
 | Sidebar navigation | ✅ DONE | Live, Backtest, Trades, Journal, Settings |
-| `/backtest` page | ✅ DONE | Config form + stats grid + strategy breakdown + equity curve + yearly table + trade table |
-| `/trades` page | ⬜ TODO | Placeholder exists, needs full implementation |
-| `/live` page | ⬜ TODO | Placeholder exists, needs live engine (Phase 5) |
-| `/journal` page | ⬜ TODO | Placeholder exists |
-| `/settings` page | ⬜ TODO | Placeholder exists |
+| `/backtest` page | ✅ DONE | Config form + stats + equity curve + P&L calendar + yearly table + trade table + DB persistence |
+| `/trades` page | ✅ DONE | Filterable by strategy/side/result, stats cards, full trade history from DB |
+| `/live` page | ✅ DONE | Real-time: price, account NAV, positions, DD state, signals, schedule (5s polling) |
+| `/journal` page | ✅ DONE | Event log with strategy/event_type filters, context display |
+| `/settings` page | ✅ DONE | All strategy params, DD rules, OANDA config displayed |
 
 ---
 
@@ -131,6 +131,10 @@
 **→ Phase 3: Database (PostgreSQL schema + persistence)**
 **→ Phase 5: Live Engine (OANDA executor + scheduler)**
 
-**All core phases complete.** System is ready to trade live on OANDA.
+**ALL PHASES COMPLETE.** System is fully built and ready to trade live on OANDA.
 
-Remaining: Frontend `/live` page (real-time display), `/trades` + `/journal` pages, and 1-week paper validation.
+To start: `cd /Users/subash/SUBASH/GoldDigger && bash start.sh`
+- Backend: http://localhost:5053 (FastAPI + scheduler)
+- Frontend: http://localhost:3001 (Next.js dashboard)
+
+Remaining: 1-week observation period to validate live signal generation matches backtest expectations (~1 trade/week).

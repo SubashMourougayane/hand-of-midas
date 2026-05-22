@@ -116,18 +116,18 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         print(f"  [{strategy}] Signal SKIPPED: {skip_reason}")
         return None
 
-    # Position sizing
+    # Position sizing — use USD-equivalent equity (account is GBP, gold is USD)
     risk_mult = _get_risk_multiplier(dd_state)
     risk_pct = STRATEGY_RISK.get(strategy, 3.0)
     acct = get_account_summary()
-    equity = acct.get("nav", dd_state["equity"])
+    equity_usd = acct.get("nav_usd", acct.get("nav", dd_state["equity"]))
 
     sl_distance = abs(entry_price - sl_price)
     if sl_distance <= 0:
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="zero_sl_distance")
         return None
 
-    risk_dollar = equity * (risk_pct / 100) * risk_mult
+    risk_dollar = equity_usd * (risk_pct / 100) * risk_mult
     units = int(min(risk_dollar / sl_distance, MAX_UNITS))
 
     if units < 1:
@@ -217,11 +217,16 @@ def check_open_positions():
             else:
                 exit_reason = "CLOSED"
 
-            # Update DB
+            # Update DB — OANDA returns P&L in account currency (GBP)
+            gbp_usd = acct.get("gbp_usd_rate", 1.33) if 'acct' in dir() else 1.33
+            from backend.execution.oanda_executor import _get_gbp_usd_rate
+            gbp_usd = _get_gbp_usd_rate()
+            pnl_usd = realized_pl * gbp_usd
+
             execute(
-                """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_usd=%s, exit_reason=%s
+                """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
                    WHERE trade_ref=%s""",
-                (close_time, fill_price, realized_pl, exit_reason, trade["trade_ref"])
+                (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
             )
 
             # Update DD state

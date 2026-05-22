@@ -64,7 +64,8 @@ def get_state():
             "trade_ref": t["trade_ref"],
             "strategy": t["strategy"],
             "side": t["side"],
-            "pnl": float(t["pnl_usd"]) if t["pnl_usd"] else 0,
+            "pnl_gbp": float(t["pnl_gbp"]) if t["pnl_gbp"] else 0,
+            "pnl_usd": float(t["pnl_usd"]) if t["pnl_usd"] else 0,
             "exit_reason": t["exit_reason"],
             "exit_time": t["exit_time"].isoformat() if t["exit_time"] else None,
         })

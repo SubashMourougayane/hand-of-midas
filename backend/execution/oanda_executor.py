@@ -51,19 +51,41 @@ def _request(method: str, path: str, json_body: dict = None) -> dict:
 
 
 def get_account_summary() -> dict:
-    """Get account balance, NAV, margin, open trade count."""
+    """Get account balance, NAV, margin, open trade count. Includes USD equivalent."""
     data = _request("GET", f"/accounts/{OANDA_ACCOUNT}/summary")
     if "error" in data:
         return data
     acct = data.get("account", {})
+    currency = acct.get("currency", "GBP")
+    nav_home = float(acct.get("NAV", 0))
+
+    # Get GBP/USD rate for conversion
+    gbp_usd_rate = _get_gbp_usd_rate() if currency == "GBP" else 1.0
+
     return {
         "balance": float(acct.get("balance", 0)),
-        "nav": float(acct.get("NAV", 0)),
+        "nav": nav_home,
+        "nav_usd": nav_home * gbp_usd_rate,
         "unrealized_pl": float(acct.get("unrealizedPL", 0)),
         "margin_used": float(acct.get("marginUsed", 0)),
         "open_trades": int(acct.get("openTradeCount", 0)),
-        "currency": acct.get("currency", "GBP"),
+        "currency": currency,
+        "gbp_usd_rate": gbp_usd_rate,
     }
+
+
+def _get_gbp_usd_rate() -> float:
+    """Fetch current GBP/USD rate from OANDA for currency conversion."""
+    data = _request("GET", f"/accounts/{OANDA_ACCOUNT}/pricing?instruments=GBP_USD")
+    if "error" in data:
+        return 1.33  # fallback
+    prices = data.get("prices", [])
+    if not prices:
+        return 1.33
+    p = prices[0]
+    bid = float(p["bids"][0]["price"]) if p.get("bids") else 1.33
+    ask = float(p["asks"][0]["price"]) if p.get("asks") else 1.33
+    return (bid + ask) / 2
 
 
 def get_current_price(instrument: str = "XAU_USD") -> Optional[dict]:

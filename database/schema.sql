@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS gd_trades (
     tp_price DECIMAL(10,4),
     lot_size DECIMAL(8,2) NOT NULL,
     units INTEGER NOT NULL,
+    pnl_gbp DECIMAL(10,2),
     pnl_usd DECIMAL(10,2),
     exit_reason VARCHAR(30),
     mode VARCHAR(10) DEFAULT 'paper',
