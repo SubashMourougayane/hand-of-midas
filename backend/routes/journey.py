@@ -25,12 +25,12 @@ def get_trade_journey(
 
     if strategy == "alpha_sweep":
         df = data["gold_m3"]
-        context_before = 3
-        context_after = max(bars_held + 5, 20)
+        context_before = 2
+        context_after = bars_held + 3
     else:
         df = data["gold_d"]
         context_before = 1
-        context_after = max(bars_held + 2, 6)
+        context_after = bars_held + 2
 
     trade_date = pd.Timestamp(date, tz="UTC")
     idx = df.index.searchsorted(trade_date)
