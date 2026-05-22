@@ -325,15 +325,20 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     countdown = `Next: ${nextEvent} in ${hrs}h ${mins}m`;
   }
 
+  // All times in IST (UTC + 5:30)
+  const IST_OFFSET = 5.5;
+  const istTime = (utcTime + IST_OFFSET) % 24;
+
+  // Sessions wrap around midnight — use start/end in IST
   const sessions = [
-    { name: "ASIA", start: 0, end: 8, color: "#9ca3b4" },
-    { name: "LONDON", start: 8, end: 16, color: "#4fc3f7" },
-    { name: "NEW YORK", start: 13, end: 21, color: "#ff8c00" },
+    { name: "ASIA", start: 5.5, end: 13.5, color: "#9ca3b4" },
+    { name: "LONDON", start: 13.5, end: 21.5, color: "#4fc3f7" },
+    { name: "NEW YORK", start: 18.5, end: 26.5, color: "#ff8c00" }, // wraps past 24 → render as two parts
   ];
 
   const tradingWindows = [
-    { name: "Alpha-Sweep", start: 8, end: 10.5, color: "#4fc3f7" },
-    { name: "Daily Scan", start: 22, end: 22.1, color: "#ffd54f" },
+    { name: "Alpha-Sweep", start: 13.5, end: 16, color: "#4fc3f7" },
+    { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },
   ];
 
   return (
@@ -348,85 +353,111 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
           </div>
         </div>
         <div className="text-[10px] text-[var(--text-dim)]">
-          {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC" })} UTC
+          {now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })} IST
         </div>
       </div>
 
       {/* 24h Timeline */}
-      <div className="relative mt-3 px-2">
-        {/* Sessions row */}
-        <div className="relative h-8 mb-1" style={{ background: "#080a0f", borderRadius: 4 }}>
-          {sessions.map(s => {
-            const isActive = utcTime >= s.start && utcTime < s.end;
-            return (
-              <div key={s.name} className="absolute top-0 bottom-0 flex items-center justify-center rounded"
-                style={{
-                  left: `${(s.start / 24) * 100}%`,
-                  width: `${((s.end - s.start) / 24) * 100}%`,
-                  background: isActive ? `${s.color}25` : `${s.color}08`,
-                  border: isActive ? `1.5px solid ${s.color}` : `1px solid ${s.color}30`,
-                  transition: "all 0.3s",
-                }}>
-                <span className="text-[9px] font-bold tracking-widest" style={{ color: isActive ? s.color : `${s.color}80` }}>{s.name}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Trading windows row */}
-        <div className="relative h-7 mb-1" style={{ background: "#080a0f", borderRadius: 4 }}>
-          {tradingWindows.map(w => {
-            const isActive = utcTime >= w.start && utcTime <= w.end;
-            return (
-              <div key={w.name} className="absolute top-0 bottom-0 flex items-center justify-center rounded"
-                style={{
-                  left: `${(w.start / 24) * 100}%`,
-                  width: `${Math.max(((w.end - w.start) / 24) * 100, 1.5)}%`,
-                  background: isActive ? `${w.color}40` : `${w.color}15`,
-                  border: isActive ? `2px solid ${w.color}` : `1px solid ${w.color}60`,
-                  boxShadow: isActive ? `0 0 12px ${w.color}40` : "none",
-                  transition: "all 0.3s",
-                }}>
-                <span className="text-[8px] font-bold" style={{ color: w.color }}>{w.name}</span>
-              </div>
-            );
-          })}
-          {/* Position monitor indicator */}
-          <div className="absolute top-0 bottom-0 left-0 right-0 flex items-center pointer-events-none" style={{ opacity: 0.3 }}>
-            <div className="w-full h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 2px, transparent 2px, transparent 6px)" }} />
+      <div className="relative mt-4 px-3 pb-2">
+        {/* Time label above needle */}
+        <div className="relative h-5 mb-1">
+          <div className="absolute z-20" style={{ left: `calc(${(istTime / 24) * 100}%)`, transform: "translateX(-50%)" }}>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#ff3e3e", color: "#fff" }}>
+              {now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}
+            </span>
           </div>
         </div>
 
-        {/* Hour scale */}
-        <div className="relative h-4">
-          {Array.from({ length: 25 }).map((_, h) => (
-            <div key={h} className="absolute" style={{ left: `${(h / 24) * 100}%` }}>
-              {h % 2 === 0 && (
-                <span className="text-[8px] -translate-x-1/2 inline-block" style={{ color: "#6b7280" }}>
-                  {String(h).padStart(2, "0")}
-                </span>
-              )}
-            </div>
-          ))}
+        {/* Sessions row */}
+        <div className="relative h-11 mb-2 rounded" style={{ background: "#0d1017" }}>
+          {sessions.map(s => {
+            const renderStart = Math.min(s.start, 24);
+            const renderEnd = Math.min(s.end, 24);
+            const isActive = s.end <= 24
+              ? (istTime >= s.start && istTime < s.end)
+              : (istTime >= s.start || istTime < (s.end - 24));
+            return (
+              <div key={s.name} className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+                style={{
+                  left: `${(renderStart / 24) * 100}%`,
+                  width: `${((renderEnd - renderStart) / 24) * 100}%`,
+                  background: isActive ? `${s.color}18` : `${s.color}06`,
+                  border: isActive ? `1.5px solid ${s.color}` : `1px solid ${s.color}20`,
+                }}>
+                <span className="text-[11px] font-extrabold tracking-wider" style={{ color: isActive ? "#fff" : s.color }}>{s.name}</span>
+              </div>
+            );
+          })}
+          {/* NY wrap (12 AM – 2:30 AM) */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+            style={{
+              left: "0%", width: `${(2.5 / 24) * 100}%`,
+              background: istTime < 2.5 ? "#ff8c0018" : "#ff8c0006",
+              border: istTime < 2.5 ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
+            }}>
+            <span className="text-[11px] font-extrabold tracking-wider" style={{ color: istTime < 2.5 ? "#fff" : "#ff8c00" }}>NEW YORK</span>
+          </div>
+          {/* Gap (2:30 AM - 5:30 AM = market closed) */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center"
+            style={{ left: `${(2.5 / 24) * 100}%`, width: `${(3 / 24) * 100}%` }}>
+            <span className="text-[9px] font-extrabold tracking-wider" style={{ color: "#9ca3b4" }}>CLOSED</span>
+          </div>
         </div>
 
-        {/* Current time needle (spans both rows) */}
-        <div className="absolute top-0 z-10 pointer-events-none"
+        {/* Trading windows row */}
+        <div className="relative h-10 mb-2 rounded" style={{ background: "#0d1017" }}>
+          {tradingWindows.map(w => {
+            const isActive = istTime >= w.start && istTime <= w.end;
+            return (
+              <div key={w.name} className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+                style={{
+                  left: `${(w.start / 24) * 100}%`,
+                  width: `${Math.max(((w.end - w.start) / 24) * 100, 2.5)}%`,
+                  background: isActive ? `${w.color}35` : `${w.color}10`,
+                  border: isActive ? `2px solid ${w.color}` : `1px solid ${w.color}40`,
+                  boxShadow: isActive ? `0 0 20px ${w.color}25` : "none",
+                }}>
+                <span className="text-[10px] font-extrabold" style={{ color: "#fff" }}>{w.name}</span>
+              </div>
+            );
+          })}
+          {/* Position monitor dashed line */}
+          <div className="absolute top-1/2 left-0 right-0 pointer-events-none" style={{ opacity: 0.2 }}>
+            <div className="w-full h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 7px)" }} />
+          </div>
+        </div>
+
+        {/* Hour scale (IST 12h) */}
+        <div className="relative h-5 mt-1">
+          {Array.from({ length: 13 }).map((_, i) => {
+            const h = i * 2;
+            const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+            return (
+              <div key={h} className="absolute flex flex-col items-center" style={{ left: `${(h / 24) * 100}%`, transform: "translateX(-50%)" }}>
+                <div className="w-[1px] h-1.5" style={{ background: "#333" }} />
+                <span className="text-[8px] mt-0.5 whitespace-nowrap" style={{ color: "#5b6370" }}>{label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Current time needle (spans both session rows) */}
+        <div className="absolute z-10 pointer-events-none"
           style={{
-            left: `calc(${(utcTime / 24) * 100}% + 8px)`,
-            height: "calc(100% - 16px)",
+            left: `calc(${(istTime / 24) * 100}% + 12px)`,
+            top: "20px",
+            height: "calc(100% - 44px)",
           }}>
-          <div className="w-[2px] h-full" style={{ background: "#ff3e3e", boxShadow: "0 0 6px #ff3e3e" }} />
-          <div className="absolute -top-1 -left-[3px] w-2 h-2 rounded-full" style={{ background: "#ff3e3e", boxShadow: "0 0 8px #ff3e3e" }} />
+          <div className="w-[2px] h-full mx-auto" style={{ background: "#ff3e3e", boxShadow: "0 0 6px #ff3e3e" }} />
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-5 mt-3 px-2 text-[9px]" style={{ color: "#8b95a5" }}>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm" style={{ background: "#4fc3f725", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (08:00-10:30 UTC)</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm" style={{ background: "#ffd54f25", border: "1px solid #ffd54f" }} /> Daily Scan (22:00 UTC)</span>
-        <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Current Time</span>
-        <span className="flex items-center gap-1.5"><span className="w-4 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 2px, transparent 2px, transparent 5px)" }} /> Position Monitor (24/7)</span>
+      <div className="flex items-center gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30–4:00 PM)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#ffd54f15", border: "1px solid #ffd54f" }} /> Daily Scan (3:30 AM)</span>
+        <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
+        <span className="flex items-center gap-1.5"><span className="w-5 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 6px)" }} /> Monitor (24/7)</span>
       </div>
     </div>
   );
