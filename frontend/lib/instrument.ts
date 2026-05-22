@@ -3,9 +3,11 @@ import { createContext, useContext } from "react";
 
 export type Instrument = "gold" | "oil";
 
+const isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
+
 export const INSTRUMENTS = {
-  gold: { label: "GOLD", api: "http://localhost:5053", color: "#e8c300", symbol: "XAU/USD" },
-  oil: { label: "OIL", api: "http://localhost:5054", color: "#4fc3f7", symbol: "BCO/USD" },
+  gold: { label: "GOLD", api: isLocal ? "http://localhost:5053" : "", color: "#e8c300", symbol: "XAU/USD" },
+  oil: { label: "OIL", api: isLocal ? "http://localhost:5054" : "", color: "#4fc3f7", symbol: "BCO/USD" },
 };
 
 export const InstrumentContext = createContext<{
