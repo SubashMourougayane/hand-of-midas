@@ -26,12 +26,12 @@ def get_trade_journey(
     # Determine timeframe from strategy
     if strategy == "alpha_sweep":
         df = data["gold_m3"]
-        context_before = 20  # bars before entry to show
-        context_after = max(bars_held + 10, 30)  # bars after entry
+        context_before = 5  # fewer bars before for M3 (tight window)
+        context_after = max(bars_held + 10, 30)
     else:
         df = data["gold_d"]
-        context_before = 5
-        context_after = max(bars_held + 5, 10)
+        context_before = 2  # minimal context — chart starts near entry
+        context_after = max(bars_held + 3, 8)
 
     # Find the entry bar
     trade_date = pd.Timestamp(date, tz="UTC")
