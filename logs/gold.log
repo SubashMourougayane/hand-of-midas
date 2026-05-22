@@ -31,3 +31,17 @@ INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 
 INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58475 - "POST /api/gold/backtest HTTP/1.1" 200 OK
 INFO:     127.0.0.1:59550 - "POST /api/gold/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-04-24T21%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=630.69&sl=601.57&tp=688.93&bars_held=13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-04-24T21%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=630.69&sl=601.57&tp=688.93&bars_held=13 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-04-18T21%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=640.41&sl=620.85&tp=679.52&bars_held=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-06-14T14%3A15%3A00%2B00%3A00&strategy=alpha_sweep&direction=short&entry=566.95&sl=571.95&tp=515.85&bars_held=79 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-06-27T15%3A15%3A00%2B00%3A00&strategy=alpha_sweep&direction=short&entry=592.67&sl=597.67&tp=579.77&bars_held=79 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-07-30T21%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=637.47&sl=605.1&tp=702.21&bars_held=19 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2006-11-21T22%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=630.67&sl=608.88&tp=674.24&bars_held=19 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/journey?date=2007-01-30T22%3A00%3A00%2B00%3A00&strategy=cross_market&direction=long&entry=653.17&sl=636.59&tp=686.33&bars_held=18 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/trades/backtest?side=LONG&limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/state HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61174 - "GET /api/gold/state HTTP/1.1" 200 OK
