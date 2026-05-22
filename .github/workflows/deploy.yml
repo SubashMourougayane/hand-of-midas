@@ -26,7 +26,13 @@ jobs:
             # First-time setup check
             if [ ! -d "$APP_DIR" ]; then
               echo "=== First deploy — running full setup ==="
+
+              # Ensure venv + dev packages
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq python3-venv python3-dev libpq-dev
+
               cd /tmp
+              rm -rf handofmidas_tmp
               git clone -b main git@github-midas:SubashMourougayane/hand-of-midas.git handofmidas_tmp
               sudo mv handofmidas_tmp $APP_DIR
               sudo chown -R ubuntu:ubuntu $APP_DIR

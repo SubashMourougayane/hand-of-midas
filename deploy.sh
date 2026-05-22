@@ -52,6 +52,14 @@ install_system() {
     fi
   done
 
+  # Ensure python3-venv is installed
+  PYTHON_VER=$(python3 --version | grep -oP '\d+\.\d+')
+  if ! dpkg -l python3-venv &>/dev/null && ! dpkg -l python${PYTHON_VER}-venv &>/dev/null; then
+    log "Installing python3-venv..."
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq python3-venv python3-dev libpq-dev
+  fi
+
   log "System: Python $(python3 --version | cut -d' ' -f2), Node $(node --version), PostgreSQL $(psql --version | grep -oP '\d+\.\d+')"
 }
 
