@@ -1,0 +1,80 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Hand Of Midas to EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            APP_DIR="/opt/handofmidas"
+
+            echo "═══════════════════════════════════════"
+            echo "🤚 HAND OF MIDAS — Deploying..."
+            echo "═══════════════════════════════════════"
+
+            # First-time setup check
+            if [ ! -d "$APP_DIR" ]; then
+              echo "=== First deploy — running full setup ==="
+              cd /tmp
+              git clone -b main git@github-midas:SubashMourougayane/hand-of-midas.git handofmidas_tmp
+              sudo mv handofmidas_tmp $APP_DIR
+              sudo chown -R ubuntu:ubuntu $APP_DIR
+              cd $APP_DIR
+              python3 -m venv .venv
+              chmod +x deploy.sh
+              ./deploy.sh
+              exit 0
+            fi
+
+            cd $APP_DIR
+
+            echo "=== Pulling latest code ==="
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "=== Installing Python deps ==="
+            source .venv/bin/activate
+            pip install -r requirements.txt -q
+
+            echo "=== Building frontend ==="
+            cd frontend
+            npm install --legacy-peer-deps 2>/dev/null
+            npx next build
+            cd $APP_DIR
+
+            echo "=== Applying DB migrations ==="
+            set -a && source .env && set +a
+            PGPASSWORD=$(echo $DATABASE_URL | grep -oP '://[^:]+:\K[^@]+') \
+              psql -U $(echo $DATABASE_URL | grep -oP '://\K[^:]+') \
+              -d $(echo $DATABASE_URL | grep -oP '/\K[^?]+$') \
+              -f database/schema.sql 2>/dev/null || true
+
+            echo "=== Restarting services ==="
+            sudo systemctl restart midas-gold
+            sudo systemctl restart midas-oil
+            sudo systemctl restart midas-ui
+            sleep 5
+
+            echo "=== Health check ==="
+            echo "Gold:  $(sudo systemctl is-active midas-gold)"
+            echo "Oil:   $(sudo systemctl is-active midas-oil)"
+            echo "UI:    $(sudo systemctl is-active midas-ui)"
+            curl -sf http://localhost:5053/api/health && echo " Gold API: OK" || echo " Gold API: FAILED"
+            curl -sf http://localhost:5054/api/health && echo " Oil API: OK" || echo " Oil API: FAILED"
+            curl -sf http://localhost:3001 > /dev/null && echo " UI: OK" || echo " UI: FAILED"
+
+            echo ""
+            echo "═══════════════════════════════════════"
+            echo "✅ DEPLOY COMPLETE — midas.subashtrades.in"
+            echo "═══════════════════════════════════════"
