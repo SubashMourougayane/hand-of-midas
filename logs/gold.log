@@ -1,0 +1,16 @@
+INFO:     Started server process [65254]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5053 (Press CTRL+C to quit)
+Pre-loading market data for backtest...
+  Data loaded in 4.8s (2386226 M3 bars)
+Starting live trading scheduler...
+Scheduler started:
+  - Daily close (Cross-Market + Mean-Rev): 22:00 UTC
+  - Alpha-Sweep London poll: every 3 min, 08:00-10:30 UTC
+  - Position monitor: every 1 min
+Starting real-time price stream...
+Price stream started (real-time tick-by-tick)
+GoldDigger ready.
+  [STREAM] Connected — receiving live XAU/USD ticks
+INFO:     127.0.0.1:55432 - "GET /api/gold/backtest/latest HTTP/1.1" 200 OK

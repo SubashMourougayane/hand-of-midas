@@ -1,0 +1,123 @@
+INFO:     Started server process [65255]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:5054 (Press CTRL+C to quit)
+Pre-loading Oil market data...
+  Oil data loaded in 4.0s (2074869 M3 bars)
+Starting Oil trading scheduler...
+Oil scheduler started: Alpha-Sweep London poll every 3 min, 08:00-10:30 UTC
+Starting Oil price stream...
+Oil price stream started (BCO_USD tick-by-tick)
+OilMiner ready.
+  [OIL STREAM] Connected — receiving BCO_USD ticks
+INFO:     127.0.0.1:55509 - "GET /api/oil/backtest/latest HTTP/1.1" 404 Not Found
+  [OIL 09:21:00 UTC] Alpha-Sweep polling...
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55509 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+  [OIL 09:24:00 UTC] Alpha-Sweep polling...
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55509 - "GET /api/oil/journal/events?limit=100 HTTP/1.1" 404 Not Found

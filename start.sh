@@ -38,14 +38,14 @@ printf "  ${BOLD}└────────────────────
 
 # Start Gold backend (logs to file)
 printf "  ${YELLOW}🥇 Starting Gold Engine...${NC}"
-python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 > "$DIR/logs/gold.log" 2>&1 &
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 --log-level info > "$DIR/logs/gold.log" 2>&1 &
 GOLD_PID=$!
 printf " ${GREEN}✓${NC} PID $GOLD_PID\n"
 
 # Start Oil backend (logs to file)
 printf "  ${CYAN}🛢️  Starting Oil Engine...${NC}"
 cd "$DIR/backend-oil"
-python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 > "$DIR/logs/oil.log" 2>&1 &
+python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 --log-level info > "$DIR/logs/oil.log" 2>&1 &
 OIL_PID=$!
 cd "$DIR"
 printf " ${GREEN}✓${NC} PID $OIL_PID\n\n"
