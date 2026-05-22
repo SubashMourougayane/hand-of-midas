@@ -1,9 +1,10 @@
 """Telegram notifications for Hand Of Midas."""
+import os
 import threading
 import httpx
 
-BOT_TOKEN = "8980161658:AAHx8Xw2lrcjKdkCEoLojzrSQGxfqF7rLH8"
-CHAT_ID = "921872167"
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
 

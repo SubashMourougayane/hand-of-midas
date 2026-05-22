@@ -129,6 +129,26 @@ CREATE TABLE IF NOT EXISTS gd_dd_state (
 INSERT INTO gd_dd_state (id) VALUES (1) ON CONFLICT DO NOTHING;
 INSERT INTO gd_dd_state (id) VALUES (2) ON CONFLICT DO NOTHING;  -- Oil DD state
 
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    name VARCHAR(100),
+    phone VARCHAR(20),
+    last_login TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Sessions
+CREATE TABLE IF NOT EXISTS sessions (
+    id SERIAL PRIMARY KEY,
+    token VARCHAR(64) UNIQUE NOT NULL,
+    user_id INTEGER REFERENCES users(id),
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Settings (key-value)
 CREATE TABLE IF NOT EXISTS gd_settings (
     key VARCHAR(100) PRIMARY KEY,

@@ -11,6 +11,7 @@ from backend.routes.state import router as state_router
 from backend.routes.trades import router as trades_router
 from backend.routes.journal import router as journal_router
 from backend.routes.journey import router as journey_router
+from backend.routes.auth_routes import router as auth_router
 
 from contextlib import asynccontextmanager
 
@@ -44,6 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/api")
 app.include_router(backtest_router, prefix="/api/gold")
 app.include_router(state_router, prefix="/api/gold")
 app.include_router(trades_router, prefix="/api/gold")

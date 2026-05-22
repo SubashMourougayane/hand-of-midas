@@ -1,7 +1,9 @@
 import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
-OANDA_TOKEN = os.getenv("OANDA_TOKEN", "bc0ccfb02462f673c14378350f0367c8-9f4a07ef3b2f62f480465643ee8d3ca4")
-OANDA_ACCOUNT = os.getenv("OANDA_ACCOUNT", "101-004-39331014-001")
+OANDA_TOKEN = os.getenv("OANDA_TOKEN", "")
+OANDA_ACCOUNT = os.getenv("OANDA_ACCOUNT", "")
 OANDA_URL = os.getenv("OANDA_URL", "https://api-fxpractice.oanda.com/v3")
 INSTRUMENT = "XAU_USD"
 
