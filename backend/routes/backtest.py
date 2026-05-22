@@ -189,7 +189,7 @@ def api_backtest(req: BacktestRequest) -> BacktestResponse:
 def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
     """Save backtest run + trades to database."""
     # Mark previous runs as not latest
-    execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE")
+    execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies != %s", (["alpha_sweep_oil"],))
 
     # Insert run
     run_id = insert_returning(
@@ -240,7 +240,8 @@ def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
 def get_latest_backtest():
     """Load the most recent backtest run from DB."""
     runs = execute(
-        "SELECT * FROM gd_backtest_runs WHERE is_latest = TRUE ORDER BY created_at DESC LIMIT 1",
+        "SELECT * FROM gd_backtest_runs WHERE is_latest = TRUE AND strategies != %s ORDER BY created_at DESC LIMIT 1",
+        (["alpha_sweep_oil"],),
         fetch=True
     )
     if not runs:
