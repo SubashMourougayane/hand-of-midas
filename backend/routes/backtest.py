@@ -301,7 +301,19 @@ def get_latest_backtest():
         d = yearly_map[y]
         d["pnl"] = round(d["pnl"], 2)
         d["wr"] = round(d["wins"] / d["trades"], 3) if d["trades"] > 0 else 0
-        d["return_pct"] = round(d["pnl"] / float(run["capital"]) * 100, 1)
+        # Compute start/end fund from trade equity values
+        year_trades_sorted = sorted([t for t in trades if t["year"] == y], key=lambda x: x["trade_index"])
+        if year_trades_sorted:
+            first_t = year_trades_sorted[0]
+            last_t = year_trades_sorted[-1]
+            start_fund = round(float(first_t["equity_after"]) - float(first_t["pnl_sized"]), 2)
+            end_fund = round(float(last_t["equity_after"]), 2)
+        else:
+            start_fund = float(run["capital"])
+            end_fund = float(run["capital"])
+        d["start_fund"] = start_fund
+        d["end_fund"] = end_fund
+        d["return_pct"] = round((end_fund - start_fund) / max(start_fund, 1) * 100, 1)
         yearly_pnl.append(d)
 
     # Convert trades to response format
