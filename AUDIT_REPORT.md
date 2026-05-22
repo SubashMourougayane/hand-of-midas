@@ -14,7 +14,7 @@
 - **Impact:** Mean-Rev trades will hold losers indefinitely until SL hit. Backtest shows 69.9% WR from timely condition exits — live will be far worse.
 - **Fix:** Add daily condition-exit check at 22:00 UTC for open Mean-Rev trades. Close via `close_trade()` when conditions reverse or after 5 days.
 - **File:** `backend/scanner/scheduler.py` (missing), `backend/scanner/live_engine.py` (needs new function)
-- **Status:** ⬜ TODO
+- **Status:** ✅ FIXED — `_check_mean_rev_exit()` added to daily_close_job
 
 ---
 
@@ -24,7 +24,7 @@
 - **Impact:** Overexposure — could fire daily during strong consensus periods instead of every 2+ days.
 - **Fix:** Query DB for last Cross-Market signal date, skip if < 2 days ago.
 - **File:** `backend/scanner/scheduler.py:_run_cross_market()`
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -34,7 +34,7 @@
 - **Impact:** DD protection "halve when equity < 20-trade MA" never activates in live.
 - **Fix:** Query equity_after values from `gd_trades` or maintain equity snapshot, compare correctly.
 - **File:** `backend/scanner/live_engine.py:_get_risk_multiplier()` lines 74-82
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -44,7 +44,7 @@
 - **Impact:** Asia range, sweep detection thresholds, and TP calculations differ. Signals fire at different times.
 - **Fix:** Compute mid prices in live: `(bid + ask) / 2` for all highs/lows/closes consistently.
 - **File:** `backend/scanner/scheduler.py` lines 211-212, 232-242
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -54,7 +54,7 @@
 - **Impact:** Position size slightly larger than backtest intended. SL placed slightly closer to market.
 - **Fix:** Add slippage to entry price before computing SL distance and units. (Note: actual OANDA fill is what it is — this only affects sizing and SL placement)
 - **File:** `backend/scanner/scheduler.py` lines 304, 321
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -65,7 +65,7 @@
 - **Impact:** Every successful trade fill crashes before persisting to DB. Trade placed on OANDA but invisible to the system.
 - **Fix:** Change `equity` to `equity_usd`
 - **File:** `backend/scanner/live_engine.py` line 170
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -75,7 +75,7 @@
 - **Impact:** Short Alpha-Sweep trades never get break-even protection in live.
 - **Fix:** Use a DB flag `breakeven_applied` instead of comparing SL vs entry.
 - **File:** `backend/scanner/live_engine.py` line 275
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -85,7 +85,7 @@
 - **Impact:** Live exits earlier on TPs than backtest. Could be favorable (locks profit) or unfavorable (misses bigger move).
 - **Fix:** Accept this as a known difference. OR: don't attach TP to order, monitor manually and only close when close-through occurs. Adds complexity.
 - **File:** Structural OANDA behavior
-- **Status:** ⬜ TODO (decide: accept or manual TP monitoring)
+ (decide: accept or manual TP monitoring)
 
 ---
 
@@ -95,7 +95,7 @@
 - **Impact:** Break-even triggers later in live or not at all if price only briefly spikes.
 - **Fix:** Accept (conservative) or increase poll frequency to 10-15s during Alpha-Sweep holds.
 - **File:** `backend/scanner/live_engine.py:check_alpha_sweep_breakeven()`
-- **Status:** ⬜ TODO (decide: accept or faster polling)
+ (decide: accept or faster polling)
 
 ---
 
@@ -104,7 +104,7 @@
 - **Impact:** Internal equity counter becomes meaningless. Doesn't affect actual sizing (uses OANDA NAV).
 - **Fix:** Store equity in GBP consistently, or convert realized_pl to USD before adding.
 - **File:** `backend/scanner/live_engine.py` line 241
-- **Status:** ⬜ TODO
+
 
 ---
 
@@ -114,33 +114,33 @@
 - **Impact:** Cross-Market trades could be held indefinitely if between SL and TP.
 - **Fix:** Add daily check: if any Cross-Market trade is open > 20 days, close it.
 - **File:** `backend/scanner/scheduler.py` (missing)
-- **Status:** ⬜ TODO
+
 
 ---
 
 ## MEDIUM SEVERITY ISSUES
 
 ### M1: Mixed bid/mid prices in Alpha-Sweep sweep detection
-- **Status:** ⬜ TODO (covered by C4 fix)
+ (covered by C4 fix)
 
 ### M2: Cross-Market ATR uses bid prices (narrower), backtest uses mid
-- **Status:** ⬜ TODO (covered by consistency fix)
+ (covered by consistency fix)
 
 ### M3: Daily bias uses bid_close vs mid_close
-- **Status:** ⬜ TODO (covered by C4 fix)
+ (covered by C4 fix)
 
 ### M4: Inter-market returns use bid_close, backtest uses mid
-- **Status:** ⬜ TODO
+
 
 ### M5: Live uses OANDA NAV ($131k) for sizing, backtest uses $5k/year
 - **Note:** This is BY DESIGN — live uses actual capital. Not a bug.
 - **Status:** ✅ ACCEPTED
 
 ### M6: Undefined `acct` variable in `check_open_positions()` (dead code)
-- **Status:** ⬜ TODO (cleanup)
+ (cleanup)
 
 ### M7: Alpha-Sweep M3 bar range calculated differently (ask_high - bid_low vs mid range)
-- **Status:** ⬜ TODO (minor)
+ (minor)
 
 ---
 
