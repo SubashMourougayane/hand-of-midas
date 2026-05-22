@@ -1,4 +1,4 @@
-![header](https://capsule-render.vercel.app/api?type=waving&height=220&text=GoldDigger%20%2B%20OilMiner&fontAlign=50&fontAlignY=38&color=0:0a0d12,50:1a1f2b,100:0e1117&fontColor=e8c300&fontSize=50&animation=fadeIn&desc=Multi-Asset%20Algorithmic%20Trading%20Engine&descAlign=50&descAlignY=60&descSize=18&descColor=9ca3b4)
+![header](https://capsule-render.vercel.app/api?type=waving&height=220&text=Hand%20Of%20Midas&fontAlign=50&fontAlignY=38&color=0:0a0d12,50:1a1f2b,100:0e1117&fontColor=e8c300&fontSize=55&animation=fadeIn&desc=Everything%20It%20Touches%20Turns%20To%20Gold&descAlign=50&descAlignY=60&descSize=18&descColor=9ca3b4)
 
 <div align="center">
 
@@ -340,7 +340,7 @@ Every number shown is achievable in live. No phantom fills, no fake data, no sho
 
 <div align="center">
 
-**Built after failure. Validated on 20 years of data. Running live.**
+**Hand Of Midas — Built after failure. Validated on 20 years of data. Running live.**
 
 <sub>Gold: 3 strategies, 49 trades/year, $177k over 20 years on $5k/year fresh capital</sub>
 <br/>

@@ -42,3 +42,8 @@
  GET /trades 200 in 16ms (next.js: 2ms, application-code: 14ms)
  GET /live 200 in 71ms (next.js: 45ms, application-code: 25ms)
  GET /live 200 in 21ms (next.js: 3ms, application-code: 17ms)
+ GET /backtest 200 in 27ms (next.js: 6ms, application-code: 21ms)
+ GET /backtest 200 in 96ms (next.js: 8ms, application-code: 88ms)
+ GET /backtest 200 in 62ms (next.js: 4ms, application-code: 58ms)
+ GET /backtest 200 in 22ms (next.js: 1808µs, application-code: 20ms)
+✓ Compiled in 152ms

@@ -1,6 +1,6 @@
-# GoldDigger + OilMiner — CLAUDE.md
+# Hand Of Midas — CLAUDE.md
 
-Multi-asset algorithmic trading platform. Trades Gold (XAU/USD) and Brent Crude Oil (BCO/USD) on OANDA demo account using session sweep, mean-reversion, and inter-market consensus strategies.
+Multi-asset algorithmic trading platform. Trades Gold (XAU/USD) and Brent Crude Oil (BCO/USD) on OANDA demo account using session sweep, mean-reversion, and inter-market consensus strategies. Repo folder: `GoldDigger/`.
 
 ---
 

@@ -21,11 +21,11 @@ clear
 printf "${YELLOW}"
 printf "  ╔═══════════════════════════════════════════════════╗\n"
 printf "  ║                                                   ║\n"
-printf "  ║   ⛏️   G O L D D I G G E R  +  O I L M I N E R   ║\n"
+printf "  ║   🤚  H A N D   O F   M I D A S                  ║\n"
 printf "  ║                                                   ║\n"
 printf "  ╚═══════════════════════════════════════════════════╝\n"
 printf "${NC}\n"
-printf "  ${DIM}Multi-Asset Trading Engine | Alpha-Sweep + Mean-Rev + Cross-Market${NC}\n\n"
+printf "  ${DIM}Everything it touches turns to gold | Alpha-Sweep + Mean-Rev + Cross-Market${NC}\n\n"
 
 # Service Table
 printf "  ${BOLD}┌────────────────────┬───────┬────────────┬─────────────┐${NC}\n"
