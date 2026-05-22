@@ -14,6 +14,7 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
+mkdir -p "$DIR/logs"
 clear
 
 # Banner
@@ -35,16 +36,16 @@ printf "  ${BOLD}│${NC} ${CYAN}🛢️  Oil Backend${NC}     ${BOLD}│${NC} 5
 printf "  ${BOLD}│${NC} ${PURPLE}🖥️  Frontend${NC}        ${BOLD}│${NC} 3001  ${BOLD}│${NC} Dashboard  ${BOLD}│${NC} ${DIM}waiting..${NC}   ${BOLD}│${NC}\n"
 printf "  ${BOLD}└────────────────────┴───────┴────────────┴─────────────┘${NC}\n\n"
 
-# Start Gold backend
+# Start Gold backend (logs to file)
 printf "  ${YELLOW}🥇 Starting Gold Engine...${NC}"
-python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 2>&1 | grep -v "^INFO" &
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-alive 300 > "$DIR/logs/gold.log" 2>&1 &
 GOLD_PID=$!
 printf " ${GREEN}✓${NC} PID $GOLD_PID\n"
 
-# Start Oil backend
+# Start Oil backend (logs to file)
 printf "  ${CYAN}🛢️  Starting Oil Engine...${NC}"
 cd "$DIR/backend-oil"
-python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 2>&1 | grep -v "^INFO" &
+python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 > "$DIR/logs/oil.log" 2>&1 &
 OIL_PID=$!
 cd "$DIR"
 printf " ${GREEN}✓${NC} PID $OIL_PID\n\n"
@@ -57,10 +58,10 @@ for i in {1..10}; do
 done
 printf " ${GREEN}done${NC}\n\n"
 
-# Start frontend
+# Start frontend (logs to file)
 printf "  ${PURPLE}🖥️  Starting Dashboard...${NC}"
 cd "$DIR/frontend"
-npm run dev -- -p 3001 2>&1 | grep -v "^$" | grep -v "▲" | grep -v "─" &
+npm run dev -- -p 3001 > "$DIR/logs/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 cd "$DIR"
 sleep 2
@@ -79,6 +80,7 @@ printf "  ${DIM}├─${NC} ${CYAN}08:00-10:30${NC} Alpha-Sweep Gold ${DIM}(Lond
 printf "  ${DIM}├─${NC} ${CYAN}08:00-10:30${NC} Alpha-Sweep Oil ${DIM}(London, 3min)${NC}\n"
 printf "  ${DIM}└─${NC} ${GREEN}every 1min${NC}  Position Monitor ${DIM}(SL/TP/MaxHold)${NC}\n"
 printf "\n"
+printf "  ${DIM}Logs: ./logs/gold.log | ./logs/oil.log | ./logs/frontend.log${NC}\n"
 printf "  ${DIM}Press ${RED}Ctrl+C${NC}${DIM} to stop all services${NC}\n\n"
 
 trap "printf '\n  ${RED}🛑 Shutting down...${NC}\n'; kill $GOLD_PID $OIL_PID $FRONTEND_PID 2>/dev/null; printf '  ${GREEN}✓ All services stopped${NC}\n'; exit" SIGINT SIGTERM
