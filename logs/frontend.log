@@ -47,3 +47,40 @@
  GET /backtest 200 in 62ms (next.js: 4ms, application-code: 58ms)
  GET /backtest 200 in 22ms (next.js: 1808µs, application-code: 20ms)
 ✓ Compiled in 152ms
+ GET /backtest 200 in 112ms (next.js: 5ms, application-code: 107ms)
+ GET /live 200 in 21ms (next.js: 7ms, application-code: 14ms)
+✓ Compiled in 74ms
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+✓ Compiled in 27ms
+ GET /live 200 in 136ms (next.js: 7ms, application-code: 129ms)
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ ReferenceError: SystemMode is not defined
+    at LivePage (app/live/page.tsx:71:10)
+  69 |
+  70 |         {/* System Mode */}
+> 71 |         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?....
+     |          ^
+  72 |
+  73 |         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disc...
+  74 | {
+  digest: '1399808346'
+}
+✓ Compiled in 50ms
+ GET /live 500 in 83ms (next.js: 7ms, application-code: 76ms)
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ ReferenceError: SystemMode is not defined
+    at LivePage (app/live/page.tsx:71:10)
+  69 |
+  70 |         {/* System Mode */}
+> 71 |         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?....
+     |          ^
+  72 |
+  73 |         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disc...
+  74 | {
+  digest: '1399808346'
+}
+✓ Compiled in 34ms
+ GET /live 500 in 58ms (next.js: 5ms, application-code: 54ms)
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+✓ Compiled in 26ms
+ GET /live 200 in 66ms (next.js: 5ms, application-code: 61ms)
