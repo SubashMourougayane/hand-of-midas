@@ -150,7 +150,10 @@ def api_backtest(req: BacktestRequest) -> BacktestResponse:
         d = yearly_map[y]
         d["pnl"] = round(d["pnl"], 2)
         d["wr"] = round(d["wins"] / d["trades"], 3) if d["trades"] > 0 else 0
-        d["return_pct"] = round(d["pnl"] / req.capital * 100, 1)
+        # Return based on year starting equity (first trade's equity minus its pnl)
+        year_trades = [t for t in trades if t.year == y]
+        year_start_eq = year_trades[0].equity_after - year_trades[0].pnl_sized if year_trades else req.capital
+        d["return_pct"] = round(d["pnl"] / max(year_start_eq, 1) * 100, 1)
         yearly_pnl.append(d)
 
     # Trade list
