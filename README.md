@@ -79,40 +79,75 @@ Toggle between Gold and Oil via collapsible sidebar sections.
 
 ## Architecture
 
+```mermaid
+graph TB
+    subgraph Frontend["🖥️ Frontend (port 3001)"]
+        UI[Next.js 16 + React 19 + Tailwind v4]
+        Pages[Live • Backtest • Trades • Journal • Settings]
+    end
+
+    subgraph Gold["🥇 Gold Backend (port 5053)"]
+        GS[Alpha-Sweep]
+        GM[Mean-Rev]
+        GC[Cross-Market]
+        GP[Position Monitor]
+        GStream[XAU/USD Price Stream]
+    end
+
+    subgraph Oil["🛢️ Oil Backend (port 5054)"]
+        OS[Alpha-Sweep]
+        OP[Position Monitor]
+        OStream[BCO/USD Price Stream]
+    end
+
+    subgraph OANDA["OANDA v20 API"]
+        REST[REST API]
+        Stream[Streaming API]
+        Account[Practice Account<br/>GBP • 1:100 leverage]
+    end
+
+    subgraph DB["PostgreSQL (golddigger)"]
+        Trades[(gd_trades)]
+        Signals[(gd_signals)]
+        Journal[(gd_journal)]
+        DD[(gd_dd_state)]
+    end
+
+    UI --> Gold
+    UI --> Oil
+    Gold --> REST
+    Oil --> REST
+    GStream --> Stream
+    OStream --> Stream
+    Gold --> DB
+    Oil --> DB
 ```
-┌─────────────────────────────────────────────────────┐
-│                    Frontend (3001)                    │
-│  Next.js 16 + React 19 + Tailwind v4 + Recharts    │
-│  Gold/Oil toggle • Backtest • Trades • Journal       │
-└──────────────────────┬──────────────────────────────┘
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-┌─────────▼─────────┐   ┌──────────▼──────────┐
-│  Gold Backend      │   │  Oil Backend         │
-│  FastAPI (5053)    │   │  FastAPI (5054)      │
-│                    │   │                      │
-│  • Alpha-Sweep     │   │  • Alpha-Sweep       │
-│  • Mean-Rev        │   │                      │
-│  • Cross-Market    │   │                      │
-│  • Position Mon.   │   │  • Position Mon.     │
-│  • Price Stream    │   │  • Price Stream      │
-└────────┬───────────┘   └──────────┬───────────┘
-         │                          │
-         └──────────┬───────────────┘
-                    │
-         ┌──────────▼──────────┐
-         │  OANDA v20 API      │
-         │  Practice Account   │
-         │  XAU_USD + BCO_USD  │
-         └──────────┬──────────┘
-                    │
-         ┌──────────▼──────────┐
-         │  PostgreSQL          │
-         │  (golddigger DB)     │
-         │  Trades • Signals    │
-         │  Journal • DD State  │
-         └─────────────────────┘
+
+```mermaid
+sequenceDiagram
+    participant Scheduler
+    participant Strategy
+    participant DDProtection
+    participant OANDA
+    participant Database
+
+    Note over Scheduler: 22:00 UTC (daily) or 08:00-10:30 UTC (London)
+    Scheduler->>Strategy: Check signal conditions
+    Strategy-->>Scheduler: Signal (or no signal)
+    Scheduler->>DDProtection: Should skip? Risk multiplier?
+    DDProtection-->>Scheduler: OK / Skip / Halve
+    Scheduler->>OANDA: place_market_order(SL, TP)
+    OANDA-->>Scheduler: Fill confirmation + trade_id
+    Scheduler->>Database: INSERT trade + signal + journal
+
+    Note over OANDA: Trade lives on OANDA server with SL+TP
+    
+    loop Every 1 minute
+        Scheduler->>OANDA: get_open_trades()
+        OANDA-->>Scheduler: Trade closed (SL/TP hit)
+        Scheduler->>Database: UPDATE trade (exit, P&L)
+        Scheduler->>DDProtection: Update consecutive losses
+    end
 ```
 
 ---
