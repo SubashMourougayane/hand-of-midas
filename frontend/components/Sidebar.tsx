@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers } from "lucide-react";
+import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useInstrument, INSTRUMENTS, Instrument } from "@/lib/instrument";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PAGES = [
   { href: "/live", label: "Live", icon: Radio },
@@ -15,6 +16,7 @@ const PAGES = [
 export default function Sidebar() {
   const path = usePathname();
   const { instrument, setInstrument } = useInstrument();
+  const { logout } = useAuth();
   const [goldOpen, setGoldOpen] = useState(true);
   const [oilOpen, setOilOpen] = useState(true);
 
@@ -93,12 +95,19 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      {/* Active indicator */}
+      {/* Active + Logout */}
       <div className="mt-auto pt-4 border-t border-[var(--border)] px-1">
         <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Active</div>
         <div className="text-xs font-bold mt-1" style={{ color: INSTRUMENTS[instrument].color }}>
           {INSTRUMENTS[instrument].symbol}
         </div>
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 mt-3 px-2 py-1.5 text-xs text-[var(--text-dim)] hover:text-[var(--red)] transition-colors w-full"
+        >
+          <LogOut size={12} />
+          Logout
+        </button>
       </div>
     </aside>
   );
