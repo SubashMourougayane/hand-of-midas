@@ -1,6 +1,7 @@
 #!/bin/bash
 # GoldDigger + OilMiner — Start all services
-cd "$(dirname "$0")"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
 
 echo "Starting GoldDigger + OilMiner..."
 echo "  Gold Backend: http://localhost:5053"
@@ -13,18 +14,20 @@ python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 --timeout-keep-al
 GOLD_PID=$!
 
 # Start Oil backend
-cd backend-oil && python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 &
+cd "$DIR/backend-oil"
+python3 -m uvicorn main:app --host 0.0.0.0 --port 5054 --timeout-keep-alive 300 &
 OIL_PID=$!
-cd ..
+cd "$DIR"
 
 # Wait for backends to load data
 echo "  Waiting for data to load..."
 sleep 10
 
 # Start frontend
-cd frontend && npm run dev -- -p 3001 &
+cd "$DIR/frontend"
+npm run dev -- -p 3001 &
 FRONTEND_PID=$!
-cd ..
+cd "$DIR"
 
 echo "PIDs: gold=$GOLD_PID, oil=$OIL_PID, frontend=$FRONTEND_PID"
 echo "Press Ctrl+C to stop all"
