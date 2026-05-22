@@ -1,5 +1,6 @@
 """Auth API — login, logout, me."""
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from backend.auth import login_user, get_current_user
 from backend.db import execute
@@ -16,7 +17,7 @@ class LoginRequest(BaseModel):
 def login(req: LoginRequest, response: Response):
     result = login_user(req.email, req.password)
     if "error" in result:
-        return {"error": result["error"]}, 401
+        return JSONResponse(status_code=401, content={"error": result["error"]})
     response.set_cookie("session_token", result["token"], max_age=30*86400, httponly=True, samesite="lax")
     return result
 
@@ -25,7 +26,7 @@ def login(req: LoginRequest, response: Response):
 def me(request: Request):
     user = get_current_user(request)
     if not user:
-        return {"error": "Unauthorized"}, 401
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     return {"user": user}
 
 
