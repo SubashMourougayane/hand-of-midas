@@ -1,9 +1,86 @@
-"""Trades API — GET /api/gold/trades for trade history."""
+"""Trades API — GET /api/gold/trades for trade history (live + backtest)."""
 from fastapi import APIRouter, Query
 from typing import Optional
 from backend.db import execute
 
 router = APIRouter()
+
+
+@router.get("/trades/backtest")
+def get_backtest_trades(
+    strategy: Optional[str] = Query(None),
+    side: Optional[str] = Query(None),
+    result: Optional[str] = Query(None),
+    year: Optional[int] = Query(None),
+    limit: int = Query(200, le=2000),
+):
+    """Get trades from the latest backtest run."""
+    # Find latest run
+    runs = execute("SELECT id FROM gd_backtest_runs WHERE is_latest = TRUE LIMIT 1", fetch=True)
+    if not runs:
+        return {"trades": [], "stats": {}}
+
+    run_id = runs[0]["id"]
+    sql = "SELECT * FROM gd_backtest_trades WHERE run_id = %s"
+    params: list = [run_id]
+
+    if strategy:
+        sql += " AND strategy = %s"
+        params.append(strategy)
+    if side:
+        sql += " AND direction = %s"
+        params.append(side.upper())
+    if result == "win":
+        sql += " AND pnl_sized > 0"
+    elif result == "loss":
+        sql += " AND pnl_sized <= 0"
+    if year:
+        sql += " AND year = %s"
+        params.append(year)
+
+    sql += " ORDER BY trade_index LIMIT %s"
+    params.append(limit)
+
+    rows = execute(sql, params, fetch=True)
+    if not rows:
+        return {"trades": [], "stats": {}}
+
+    trades = [{
+        "date": str(r["date"]),
+        "year": r["year"],
+        "strategy": r["strategy"],
+        "direction": r["direction"],
+        "entry": float(r["entry"]),
+        "sl": float(r["sl"]),
+        "tp": float(r["tp"]),
+        "exit_price": float(r["exit_price"]),
+        "pnl_sized": float(r["pnl_sized"]),
+        "units": float(r["units"]),
+        "status": r["status"],
+        "hold_human": r["hold_human"],
+        "risk": float(r["risk"]),
+        "r_mult": float(r["r_mult"]),
+        "equity_after": float(r["equity_after"]),
+    } for r in rows]
+
+    pnls = [t["pnl_sized"] for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p <= 0]
+    gross_w = sum(wins) if wins else 0
+    gross_l = abs(sum(losses)) if losses else 0.001
+
+    stats = {
+        "total": len(trades),
+        "wins": len(wins),
+        "losses": len(losses),
+        "win_rate": len(wins) / len(trades) if trades else 0,
+        "total_pnl": sum(pnls),
+        "profit_factor": gross_w / gross_l,
+        "avg_win": sum(wins) / len(wins) if wins else 0,
+        "avg_loss": abs(sum(losses) / len(losses)) if losses else 0,
+    }
+
+    return {"trades": trades, "stats": stats}
 
 
 @router.get("/trades")
