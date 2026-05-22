@@ -213,15 +213,15 @@ def _run_cross_market():
         _log_journal("SYSTEM", "cross_market", "NO_SIGNAL", context={"consensus": consensus})
         return
 
-    # Signal triggered — compute entry, SL, TP
+    # Signal triggered — compute entry, SL, TP using mid prices (matches backtest)
     gold_candles = get_candles(instrument="XAU_USD", granularity="D", count=20, price="BA")
     if len(gold_candles) < 15:
         return
 
-    # ATR(14)
-    highs = [c["bid_high"] for c in gold_candles]
-    lows = [c["bid_low"] for c in gold_candles]
-    closes = [c["bid_close"] for c in gold_candles]
+    # ATR(14) using mid prices
+    highs = [(c["bid_high"] + c["ask_high"]) / 2 for c in gold_candles]
+    lows = [(c["bid_low"] + c["ask_low"]) / 2 for c in gold_candles]
+    closes = [(c["bid_close"] + c["ask_close"]) / 2 for c in gold_candles]
     tr_vals = []
     for i in range(1, len(gold_candles)):
         tr_vals.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
@@ -247,14 +247,14 @@ def _run_mean_rev():
     """Check Mean-Rev dip-buy conditions."""
     cfg = MEAN_REV
 
-    # Fetch 15 daily candles
+    # Fetch 15 daily candles — use mid prices (matches backtest)
     candles = get_candles(instrument="XAU_USD", granularity="D", count=15, price="BA")
     if len(candles) < 12:
         return
 
-    closes = [c["bid_close"] for c in candles]
-    highs = [c["bid_high"] for c in candles]
-    lows = [c["bid_low"] for c in candles]
+    closes = [(c["bid_close"] + c["ask_close"]) / 2 for c in candles]
+    highs = [(c["bid_high"] + c["ask_high"]) / 2 for c in candles]
+    lows = [(c["bid_low"] + c["ask_low"]) / 2 for c in candles]
     ranges = [h - l for h, l in zip(highs, lows)]
 
     # MA10 of lows and highs
@@ -333,59 +333,68 @@ def _run_alpha_sweep():
     if len(h1_candles) < 8:
         return
 
-    # Identify Asia bars (00:00-08:00 UTC)
+    # Identify Asia bars (00:00-08:00 UTC) — use MID prices for parity with backtest
     asia_bars = []
     for c in h1_candles:
         ts = datetime.fromisoformat(c["timestamp"].replace("Z", "+00:00"))
         if ts.date() == today and 0 <= ts.hour < 8:
+            c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
+            c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
+            c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
+            c["mid_open"] = (c["bid_open"] + c["ask_open"]) / 2
             asia_bars.append(c)
 
     if len(asia_bars) < 3:
         return
 
-    asia_high = max(c["bid_high"] for c in asia_bars)
-    asia_low = min(c["bid_low"] for c in asia_bars)
+    asia_high = max(c["mid_high"] for c in asia_bars)
+    asia_low = min(c["mid_low"] for c in asia_bars)
     asia_range = asia_high - asia_low
 
     if asia_range < cfg["asia_min_range"]:
         return
 
-    # Check for sweep in London bars (08:00+)
+    # Check for sweep in London bars (08:00+) — use MID prices for parity
     london_bars = []
     for c in h1_candles:
         ts = datetime.fromisoformat(c["timestamp"].replace("Z", "+00:00"))
         if ts.date() == today and ts.hour >= 8:
+            c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
+            c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
+            c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
             london_bars.append(c)
 
     if not london_bars:
         return
 
-    # Detect sweep
+    # Detect sweep using mid prices (matches backtest)
     sweep_dir = None
     sweep_wick = 0.0
     for bar in london_bars:
-        bh = bar["bid_high"]
-        bl = bar["bid_low"]
-        bc = (bar["bid_close"] + bar["ask_close"]) / 2
+        mh = bar["mid_high"]
+        ml = bar["mid_low"]
+        mc = bar["mid_close"]
 
-        if bh > asia_high + cfg["sweep_threshold"] and bc < asia_high:
+        if mh > asia_high + cfg["sweep_threshold"] and mc < asia_high:
             sweep_dir = "bearish"
-            sweep_wick = bar["ask_high"]
+            sweep_wick = mh  # mid_high as sweep wick (matches backtest)
             break
-        elif bl < asia_low - cfg["sweep_threshold"] and bc > asia_low:
+        elif ml < asia_low - cfg["sweep_threshold"] and mc > asia_low:
             sweep_dir = "bullish"
-            sweep_wick = bar["bid_low"]
+            sweep_wick = ml  # mid_low as sweep wick (matches backtest)
             break
 
     if sweep_dir is None:
         return
 
-    # Daily bias filter
-    yesterday_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="M")
+    # Daily bias filter — use mid prices (matches backtest)
+    yesterday_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
     if len(yesterday_candles) < 2:
         return
     yesterday = yesterday_candles[-2]
-    bias = "bullish" if yesterday["bid_close"] > yesterday["bid_open"] else "bearish"
+    mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
+    mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
+    bias = "bullish" if mid_close > mid_open else "bearish"
 
     if sweep_dir == "bullish" and bias != "bullish":
         return
@@ -416,6 +425,7 @@ def _run_alpha_sweep():
         c = relevant_m3[j]
         prev = relevant_m3[j - 1]
 
+        # Use mid prices for engulfing detection (matches backtest)
         co = (c["bid_open"] + c["ask_open"]) / 2
         cc = (c["bid_close"] + c["ask_close"]) / 2
         po = (prev["bid_open"] + prev["ask_open"]) / 2
@@ -433,10 +443,10 @@ def _run_alpha_sweep():
             continue
 
         # Engulfing confirmed!
-        br = c["ask_high"] - c["bid_low"]
+        br = (c["ask_high"] + c["bid_high"]) / 2 - (c["ask_low"] + c["bid_low"]) / 2  # mid range
 
         if sweep_dir == "bullish":
-            entry = c["ask_close"]
+            entry = c["ask_close"] + slippage(br)  # ask + slippage (matches backtest)
             sl = sweep_wick - cfg["sl_buffer"]
             risk = entry - sl
             if risk < cfg["min_sl"]:
@@ -453,7 +463,7 @@ def _run_alpha_sweep():
                 "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
             })
         else:
-            entry = c["bid_close"]
+            entry = c["bid_close"] - slippage(br)  # bid - slippage (matches backtest)
             sl = sweep_wick + cfg["sl_buffer"]
             risk = sl - entry
             if risk < cfg["min_sl"]:
