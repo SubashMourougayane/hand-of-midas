@@ -14,3 +14,8 @@ Price stream started (real-time tick-by-tick)
 GoldDigger ready.
   [STREAM] Connected — receiving live XAU/USD ticks
 INFO:     127.0.0.1:49778 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+  [10:09:00 UTC] Alpha-Sweep polling...
+INFO:     127.0.0.1:49778 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49778 - "GET /api/gold/journey?date=2006-11-21&strategy=cross_market&direction=long&entry=630.67&sl=608.88&tp=674.24&bars_held=19 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49778 - "GET /api/gold/journey?date=2006-11-21&strategy=cross_market&direction=long&entry=630.67&sl=608.88&tp=674.24&bars_held=19 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49778 - "GET /api/gold/journey?date=2006-07-19&strategy=alpha_sweep&direction=long&entry=626.45&sl=621&tp=642.35&bars_held=49 HTTP/1.1" 200 OK
