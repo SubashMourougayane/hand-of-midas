@@ -353,54 +353,80 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
       </div>
 
       {/* 24h Timeline */}
-      <div className="relative h-14 mt-1" style={{ background: "#0a0d12", borderRadius: 4, border: "1px solid #1a1f27" }}>
-        {/* Session blocks */}
-        {sessions.map(s => (
-          <div key={s.name} className="absolute top-1 h-4 rounded-sm flex items-center justify-center"
-            style={{
-              left: `${(s.start / 24) * 100}%`,
-              width: `${((s.end - s.start) / 24) * 100}%`,
-              background: `${s.color}15`,
-              border: `1px solid ${s.color}40`,
-            }}>
-            <span className="text-[7px] font-bold tracking-wider" style={{ color: s.color }}>{s.name}</span>
-          </div>
-        ))}
+      <div className="relative mt-3 px-2">
+        {/* Sessions row */}
+        <div className="relative h-8 mb-1" style={{ background: "#080a0f", borderRadius: 4 }}>
+          {sessions.map(s => {
+            const isActive = utcTime >= s.start && utcTime < s.end;
+            return (
+              <div key={s.name} className="absolute top-0 bottom-0 flex items-center justify-center rounded"
+                style={{
+                  left: `${(s.start / 24) * 100}%`,
+                  width: `${((s.end - s.start) / 24) * 100}%`,
+                  background: isActive ? `${s.color}25` : `${s.color}08`,
+                  border: isActive ? `1.5px solid ${s.color}` : `1px solid ${s.color}30`,
+                  transition: "all 0.3s",
+                }}>
+                <span className="text-[9px] font-bold tracking-widest" style={{ color: isActive ? s.color : `${s.color}80` }}>{s.name}</span>
+              </div>
+            );
+          })}
+        </div>
 
-        {/* Trading windows */}
-        {tradingWindows.map(w => (
-          <div key={w.name} className="absolute bottom-1 h-4 rounded-sm flex items-center justify-center"
-            style={{
-              left: `${(w.start / 24) * 100}%`,
-              width: `${Math.max(((w.end - w.start) / 24) * 100, 1)}%`,
-              background: `${w.color}30`,
-              border: `1px solid ${w.color}`,
-            }}>
-            <span className="text-[7px] font-bold" style={{ color: w.color }}>{w.name}</span>
+        {/* Trading windows row */}
+        <div className="relative h-7 mb-1" style={{ background: "#080a0f", borderRadius: 4 }}>
+          {tradingWindows.map(w => {
+            const isActive = utcTime >= w.start && utcTime <= w.end;
+            return (
+              <div key={w.name} className="absolute top-0 bottom-0 flex items-center justify-center rounded"
+                style={{
+                  left: `${(w.start / 24) * 100}%`,
+                  width: `${Math.max(((w.end - w.start) / 24) * 100, 1.5)}%`,
+                  background: isActive ? `${w.color}40` : `${w.color}15`,
+                  border: isActive ? `2px solid ${w.color}` : `1px solid ${w.color}60`,
+                  boxShadow: isActive ? `0 0 12px ${w.color}40` : "none",
+                  transition: "all 0.3s",
+                }}>
+                <span className="text-[8px] font-bold" style={{ color: w.color }}>{w.name}</span>
+              </div>
+            );
+          })}
+          {/* Position monitor indicator */}
+          <div className="absolute top-0 bottom-0 left-0 right-0 flex items-center pointer-events-none" style={{ opacity: 0.3 }}>
+            <div className="w-full h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 2px, transparent 2px, transparent 6px)" }} />
           </div>
-        ))}
+        </div>
 
-        {/* Hour markers */}
-        {[0, 4, 8, 12, 16, 20, 24].map(h => (
-          <div key={h} className="absolute top-0 bottom-0" style={{ left: `${(h / 24) * 100}%`, borderLeft: "1px solid #1a1f27" }}>
-            <span className="absolute -bottom-3 text-[7px] -translate-x-1/2" style={{ color: "#6b7280" }}>{h}</span>
-          </div>
-        ))}
+        {/* Hour scale */}
+        <div className="relative h-4">
+          {Array.from({ length: 25 }).map((_, h) => (
+            <div key={h} className="absolute" style={{ left: `${(h / 24) * 100}%` }}>
+              {h % 2 === 0 && (
+                <span className="text-[8px] -translate-x-1/2 inline-block" style={{ color: "#6b7280" }}>
+                  {String(h).padStart(2, "0")}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
 
-        {/* Current time needle */}
-        <div className="absolute top-0 bottom-0 w-[2px] z-10"
+        {/* Current time needle (spans both rows) */}
+        <div className="absolute top-0 z-10 pointer-events-none"
           style={{
-            left: `${(utcTime / 24) * 100}%`,
-            background: "#ff3e3e",
-            boxShadow: "0 0 4px #ff3e3e",
-          }} />
+            left: `calc(${(utcTime / 24) * 100}% + 8px)`,
+            height: "calc(100% - 16px)",
+          }}>
+          <div className="w-[2px] h-full" style={{ background: "#ff3e3e", boxShadow: "0 0 6px #ff3e3e" }} />
+          <div className="absolute -top-1 -left-[3px] w-2 h-2 rounded-full" style={{ background: "#ff3e3e", boxShadow: "0 0 8px #ff3e3e" }} />
+        </div>
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-4 text-[8px]">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ background: "#4fc3f730", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (08-10:30)</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ background: "#ffd54f30", border: "1px solid #ffd54f" }} /> Daily Scan (22:00)</span>
-        <span className="flex items-center gap-1"><span className="w-1 h-3" style={{ background: "#ff3e3e" }} /> Now</span>
+      <div className="flex items-center gap-5 mt-3 px-2 text-[9px]" style={{ color: "#8b95a5" }}>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm" style={{ background: "#4fc3f725", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (08:00-10:30 UTC)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2 rounded-sm" style={{ background: "#ffd54f25", border: "1px solid #ffd54f" }} /> Daily Scan (22:00 UTC)</span>
+        <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Current Time</span>
+        <span className="flex items-center gap-1.5"><span className="w-4 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 2px, transparent 2px, transparent 5px)" }} /> Position Monitor (24/7)</span>
       </div>
     </div>
   );
