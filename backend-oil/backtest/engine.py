@@ -163,7 +163,7 @@ def run_backtest(
         hold_str = f"{result.bars_held * 3}min" if result.bars_held < 20 else f"{result.bars_held * 3 / 60:.1f}hrs"
 
         trades.append(BacktestTrade(
-            date=str(trade_date), year=trade_year, month=trade_date.month,
+            date=signal.date.isoformat(), year=trade_year, month=trade_date.month,
             strategy="alpha_sweep", direction=signal.direction.upper(),
             entry=round(signal.entry, 4), sl=round(signal.sl, 4), tp=round(signal.tp, 4),
             exit_price=round(result.exit_price, 4),

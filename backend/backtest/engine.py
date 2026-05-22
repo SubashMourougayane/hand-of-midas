@@ -203,7 +203,7 @@ def run_backtest(
             hold_str = f"{result.bars_held}d"
 
         trades.append(BacktestTrade(
-            date=str(trade_date),
+            date=signal.date.isoformat(),
             year=trade_year,
             month=trade_date.month,
             strategy=signal.strategy,

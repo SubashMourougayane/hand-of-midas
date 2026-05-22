@@ -37,24 +37,6 @@ def get_trade_journey(
     if idx >= len(df):
         idx = len(df) - 1
 
-    # For Alpha-Sweep (M3): find the bar closest to entry PRICE on that day
-    # because date alone lands at midnight, not the London session entry
-    if strategy == "alpha_sweep":
-        day_start = idx
-        day_end = min(idx + 200, len(df))  # search within ~10 hours
-        best_idx = idx
-        best_diff = float("inf")
-        for i in range(day_start, day_end):
-            mid = (df["bid_close"].iat[i] + df["ask_close"].iat[i]) / 2
-            diff = abs(mid - entry)
-            if diff < best_diff:
-                best_diff = diff
-                best_idx = i
-            # Stop searching once we've passed the entry price region
-            if diff > best_diff * 3 and best_diff < 2:
-                break
-        idx = best_idx
-
     start_idx = max(0, idx - context_before)
     end_idx = min(len(df), idx + context_after)
     window = df.iloc[start_idx:end_idx]
