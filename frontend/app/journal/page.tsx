@@ -51,7 +51,7 @@ export default function JournalPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [tab, filter, apiBase]);
+  useEffect(() => { fetchData(); }, [tab, filter, apiBase, instrument]);
 
   const eventColor = (type: string) => {
     if (type.includes("ENTRY") || type === "SIGNAL") return "#00e87b";

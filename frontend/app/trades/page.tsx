@@ -63,7 +63,7 @@ export default function TradesPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchTrades(); }, [tab, filter, apiBase]);
+  useEffect(() => { fetchTrades(); }, [tab, filter, apiBase, instrument]);
 
   const stratColor = (s: string) => s.includes("alpha_sweep") ? "#4fc3f7" : s === "mean_rev" ? "#00e87b" : "#ffd54f";
   const stratLabel = (s: string) => s.includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MREV" : "CROSS";
