@@ -86,8 +86,8 @@ const _isLocal = typeof window !== "undefined" && window.location.hostname === "
 export const API_BASE_GOLD = _isLocal ? "http://localhost:5053" : "";
 export const API_BASE_OIL = _isLocal ? "http://localhost:5054" : "";
 
-export async function runBacktest(req: BacktestRequest, apiBase: string): Promise<BacktestResult> {
-  const prefix = apiBase.includes("5054") ? "oil" : "gold";
+export async function runBacktest(req: BacktestRequest, apiBase: string, instrument: string = "gold"): Promise<BacktestResult> {
+  const prefix = instrument === "oil" ? "oil" : "gold";
   const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -108,8 +108,8 @@ export interface LatestBacktestResponse {
   created_at: string;
 }
 
-export async function getLatestBacktest(apiBase: string): Promise<LatestBacktestResponse | null> {
-  const prefix = apiBase.includes("5054") ? "oil" : "gold";
+export async function getLatestBacktest(apiBase: string, instrument: string = "gold"): Promise<LatestBacktestResponse | null> {
+  const prefix = instrument === "oil" ? "oil" : "gold";
   const res = await fetch(`${apiBase}/api/${prefix}/backtest/latest`);
   if (!res.ok) return null;
   const data = await res.json();

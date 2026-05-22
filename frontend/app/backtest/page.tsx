@@ -31,7 +31,7 @@ export default function BacktestPage() {
   // Load latest backtest from DB on mount or instrument change
   useEffect(() => {
     setResult(null);
-    getLatestBacktest(apiBase).then((data) => {
+    getLatestBacktest(apiBase, instrument).then((data) => {
       if (data) {
         setResult(data);
         if (data.config) {
@@ -43,7 +43,7 @@ export default function BacktestPage() {
         }
       }
     }).catch(() => {});
-  }, [apiBase]);
+  }, [apiBase, instrument]);
 
   const handleRun = async () => {
     setLoading(true);
@@ -55,7 +55,7 @@ export default function BacktestPage() {
         end_date: endDate,
         capital,
         risk_pct: riskPct,
-      }, apiBase);
+      }, apiBase, instrument);
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Backtest failed");
