@@ -30,3 +30,314 @@
 ✓ Compiled in 103ms
  GET /backtest 200 in 147ms (next.js: 95ms, application-code: 52ms)
  GET /backtest 200 in 16ms (next.js: 1721µs, application-code: 14ms)
+✓ Compiled in 32ms
+✓ Compiled in 23ms
+[Server HMR] Update failed, full reload needed: SyntaxError: Identifier 'viewYear' has already been declared
+    at eval (<anonymous>)
+[Server HMR] Listener error: SyntaxError: Identifier 'viewYear' has already been declared
+    at eval (<anonymous>)
+⨯ ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  [90m36 |[0m   [36mconst[0m years = [...[36mnew[0m [33mSet[0m(monthKeys.map(k => k.split([32m"-"[0m)[[35m0[0m]))].sort();
+  [90m37 |[0m   [36mconst[0m latestYear = years[years.length - [35m1[0m];
+[31m[1m>[0m [90m38 |[0m   [36mconst[0m [viewYear, setViewYear] = useState(latestYear);
+  [90m   |[0m                    [31m[1m^^^^^^^^^^^[0m
+  [90m39 |[0m
+  [90m40 |[0m   [90m// Show Jan-Dec for the selected year[0m
+  [90m41 |[0m   [36mconst[0m display = [33mArray[0m.[36mfrom[0m({ length: [35m12[0m }, (_, i) => [32m`[0m${viewYear[32m}-[0m${[33mString[0m(i + [35m1[0m).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component]
+
+
+
+./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  [90m36 |[0m   [36mconst[0m years = [...[36mnew[0m [33mSet[0m(monthKeys.map(k => k.split([32m"-"[0m)[[35m0[0m]))].sort();
+  [90m37 |[0m   [36mconst[0m latestYear = years[years.length - [35m1[0m];
+[31m[1m>[0m [90m38 |[0m   [36mconst[0m [viewYear, setViewYear] = useState(latestYear);
+  [90m   |[0m          [31m[1m^^^^^^^^[0m
+  [90m39 |[0m
+  [90m40 |[0m   [90m// Show Jan-Dec for the selected year[0m
+  [90m41 |[0m   [36mconst[0m display = [33mArray[0m.[36mfrom[0m({ length: [35m12[0m }, (_, i) => [32m`[0m${viewYear[32m}-[0m${[33mString[0m(i + [35m1[0m).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component]
+
+
+[browser] ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |                    ^^^^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+[browser] ./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |          ^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+ GET /backtest 500 in 266ms (next.js: 99ms, application-code: 167ms)
+[browser] ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |                    ^^^^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+[browser] ./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |          ^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+⨯ ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  [90m36 |[0m   [36mconst[0m years = [...[36mnew[0m [33mSet[0m(monthKeys.map(k => k.split([32m"-"[0m)[[35m0[0m]))].sort();
+  [90m37 |[0m   [36mconst[0m latestYear = years[years.length - [35m1[0m];
+[31m[1m>[0m [90m38 |[0m   [36mconst[0m [viewYear, setViewYear] = useState(latestYear);
+  [90m   |[0m                    [31m[1m^^^^^^^^^^^[0m
+  [90m39 |[0m
+  [90m40 |[0m   [90m// Show Jan-Dec for the selected year[0m
+  [90m41 |[0m   [36mconst[0m display = [33mArray[0m.[36mfrom[0m({ length: [35m12[0m }, (_, i) => [32m`[0m${viewYear[32m}-[0m${[33mString[0m(i + [35m1[0m).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component]
+
+
+
+./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  [90m36 |[0m   [36mconst[0m years = [...[36mnew[0m [33mSet[0m(monthKeys.map(k => k.split([32m"-"[0m)[[35m0[0m]))].sort();
+  [90m37 |[0m   [36mconst[0m latestYear = years[years.length - [35m1[0m];
+[31m[1m>[0m [90m38 |[0m   [36mconst[0m [viewYear, setViewYear] = useState(latestYear);
+  [90m   |[0m          [31m[1m^^^^^^^^[0m
+  [90m39 |[0m
+  [90m40 |[0m   [90m// Show Jan-Dec for the selected year[0m
+  [90m41 |[0m   [36mconst[0m display = [33mArray[0m.[36mfrom[0m({ length: [35m12[0m }, (_, i) => [32m`[0m${viewYear[32m}-[0m${[33mString[0m(i + [35m1[0m).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component]
+
+
+ GET /backtest 500 in 13ms (next.js: 6ms, application-code: 7ms)
+[browser] Uncaught Error: ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |                    ^^^^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./components/PnlCalendar.tsx:38:20)
+    at <unknown> (Error: (./components/PnlCalendar.tsx:38:20)
+[browser] ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |                    ^^^^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+[browser] ./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |          ^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+[browser] ./components/PnlCalendar.tsx:38:20
+the name `setViewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |                    ^^^^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+[browser] ./components/PnlCalendar.tsx:38:10
+the name `viewYear` is defined multiple times
+  36 |   const years = [...new Set(monthKeys.map(k => k.split("-")[0]))].sort();
+  37 |   const latestYear = years[years.length - 1];
+> 38 |   const [viewYear, setViewYear] = useState(latestYear);
+     |          ^^^^^^^^
+  39 |
+  40 |   // Show Jan-Dec for the selected year
+  41 |   const display = Array.from({ length: 12 }, (_, i) => `${viewYear}-${String(i + 1).padSta...
+
+Ecmascript file had an error
+
+Import traces:
+  Client Component Browser:
+    ./components/PnlCalendar.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Client Component Browser]
+    ./app/backtest/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/PnlCalendar.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Client Component SSR]
+    ./app/backtest/page.tsx [Server Component] 
+ GET /backtest 200 in 307ms (next.js: 74ms, application-code: 233ms)
+✓ Compiled in 21ms
+✓ Compiled in 18ms
