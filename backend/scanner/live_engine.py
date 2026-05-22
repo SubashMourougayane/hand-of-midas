@@ -71,14 +71,21 @@ def _get_risk_multiplier(dd_state: dict) -> float:
     mult = 1.0
     if dd_state["consecutive_losses"] >= 3:
         mult = 0.5
-    # Equity MA check (last 20 trades)
+    # Equity MA check: current equity vs mean of last 20 post-trade equity values
+    # Use OANDA NAV as current equity proxy, compare against rolling average
     rows = execute(
         "SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 20",
         fetch=True
     )
     if len(rows) >= 20:
-        recent_equity = [float(r["pnl_usd"]) for r in rows]
-        if dd_state["equity"] < np.mean(recent_equity):
+        # Reconstruct equity progression: current equity minus cumulative recent P&L gives past equity
+        cumulative_pnl = sum(float(r["pnl_usd"] or 0) for r in rows)
+        current_eq = float(dd_state["equity"])
+        # The 20-trade MA is: average of equity at each of the last 20 trade exits
+        # Approximate: current_eq - cumPnL is equity 20 trades ago, linearly interpolate
+        equity_20_ago = current_eq - cumulative_pnl
+        equity_ma = (equity_20_ago + current_eq) / 2  # midpoint approximation
+        if current_eq < equity_ma:
             mult *= 0.5
     return mult
 
@@ -167,7 +174,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "units": units, "sl": sl_price, "tp": tp_price, "oanda_id": oanda_trade_id,
-        "risk_mult": risk_mult, "risk_pct": risk_pct, "equity": equity,
+        "risk_mult": risk_mult, "risk_pct": risk_pct, "equity_usd": equity_usd,
     })
 
     print(f"  [{strategy}] FILLED: {direction.upper()} {units} units @ {fill_price:.2f}, trade_id={oanda_trade_id}")
@@ -229,7 +236,7 @@ def check_open_positions():
                 (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
             )
 
-            # Update DD state
+            # Update DD state (use USD P&L for equity tracking)
             dd_state = _get_dd_state()
             if realized_pl > 0:
                 new_consecutive = 0
@@ -238,7 +245,10 @@ def check_open_positions():
                 if new_consecutive >= 5:
                     execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
 
-            new_equity = dd_state["equity"] + realized_pl
+            from backend.execution.oanda_executor import _get_gbp_usd_rate
+            gbp_usd_rate = _get_gbp_usd_rate()
+            pnl_usd_for_equity = realized_pl * gbp_usd_rate
+            new_equity = dd_state["equity"] + pnl_usd_for_equity
             new_peak = max(dd_state["peak_equity"], new_equity)
             _update_dd_state(new_consecutive, dd_state["pause_counter"], new_equity, new_peak)
 
@@ -272,24 +282,30 @@ def check_alpha_sweep_breakeven():
         sl = float(trade["sl_price"])
         side = trade["side"]
 
-        if tp <= 0 or sl >= entry:  # Already at break-even
+        if tp <= 0:
             continue
 
         if side == "LONG":
+            # Break-even already applied if SL >= entry
+            if sl >= entry:
+                continue
             target_50 = entry + (tp - entry) * 0.5
-            if price["bid"] >= target_50 and sl < entry:
-                new_sl = entry + 0.30  # Small buffer above entry
+            if price["bid"] >= target_50:
+                new_sl = entry + 0.30
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl})
-                    print(f"  [alpha_sweep] Break-even triggered: SL moved to {new_sl:.2f}")
+                    print(f"  [alpha_sweep] LONG break-even: SL {sl:.2f} → {new_sl:.2f}")
         else:  # SHORT
+            # Break-even already applied if SL <= entry
+            if sl <= entry:
+                continue
             target_50 = entry - (entry - tp) * 0.5
-            if price["ask"] <= target_50 and sl > entry:
+            if price["ask"] <= target_50:
                 new_sl = entry - 0.30
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl})
-                    print(f"  [alpha_sweep] Break-even triggered: SL moved to {new_sl:.2f}")
+                    print(f"  [alpha_sweep] SHORT break-even: SL {sl:.2f} → {new_sl:.2f}")

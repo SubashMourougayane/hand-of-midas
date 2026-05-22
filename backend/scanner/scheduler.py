@@ -22,11 +22,23 @@ scheduler = BackgroundScheduler(timezone="UTC")
 def daily_close_job():
     """
     22:00 UTC — Run Cross-Market consensus + Mean-Rev dip check.
-    Fetches fresh daily data from OANDA, computes signals, executes if triggered.
+    Also: check Mean-Rev condition exits, enforce max hold, manage open trades.
     """
     print(f"\n[{datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC] Daily close job running...")
     _log_journal("SYSTEM", "system", "DAILY_SCAN_START", context={"time": datetime.now(timezone.utc).isoformat()})
 
+    # First: manage open positions (exits before new entries)
+    try:
+        _check_mean_rev_exit()
+    except Exception as e:
+        print(f"  Mean-Rev exit check error: {e}")
+
+    try:
+        _check_max_hold_exits()
+    except Exception as e:
+        print(f"  Max hold check error: {e}")
+
+    # Then: check for new signals
     try:
         _run_cross_market()
     except Exception as e:
@@ -42,9 +54,130 @@ def daily_close_job():
     print(f"  Daily close job complete.")
 
 
+def _check_mean_rev_exit():
+    """Check if open Mean-Rev trades should exit (conditions reversed or max 5 days)."""
+    from backend.execution.oanda_executor import close_trade, get_candles, _get_gbp_usd_rate
+
+    open_mr = execute(
+        "SELECT * FROM gd_trades WHERE strategy='mean_rev' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
+        fetch=True
+    )
+    if not open_mr:
+        return
+
+    # Fetch daily data for condition check
+    candles = get_candles(instrument="XAU_USD", granularity="D", count=15, price="BA")
+    if len(candles) < 12:
+        return
+
+    closes = [(c["bid_close"] + c["ask_close"]) / 2 for c in candles]
+    highs = [(c["bid_high"] + c["ask_high"]) / 2 for c in candles]
+    lows = [(c["bid_low"] + c["ask_low"]) / 2 for c in candles]
+    ranges = [h - l for h, l in zip(highs, lows)]
+
+    ma10_low = np.mean(lows[-11:-1])
+    ma10_high = np.mean(highs[-12:-2])
+    close_2d_ago = closes[-3]
+    close_yesterday = closes[-2]
+    range_yesterday = ranges[-2]
+
+    c1 = (ma10_low - close_2d_ago) / range_yesterday if range_yesterday > 0 else 0
+    c2 = (close_yesterday - ma10_high) / range_yesterday if range_yesterday > 0 else 0
+
+    # Conditions reversed if c1 >= -0.4 OR c2 >= -0.8
+    conditions_reversed = (c1 >= MEAN_REV["condition1_threshold"] or c2 >= MEAN_REV["condition2_threshold"])
+
+    for trade in open_mr:
+        entry_time = trade["entry_time"]
+        days_held = (datetime.now(timezone.utc) - entry_time.replace(tzinfo=timezone.utc if entry_time.tzinfo is None else entry_time.tzinfo)).days
+
+        should_exit = conditions_reversed or days_held >= MEAN_REV["max_hold_days"]
+
+        if should_exit:
+            reason = "CONDITION_EXIT" if conditions_reversed else "MAX_HOLD"
+            print(f"  [mean_rev] Closing trade {trade['trade_ref']}: {reason} (held {days_held}d, c1={c1:.2f}, c2={c2:.2f})")
+
+            result = close_trade(trade["oanda_trade_id"])
+            if result.get("success"):
+                gbp_usd = _get_gbp_usd_rate()
+                realized_pl = result["realized_pl"]
+                pnl_usd = realized_pl * gbp_usd
+
+                execute(
+                    "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
+                    (result["time"], result["close_price"], realized_pl, pnl_usd, reason, trade["trade_ref"])
+                )
+
+                # Update DD state
+                dd_state = _get_dd_state()
+                if realized_pl > 0:
+                    new_consec = 0
+                else:
+                    new_consec = dd_state["consecutive_losses"] + 1
+                    if new_consec >= 5:
+                        execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
+                new_eq = dd_state["equity"] + pnl_usd
+                _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
+
+                _log_journal(trade["trade_ref"], "mean_rev", "EXIT_FILLED", result["close_price"],
+                    {"reason": reason, "pnl_gbp": realized_pl, "pnl_usd": pnl_usd, "days_held": days_held})
+
+
+def _check_max_hold_exits():
+    """Close Cross-Market trades held > 20 days."""
+    from backend.execution.oanda_executor import close_trade, _get_gbp_usd_rate
+
+    open_cm = execute(
+        "SELECT * FROM gd_trades WHERE strategy='cross_market' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
+        fetch=True
+    )
+    if not open_cm:
+        return
+
+    for trade in open_cm:
+        entry_time = trade["entry_time"]
+        days_held = (datetime.now(timezone.utc) - entry_time.replace(tzinfo=timezone.utc if entry_time.tzinfo is None else entry_time.tzinfo)).days
+
+        if days_held >= CROSS_MARKET["max_hold_days"]:
+            print(f"  [cross_market] Closing trade {trade['trade_ref']}: MAX_HOLD ({days_held}d)")
+
+            result = close_trade(trade["oanda_trade_id"])
+            if result.get("success"):
+                gbp_usd = _get_gbp_usd_rate()
+                realized_pl = result["realized_pl"]
+                pnl_usd = realized_pl * gbp_usd
+
+                execute(
+                    "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
+                    (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                )
+
+                dd_state = _get_dd_state()
+                new_consec = 0 if realized_pl > 0 else dd_state["consecutive_losses"] + 1
+                if new_consec >= 5:
+                    execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
+                new_eq = dd_state["equity"] + pnl_usd
+                _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
+
+                _log_journal(trade["trade_ref"], "cross_market", "EXIT_FILLED", result["close_price"],
+                    {"reason": "MAX_HOLD", "pnl_gbp": realized_pl, "pnl_usd": pnl_usd, "days_held": days_held})
+
+
 def _run_cross_market():
     """Check Cross-Market consensus signal."""
     cfg = CROSS_MARKET
+
+    # Enforce 2-bar (2-day) minimum gap between signals
+    last_signal = execute(
+        "SELECT timestamp FROM gd_signals WHERE strategy='cross_market' AND taken=TRUE ORDER BY timestamp DESC LIMIT 1",
+        fetch=True
+    )
+    if last_signal:
+        last_ts = last_signal[0]["timestamp"]
+        days_since = (datetime.now(timezone.utc) - last_ts.replace(tzinfo=timezone.utc if last_ts.tzinfo is None else last_ts.tzinfo)).days
+        if days_since < cfg["min_bar_gap"]:
+            print(f"  Cross-Market: skipping — last signal {days_since}d ago (min gap: {cfg['min_bar_gap']}d)")
+            return
     w = cfg["weights"]
     th = cfg["threshold"]
     max_score = sum(w.values())
@@ -98,7 +231,8 @@ def _run_cross_market():
     if not price or not price["tradeable"]:
         return
 
-    entry = price["ask"]
+    br = price["ask"] - price["bid"]
+    entry = price["ask"] + slippage(br)  # Match backtest: ask + slippage
     sl = entry - atr * cfg["sl_atr_mult"]
     tp = entry + atr * cfg["tp_atr_mult"]
 
@@ -148,7 +282,8 @@ def _run_mean_rev():
     if not price or not price["tradeable"]:
         return
 
-    entry = price["ask"]
+    br = price["ask"] - price["bid"]
+    entry = price["ask"] + slippage(br)  # Match backtest: ask + slippage
     sl = entry - avg_range_10 * cfg["sl_range_multiplier"]
 
     if entry - sl < 1.0:
