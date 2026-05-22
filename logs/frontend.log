@@ -84,3 +84,8 @@
 ⚠ Fast Refresh had to perform a full reload due to a runtime error.
 ✓ Compiled in 26ms
  GET /live 200 in 66ms (next.js: 5ms, application-code: 61ms)
+ GET /live 200 in 19ms (next.js: 8ms, application-code: 11ms)
+ GET /live 200 in 17ms (next.js: 2ms, application-code: 15ms)
+ GET /live 200 in 8ms (next.js: 1746µs, application-code: 6ms)
+ GET /live 200 in 16ms (next.js: 1652µs, application-code: 14ms)
+ GET /live 200 in 55ms (next.js: 6ms, application-code: 49ms)
