@@ -341,3 +341,6 @@ Import traces:
  GET /backtest 200 in 307ms (next.js: 74ms, application-code: 233ms)
 ✓ Compiled in 21ms
 ✓ Compiled in 18ms
+ GET /trades 200 in 44ms (next.js: 24ms, application-code: 19ms)
+ GET /backtest 200 in 14ms (next.js: 4ms, application-code: 10ms)
+ GET /trades 200 in 15ms (next.js: 1813µs, application-code: 13ms)

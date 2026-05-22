@@ -17,3 +17,15 @@ INFO:     127.0.0.1:58984 - "POST /api/oil/backtest HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58984 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
   [OIL 09:39:00 UTC] Alpha-Sweep polling...
 INFO:     127.0.0.1:58984 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+  [OIL 09:42:00 UTC] Alpha-Sweep polling...
+  [OIL 09:45:00 UTC] Alpha-Sweep polling...
+  [OIL 09:48:00 UTC] Alpha-Sweep polling...
+INFO:     127.0.0.1:62090 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62090 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62090 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62090 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62116 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62116 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62116 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62116 - "GET /api/oil/trades?limit=200 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62116 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
