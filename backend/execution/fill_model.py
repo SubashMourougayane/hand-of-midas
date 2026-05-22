@@ -1,14 +1,16 @@
 """
 Fill model — THE critical module. Shared identically by backtest and live.
 
-Rules (NON-NEGOTIABLE):
+Rules:
 1. Longs fill at ASK + slippage, Shorts at BID - slippage
-2. SL checked BEFORE TP each bar (pessimistic order)
-3. TP requires candle CLOSE through level (not wick touch)
-4. Slippage applied on SL fills (adverse)
-5. Gap fills at gap price (worse than intended SL)
-6. Break-even (Alpha-Sweep only): moves SL to entry+slip once at 50% TP
-7. No phantom fills — if a level isn't traded through, no fill
+2. SL gap-through checked first (open past SL = instant loss)
+3. TP fills on touch (bar HIGH >= TP for longs, bar LOW <= TP for shorts) — matches OANDA instant fill
+4. SL fills on touch (bar LOW <= SL for longs, bar HIGH >= SL for shorts)
+5. If BOTH SL and TP touched in same bar (and no gap-through): TP wins — OANDA limit order fills first
+6. Slippage applied on SL fills (adverse)
+7. Gap fills at gap price (worse than intended SL)
+8. Break-even (Alpha-Sweep only): moves SL to entry+slip once at 50% TP
+9. No phantom fills — price must reach the level
 """
 from dataclasses import dataclass
 from typing import Optional
@@ -40,7 +42,12 @@ def execute_trade(
     df must have columns: bid_open, bid_high, bid_low, bid_close,
                           ask_open, ask_high, ask_low, ask_close
 
-    Ported from generate_portfolio_dashboard.py execute_on_tf() lines 83-106.
+    Order of checks per bar:
+    1. Gap-through SL (open past SL) → instant SL fill at open
+    2. TP touch (high >= TP for long, low <= TP for short) → fill at TP
+    3. SL touch (low <= SL for long, high >= SL for short) → fill at SL
+    4. Break-even update
+    5. If neither hit → continue to next bar
     """
     current_sl = sl
     bars_held = 0
@@ -55,29 +62,28 @@ def execute_trade(
             bh = df["bid_high"].iat[b]
             bar_range = bh - bl
 
-            # SL CHECK FIRST (Rule #2)
-            # Gap-through: open already below SL
+            # 1. Gap-through SL: open already below SL → instant loss
             if bo <= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = bo - slip * 0.2
                 pnl = exit_price - entry
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
-            # Normal SL hit: low touches SL
+            # 2. TP touch: bar high reaches TP → fill at TP (OANDA instant fill)
+            if tp > 0 and bh >= tp:
+                pnl = tp - entry
+                return TradeResult(pnl, bars_held, "tp", tp)
+
+            # 3. SL touch: bar low reaches SL
             if bl <= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = current_sl - slip * 0.2
                 pnl = exit_price - entry
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
-            # Break-even check (Alpha-Sweep only)
+            # 4. Break-even check (Alpha-Sweep only)
             if use_break_even and bh >= entry + (tp - entry) * 0.5:
                 current_sl = entry + _sl_slip(bar_range)
-
-            # TP CHECK: requires CLOSE through level (Rule #3)
-            if tp > 0 and bc >= tp:
-                pnl = tp - entry
-                return TradeResult(pnl, bars_held, "tp", tp)
 
         else:  # short
             ao = df["ask_open"].iat[b]
@@ -86,27 +92,28 @@ def execute_trade(
             al = df["ask_low"].iat[b]
             bar_range = ah - al
 
-            # SL CHECK FIRST
+            # 1. Gap-through SL: open already above SL → instant loss
             if ao >= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = ao + slip * 0.2
                 pnl = entry - exit_price
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
+            # 2. TP touch: bar low reaches TP → fill at TP
+            if tp > 0 and al <= tp:
+                pnl = entry - tp
+                return TradeResult(pnl, bars_held, "tp", tp)
+
+            # 3. SL touch: bar high reaches SL
             if ah >= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = current_sl + slip * 0.2
                 pnl = entry - exit_price
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
-            # Break-even for shorts
+            # 4. Break-even for shorts
             if use_break_even and al <= entry - (entry - tp) * 0.5:
                 current_sl = entry - _sl_slip(bar_range)
-
-            # TP: requires CLOSE through level
-            if tp > 0 and ac <= tp:
-                pnl = entry - tp
-                return TradeResult(pnl, bars_held, "tp", tp)
 
     # Max bars reached — exit at last bar close
     last_b = min(bar_start + max_bars - 1, len(df) - 1)
