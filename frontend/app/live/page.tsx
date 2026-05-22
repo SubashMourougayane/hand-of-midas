@@ -325,17 +325,82 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     countdown = `Next: ${nextEvent} in ${hrs}h ${mins}m`;
   }
 
+  const sessions = [
+    { name: "ASIA", start: 0, end: 8, color: "#9ca3b4" },
+    { name: "LONDON", start: 8, end: 16, color: "#4fc3f7" },
+    { name: "NEW YORK", start: 13, end: 21, color: "#ff8c00" },
+  ];
+
+  const tradingWindows = [
+    { name: "Alpha-Sweep", start: 8, end: 10.5, color: "#4fc3f7" },
+    { name: "Daily Scan", start: 22, end: 22.1, color: "#ffd54f" },
+  ];
+
   return (
-    <div className="t-panel p-3 mb-4 flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <span className="text-lg">{icon}</span>
-        <div>
-          <div className="text-xs font-bold" style={{ color }}>{mode}</div>
-          <div className="text-[10px] text-[var(--text-dim)]">{countdown}</div>
+    <div className="t-panel p-3 mb-4">
+      {/* Status row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-lg">{icon}</span>
+          <div>
+            <div className="text-xs font-bold" style={{ color }}>{mode}</div>
+            <div className="text-[10px] text-[var(--text-dim)]">{countdown}</div>
+          </div>
+        </div>
+        <div className="text-[10px] text-[var(--text-dim)]">
+          {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC" })} UTC
         </div>
       </div>
-      <div className="text-[10px] text-[var(--text-dim)]">
-        {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "UTC" })} UTC
+
+      {/* 24h Timeline */}
+      <div className="relative h-14 mt-1" style={{ background: "#0a0d12", borderRadius: 4, border: "1px solid #1a1f27" }}>
+        {/* Session blocks */}
+        {sessions.map(s => (
+          <div key={s.name} className="absolute top-1 h-4 rounded-sm flex items-center justify-center"
+            style={{
+              left: `${(s.start / 24) * 100}%`,
+              width: `${((s.end - s.start) / 24) * 100}%`,
+              background: `${s.color}15`,
+              border: `1px solid ${s.color}40`,
+            }}>
+            <span className="text-[7px] font-bold tracking-wider" style={{ color: s.color }}>{s.name}</span>
+          </div>
+        ))}
+
+        {/* Trading windows */}
+        {tradingWindows.map(w => (
+          <div key={w.name} className="absolute bottom-1 h-4 rounded-sm flex items-center justify-center"
+            style={{
+              left: `${(w.start / 24) * 100}%`,
+              width: `${Math.max(((w.end - w.start) / 24) * 100, 1)}%`,
+              background: `${w.color}30`,
+              border: `1px solid ${w.color}`,
+            }}>
+            <span className="text-[7px] font-bold" style={{ color: w.color }}>{w.name}</span>
+          </div>
+        ))}
+
+        {/* Hour markers */}
+        {[0, 4, 8, 12, 16, 20, 24].map(h => (
+          <div key={h} className="absolute top-0 bottom-0" style={{ left: `${(h / 24) * 100}%`, borderLeft: "1px solid #1a1f27" }}>
+            <span className="absolute -bottom-3 text-[7px] -translate-x-1/2" style={{ color: "#6b7280" }}>{h}</span>
+          </div>
+        ))}
+
+        {/* Current time needle */}
+        <div className="absolute top-0 bottom-0 w-[2px] z-10"
+          style={{
+            left: `${(utcTime / 24) * 100}%`,
+            background: "#ff3e3e",
+            boxShadow: "0 0 4px #ff3e3e",
+          }} />
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-4 text-[8px]">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ background: "#4fc3f730", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (08-10:30)</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm" style={{ background: "#ffd54f30", border: "1px solid #ffd54f" }} /> Daily Scan (22:00)</span>
+        <span className="flex items-center gap-1"><span className="w-1 h-3" style={{ background: "#ff3e3e" }} /> Now</span>
       </div>
     </div>
   );
