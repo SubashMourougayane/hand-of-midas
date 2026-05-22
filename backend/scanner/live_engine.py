@@ -195,15 +195,40 @@ def check_open_positions():
     if not open_db_trades:
         return
 
-    # Get what OANDA says is open
-    oanda_open = get_open_trades(instrument="XAU_USD")
+    # Get what OANDA says is open (all instruments — supports Gold + Oil)
+    oanda_open = get_open_trades()
     oanda_open_ids = {t["trade_id"] for t in oanda_open}
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
 
         if oanda_id in oanda_open_ids:
-            # Still open — update unrealized P&L if needed
+            # Still open on OANDA — check max hold (hard kill after 80 bars for Alpha-Sweep)
+            if trade["strategy"] == "alpha_sweep" and trade["entry_time"]:
+                entry_time = trade["entry_time"]
+                if entry_time.tzinfo is None:
+                    entry_time = entry_time.replace(tzinfo=timezone.utc)
+                bars_held = (datetime.now(timezone.utc) - entry_time).total_seconds() / 180  # M3 = 180s
+                if bars_held >= 80:
+                    from backend.execution.oanda_executor import close_trade as _close, _get_gbp_usd_rate
+                    print(f"  [MAX HOLD] {trade['strategy']} {trade['trade_ref']} held {bars_held:.0f} bars — force closing")
+                    result = _close(oanda_id)
+                    if result.get("success"):
+                        gbp_usd = _get_gbp_usd_rate()
+                        realized_pl = result["realized_pl"]
+                        pnl_usd = realized_pl * gbp_usd
+                        execute(
+                            "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
+                            (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                        )
+                        dd_state = _get_dd_state()
+                        new_consec = 0 if realized_pl > 0 else dd_state["consecutive_losses"] + 1
+                        if new_consec >= 5:
+                            execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
+                        new_eq = dd_state["equity"] + pnl_usd
+                        _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
+                        _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", result["close_price"],
+                            {"reason": "MAX_HOLD", "bars_held": int(bars_held), "pnl_gbp": realized_pl, "pnl_usd": pnl_usd})
             continue
 
         # Trade closed on OANDA side (SL or TP hit)
