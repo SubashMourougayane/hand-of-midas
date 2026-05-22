@@ -41,10 +41,12 @@ app.add_middleware(
 from routes.backtest import router as backtest_router
 from routes.state import router as state_router
 from routes.trades import router as trades_router
+from routes.journal import router as journal_router
 
 app.include_router(backtest_router, prefix="/api/oil")
 app.include_router(state_router, prefix="/api/oil")
 app.include_router(trades_router, prefix="/api/oil")
+app.include_router(journal_router, prefix="/api/oil")
 
 
 @app.get("/api/health")

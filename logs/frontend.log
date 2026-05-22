@@ -5,10 +5,8 @@
 ▲ Next.js 16.2.6 (Turbopack)
 - Local:         http://localhost:3001
 - Network:       http://192.168.0.102:3001
-✓ Ready in 347ms
+✓ Ready in 369ms
 
- GET /backtest 200 in 258ms (next.js: 95ms, application-code: 164ms)
- GET /backtest 200 in 12ms (next.js: 5ms, application-code: 7ms)
- GET /backtest 200 in 13ms (next.js: 3ms, application-code: 11ms)
- GET /journal 200 in 49ms (next.js: 33ms, application-code: 16ms)
- GET /trades 200 in 26ms (next.js: 16ms, application-code: 10ms)
+ GET /backtest 200 in 285ms (next.js: 100ms, application-code: 185ms)
+✓ Compiled in 496ms
+✓ Compiled in 69ms
