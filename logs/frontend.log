@@ -5,16 +5,28 @@
 ▲ Next.js 16.2.6 (Turbopack)
 - Local:         http://localhost:3001
 - Network:       http://192.168.0.102:3001
-✓ Ready in 287ms
+✓ Ready in 325ms
 
- GET /backtest 200 in 304ms (next.js: 118ms, application-code: 186ms)
- GET /live 200 in 38ms (next.js: 19ms, application-code: 19ms)
+ GET /backtest 200 in 304ms (next.js: 108ms, application-code: 197ms)
+ GET /backtest 200 in 12ms (next.js: 4ms, application-code: 8ms)
+ GET /backtest 200 in 12ms (next.js: 1582µs, application-code: 10ms)
+ GET /backtest 200 in 7ms (next.js: 3ms, application-code: 4ms)
+ GET /backtest 200 in 12ms (next.js: 1433µs, application-code: 11ms)
+ GET /backtest 200 in 7ms (next.js: 3ms, application-code: 4ms)
+ GET /backtest 200 in 14ms (next.js: 1385µs, application-code: 12ms)
+ GET /trades 200 in 45ms (next.js: 28ms, application-code: 16ms)
+ GET /live 200 in 35ms (next.js: 21ms, application-code: 13ms)
  GET /backtest 200 in 12ms (next.js: 2ms, application-code: 9ms)
- GET /backtest 200 in 15ms (next.js: 3ms, application-code: 11ms)
- GET /backtest 200 in 15ms (next.js: 1833µs, application-code: 13ms)
- GET /backtest 200 in 9ms (next.js: 3ms, application-code: 6ms)
- GET /backtest 200 in 14ms (next.js: 1917µs, application-code: 12ms)
- GET /backtest 200 in 11ms (next.js: 4ms, application-code: 6ms)
- GET /backtest 200 in 17ms (next.js: 1981µs, application-code: 15ms)
- GET /backtest 200 in 16ms (next.js: 6ms, application-code: 10ms)
- GET /backtest 200 in 18ms (next.js: 3ms, application-code: 15ms)
+ GET /backtest 200 in 7ms (next.js: 3ms, application-code: 4ms)
+ GET /backtest 200 in 11ms (next.js: 1320µs, application-code: 9ms)
+ GET /backtest 200 in 11ms (next.js: 4ms, application-code: 7ms)
+ GET /backtest 200 in 12ms (next.js: 1294µs, application-code: 11ms)
+ GET /backtest 200 in 7ms (next.js: 3ms, application-code: 4ms)
+ GET /backtest 200 in 17ms (next.js: 1943µs, application-code: 15ms)
+✓ Compiled in 667ms
+ GET /backtest 200 in 164ms (next.js: 96ms, application-code: 69ms)
+ GET /backtest 200 in 25ms (next.js: 3ms, application-code: 23ms)
+✓ Compiled in 31ms
+✓ Compiled in 103ms
+ GET /backtest 200 in 147ms (next.js: 95ms, application-code: 52ms)
+ GET /backtest 200 in 16ms (next.js: 1721µs, application-code: 14ms)
