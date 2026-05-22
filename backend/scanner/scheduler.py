@@ -167,6 +167,15 @@ def _run_cross_market():
     """Check Cross-Market consensus signal."""
     cfg = CROSS_MARKET
 
+    # Don't open a new Cross-Market if one is already open
+    open_cm = execute(
+        "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='cross_market' AND exit_time IS NULL",
+        fetch=True
+    )
+    if open_cm and open_cm[0]["cnt"] > 0:
+        print(f"  Cross-Market: skipping — already has open position")
+        return
+
     # Enforce 2-bar (2-day) minimum gap between signals
     last_signal = execute(
         "SELECT timestamp FROM gd_signals WHERE strategy='cross_market' AND taken=TRUE ORDER BY timestamp DESC LIMIT 1",
@@ -246,6 +255,15 @@ def _run_cross_market():
 def _run_mean_rev():
     """Check Mean-Rev dip-buy conditions."""
     cfg = MEAN_REV
+
+    # Only 1 Mean-Rev trade at a time (matches backtest in_trade logic)
+    open_mr = execute(
+        "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='mean_rev' AND exit_time IS NULL",
+        fetch=True
+    )
+    if open_mr and open_mr[0]["cnt"] > 0:
+        print(f"  Mean-Rev: skipping — already has open position")
+        return
 
     # Fetch 15 daily candles — use mid prices (matches backtest)
     candles = get_candles(instrument="XAU_USD", granularity="D", count=15, price="BA")
