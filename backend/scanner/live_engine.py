@@ -14,6 +14,7 @@ from backend.execution.oanda_executor import (
 )
 from backend.db import execute, insert_returning, get_conn
 from backend.config import STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, MEAN_REV, CROSS_MARKET, slippage
+from backend import notify
 
 
 def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: float, taken: bool, skip_reason: str = "", trade_ref: str = ""):
@@ -120,6 +121,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     if skip_reason:
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=skip_reason)
         _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": skip_reason})
+        notify.signal_skipped(strategy, direction, "XAU_USD", skip_reason)
         print(f"  [{strategy}] Signal SKIPPED: {skip_reason}")
         return None
 
@@ -177,6 +179,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         "risk_mult": risk_mult, "risk_pct": risk_pct, "equity_usd": equity_usd,
     })
 
+    notify.trade_filled(trade_ref, "XAU_USD", direction, fill_price, units, sl_price, tp_price)
     print(f"  [{strategy}] FILLED: {direction.upper()} {units} units @ {fill_price:.2f}, trade_id={oanda_trade_id}")
     return trade_ref
 
@@ -223,12 +226,16 @@ def check_open_positions():
                         )
                         dd_state = _get_dd_state()
                         new_consec = 0 if realized_pl > 0 else dd_state["consecutive_losses"] + 1
-                        if new_consec >= 5:
-                            execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
-                        new_eq = dd_state["equity"] + pnl_usd
-                        _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
+                        new_pause = 2 if new_consec >= 5 else dd_state["pause_counter"]
+                        new_eq = float(dd_state["equity"]) + pnl_usd
+                        _update_dd_state(new_consec, new_pause, new_eq, max(float(dd_state["peak_equity"]), new_eq))
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", result["close_price"],
                             {"reason": "MAX_HOLD", "bars_held": int(bars_held), "pnl_gbp": realized_pl, "pnl_usd": pnl_usd})
+                        notify.trade_closed(trade["trade_ref"], "XAU_USD", "MAX_HOLD", realized_pl, pnl_usd)
+                    else:
+                        _log_journal(trade["trade_ref"], trade["strategy"], "CLOSE_FAILED", None,
+                            {"reason": "MAX_HOLD", "bars_held": int(bars_held), "error": result.get("error", "Unknown")})
+                        notify.error(f"MAX_HOLD close failed: {trade['trade_ref']} — {result.get('error')}")
             continue
 
         # Trade closed on OANDA side (SL or TP hit)
@@ -263,24 +270,26 @@ def check_open_positions():
 
             # Update DD state (use USD P&L for equity tracking)
             dd_state = _get_dd_state()
+            new_pause = dd_state["pause_counter"]
             if realized_pl > 0:
                 new_consecutive = 0
             else:
                 new_consecutive = dd_state["consecutive_losses"] + 1
                 if new_consecutive >= 5:
-                    execute("UPDATE gd_dd_state SET pause_counter = 2 WHERE id = 1")
+                    new_pause = 2
 
             from backend.execution.oanda_executor import _get_gbp_usd_rate
             gbp_usd_rate = _get_gbp_usd_rate()
             pnl_usd_for_equity = realized_pl * gbp_usd_rate
-            new_equity = dd_state["equity"] + pnl_usd_for_equity
-            new_peak = max(dd_state["peak_equity"], new_equity)
-            _update_dd_state(new_consecutive, dd_state["pause_counter"], new_equity, new_peak)
+            new_equity = float(dd_state["equity"]) + pnl_usd_for_equity
+            new_peak = max(float(dd_state["peak_equity"]), new_equity)
+            _update_dd_state(new_consecutive, new_pause, new_equity, new_peak)
 
             _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
                 "reason": exit_reason, "pnl": realized_pl, "oanda_id": oanda_id,
             })
 
+            notify.trade_closed(trade["trade_ref"], "XAU_USD", exit_reason, realized_pl, pnl_usd)
             print(f"  [{trade['strategy']}] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${realized_pl:.2f}")
 
 
@@ -311,7 +320,8 @@ def check_alpha_sweep_breakeven():
             continue
 
         if side == "LONG":
-            # Break-even already applied if SL >= entry
+            if tp <= entry:
+                continue
             if sl >= entry:
                 continue
             target_50 = entry + (tp - entry) * 0.5
@@ -320,10 +330,14 @@ def check_alpha_sweep_breakeven():
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
-                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl})
+                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl, "trigger_price": price["bid"], "source": "scheduler"})
+                    notify.break_even(trade["trade_ref"], "XAU_USD", new_sl)
                     print(f"  [alpha_sweep] LONG break-even: SL {sl:.2f} → {new_sl:.2f}")
+                else:
+                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN_FAILED", None, {"old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"), "source": "scheduler"})
         else:  # SHORT
-            # Break-even already applied if SL <= entry
+            if tp >= entry:
+                continue
             if sl <= entry:
                 continue
             target_50 = entry - (entry - tp) * 0.5
@@ -332,5 +346,8 @@ def check_alpha_sweep_breakeven():
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
-                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl})
+                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN", new_sl, {"old_sl": sl, "trigger_price": price["ask"], "source": "scheduler"})
+                    notify.break_even(trade["trade_ref"], "XAU_USD", new_sl)
                     print(f"  [alpha_sweep] SHORT break-even: SL {sl:.2f} → {new_sl:.2f}")
+                else:
+                    _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN_FAILED", None, {"old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"), "source": "scheduler"})

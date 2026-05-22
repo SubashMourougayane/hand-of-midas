@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS gd_dd_state (
 );
 
 INSERT INTO gd_dd_state (id) VALUES (1) ON CONFLICT DO NOTHING;
+INSERT INTO gd_dd_state (id) VALUES (2) ON CONFLICT DO NOTHING;  -- Oil DD state
 
 -- Settings (key-value)
 CREATE TABLE IF NOT EXISTS gd_settings (

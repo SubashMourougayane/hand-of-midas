@@ -4,3 +4,4 @@ data/raw/*.csv
 __pycache__/
 *.pyc
 .env
+logs/

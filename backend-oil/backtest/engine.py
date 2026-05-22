@@ -140,7 +140,7 @@ def run_backtest(
             tp=signal.tp,
             direction=signal.direction,
             max_bars=signal.max_bars,
-            strategy="alpha_sweep",
+            strategy="alpha_sweep_oil",
             use_break_even=True,
         )
 
@@ -164,7 +164,7 @@ def run_backtest(
 
         trades.append(BacktestTrade(
             date=signal.date.isoformat(), year=trade_year, month=trade_date.month,
-            strategy="alpha_sweep", direction=signal.direction.upper(),
+            strategy="alpha_sweep_oil", direction=signal.direction.upper(),
             entry=round(signal.entry, 4), sl=round(signal.sl, 4), tp=round(signal.tp, 4),
             exit_price=round(result.exit_price, 4),
             pnl_unit=round(result.pnl_per_unit, 4), pnl_sized=round(pnl_dollar, 2),

@@ -81,7 +81,7 @@ def api_backtest(req: BacktestRequest):
         "risk_reward": round(rr, 2),
         "trades_per_year": round(result.total_trades / max(len(yearly_map), 1), 1),
         "months": len(yearly_map) * 12,
-        "strategies": {"alpha_sweep": {"trades": result.total_trades, "wins": result.wins, "wr": result.win_rate, "pf": result.profit_factor, "pnl": round(result.total_pnl, 2)}},
+        "strategies": {"alpha_sweep_oil": {"trades": result.total_trades, "wins": result.wins, "wr": result.win_rate, "pf": result.profit_factor, "pnl": round(result.total_pnl, 2)}},
     }
 
     trade_dicts = [t.__dict__ for t in trades]
@@ -215,7 +215,7 @@ def get_latest_backtest():
 
     equity_curve = [{"date": str(e["date"]), "pnl": float(e["pnl"]), "equity": float(e["equity"])} for e in (equity or [])]
 
-    strat_stats = {"alpha_sweep": {
+    strat_stats = {"alpha_sweep_oil": {
         "trades": len(trades),
         "wins": sum(1 for t in trades if float(t["pnl_sized"]) > 0),
         "wr": sum(1 for t in trades if float(t["pnl_sized"]) > 0) / len(trades) if trades else 0,
@@ -245,7 +245,7 @@ def get_latest_backtest():
         "monthly_pnl": [],
         "duration_ms": run["duration_ms"],
         "config": {
-            "strategies": ["alpha_sweep"],
+            "strategies": ["alpha_sweep_oil"],
             "start_date": str(run["start_date"]),
             "end_date": str(run["end_date"]),
             "capital": float(run["capital"]),

@@ -19,6 +19,13 @@ _running = False
 _latest_price = {"bid": 0.0, "ask": 0.0}
 
 
+def _log_journal(trade_ref: str, strategy: str, event_type: str, price: float = None, context: dict = None):
+    execute(
+        "INSERT INTO gd_journal (trade_ref, strategy, event_type, price, context) VALUES (%s, %s, %s, %s, %s)",
+        (trade_ref, strategy, event_type, price, json.dumps(context) if context else None)
+    )
+
+
 def get_latest_price():
     return _latest_price.copy()
 
@@ -27,9 +34,8 @@ def _on_tick(bid: float, ask: float):
     global _latest_price
     _latest_price = {"bid": bid, "ask": ask, "mid": (bid + ask) / 2}
 
-    # Check break-even for open Oil Alpha-Sweep trades
     open_trades = execute(
-        "SELECT * FROM gd_trades WHERE strategy='alpha_sweep' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE 'OIL-%'",
+        "SELECT * FROM gd_trades WHERE strategy='alpha_sweep_oil' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
         fetch=True
     )
     if not open_trades:
@@ -45,6 +51,8 @@ def _on_tick(bid: float, ask: float):
             continue
 
         if side == "LONG":
+            if tp <= entry:
+                continue
             if sl >= entry:
                 continue
             target_50 = entry + (tp - entry) * 0.5
@@ -53,8 +61,17 @@ def _on_tick(bid: float, ask: float):
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
+                    _log_journal(trade["trade_ref"], "alpha_sweep_oil", "BREAK_EVEN", new_sl, {
+                        "old_sl": sl, "trigger_price": bid, "source": "stream",
+                    })
                     print(f"  [OIL STREAM] LONG break-even: SL → {new_sl:.4f}")
+                else:
+                    _log_journal(trade["trade_ref"], "alpha_sweep_oil", "BREAK_EVEN_FAILED", None, {
+                        "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"), "source": "stream",
+                    })
         else:
+            if tp >= entry:
+                continue
             if sl <= entry:
                 continue
             target_50 = entry - (entry - tp) * 0.5
@@ -63,7 +80,14 @@ def _on_tick(bid: float, ask: float):
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
+                    _log_journal(trade["trade_ref"], "alpha_sweep_oil", "BREAK_EVEN", new_sl, {
+                        "old_sl": sl, "trigger_price": ask, "source": "stream",
+                    })
                     print(f"  [OIL STREAM] SHORT break-even: SL → {new_sl:.4f}")
+                else:
+                    _log_journal(trade["trade_ref"], "alpha_sweep_oil", "BREAK_EVEN_FAILED", None, {
+                        "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"), "source": "stream",
+                    })
 
 
 def _stream_loop():
@@ -74,9 +98,13 @@ def _stream_loop():
         try:
             with httpx.stream("GET", url, headers=HEADERS, timeout=None) as resp:
                 if resp.status_code != 200:
+                    _log_journal("SYSTEM", "alpha_sweep_oil", "STREAM_ERROR", None, {
+                        "status": resp.status_code, "action": "reconnecting",
+                    })
                     time.sleep(5)
                     continue
                 print(f"  [OIL STREAM] Connected — receiving BCO_USD ticks")
+                _log_journal("SYSTEM", "alpha_sweep_oil", "STREAM_CONNECTED", None, {"instrument": "BCO_USD"})
                 for line in resp.iter_lines():
                     if not _running:
                         break
@@ -93,6 +121,9 @@ def _stream_loop():
         except Exception as e:
             if _running:
                 print(f"  [OIL STREAM] Disconnected: {e}. Reconnecting...")
+                _log_journal("SYSTEM", "alpha_sweep_oil", "STREAM_DISCONNECTED", None, {
+                    "error": str(e), "action": "reconnecting",
+                })
                 time.sleep(3)
 
 
