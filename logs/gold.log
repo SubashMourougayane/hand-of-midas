@@ -1,9 +1,9 @@
-INFO:     Started server process [49291]
+INFO:     Started server process [59973]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:5053 (Press CTRL+C to quit)
 Pre-loading market data for backtest...
-  Data loaded in 7.2s (2386226 M3 bars)
+  Data loaded in 7.7s (2386226 M3 bars)
 Starting live trading scheduler...
 Scheduler started:
   - Daily close (Cross-Market + Mean-Rev): 22:00 UTC
@@ -13,7 +13,21 @@ Starting real-time price stream...
 Price stream started (real-time tick-by-tick)
 GoldDigger ready.
   [STREAM] Connected — receiving live XAU/USD ticks
-INFO:     127.0.0.1:54056 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54056 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54056 - "GET /api/gold/journey?date=2006-04-13&strategy=cross_market&direction=long&entry=597.95&sl=578.58&tp=636.69&bars_held=4 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54056 - "GET /api/gold/journey?date=2006-04-13&strategy=cross_market&direction=long&entry=597.95&sl=578.58&tp=636.69&bars_held=4 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "OPTIONS /api/gold/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "POST /api/gold/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56784 - "GET /api/gold/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/gold/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58475 - "POST /api/gold/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59550 - "POST /api/gold/backtest HTTP/1.1" 200 OK

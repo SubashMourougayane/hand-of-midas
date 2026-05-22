@@ -1,19 +1,32 @@
-INFO:     Started server process [49292]
+INFO:     Started server process [59974]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:5054 (Press CTRL+C to quit)
 Pre-loading Oil market data...
-  Oil data loaded in 6.0s (2074869 M3 bars)
+  Oil data loaded in 6.4s (2074869 M3 bars)
 Starting Oil trading scheduler...
 Oil scheduler started: Alpha-Sweep London poll every 3 min, 08:00-10:30 UTC
 Starting Oil price stream...
 Oil price stream started (BCO_USD tick-by-tick)
 OilMiner ready.
   [OIL STREAM] Connected — receiving BCO_USD ticks
-INFO:     127.0.0.1:54072 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54072 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54080 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54080 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54072 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54072 - "GET /api/oil/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54080 - "GET /api/oil/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "GET /api/oil/backtest/latest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "OPTIONS /api/oil/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "POST /api/oil/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "GET /api/oil/journey?date=2006-06-08&strategy=alpha_sweep_oil&direction=long&entry=68.31&sl=67.77&tp=69.79&bars_held=79 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/journey?date=2006-06-08&strategy=alpha_sweep_oil&direction=long&entry=68.31&sl=67.77&tp=69.79&bars_held=79 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/journey?date=2006-07-31&strategy=alpha_sweep_oil&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55982 - "GET /api/oil/trades/backtest?limit=2000 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58961 - "POST /api/oil/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60108 - "POST /api/oil/backtest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60538 - "GET /api/oil/journey?date=2006-07-31T08:33:00%2B00:00&strategy=alpha_sweep&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60649 - "GET /api/oil/journey?date=2006-07-31T09:18:00%2B00:00&strategy=alpha_sweep&direction=long&entry=72.69&sl=72.45&tp=73.95&bars_held=61 HTTP/1.1" 200 OK
