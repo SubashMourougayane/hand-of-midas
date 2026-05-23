@@ -241,9 +241,9 @@ export default function LandingPage() {
       <section style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1a1f28", borderBottom: "1px solid #1a1f28", padding: "32px 24px", background: "#0c0e14" }}>
         <div className="landing-stats-ticker" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", maxWidth: 1100, margin: "0 auto", gap: 0 }}>
           {[
-            { value: 492000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#e8c300" },
-            { value: 1402, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "#4fc3f7" },
-            { value: 63, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "#00e87b" },
+            { value: 640000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#e8c300" },
+            { value: 2084, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "#4fc3f7" },
+            { value: 65.4, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "#00e87b", decimals: 1 },
             { value: 4.50, suffix: "x", label: "Profit Factor", sub: "Combined strategies", color: "#e8c300", decimals: 2 },
             { value: 20, suffix: "yr", label: "Backtested", sub: "2006-2026", color: "#4fc3f7" },
           ].map(({ value, prefix, suffix, label, sub, color, decimals }) => (
@@ -280,19 +280,19 @@ export default function LandingPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>1,044</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>1,238</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>64%</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>63.2%</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#e8c300" }}>5.12</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#e8c300" }}>3.83</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$387K</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$325K</div>
                 </div>
               </div>
             </div>
@@ -306,19 +306,19 @@ export default function LandingPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>358</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>846</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>61%</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>74.0%</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#4fc3f7" }}>3.20</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#4fc3f7" }}>7.95</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$105K</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$315K</div>
                 </div>
               </div>
             </div>
@@ -491,6 +491,9 @@ export default function LandingPage() {
             </p>
             <p style={{ fontSize: 10, color: "#4b5563", marginTop: 8 }}>
               Gold + Oil Algorithmic Trading Engine
+            </p>
+            <p style={{ fontSize: 10, color: "#6b7280", marginTop: 12 }}>
+              Contact: <a href="mailto:subashtrades.in@gmail.com" style={{ color: "#4fc3f7", textDecoration: "none" }}>subashtrades.in@gmail.com</a>
             </p>
           </div>
         </FadeIn>

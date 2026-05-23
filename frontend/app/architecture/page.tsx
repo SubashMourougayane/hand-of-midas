@@ -122,7 +122,7 @@ function OverviewTab() {
     <div className="space-y-6">
       <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
         <div className="text-sm font-bold tracking-wider mb-6" style={{ color: "#4da6ff" }}>
-          COMPLETE SYSTEM FLOW — LONDON SESSION (08:00-10:30 UTC)
+          COMPLETE SYSTEM FLOW — LONDON + NY SESSION (08:00-20:00 UTC)
         </div>
 
         {/* Row 1: Data Source */}
@@ -162,8 +162,8 @@ function OverviewTab() {
         {[
           { label: "INSTRUMENTS", value: "2", sub: "XAU/USD + BCO/USD", color: "#00e87b" },
           { label: "STRATEGIES", value: "3", sub: "Alpha + MeanRev + Cross", color: "#4da6ff" },
-          { label: "BACKTEST (20yr)", value: "$492K", sub: "Gold $177K + Oil $315K", color: "#e8c300" },
-          { label: "SCAN INTERVAL", value: "3 min", sub: "London session only", color: "#ff3e3e" },
+          { label: "BACKTEST (20yr)", value: "$640K", sub: "Gold $325K + Oil $315K", color: "#e8c300" },
+          { label: "SCAN INTERVAL", value: "3 min", sub: "London + NY session", color: "#ff3e3e" },
         ].map(({ label, value, sub, color }) => (
           <div key={label} className="p-5 text-center arch-fade-in rounded" style={{ background: "#0e1117", border: `1px solid ${color}30` }}>
             <PulseOrb color={color} size={12} />
@@ -231,7 +231,7 @@ function StrategiesTab() {
               name: "ALPHA-SWEEP", instruments: "XAU/USD + BCO/USD", risk: "4%",
               conditions: ["Asia range > threshold", "London sweeps Asia H/L", "Daily bias confirms", "M3 engulfing within 2hrs", "Not first bar after sweep"],
               color: "#4fc3f7", stats: "PF 3.40 Gold / 8.31 Oil",
-              timing: "08:00-10:30 UTC, every 3 min",
+              timing: "08:00-20:00 UTC, every 3 min",
             },
             {
               name: "MEAN-REV", instruments: "XAU/USD only", risk: "3%",
@@ -278,10 +278,10 @@ function StrategiesTab() {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: "Gold Combined", trades: 1012, wr: "59.7%", pf: "3.40", pnl: "$177K", color: "#e8c300" },
-            { label: "Oil Alpha-Sweep", trades: 390, wr: "72.3%", pf: "8.31", pnl: "$315K", color: "#4fc3f7" },
+            { label: "Gold Combined", trades: 1238, wr: "63.2%", pf: "3.83", pnl: "$325K", color: "#e8c300" },
+            { label: "Oil Alpha-Sweep", trades: 846, wr: "74.0%", pf: "7.95", pnl: "$315K", color: "#4fc3f7" },
             { label: "Max Drawdown", trades: 0, wr: "-19%", pf: "Gold", pnl: "-14.9% Oil", color: "#ff3e3e" },
-            { label: "Combined Total", trades: 1402, wr: "63%", pf: "4.50", pnl: "$492K", color: "#00e87b" },
+            { label: "Combined Total", trades: 2084, wr: "65.4%", pf: "4.50", pnl: "$640K", color: "#00e87b" },
           ].map(({ label, trades, wr, pf, pnl, color }) => (
             <div key={label} className="p-4 text-center" style={{ background: "#080a0f", border: `1px solid ${color}30` }}>
               <div className="text-xs font-bold" style={{ color }}>{label}</div>
@@ -431,7 +431,7 @@ function RiskTab() {
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { guard: "Alpha-Sweep", rule: "Max 1 per day per instrument", color: "#4fc3f7" },
+            { guard: "Alpha-Sweep", rule: "Max 3 per day per instrument", color: "#4fc3f7" },
             { guard: "Mean-Rev", rule: "Max 1 open at a time", color: "#00e87b" },
             { guard: "Cross-Market", rule: "Max 1 open + 2-day gap", color: "#ffd54f" },
             { guard: "Max Hold", rule: "Alpha: 80 bars (~4hrs), Cross: 20 days", color: "#ff3e3e" },
@@ -539,9 +539,9 @@ function ScheduleTab() {
             </div>
           ))}
 
-          {/* London session block */}
-          <div className="absolute top-2 h-5 rounded" style={{ left: `${(8 / 24) * 100}%`, width: `${(2.5 / 24) * 100}%`, background: "#4fc3f730", border: "1px solid #4fc3f7" }}>
-            <span className="text-[8px] absolute inset-0 flex items-center justify-center font-bold" style={{ color: "#4fc3f7" }}>ALPHA</span>
+          {/* London + NY session block */}
+          <div className="absolute top-2 h-5 rounded" style={{ left: `${(8 / 24) * 100}%`, width: `${(12 / 24) * 100}%`, background: "#4fc3f730", border: "1px solid #4fc3f7" }}>
+            <span className="text-[8px] absolute inset-0 flex items-center justify-center font-bold" style={{ color: "#4fc3f7" }}>ALPHA-SWEEP</span>
           </div>
 
           {/* Daily scan block */}
@@ -561,9 +561,9 @@ function ScheduleTab() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {[
             {
-              name: "ALPHA-SWEEP", time: "08:00-10:30 UTC", interval: "Every 3 min",
-              detail: "Polls H1 + M3 + Daily for sweep + engulfing pattern. Gold + Oil independently.",
-              color: "#4fc3f7", istTime: "01:30-04:00 PM IST",
+              name: "ALPHA-SWEEP", time: "08:00-20:00 UTC", interval: "Every 3 min",
+              detail: "Polls H1 + M3 + Daily for sweep + engulfing pattern. Gold + Oil independently. Up to 3 trades/day.",
+              color: "#4fc3f7", istTime: "01:30 PM-01:30 AM IST",
             },
             {
               name: "DAILY SCAN", time: "22:00 UTC", interval: "Once",
