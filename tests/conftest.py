@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend-oil"))
 
-TEST_DB_URL = "postgresql://subash@localhost:5432/golddigger_test"
+TEST_DB_URL = os.getenv("TEST_DB_URL", "postgresql://subash@localhost:5432/golddigger_test")
 
 
 @pytest.fixture(autouse=True)
