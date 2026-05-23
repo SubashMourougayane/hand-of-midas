@@ -161,7 +161,7 @@ export default function LivePage() {
                 <Clock size={12} /> Recent Signals
               </h2>
               {(state.recent_signals?.length || 0) === 0 ? (
-                <p className="text-xs text-[var(--text-dim)]">No signals yet. Waiting for 22:00 UTC (daily) or 08:00-10:30 UTC (London).</p>
+                <p className="text-xs text-[var(--text-dim)]">No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan).</p>
               ) : (
                 <table className="w-full text-xs">
                   <thead>
@@ -239,8 +239,8 @@ export default function LivePage() {
                 </div>
                 <div className="p-3 bg-[var(--bg)]">
                   <div className="font-semibold" style={{ color: "#4fc3f7" }}>ALPHA-SWEEP</div>
-                  <div className="text-[var(--text-dim)] mt-1">08:00-10:30 UTC (every 3 min)</div>
-                  <div className="text-[10px] text-[var(--text-dim)] mt-0.5">Monitors London session for Asia sweep + M3 engulfing</div>
+                  <div className="text-[var(--text-dim)] mt-1">08:00-20:00 UTC (every 3 min)</div>
+                  <div className="text-[10px] text-[var(--text-dim)] mt-0.5">Monitors London + NY session for Asia sweep + M3 engulfing</div>
                 </div>
                 <div className="p-3 bg-[var(--bg)]">
                   <div className="font-semibold text-[var(--text)]">POSITION MONITOR</div>
@@ -292,12 +292,12 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     color = "#00e87b";
     icon = "📈";
     countdown = "Monitoring every 1 min";
-  } else if (utcTime >= 8 && utcTime <= 10.5) {
-    mode = "LONDON ACTIVE";
+  } else if (utcTime >= 8 && utcTime <= 20) {
+    mode = "SCANNING";
     color = "#4fc3f7";
     icon = "🔍";
-    const minsLeft = Math.floor((10.5 - utcTime) * 60);
-    countdown = `Scanning... ${minsLeft}m remaining`;
+    const minsLeft = Math.floor((20 - utcTime) * 60);
+    countdown = `Alpha-Sweep active... ${Math.floor(minsLeft/60)}h ${minsLeft%60}m remaining`;
   } else if (utcTime >= 21.95 && utcTime <= 22.1) {
     mode = "DAILY SCAN";
     color = "#ffd54f";
@@ -312,13 +312,13 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     let hoursUntil: number;
     if (utcTime < 8) {
       hoursUntil = 8 - utcTime;
-      nextEvent = "London session";
+      nextEvent = "Alpha-Sweep";
     } else if (utcTime < 22) {
       hoursUntil = 22 - utcTime;
       nextEvent = "Daily scan";
     } else {
       hoursUntil = 24 - utcTime + 8;
-      nextEvent = "London session";
+      nextEvent = "Alpha-Sweep";
     }
     const hrs = Math.floor(hoursUntil);
     const mins = Math.floor((hoursUntil - hrs) * 60);
@@ -329,15 +329,16 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
   const IST_OFFSET = 5.5;
   const istTime = (utcTime + IST_OFFSET) % 24;
 
-  // Sessions wrap around midnight — use start/end in IST
+  // Sessions in IST — NY overlaps with London (18.5-21.5 IST)
   const sessions = [
     { name: "ASIA", start: 5.5, end: 13.5, color: "#9ca3b4" },
     { name: "LONDON", start: 13.5, end: 21.5, color: "#4fc3f7" },
-    { name: "NEW YORK", start: 18.5, end: 26.5, color: "#ff8c00" }, // wraps past 24 → render as two parts
+    { name: "NEW YORK", start: 18.5, end: 24, color: "#ff8c00" },
   ];
 
   const tradingWindows = [
-    { name: "Alpha-Sweep", start: 13.5, end: 16, color: "#4fc3f7" },
+    { name: "Alpha-Sweep", start: 0, end: 2.5, color: "#4fc3f7" },
+    { name: "Alpha-Sweep", start: 13.5, end: 24, color: "#4fc3f7" },
     { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },
   ];
 
@@ -368,53 +369,82 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
           </div>
         </div>
 
-        {/* Sessions row */}
+        {/* Sessions row — single row, NY overlaps London */}
         <div className="relative h-11 mb-2 rounded" style={{ background: "#0d1017" }}>
-          {sessions.map(s => {
-            const renderStart = Math.min(s.start, 24);
-            const renderEnd = Math.min(s.end, 24);
-            const isActive = s.end <= 24
-              ? (istTime >= s.start && istTime < s.end)
-              : (istTime >= s.start || istTime < (s.end - 24));
+          {/* NY wrap (12 AM – 2:30 AM) — active when NY session is running */}
+          {(() => {
+            const nyActive = istTime >= 18.5 || istTime < 2.5;
             return (
-              <div key={s.name} className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+              <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
                 style={{
-                  left: `${(renderStart / 24) * 100}%`,
-                  width: `${((renderEnd - renderStart) / 24) * 100}%`,
-                  background: isActive ? `${s.color}18` : `${s.color}06`,
-                  border: isActive ? `1.5px solid ${s.color}` : `1px solid ${s.color}20`,
+                  left: "0%", width: `${(2.5 / 24) * 100}%`,
+                  background: nyActive ? "#ff8c0018" : "#ff8c0006",
+                  border: nyActive ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
                 }}>
-                <span className="text-[11px] font-extrabold tracking-wider" style={{ color: isActive ? "#fff" : s.color }}>{s.name}</span>
+                <span className="text-[10px] font-extrabold tracking-wider" style={{ color: nyActive ? "#fff" : "#ff8c00" }}>NY</span>
               </div>
             );
-          })}
-          {/* NY wrap (12 AM – 2:30 AM) */}
-          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
-            style={{
-              left: "0%", width: `${(2.5 / 24) * 100}%`,
-              background: istTime < 2.5 ? "#ff8c0018" : "#ff8c0006",
-              border: istTime < 2.5 ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
-            }}>
-            <span className="text-[11px] font-extrabold tracking-wider" style={{ color: istTime < 2.5 ? "#fff" : "#ff8c00" }}>NEW YORK</span>
-          </div>
-          {/* Gap (2:30 AM - 5:30 AM = market closed) */}
+          })()}
+          {/* CLOSED (2:30 - 5:30 AM) */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center"
             style={{ left: `${(2.5 / 24) * 100}%`, width: `${(3 / 24) * 100}%` }}>
             <span className="text-[9px] font-extrabold tracking-wider" style={{ color: "#9ca3b4" }}>CLOSED</span>
+          </div>
+          {/* ASIA (5:30 AM - 1:30 PM) */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+            style={{
+              left: `${(5.5 / 24) * 100}%`, width: `${(8 / 24) * 100}%`,
+              background: (istTime >= 5.5 && istTime < 13.5) ? "#9ca3b418" : "#9ca3b406",
+              border: (istTime >= 5.5 && istTime < 13.5) ? "1.5px solid #9ca3b4" : "1px solid #9ca3b420",
+            }}>
+            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 5.5 && istTime < 13.5) ? "#fff" : "#9ca3b4" }}>ASIA</span>
+          </div>
+          {/* LONDON (1:30 PM - 9:30 PM) */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+            style={{
+              left: `${(13.5 / 24) * 100}%`, width: `${(5 / 24) * 100}%`,
+              background: (istTime >= 13.5 && istTime < 21.5) ? "#4fc3f718" : "#4fc3f706",
+              border: (istTime >= 13.5 && istTime < 21.5) ? "1.5px solid #4fc3f7" : "1px solid #4fc3f720",
+              borderRight: "none", borderTopRightRadius: 0, borderBottomRightRadius: 0,
+            }}>
+            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 13.5 && istTime < 18.5) ? "#fff" : "#4fc3f7" }}>LONDON</span>
+          </div>
+          {/* OVERLAP zone (6:30 - 9:30 PM) — London + NY both active */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center"
+            style={{
+              left: `${(18.5 / 24) * 100}%`, width: `${(3 / 24) * 100}%`,
+              background: (istTime >= 18.5 && istTime < 21.5) ? "linear-gradient(90deg, #4fc3f720, #ff8c0020)" : "linear-gradient(90deg, #4fc3f708, #ff8c0008)",
+              borderTop: (istTime >= 18.5 && istTime < 21.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
+              borderBottom: (istTime >= 18.5 && istTime < 21.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
+            }}>
+            <span className="text-[8px] font-bold tracking-wider" style={{ color: "#e8c300" }}>OVERLAP</span>
+          </div>
+          {/* NEW YORK (9:30 PM - midnight) */}
+          <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+            style={{
+              left: `${(21.5 / 24) * 100}%`, width: `${(2.5 / 24) * 100}%`,
+              background: (istTime >= 21.5) ? "#ff8c0018" : "#ff8c0006",
+              border: (istTime >= 21.5) ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
+              borderLeft: "none", borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+            }}>
+            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 21.5) ? "#fff" : "#ff8c00" }}>NY</span>
           </div>
         </div>
 
         {/* Trading windows row */}
         <div className="relative h-10 mb-2 rounded" style={{ background: "#0d1017" }}>
           {tradingWindows.map(w => {
-            const isActive = istTime >= w.start && istTime <= w.end;
+            // Alpha-Sweep is active if in ANY of its windows (wraps midnight)
+            const isActive = w.name === "Alpha-Sweep"
+              ? (istTime >= 13.5 || istTime <= 2.5)
+              : (istTime >= w.start && istTime <= w.end);
             return (
-              <div key={w.name} className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
+              <div key={w.name + w.start} className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
                 style={{
                   left: `${(w.start / 24) * 100}%`,
                   width: `${Math.max(((w.end - w.start) / 24) * 100, 2.5)}%`,
                   background: isActive ? `${w.color}35` : `${w.color}10`,
-                  border: isActive ? `2px solid ${w.color}` : `1px solid ${w.color}40`,
+                  border: `1.5px solid ${isActive ? w.color : w.color + "40"}`,
                   boxShadow: isActive ? `0 0 20px ${w.color}25` : "none",
                 }}>
                 <span className="text-[10px] font-extrabold" style={{ color: "#fff" }}>{w.name}</span>
@@ -431,7 +461,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
         <div className="relative h-5 mt-1">
           {Array.from({ length: 13 }).map((_, i) => {
             const h = i * 2;
-            const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+            const label = h === 0 || h === 24 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
             return (
               <div key={h} className="absolute flex flex-col items-center" style={{ left: `${(h / 24) * 100}%`, transform: "translateX(-50%)" }}>
                 <div className="w-[1px] h-1.5" style={{ background: "#333" }} />
@@ -454,7 +484,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
 
       {/* Legend */}
       <div className="flex items-center gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30–4:00 PM)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30 PM – 1:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#ffd54f15", border: "1px solid #ffd54f" }} /> Daily Scan (3:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
         <span className="flex items-center gap-1.5"><span className="w-5 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 6px)" }} /> Monitor (24/7)</span>
