@@ -30,6 +30,9 @@ ALPHA_SWEEP = {
     "max_bars": 80,               # Same (~4 hours)
     "skip_first_bar": True,       # Same
     "engulfing_window_hours": 2,  # Same
+    "scan_start": 8,
+    "scan_end": 20,
+    "max_trades_per_day": 3,
 }
 
 # Position Sizing

@@ -27,9 +27,9 @@ def generate_signals(
     for date in dates:
         day_h1 = gold_h1[gold_h1.index.date == date]
         asia = day_h1[(day_h1.index.hour >= 0) & (day_h1.index.hour < 8)]
-        london = day_h1[(day_h1.index.hour >= 8) & (day_h1.index.hour < 16)]
+        scan_window = day_h1[(day_h1.index.hour >= cfg["scan_start"]) & (day_h1.index.hour < cfg["scan_end"])]
 
-        if len(asia) < 3 or len(london) < 2:
+        if len(asia) < 3 or len(scan_window) < 2:
             continue
 
         ah = asia["mid_high"].max()
@@ -41,127 +41,110 @@ def generate_signals(
 
         bias = daily_bias.get(date, "none")
 
-        # Detect sweep
-        sweep_dir = None
-        sweep_wick = 0.0
-        sweep_time = None
-
-        for i in range(len(london)):
-            bh = london["mid_high"].iloc[i]
-            bl = london["mid_low"].iloc[i]
-            bc = london["mid_close"].iloc[i]
+        # Detect ALL sweeps in scan window
+        sweeps = []
+        for i in range(len(scan_window)):
+            bh = scan_window["mid_high"].iloc[i]
+            bl = scan_window["mid_low"].iloc[i]
+            bc = scan_window["mid_close"].iloc[i]
 
             if bh > ah + cfg["sweep_threshold"] and bc < ah:
-                sweep_dir = "bearish"
-                sweep_wick = bh
-                sweep_time = london.index[i]
-                break
+                sweeps.append(("bearish", bh, scan_window.index[i]))
             elif bl < al - cfg["sweep_threshold"] and bc > al:
-                sweep_dir = "bullish"
-                sweep_wick = bl
-                sweep_time = london.index[i]
+                sweeps.append(("bullish", bl, scan_window.index[i]))
+
+        if not sweeps:
+            continue
+
+        # Process each sweep (up to max_trades_per_day)
+        day_trades = 0
+        max_per_day = cfg.get("max_trades_per_day", 3)
+
+        for sweep_dir, sweep_wick, sweep_time in sweeps:
+            if day_trades >= max_per_day:
                 break
 
-        if sweep_dir is None:
-            continue
-
-        # Bias filter
-        if sweep_dir == "bullish" and bias != "bullish":
-            continue
-        if sweep_dir == "bearish" and bias != "bearish":
-            continue
-
-        # Find M3 engulfing within window
-        end_time = sweep_time + pd.Timedelta(hours=cfg["engulfing_window_hours"])
-        m3_window = gold_m3[(gold_m3.index > sweep_time) & (gold_m3.index <= end_time)]
-
-        if len(m3_window) < 3:
-            continue
-
-        traded = False
-        # Start from bar 2 (skip first bar after sweep — spread spike avoidance)
-        start_idx = 2 if cfg["skip_first_bar"] else 1
-
-        for j in range(start_idx, len(m3_window)):
-            if traded:
-                break
-
-            idx = gold_m3.index.get_loc(m3_window.index[j])
-            co = gold_m3["mid_open"].iat[idx]
-            cc = gold_m3["mid_close"].iat[idx]
-            po = gold_m3["mid_open"].iat[idx - 1]
-            pc = gold_m3["mid_close"].iat[idx - 1]
-            br = gold_m3["mid_high"].iat[idx] - gold_m3["mid_low"].iat[idx]
-
-            ct = max(co, cc)
-            cb = min(co, cc)
-            pt = max(po, pc)
-            pb = min(po, pc)
-
-            # Engulfing: current body covers previous body
-            if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+            # Bias filter
+            if sweep_dir == "bullish" and bias != "bullish":
                 continue
-            if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
+            if sweep_dir == "bearish" and bias != "bearish":
                 continue
 
-            if sweep_dir == "bullish":
-                entry = gold_m3["ask_close"].iat[idx] + slippage(br)
-                slv = sweep_wick - cfg["sl_buffer"]
-                risk = entry - slv
+            # Find M3 engulfing within window
+            end_time = sweep_time + pd.Timedelta(hours=cfg["engulfing_window_hours"])
+            m3_window = gold_m3[(gold_m3.index > sweep_time) & (gold_m3.index <= end_time)]
 
-                # Enforce minimum SL
-                if risk < cfg["min_sl"]:
-                    slv = entry - cfg["min_sl"]
-                    risk = cfg["min_sl"]
+            if len(m3_window) < 3:
+                continue
 
-                if risk < 0.3 or risk > ar * 0.8:
+            start_idx = 2 if cfg["skip_first_bar"] else 1
+
+            for j in range(start_idx, len(m3_window)):
+                idx = gold_m3.index.get_loc(m3_window.index[j])
+                co = gold_m3["mid_open"].iat[idx]
+                cc = gold_m3["mid_close"].iat[idx]
+                po = gold_m3["mid_open"].iat[idx - 1]
+                pc = gold_m3["mid_close"].iat[idx - 1]
+                br = gold_m3["mid_high"].iat[idx] - gold_m3["mid_low"].iat[idx]
+
+                ct = max(co, cc)
+                cb = min(co, cc)
+                pt = max(po, pc)
+                pb = min(po, pc)
+
+                if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+                    continue
+                if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
                     continue
 
-                tpv = entry + ar * cfg["tp_multiplier"]
-                if tpv - entry < risk * 0.8:
-                    continue
+                if sweep_dir == "bullish":
+                    entry = gold_m3["ask_close"].iat[idx] + slippage(br)
+                    slv = sweep_wick - cfg["sl_buffer"]
+                    risk = entry - slv
 
-                signals.append(Signal(
-                    date=gold_m3.index[idx],
-                    entry=entry,
-                    sl=slv,
-                    tp=tpv,
-                    direction="long",
-                    risk=risk,
-                    strategy="alpha_sweep",
-                    max_bars=cfg["max_bars"],
-                    timeframe="M3",
-                    metadata={"asia_high": ah, "asia_low": al, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick},
-                ))
-            else:
-                entry = gold_m3["bid_close"].iat[idx] - slippage(br)
-                slv = sweep_wick + cfg["sl_buffer"]
-                risk = slv - entry
+                    if risk < cfg["min_sl"]:
+                        slv = entry - cfg["min_sl"]
+                        risk = cfg["min_sl"]
 
-                if risk < cfg["min_sl"]:
-                    slv = entry + cfg["min_sl"]
-                    risk = cfg["min_sl"]
+                    if risk < 0.3 or risk > ar * 0.8:
+                        continue
 
-                if risk < 0.3 or risk > ar * 0.8:
-                    continue
+                    tpv = entry + ar * cfg["tp_multiplier"]
+                    if tpv - entry < risk * 0.8:
+                        continue
 
-                tpv = entry - ar * cfg["tp_multiplier"]
-                if entry - tpv < risk * 0.8:
-                    continue
+                    signals.append(Signal(
+                        date=gold_m3.index[idx],
+                        entry=entry, sl=slv, tp=tpv,
+                        direction="long", risk=risk,
+                        strategy="alpha_sweep", max_bars=cfg["max_bars"], timeframe="M3",
+                        metadata={"asia_high": ah, "asia_low": al, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick},
+                    ))
+                else:
+                    entry = gold_m3["bid_close"].iat[idx] - slippage(br)
+                    slv = sweep_wick + cfg["sl_buffer"]
+                    risk = slv - entry
 
-                signals.append(Signal(
-                    date=gold_m3.index[idx],
-                    entry=entry,
-                    sl=slv,
-                    tp=tpv,
-                    direction="short",
-                    risk=risk,
-                    strategy="alpha_sweep",
-                    max_bars=cfg["max_bars"],
-                    timeframe="M3",
-                    metadata={"asia_high": ah, "asia_low": al, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick},
-                ))
+                    if risk < cfg["min_sl"]:
+                        slv = entry + cfg["min_sl"]
+                        risk = cfg["min_sl"]
 
-            traded = True
+                    if risk < 0.3 or risk > ar * 0.8:
+                        continue
+
+                    tpv = entry - ar * cfg["tp_multiplier"]
+                    if entry - tpv < risk * 0.8:
+                        continue
+
+                    signals.append(Signal(
+                        date=gold_m3.index[idx],
+                        entry=entry, sl=slv, tp=tpv,
+                        direction="short", risk=risk,
+                        strategy="alpha_sweep", max_bars=cfg["max_bars"], timeframe="M3",
+                        metadata={"asia_high": ah, "asia_low": al, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick},
+                    ))
+
+                day_trades += 1
+                break  # One engulfing per sweep
 
     return signals

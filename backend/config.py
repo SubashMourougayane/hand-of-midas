@@ -26,6 +26,9 @@ ALPHA_SWEEP = {
     "max_bars": 80,
     "skip_first_bar": True,
     "engulfing_window_hours": 2,
+    "scan_start": 8,
+    "scan_end": 20,
+    "max_trades_per_day": 3,
 }
 
 # Mean-Rev (V7)
