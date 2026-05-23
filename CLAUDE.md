@@ -24,9 +24,11 @@ GoldDigger/
 
 ### Alpha-Sweep (Gold + Oil) — Intraday, ~4hr hold
 - Asia session high/low from H1 (00:00-08:00 UTC)
-- London sweeps Asia H/L → M3 engulfing confirms → entry
+- London+NY (08:00-20:00) sweeps Asia H/L → M3 engulfing confirms → entry
+- Up to 3 trades per day (multiple sweeps allowed)
 - Daily bias filter, skip first bar after sweep, min $5 SL (Gold) / $0.10 (Oil)
-- TP: 2× Asia range | Break-even at 50% to TP | Max hold: 80 bars
+- TP: 2× Asia range | Break-even at 50% to TP | Max hold: 80 M3 bars (~4hr)
+- Entry: ask_close + slippage (LONG) / bid_close - slippage (SHORT)
 
 ### Mean-Rev (Gold only) — 1-5 day hold
 - Dual MA10 condition check on daily data
@@ -45,7 +47,7 @@ GoldDigger/
 | Time | What | Instrument |
 |------|------|-----------|
 | 22:00 daily | Cross-Market + Mean-Rev | Gold |
-| 08:00-10:30 (every 3 min) | Alpha-Sweep | Gold + Oil |
+| 08:00-20:00 (every 3 min) | Alpha-Sweep (up to 3/day) | Gold + Oil |
 | Every 1 min | Position monitor (SL/TP/MaxHold) | Both |
 | Real-time stream | Break-even detection | Both |
 
@@ -70,8 +72,8 @@ GoldDigger/
 2. **TP fills on touch** (bar high/low) — matches OANDA instant fill
 3. **SL gap-through first** — if open past SL, fills at open price
 4. **Shared fill_model.py** — backtest and live use identical logic
-5. **Max 1 position per strategy per instrument** — DB guards prevent duplicates
-6. **DD protection shared across instruments** — 3 losses → halve, 5 → pause
+5. **Max 3 Alpha-Sweep trades per day per instrument** — DB count guard
+6. **DD protection per-instrument** — Gold id=1, Oil id=2. 3 losses → halve, 5 → pause
 7. **Max hold enforcement** — position monitor hard-kills Alpha-Sweep at 80 bars
 8. **GBP→USD conversion** — account is GBP, sizing uses USD-equivalent via live rate
 
@@ -112,7 +114,7 @@ tail -f logs/oil.log   # Watch Oil activity
 - Account: 101-004-39331014-001 (UK demo, GBP)
 - API: https://api-fxpractice.oanda.com/v3
 - Stream: https://stream-fxpractice.oanda.com/v3
-- Token: in config.py (hardcoded)
+- Token: in .env (loaded via python-dotenv)
 
 ---
 
@@ -128,12 +130,46 @@ tail -f logs/oil.log   # Watch Oil activity
 
 ---
 
-## Backtest Results (current)
+## Backtest Results (current — 08:00-20:00 UTC, 3/day)
 
-| Instrument | Trades | WR | PF | P&L (20yr, $5k/yr) |
+| Instrument | Trades | WR | PF | P&L (21yr, $5k/yr) |
 |-----------|--------|-----|-----|-----|
-| Gold (3 strategies) | 1,012 | 59.7% | 3.40 | $177,235 |
-| Oil (Alpha-Sweep) | 390 | 72.3% | 8.31 | $314,803 |
+| Gold (3 strategies) | 1,238 | 63.2% | 3.83 | $325,589 |
+| Oil (Alpha-Sweep) | 846 | 74.0% | 7.95 | $281,365 |
+| **Combined** | **2,084** | **65.4%** | — | **$640K** |
+
+Zero losing years. Verified with zero phantom fills.
+
+---
+
+## Deployment
+
+- **Server**: EC2 t3.small, us-east-1 (subashtrades-prod)
+- **Domain**: midas.subashtrades.in (SSL via certbot)
+- **Services**: midas-gold (:5053), midas-oil (:5054), midas-ui (:3001)
+- **CI/CD**: GitHub Actions → SSH deploy on push to main
+- **DB**: PostgreSQL `golddigger` (user: midas)
+- **Auth**: Single user (subashtrades.in@gmail.com), session tokens
+- **Telegram**: @hand_of_midas_trade_bot → signals, fills, exits, errors
+- **deploy.sh**: install/update/status/logs/restart/stop
+
+---
+
+## Tests
+
+```bash
+pytest tests/ -v  # 91 tests (86 unit + 5 parity)
+```
+
+- `test_signal_execution.py` — execute_signal all paths
+- `test_position_monitor.py` — SL/TP detection, max hold, DD
+- `test_break_even.py` — trigger, skip, failure logging
+- `test_dd_protection.py` — risk mult, pause, 50MA gate
+- `test_fill_model.py` — TP/SL/gap priority, BE, expired
+- `test_edge_cases.py` — zero values, boundaries
+- `test_parity.py` — backtest vs live signal match (50 random days)
+
+Test DB: `golddigger_test` (env: `TEST_DB_URL`)
 
 ---
 
@@ -142,5 +178,7 @@ tail -f logs/oil.log   # Watch Oil activity
 - Strategy logic: `/Users/subash/SUBASH/strategy-tester/scripts/generate_portfolio_dashboard.py`
 - Handoff: `/Users/subash/SUBASH/strategy-tester/GoldDiggerHandoff.md`
 - Oil handoff: `/Users/subash/SUBASH/strategy-tester/OilMinerHandoff.md`
+- Verification: `scripts/verify_session_combos.py` (session combo comparison)
+- Stress test: `scripts/stress_test_ny_sweep.py` + `scripts/pessimistic_ny_sweep.py`
 - Audit: `AUDIT_REPORT.md` (11 issues found, 10 fixed, 1 accepted)
 - Failures learned from: `/Users/subash/SUBASH/VibeTrader/eval/FAILURES.md` (55 items)
