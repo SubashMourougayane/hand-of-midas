@@ -308,7 +308,7 @@ void ExecuteAlphaSweep(string sweepDir, double sweepWick)
       request.sl = sl;
       request.tp = tp;
       request.magic = InpMagicAlpha;
-      request.type_filling = ORDER_FILLING_IOC;
+      request.type_filling = ORDER_FILLING_FOK;
       request.comment = "HOM_Alpha_Long";
 
       if(OrderSend(request, result))
@@ -340,7 +340,7 @@ void ExecuteAlphaSweep(string sweepDir, double sweepWick)
       request.sl = sl;
       request.tp = tp;
       request.magic = InpMagicAlpha;
-      request.type_filling = ORDER_FILLING_IOC;
+      request.type_filling = ORDER_FILLING_FOK;
       request.comment = "HOM_Alpha_Short";
 
       if(OrderSend(request, result))
@@ -591,7 +591,7 @@ void CheckMeanRev()
    request.sl = sl;
    request.tp = tp;
    request.magic = InpMagicMeanRev;
-   request.type_filling = ORDER_FILLING_IOC;
+   request.type_filling = ORDER_FILLING_FOK;
       request.comment = "HOM_MeanRev_Long";
 
    if(OrderSend(request, result))
@@ -692,7 +692,7 @@ void CheckCrossMarket()
    request.sl = sl;
    request.tp = tp;
    request.magic = InpMagicCross;
-   request.type_filling = ORDER_FILLING_IOC;
+   request.type_filling = ORDER_FILLING_FOK;
       request.comment = "HOM_Cross_Long";
 
    if(OrderSend(request, result))
