@@ -129,7 +129,11 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     risk_mult = _get_risk_multiplier(dd_state)
     risk_pct = STRATEGY_RISK.get(strategy, 3.0)
     acct = get_account_summary()
-    equity_usd = acct.get("nav_usd", acct.get("nav", dd_state["equity"]))
+    if "error" in acct:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"oanda_error: account_summary failed")
+        _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
+        return None
+    equity_usd = acct.get("nav_usd", acct.get("nav", float(dd_state["equity"])))
 
     sl_distance = abs(entry_price - sl_price)
     if sl_distance <= 0:
@@ -257,7 +261,6 @@ def check_open_positions():
                 exit_reason = "CLOSED"
 
             # Update DB — OANDA returns P&L in account currency (GBP)
-            gbp_usd = acct.get("gbp_usd_rate", 1.33) if 'acct' in dir() else 1.33
             from backend.execution.oanda_executor import _get_gbp_usd_rate
             gbp_usd = _get_gbp_usd_rate()
             pnl_usd = realized_pl * gbp_usd

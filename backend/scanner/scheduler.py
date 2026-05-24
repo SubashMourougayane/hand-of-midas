@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.execution.oanda_executor import get_candles, get_current_price
 from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _get_dd_state, _log_journal
-from backend.db import execute
+from backend.db import execute, get_conn
 from backend.config import CROSS_MARKET, MEAN_REV, ALPHA_SWEEP, slippage
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -347,8 +347,8 @@ def _run_alpha_sweep():
     if trades_today >= cfg["max_trades_per_day"]:
         return
 
-    # Get H1 bars (need up to 20 hours of today's data)
-    h1_candles = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
+    # Get H1 bars (need up to 20 hours of today's data) — only use complete bars
+    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
     if len(h1_candles) < 8:
         return
 

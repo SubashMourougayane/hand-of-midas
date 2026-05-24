@@ -107,7 +107,11 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
     risk_mult = _get_risk_multiplier(dd_state)
     risk_pct = STRATEGY_RISK.get("alpha_sweep", 4.0)
     acct = get_account_summary()
-    equity_usd = acct.get("nav_usd", acct.get("nav", dd_state["equity"]))
+    if "error" in acct:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="oanda_error: account_summary failed")
+        _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
+        return None
+    equity_usd = acct.get("nav_usd", acct.get("nav", float(dd_state["equity"])))
 
     sl_distance = abs(entry_price - sl_price)
     if sl_distance <= 0:

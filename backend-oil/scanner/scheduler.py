@@ -55,8 +55,8 @@ def _run_alpha_sweep():
     if trades_today >= cfg["max_trades_per_day"]:
         return
 
-    # Get H1 bars
-    h1_candles = get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA")
+    # Get H1 bars — only use complete bars
+    h1_candles = [c for c in get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
     if len(h1_candles) < 8:
         return
 
