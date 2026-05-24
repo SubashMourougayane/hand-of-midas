@@ -14,6 +14,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from backend.execution.oanda_executor import get_candles, get_current_price
 from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _get_dd_state, _log_journal
 from backend.db import execute, get_conn
+import re
+
+def _parse_ts(ts_str: str) -> datetime:
+    """Parse OANDA timestamp (handles nanosecond precision)."""
+    # Truncate nanoseconds to microseconds: .000000000 → .000000
+    cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
+    return datetime.fromisoformat(cleaned)
 from backend.config import CROSS_MARKET, MEAN_REV, ALPHA_SWEEP, slippage
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -355,7 +362,7 @@ def _run_alpha_sweep():
     # Identify Asia bars (00:00-08:00 UTC) — use MID prices for parity with backtest
     asia_bars = []
     for c in h1_candles:
-        ts = datetime.fromisoformat(c["timestamp"].replace("Z", "+00:00"))
+        ts = _parse_ts(c["timestamp"])
         if ts.date() == today and 0 <= ts.hour < 8:
             c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
             c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
@@ -376,7 +383,7 @@ def _run_alpha_sweep():
     # Check for sweep in scan window bars — use MID prices for parity
     scan_bars = []
     for c in h1_candles:
-        ts = datetime.fromisoformat(c["timestamp"].replace("Z", "+00:00"))
+        ts = _parse_ts(c["timestamp"])
         if ts.date() == today and ts.hour >= cfg["scan_start"]:
             c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
             c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
@@ -426,12 +433,12 @@ def _run_alpha_sweep():
             continue
 
         # Find engulfing after this sweep
-        sweep_time = datetime.fromisoformat(sweep_ts.replace("Z", "+00:00")) if isinstance(sweep_ts, str) else sweep_ts
+        sweep_time = _parse_ts(sweep_ts) if isinstance(sweep_ts, str) else sweep_ts
         window_end = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
 
         relevant_m3 = []
         for c in m3_candles:
-            ts = datetime.fromisoformat(c["timestamp"].replace("Z", "+00:00"))
+            ts = _parse_ts(c["timestamp"])
             if sweep_time < ts <= window_end:
                 relevant_m3.append(c)
 
