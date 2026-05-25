@@ -396,8 +396,8 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
         </div>
       </div>
 
-      {/* 24h Timeline */}
-      <div className="relative mt-4 px-1 sm:px-3 pb-2 overflow-x-auto">
+      {/* 24h Timeline — hidden on mobile, shown on md+ */}
+      <div className="hidden md:block relative mt-4 px-1 sm:px-3 pb-2 overflow-x-auto">
         {/* Time label above needle */}
         <div className="relative h-5 mb-1">
           <div className="absolute z-20" style={{ left: `calc(${(istTime / 24) * 100}%)`, transform: "translateX(-50%)" }}>
@@ -520,8 +520,8 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
+      {/* Legend — desktop only */}
+      <div className="hidden md:flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30 PM – 1:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#ffd54f15", border: "1px solid #ffd54f" }} /> Daily Scan (3:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
