@@ -288,11 +288,7 @@ select:focus, input:focus {
   .text-\[9px\], .text-\[10px\] {
     font-size: 11px !important;
   }
-  /* Full-width panels on mobile */
-  .t-panel {
-    margin-left: -4px;
-    margin-right: -4px;
-  }
+  /* Full-width panels on mobile — no negative margin needed with proper padding */
 }
 
 /* ── Touch targets: minimum 44px for buttons on mobile ───── */
@@ -372,6 +368,9 @@ select:focus, input:focus {
     grid-template-columns: repeat(2, 1fr) !important;
   }
   .landing-arch-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .landing-instruments-grid {
     grid-template-columns: 1fr !important;
   }
   .landing-page section {

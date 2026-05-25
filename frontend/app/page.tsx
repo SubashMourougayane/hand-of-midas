@@ -270,7 +270,7 @@ export default function LandingPage() {
         </FadeIn>
 
         <FadeIn delay={100}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, maxWidth: 800, margin: "0 auto" }}>
+          <div className="landing-instruments-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, maxWidth: 800, margin: "0 auto" }}>
             {/* Gold card */}
             <div style={{ background: "#111318", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #e8c300, transparent)" }} />

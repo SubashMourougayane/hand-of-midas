@@ -68,7 +68,7 @@ export default function JournalPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">JOURNAL</h1>
         <p className="text-xs text-[var(--text-dim)] mb-4">Event log and trade narratives</p>
 
@@ -112,7 +112,7 @@ export default function JournalPage() {
         </div>
 
         {/* Content */}
-        <div className="t-panel p-4">
+        <div className="t-panel p-3 sm:p-4">
           {loading ? (
             <p className="text-xs text-[var(--text-dim)]">Loading...</p>
           ) : tab === "live" && events.length === 0 ? (
@@ -122,7 +122,7 @@ export default function JournalPage() {
           ) : tab === "live" ? (
             <div className="space-y-1 max-h-[700px] overflow-auto">
               {events.map((e) => (
-                <div key={e.id} className="flex items-start gap-3 py-1.5 border-b border-[var(--border)] text-xs">
+                <div key={e.id} className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 py-1.5 border-b border-[var(--border)] text-xs">
                   <span className="text-[var(--text-dim)] min-w-[120px] shrink-0">
                     {e.timestamp ? new Date(e.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
                   </span>
@@ -144,9 +144,9 @@ export default function JournalPage() {
             </div>
           ) : (
             /* Backtest journal — trade-by-trade narrative */
-            <div className="space-y-2 max-h-[700px] overflow-auto">
+            <div className="space-y-2 max-h-[700px] overflow-x-auto">
               {btTrades.map((t, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--border)] text-xs">
+                <div key={i} className="flex items-center gap-2 sm:gap-3 py-2 border-b border-[var(--border)] text-xs min-w-[600px]">
                   <span className="text-[var(--text-dim)] min-w-[80px]">{t.date}</span>
                   <span className="min-w-[50px]" style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span>
                   <span className={`min-w-[40px] ${t.direction === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}`}>{t.direction}</span>

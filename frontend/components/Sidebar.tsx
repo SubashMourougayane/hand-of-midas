@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers, LogOut } from "lucide-react";
-import { useState } from "react";
+import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers, LogOut, Menu, X } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useInstrument, INSTRUMENTS, Instrument } from "@/lib/instrument";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -19,9 +19,25 @@ export default function Sidebar() {
   const { logout } = useAuth();
   const [goldOpen, setGoldOpen] = useState(true);
   const [oilOpen, setOilOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  return (
-    <aside className="w-[210px] min-h-screen border-r border-[var(--border)] p-4 flex flex-col bg-[var(--panel)]">
+  // Close sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [path]);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  const sidebarContent = (
+    <>
       <div className="text-[var(--green)] font-bold text-base mb-5 tracking-tight px-1">
         🤚 MIDAS
       </div>
@@ -109,6 +125,48 @@ export default function Sidebar() {
           Logout
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden fixed top-3 left-3 z-50 p-2 bg-[var(--panel)] border border-[var(--border)] text-[var(--text)]"
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 z-50"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile slide-out sidebar */}
+      <aside
+        className={`md:hidden fixed top-0 left-0 h-full w-[240px] z-50 p-4 flex flex-col bg-[var(--panel)] border-r border-[var(--border)] transform transition-transform duration-200 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-3 right-3 p-1 text-[var(--text-dim)] hover:text-[var(--text)]"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-[210px] min-h-screen border-r border-[var(--border)] p-4 flex-col bg-[var(--panel)]">
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

@@ -73,8 +73,8 @@ export default function LivePage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
-        <div className="flex items-center justify-between mb-5">
+      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-2">
           <div>
             <h1 className="text-xl font-bold text-[var(--text)]">LIVE</h1>
             <p className="text-xs text-[var(--text-dim)]">Real-time trading dashboard — {instrument === "gold" ? "XAU/USD" : "BCO/USD"}</p>
@@ -100,7 +100,7 @@ export default function LivePage() {
         {state && (
           <>
             {/* Price + Account Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="t-panel p-3">
                 <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">XAU/USD</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">
@@ -143,10 +143,11 @@ export default function LivePage() {
 
             {/* Open Positions */}
             {(state.db_positions?.length || 0) > 0 && (
-              <div className="t-panel p-4 mb-4">
+              <div className="t-panel p-3 sm:p-4 mb-4">
                 <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
                   <TrendingUp size={12} /> Open Positions
                 </h2>
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-dim)]">
@@ -177,17 +178,19 @@ export default function LivePage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
             {/* Recent Signals */}
-            <div className="t-panel p-4 mb-4">
+            <div className="t-panel p-3 sm:p-4 mb-4">
               <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
                 <Clock size={12} /> Recent Signals
               </h2>
               {(state.recent_signals?.length || 0) === 0 ? (
                 <p className="text-xs text-[var(--text-dim)]">No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan).</p>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-dim)]">
@@ -216,15 +219,17 @@ export default function LivePage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
 
             {/* Recent Trades */}
             {(state.recent_trades?.length || 0) > 0 && (
-              <div className="t-panel p-4 mb-4">
+              <div className="t-panel p-3 sm:p-4 mb-4">
                 <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
                   <TrendingDown size={12} /> Recent Closed Trades
                 </h2>
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-[var(--text-dim)]">
@@ -250,6 +255,7 @@ export default function LivePage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
@@ -391,7 +397,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
       </div>
 
       {/* 24h Timeline */}
-      <div className="relative mt-4 px-3 pb-2">
+      <div className="relative mt-4 px-1 sm:px-3 pb-2 overflow-x-auto">
         {/* Time label above needle */}
         <div className="relative h-5 mb-1">
           <div className="absolute z-20" style={{ left: `calc(${(istTime / 24) * 100}%)`, transform: "translateX(-50%)" }}>
@@ -515,7 +521,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
+      <div className="flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30 PM – 1:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#ffd54f15", border: "1px solid #ffd54f" }} /> Daily Scan (3:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
@@ -623,7 +629,7 @@ function SweepProximity() {
         </div>
       </div>
 
-      <div className="flex items-start gap-6">
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
         {/* Semicircle Speedometer */}
         <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0 }}>
           {/* SVG semicircle arc */}
@@ -684,7 +690,7 @@ function SweepProximity() {
         </div>
 
         {/* Stats panel (right side) */}
-        <div className="flex-1 grid grid-cols-2 gap-3">
+        <div className="w-full flex-1 grid grid-cols-2 gap-3">
           <div className="p-2 rounded" style={{ background: "#0d1017" }}>
             <div className="text-[8px] text-[var(--text-dim)] uppercase">Bearish Sweep</div>
             <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>${Math.abs(scan.dist_to_bearish).toFixed(1)} away</div>

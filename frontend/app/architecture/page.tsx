@@ -23,7 +23,7 @@ export default function ArchitecturePage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 p-6 overflow-auto" style={{ background: "#0a0d12" }}>
+      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6" style={{ background: "#0a0d12" }}>
         <style>{animationStyles}</style>
 
         <div className="mb-6">
@@ -31,20 +31,21 @@ export default function ArchitecturePage() {
           <p className="text-xs mt-1" style={{ color: "#9ca3b4" }}>Hand Of Midas — Multi-asset algorithmic trading engine</p>
         </div>
 
-        <div className="flex flex-wrap gap-1 mb-8 pb-4" style={{ borderBottom: "1px solid #252a33" }}>
+        <div className="flex flex-wrap gap-1 mb-6 sm:mb-8 pb-4 overflow-x-auto" style={{ borderBottom: "1px solid #252a33" }}>
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActive(id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold tracking-wider uppercase transition-all rounded"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase transition-all rounded whitespace-nowrap"
               style={{
                 background: active === id ? "#181c24" : "transparent",
                 color: active === id ? "#00e87b" : "#9ca3b4",
                 border: active === id ? "1px solid #252a33" : "1px solid transparent",
               }}
             >
-              <Icon className="w-4 h-4" />
-              {label}
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.slice(0, 4)}</span>
             </button>
           ))}
         </div>
@@ -120,11 +121,12 @@ function MetricBar({ label, value, max, color = "#00e87b" }: { label: string; va
 function OverviewTab() {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-6" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg overflow-x-auto" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-6" style={{ color: "#4da6ff" }}>
           COMPLETE SYSTEM FLOW — LONDON + NY SESSION (08:00-20:00 UTC)
         </div>
 
+        <div className="min-w-[500px]">
         {/* Row 1: Data Source */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-2">
           <FlowNode label="OANDA API" sub="H1 + M3 + Daily" color="#e8c300" delay={0} />
@@ -155,10 +157,11 @@ function OverviewTab() {
           <FlowArrow delay={3.0} label="wait" />
           <FlowNode label="Exit Detect" sub="SL / TP / MaxHold" color="#ff3e3e" delay={3.2} />
         </div>
+        </div>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: "INSTRUMENTS", value: "2", sub: "XAU/USD + BCO/USD", color: "#00e87b" },
           { label: "STRATEGIES", value: "3", sub: "Alpha + MeanRev + Cross", color: "#4da6ff" },
@@ -175,11 +178,11 @@ function OverviewTab() {
       </div>
 
       {/* Architecture summary */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           ARCHITECTURE — SEPARATE BACKENDS, SHARED FRONTEND
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-4" style={{ background: "#080a0f", border: "1.5px solid #e8c300" }}>
             <div className="text-xs font-bold" style={{ color: "#e8c300" }}>GOLD BACKEND :5053</div>
             <div className="text-xs mt-2 space-y-1" style={{ color: "#9ca3b4" }}>
@@ -220,12 +223,12 @@ function OverviewTab() {
 function StrategiesTab() {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           3 STRATEGIES — SIGNAL GENERATION LOGIC
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             {
               name: "ALPHA-SWEEP", instruments: "XAU/USD + BCO/USD", risk: "4%",
@@ -272,8 +275,8 @@ function StrategiesTab() {
       </div>
 
       {/* Backtest results comparison */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           20-YEAR BACKTEST RESULTS ($5K/year capital)
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -301,8 +304,8 @@ function StrategiesTab() {
 function ExecutionTab() {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           TRADE LIFECYCLE — FROM SIGNAL TO EXIT
         </div>
 
@@ -335,11 +338,11 @@ function ExecutionTab() {
       </div>
 
       {/* Fill model rules */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           FILL MODEL — EXIT PRIORITY ORDER (BACKTEST + LIVE)
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
             { priority: "1", rule: "GAP-THROUGH SL", desc: "Bar opens past SL → instant fill at open price. Worst case.", color: "#ff3e3e" },
             { priority: "2", rule: "TP TOUCH", desc: "Bar high/low touches TP → fill at TP exactly. OANDA limit order.", color: "#00e87b" },
@@ -370,11 +373,11 @@ function ExecutionTab() {
 function RiskTab() {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           TIERED RISK — PER-STRATEGY ALLOCATION
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { strategy: "Alpha-Sweep", risk: 4.0, maxUnitsGold: 100, maxUnitsOil: 5000, color: "#4fc3f7" },
             { strategy: "Mean-Rev", risk: 3.0, maxUnitsGold: 100, maxUnitsOil: 0, color: "#00e87b" },
@@ -394,11 +397,11 @@ function RiskTab() {
       </div>
 
       {/* DD Protection State Machine */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           DRAWDOWN PROTECTION — STATE MACHINE
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { state: "NORMAL", condition: "< 3 losses", action: "Full size (1.0×)", color: "#00e87b" },
             { state: "HALVED", condition: "≥ 3 consecutive losses", action: "Half size (0.5×)", color: "#e8c300" },
@@ -412,7 +415,7 @@ function RiskTab() {
             </div>
           ))}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-3 text-xs" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
             <span className="font-bold" style={{ color: "#00e87b" }}>WIN resets</span>
             <span style={{ color: "#9ca3b4" }}> — any profit trade → consecutive_losses = 0</span>
@@ -425,11 +428,11 @@ function RiskTab() {
       </div>
 
       {/* Position guards */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           POSITION GUARDS — PREVENTING OVEREXPOSURE
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { guard: "Alpha-Sweep", rule: "Max 3 per day per instrument", color: "#4fc3f7" },
             { guard: "Mean-Rev", rule: "Max 1 open at a time", color: "#00e87b" },
@@ -452,11 +455,11 @@ function RiskTab() {
 function DataTab() {
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           OANDA API CALLS — WHAT, WHEN, WHY
         </div>
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-x-auto">
           {[
             { when: "Every 3 min (London)", call: "get_candles(H1, 12)", returns: "12 hourly bars", purpose: "Asia range calculation", color: "#4fc3f7" },
             { when: "Every 3 min (London)", call: "get_candles(M3, 50)", returns: "50 three-min bars", purpose: "Engulfing detection", color: "#4fc3f7" },
@@ -467,7 +470,7 @@ function DataTab() {
             { when: "On signal", call: "get_account_summary()", returns: "NAV, balance, GBP/USD", purpose: "Position sizing", color: "#e8c300" },
             { when: "On signal", call: "place_market_order()", returns: "Fill price, trade_id", purpose: "Order execution", color: "#00e87b" },
           ].map(({ when, call, returns, purpose, color }, i) => (
-            <div key={i} className="flex items-center gap-4 p-3" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
+            <div key={i} className="flex items-center gap-4 p-3 min-w-[600px]" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
               <div className="w-40 flex-shrink-0 text-xs" style={{ color: "#9ca3b4" }}>{when}</div>
               <div className="w-48 flex-shrink-0 text-xs font-mono" style={{ color }}>{call}</div>
               <div className="w-40 flex-shrink-0 text-xs" style={{ color: "#9ca3b4" }}>{returns}</div>
@@ -478,8 +481,8 @@ function DataTab() {
       </div>
 
       {/* DB Tables */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           POSTGRESQL STORAGE — WHAT'S PERSISTED
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -525,13 +528,13 @@ function ScheduleTab() {
 
   return (
     <div className="space-y-6">
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           24-HOUR TRADING SCHEDULE (UTC)
         </div>
 
         {/* Timeline visualization */}
-        <div className="relative h-16 mb-6" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
+        <div className="relative h-16 mb-6 overflow-x-auto" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
           {/* Hour markers */}
           {Array.from({ length: 25 }).map((_, h) => (
             <div key={h} className="absolute top-0 bottom-0" style={{ left: `${(h / 24) * 100}%`, borderLeft: "1px solid #1a1f27" }}>
@@ -558,7 +561,7 @@ function ScheduleTab() {
         </div>
 
         {/* Schedule details */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             {
               name: "ALPHA-SWEEP", time: "08:00-20:00 UTC", interval: "Every 3 min",
@@ -587,11 +590,11 @@ function ScheduleTab() {
       </div>
 
       {/* Current status */}
-      <div className="p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
+        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
           NOTIFICATION EVENTS — TELEGRAM ALERTS
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[
             { event: "SIGNAL TAKEN", emoji: "📈", desc: "Strategy, direction, entry, SL, TP, units" },
             { event: "SIGNAL SKIPPED", emoji: "⏭️", desc: "Strategy, direction, skip reason" },

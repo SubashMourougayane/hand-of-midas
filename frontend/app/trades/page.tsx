@@ -71,7 +71,7 @@ export default function TradesPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">TRADES</h1>
         <p className="text-xs text-[var(--text-dim)] mb-4">Trade history — live execution and backtested results</p>
 
@@ -121,7 +121,7 @@ export default function TradesPage() {
 
         {/* Stats */}
         {stats.total > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
             <div className="t-panel p-3">
               <div className="text-[9px] text-[var(--text-dim)] uppercase">Trades</div>
               <div className="text-lg font-bold">{stats.total}</div>
@@ -169,7 +169,7 @@ export default function TradesPage() {
         )}
 
         {/* Trade Table */}
-        <div className="t-panel p-4">
+        <div className="t-panel p-3 sm:p-4">
           {loading ? (
             <p className="text-xs text-[var(--text-dim)]">Loading...</p>
           ) : tab === "live" && liveTrades.length === 0 ? (
@@ -177,7 +177,7 @@ export default function TradesPage() {
           ) : tab === "backtest" && btTrades.length === 0 ? (
             <p className="text-xs text-[var(--text-dim)]">No backtest results in DB. Run a backtest first from the Backtest page.</p>
           ) : (
-            <div className="overflow-auto max-h-[600px]">
+            <div className="overflow-x-auto max-h-[600px]">
               <table className="w-full text-[11px]">
                 <thead className="sticky top-0 bg-[var(--panel)]">
                   <tr className="text-[var(--text-dim)]">

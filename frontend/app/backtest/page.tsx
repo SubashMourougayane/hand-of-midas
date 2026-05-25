@@ -72,15 +72,15 @@ export default function BacktestPage() {
   return (
     <>
       <Sidebar />
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">BACKTEST</h1>
         <p className="text-xs text-[var(--text-dim)] mb-5">
           V4 + V7 + V8 Portfolio | Fresh capital each year | Honest fills
         </p>
 
         {/* Config Panel */}
-        <div className="t-panel p-4 mb-4">
-          <div className="flex flex-wrap gap-4 items-end">
+        <div className="t-panel p-3 sm:p-4 mb-4">
+          <div className="flex flex-wrap gap-3 sm:gap-4 items-end">
             <DatePicker label="Start" value={startDate} onChange={setStartDate} />
             <DatePicker label="End" value={endDate} onChange={setEndDate} />
             <div>
@@ -115,7 +115,7 @@ export default function BacktestPage() {
         {result && !loading && (
           <>
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
               <StatCard label="Total P&L" value={`$${result.stats.total_pnl.toLocaleString(undefined, {maximumFractionDigits:0})}`} sub={formatINR(result.stats.total_pnl)} color={result.stats.total_pnl >= 0 ? "green" : "red"} />
               <StatCard label="Win Rate" value={`${(result.stats.win_rate * 100).toFixed(1)}%`} sub={`${result.stats.wins}W / ${result.stats.losses}L`} />
               <StatCard label="Profit Factor" value={result.stats.profit_factor.toFixed(2)} />
@@ -127,8 +127,9 @@ export default function BacktestPage() {
             </div>
 
             {/* Strategy Breakdown */}
-            <div className="t-panel p-4 mb-4">
+            <div className="t-panel p-3 sm:p-4 mb-4">
               <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">Strategy Breakdown</h2>
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-[var(--text-dim)]">
@@ -158,6 +159,7 @@ export default function BacktestPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Equity Curve */}
@@ -180,9 +182,9 @@ export default function BacktestPage() {
             </div>
 
             {/* Yearly Performance */}
-            <div className="t-panel p-4 mb-4">
+            <div className="t-panel p-3 sm:p-4 mb-4">
               <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">Year-by-Year</h2>
-              <div className="overflow-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="text-[var(--text-dim)] text-[9px] uppercase tracking-wider">
@@ -225,11 +227,11 @@ export default function BacktestPage() {
             </div>
 
             {/* Trade Table */}
-            <div className="t-panel p-4">
+            <div className="t-panel p-3 sm:p-4">
               <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">
                 Trades ({result.trades.length} total)
               </h2>
-              <div className="overflow-auto max-h-[500px]">
+              <div className="overflow-x-auto max-h-[500px]">
                 <table className="w-full text-[11px]">
                   <thead className="sticky top-0 bg-[var(--panel)]">
                     <tr className="text-[var(--text-dim)]">
