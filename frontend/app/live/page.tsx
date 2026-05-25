@@ -1,8 +1,30 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
+
+interface ScanStatus {
+  scan_active: boolean;
+  tradeable: boolean;
+  price: number;
+  spread: number;
+  asia_high: number;
+  asia_low: number;
+  asia_range: number;
+  bearish_sweep_level: number;
+  bullish_sweep_level: number;
+  dist_to_bearish: number;
+  dist_to_bullish: number;
+  proximity_pct: number;
+  sweep_direction: string;
+  sweep_detected: boolean;
+  sweep_info: string | null;
+  daily_bias: string;
+  trades_today: number;
+  max_trades_per_day: number;
+  utc_time: string;
+}
 
 interface LiveState {
   price: { bid: number; ask: number; mid: number; spread: number; tradeable: boolean } | null;
@@ -69,6 +91,9 @@ export default function LivePage() {
 
         {/* System Mode */}
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
+
+        {/* Sweep Proximity */}
+        <SweepProximity />
 
         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
 
@@ -280,13 +305,20 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     mode = "MARKET CLOSED";
     color = "#9ca3b4";
     icon = "🌙";
-    const mondayOpen = new Date(now);
-    mondayOpen.setUTCDate(now.getUTCDate() + (8 - now.getUTCDay()) % 7);
-    mondayOpen.setUTCHours(0, 0, 0, 0);
-    const diff = mondayOpen.getTime() - now.getTime();
-    const hrs = Math.floor(diff / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    countdown = `Opens in ${hrs}h ${mins}m`;
+    // Forex opens Sunday 21:00 UTC (5 PM New York)
+    const sundayOpen = new Date(now);
+    if (now.getUTCDay() === 6) {
+      // Saturday → next day (Sunday) at 21:00 UTC
+      sundayOpen.setUTCDate(now.getUTCDate() + 1);
+    } else {
+      // Sunday → today at 21:00 UTC
+      sundayOpen.setUTCDate(now.getUTCDate());
+    }
+    sundayOpen.setUTCHours(21, 0, 0, 0);
+    const diff = sundayOpen.getTime() - now.getTime();
+    const hrs = Math.floor(Math.max(diff, 0) / 3600000);
+    const mins = Math.floor((Math.max(diff, 0) % 3600000) / 60000);
+    countdown = diff > 0 ? `Opens in ${hrs}h ${mins}m` : "Opening soon...";
   } else if (hasPositions) {
     mode = "POSITION OPEN";
     color = "#00e87b";
@@ -489,6 +521,209 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
         <span className="flex items-center gap-1.5"><span className="w-5 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 6px)" }} /> Monitor (24/7)</span>
       </div>
+    </div>
+  );
+}
+
+
+function SweepProximity() {
+  const { apiBase, instrument } = useInstrument();
+  const [scan, setScan] = useState<ScanStatus | null>(null);
+  const [scanError, setScanError] = useState(false);
+
+  const fetchScan = useCallback(async () => {
+    if (false) { // Both gold and oil supported
+      setScan(null);
+      return;
+    }
+    const prefix = "gold";
+    try {
+      const res = await fetch(`${apiBase}/api/${prefix}/scan-status`);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      setScan(data);
+      setScanError(false);
+    } catch {
+      setScanError(true);
+    }
+  }, [apiBase, instrument]);
+
+  useEffect(() => {
+    fetchScan();
+    const interval = setInterval(fetchScan, 10000);
+    return () => clearInterval(interval);
+  }, [fetchScan]);
+
+  // Don't render for oil
+  if (instrument === "oil") return null;
+
+  // Loading / error state
+  if (!scan && !scanError) {
+    return (
+      <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+        <div className="text-[10px] text-[var(--text-dim)]">Loading sweep proximity...</div>
+      </div>
+    );
+  }
+  if (scanError || !scan) {
+    return (
+      <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+        <div className="text-[10px] text-[var(--text-dim)]">Sweep proximity: N/A (scan-status unavailable)</div>
+      </div>
+    );
+  }
+
+  // Calculate gauge position (0-100%)
+  const totalRange = scan.bearish_sweep_level - scan.bullish_sweep_level;
+  const pricePosition = totalRange > 0
+    ? ((scan.price - scan.bullish_sweep_level) / totalRange) * 100
+    : 50;
+  const clampedPosition = Math.max(0, Math.min(100, pricePosition));
+
+  // Asia range markers within gauge
+  const asiaLowPct = totalRange > 0
+    ? ((scan.asia_low - scan.bullish_sweep_level) / totalRange) * 100
+    : 20;
+  const asiaHighPct = totalRange > 0
+    ? ((scan.asia_high - scan.bullish_sweep_level) / totalRange) * 100
+    : 80;
+
+  // Color based on proximity
+  const isNearSweep = scan.proximity_pct > 80;
+  const isApproaching = scan.proximity_pct > 50;
+  let dotColor = "#00e87b"; // green = safe inside asia
+  if (isNearSweep) dotColor = "#ff3e3e"; // red = at sweep
+  else if (isApproaching) dotColor = "#ffd54f"; // yellow = approaching
+
+  // Glow/pulse when within $5 of sweep
+  const distBearish = Math.abs(scan.dist_to_bearish);
+  const distBullish = Math.abs(scan.dist_to_bullish);
+  const closestDist = Math.min(distBearish, distBullish);
+  const shouldPulse = closestDist <= 5;
+
+  // Bias badge color
+  const biasColor = scan.daily_bias === "bullish" ? "#00e87b" : scan.daily_bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+
+  // Needle angle: 0% = -90deg (left/bullish), 100% = 90deg (right/bearish)
+  const needleAngle = -90 + (clampedPosition / 100) * 180;
+
+  return (
+    <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Sweep Proximity</h2>
+        <div className="flex items-center gap-2">
+          {scan.sweep_detected && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded"
+              style={{ background: "#ff3e3e20", color: "#ff3e3e", border: "1px solid #ff3e3e", animation: "sweepFlash 0.8s ease-in-out infinite alternate" }}>
+              SWEEP DETECTED ({scan.sweep_direction.toUpperCase()})
+            </span>
+          )}
+          <span className="text-[9px] text-[var(--text-dim)]">UTC {scan.utc_time}</span>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-6">
+        {/* Semicircle Speedometer */}
+        <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0 }}>
+          {/* SVG semicircle arc */}
+          <svg viewBox="0 0 200 110" style={{ width: "100%", height: "100%" }}>
+            {/* Background arc */}
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="#1a1f2b" strokeWidth="12" strokeLinecap="round" />
+            {/* Gradient arc — green to yellow to red */}
+            <defs>
+              <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#00e87b" />
+                <stop offset="40%" stopColor="#00e87b" />
+                <stop offset="60%" stopColor="#ffd54f" />
+                <stop offset="80%" stopColor="#ff8c00" />
+                <stop offset="100%" stopColor="#ff3e3e" />
+              </linearGradient>
+            </defs>
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#sweepGrad)" strokeWidth="8" strokeLinecap="round" opacity="0.4" />
+            {/* Active portion up to needle */}
+            <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#sweepGrad)" strokeWidth="8" strokeLinecap="round"
+              strokeDasharray={`${clampedPosition * 2.67} 267`} />
+            {/* Asia Low tick */}
+            <line x1={15 + (asiaLowPct / 100) * 170} y1="92" x2={15 + (asiaLowPct / 100) * 170} y2="100" stroke="#4fc3f7" strokeWidth="2" />
+            {/* Asia High tick */}
+            <line x1={15 + (asiaHighPct / 100) * 170} y1="92" x2={15 + (asiaHighPct / 100) * 170} y2="100" stroke="#4fc3f7" strokeWidth="2" />
+          </svg>
+
+          {/* Needle */}
+          <div style={{
+            position: "absolute", bottom: "10px", left: "50%", transformOrigin: "bottom center",
+            transform: `translateX(-50%) rotate(${needleAngle}deg)`,
+            width: "2px", height: "70px",
+            background: `linear-gradient(to top, ${dotColor}, transparent)`,
+            transition: "transform 0.5s ease-out",
+          }}>
+            <div style={{
+              position: "absolute", top: "0", left: "50%", transform: "translateX(-50%)",
+              width: "8px", height: "8px", borderRadius: "50%", background: dotColor,
+              boxShadow: shouldPulse ? `0 0 12px ${dotColor}` : `0 0 4px ${dotColor}60`,
+              animation: shouldPulse ? "sweepPulse 1s ease-in-out infinite" : "none",
+            }} />
+          </div>
+
+          {/* Center pivot */}
+          <div style={{
+            position: "absolute", bottom: "6px", left: "50%", transform: "translateX(-50%)",
+            width: "10px", height: "10px", borderRadius: "50%", background: "#252a33", border: "2px solid #4b5563",
+          }} />
+
+          {/* Labels */}
+          <div style={{ position: "absolute", bottom: "0", left: "4px", fontSize: "8px", color: "#00e87b" }}>BULL</div>
+          <div style={{ position: "absolute", bottom: "0", right: "4px", fontSize: "8px", color: "#ff3e3e" }}>BEAR</div>
+
+          {/* Price in center */}
+          <div style={{ position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
+            <div style={{ fontSize: "16px", fontWeight: "bold", color: dotColor }}>${scan.price.toFixed(2)}</div>
+            <div style={{ fontSize: "8px", color: "#5b6370" }}>{instrument === "oil" ? "BCO/USD" : "XAU/USD"}</div>
+          </div>
+        </div>
+
+        {/* Stats panel (right side) */}
+        <div className="flex-1 grid grid-cols-2 gap-3">
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Bearish Sweep</div>
+            <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>${Math.abs(scan.dist_to_bearish).toFixed(1)} away</div>
+            <div className="text-[8px] text-[var(--text-dim)]">Need &gt;${scan.bearish_sweep_level.toFixed(0)}</div>
+          </div>
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Bullish Sweep</div>
+            <div className="text-sm font-bold" style={{ color: "#00e87b" }}>${Math.abs(scan.dist_to_bullish).toFixed(1)} away</div>
+            <div className="text-[8px] text-[var(--text-dim)]">Need &lt;${scan.bullish_sweep_level.toFixed(0)}</div>
+          </div>
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Daily Bias</div>
+            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ color: biasColor, background: `${biasColor}15`, border: `1px solid ${biasColor}40` }}>
+              {scan.daily_bias.toUpperCase()}
+            </span>
+          </div>
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Trades Today</div>
+            <div className="text-sm font-bold text-[var(--text)]">{scan.trades_today} / {scan.max_trades_per_day}</div>
+          </div>
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Asia Range</div>
+            <div className="text-sm font-bold text-[#4fc3f7]">${scan.asia_range.toFixed(0)}</div>
+            <div className="text-[8px] text-[var(--text-dim)]">${scan.asia_low.toFixed(0)} – ${scan.asia_high.toFixed(0)}</div>
+          </div>
+          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+            <div className="text-[8px] text-[var(--text-dim)] uppercase">Sweep Status</div>
+            <div className="text-sm font-bold" style={{ color: scan.sweep_detected ? "#ff3e3e" : "#5b6370" }}>
+              {scan.sweep_detected ? "DETECTED" : "WAITING"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Animations */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes sweepPulse { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.4); } }
+        @keyframes sweepFlash { 0% { opacity: 1; } 100% { opacity: 0.4; } }
+      ` }} />
     </div>
   );
 }
