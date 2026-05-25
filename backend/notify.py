@@ -18,7 +18,7 @@ def send(message: str):
 
 def _send(message: str):
     try:
-        httpx.post(API_URL, data={"chat_id": CHAT_ID, "text": message, "parse_mode": "HTML"}, timeout=10)
+        httpx.post(API_URL, data={"chat_id": CHAT_ID, "text": message}, timeout=10)
     except Exception:
         pass
 

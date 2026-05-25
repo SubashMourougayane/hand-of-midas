@@ -566,11 +566,33 @@ def heartbeat_job():
         open_pos = execute("SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL", fetch=True)
         open_count = open_pos[0]["cnt"] if open_pos else 0
 
-        notify.send(
-            f"🫀 Heartbeat {now.strftime('%H:%M')} UTC\n"
-            f"Gold: {gold_price} | Range: ${asia_range:.0f}\n"
-            f"Trades today: {trade_count}/3 | Open: {open_count}\n"
-            f"Status: {'Scanning' if price and price.get('tradeable') else 'Closed'}"
+        # Convert to IST
+        ist_hour = (now.hour + 5) % 24 + (1 if now.minute >= 30 else 0)
+        ist_min = (now.minute + 30) % 60
+        ist_ampm = "AM" if ist_hour < 12 else "PM"
+        ist_display = f"{ist_hour if ist_hour <= 12 else ist_hour - 12}:{ist_min:02d} {ist_ampm} IST"
+
+        # Distance from sweep levels
+        dist_high = f"+${price['mid'] - asia_high:.1f}" if price and asia_high > 0 else "?"
+        dist_low = f"+${asia_low - price['mid']:.1f}" if price and asia_low < 999999 else "?"
+        sweep_needed_high = f"${asia_high + 2:.0f}" if asia_high > 0 else "?"
+        sweep_needed_low = f"${asia_low - 2:.0f}" if asia_low < 999999 else "?"
+
+        # Oil price
+        oil_price_data = get_current_price(instrument="BCO_USD")
+        oil_str = f"${oil_price_data['mid']:.2f}" if oil_price_data else "N/A"
+
+        notify._send(
+            f"🫀 Heartbeat — {ist_display}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Gold: {gold_price} | Oil: {oil_str}\n"
+            f"Asia: ${asia_low:.0f} – ${asia_high:.0f} (${asia_range:.0f} range)\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Bearish sweep: need >{sweep_needed_high} ({dist_high} away)\n"
+            f"Bullish sweep: need <{sweep_needed_low} ({dist_low} away)\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Trades: {trade_count}/3 | Open: {open_count}\n"
+            f"Status: {'🟢 Scanning' if price and price.get('tradeable') else '🔴 Closed'}"
         )
     except Exception as e:
         print(f"  Heartbeat error: {e}")
