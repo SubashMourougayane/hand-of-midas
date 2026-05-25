@@ -679,7 +679,7 @@ function SweepProximity() {
           {/* Price in center */}
           <div style={{ position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
             <div style={{ fontSize: "16px", fontWeight: "bold", color: dotColor }}>${scan.price.toFixed(2)}</div>
-            <div style={{ fontSize: "8px", color: "#5b6370" }}>{instrument === "oil" ? "BCO/USD" : "XAU/USD"}</div>
+            <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" ? "BCO/USD" : "XAU/USD"}</div>
           </div>
         </div>
 
