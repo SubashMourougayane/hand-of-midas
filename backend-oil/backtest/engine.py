@@ -72,11 +72,19 @@ def run_backtest(
     oil_h1 = data["oil_h1"]
     oil_m3 = data["oil_m3"]
 
-    # Daily bias
+    # Daily bias — Variant C: strong body = directional, weak body (< 40% of range) = neutral
     daily_bias = {}
     for i in range(1, len(oil_d)):
         d = oil_d.index[i].date()
-        daily_bias[d] = "bullish" if oil_d["mid_close"].iat[i - 1] > oil_d["mid_open"].iat[i - 1] else "bearish"
+        prev_range = oil_d["mid_high"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]
+        if prev_range > 0:
+            body_pct = abs(oil_d["mid_close"].iat[i - 1] - oil_d["mid_open"].iat[i - 1]) / prev_range
+        else:
+            body_pct = 0
+        if body_pct < 0.4:
+            daily_bias[d] = "neutral"
+        else:
+            daily_bias[d] = "bullish" if oil_d["mid_close"].iat[i - 1] > oil_d["mid_open"].iat[i - 1] else "bearish"
 
     # Generate signals
     np.random.seed(seed)
@@ -93,6 +101,7 @@ def run_backtest(
     equity = capital
     peak_equity = capital
     consecutive_losses = 0
+    pause_counter = 0
     equity_history = []
     trades: list[BacktestTrade] = []
     current_year = None
@@ -105,13 +114,18 @@ def run_backtest(
             equity = capital
             peak_equity = capital
             consecutive_losses = 0
+            pause_counter = 0
             equity_history = []
             current_year = trade_year
 
         if equity < 100:
             continue
 
-        # DD protection
+        # DD protection: pause after 5 consecutive losses (skip next 2 signals)
+        if pause_counter > 0:
+            pause_counter -= 1
+            continue
+
         risk_mult = 1.0
         if consecutive_losses >= 3:
             risk_mult = 0.5
@@ -155,6 +169,8 @@ def run_backtest(
             consecutive_losses = 0
         else:
             consecutive_losses += 1
+            if consecutive_losses >= 5:
+                pause_counter = 2
 
         equity_history.append(equity)
         if equity > peak_equity:

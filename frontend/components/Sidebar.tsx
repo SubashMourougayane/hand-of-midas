@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers, LogOut, Menu, X } from "lucide-react";
+import { BarChart2, Radio, List, BookOpen, ChevronDown, ChevronRight, Layers, LogOut, Menu, X, FileBarChart } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useInstrument, INSTRUMENTS, Instrument } from "@/lib/instrument";
 import { useAuth } from "@/contexts/AuthContext";
@@ -109,6 +109,11 @@ export default function Sidebar() {
           <Layers size={14} />
           Architecture
         </Link>
+        <a href="/midas-report.html" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-2.5 px-2 py-2 text-xs transition-colors text-[var(--text-dim)] hover:text-[var(--amber)]">
+          <FileBarChart size={14} />
+          Midas Report
+        </a>
       </div>
 
       {/* Active + Logout */}

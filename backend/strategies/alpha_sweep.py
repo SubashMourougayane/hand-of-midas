@@ -64,11 +64,12 @@ def generate_signals(
             if day_trades >= max_per_day:
                 break
 
-            # Bias filter
-            if sweep_dir == "bullish" and bias != "bullish":
-                continue
-            if sweep_dir == "bearish" and bias != "bearish":
-                continue
+            # Bias filter (Variant C: neutral = allow both directions)
+            if bias != "neutral":
+                if sweep_dir == "bullish" and bias != "bullish":
+                    continue
+                if sweep_dir == "bearish" and bias != "bearish":
+                    continue
 
             # Find M3 engulfing within window
             end_time = sweep_time + pd.Timedelta(hours=cfg["engulfing_window_hours"])

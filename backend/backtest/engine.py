@@ -91,6 +91,7 @@ def run_backtest(
     gold_m3 = data["gold_m3"]
 
     # Daily bias + 50MA
+    # Variant C bias: strong body = directional, weak body (< 40% of range) = neutral (allow both)
     daily_bias = {}
     gold_50ma_vals = pd.Series(gold_d["mid_close"].values).rolling(50, min_periods=50).mean().values
     gold_50ma_dict = {}
@@ -98,7 +99,15 @@ def run_backtest(
 
     for i in range(1, len(gold_d)):
         d = gold_d.index[i].date()
-        daily_bias[d] = "bullish" if gold_d["mid_close"].iat[i - 1] > gold_d["mid_open"].iat[i - 1] else "bearish"
+        prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
+        if prev_range > 0:
+            body_pct = abs(gold_d["mid_close"].iat[i - 1] - gold_d["mid_open"].iat[i - 1]) / prev_range
+        else:
+            body_pct = 0
+        if body_pct < 0.4:
+            daily_bias[d] = "neutral"
+        else:
+            daily_bias[d] = "bullish" if gold_d["mid_close"].iat[i - 1] > gold_d["mid_open"].iat[i - 1] else "bearish"
         if not np.isnan(gold_50ma_vals[i]):
             gold_50ma_dict[d] = gold_50ma_vals[i]
         gold_close_dict[d] = gold_d["mid_close"].iat[i]

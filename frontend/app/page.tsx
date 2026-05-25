@@ -222,6 +222,18 @@ export default function LandingPage() {
               Enter Dashboard &rarr;
             </button>
             <button
+              onClick={() => window.open("/midas-report.html", "_blank")}
+              style={{
+                background: "transparent", color: "#00e87b", border: "1px solid #00e87b55",
+                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#00e87b"; e.currentTarget.style.background = "#00e87b10"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "#00e87b55"; e.currentTarget.style.background = "transparent"; }}
+            >
+              Midas Backtest Report
+            </button>
+            <button
               onClick={() => router.push("/login")}
               style={{
                 background: "transparent", color: "#e8c300", border: "1px solid #e8c30055",

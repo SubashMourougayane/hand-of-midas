@@ -393,14 +393,22 @@ def _run_alpha_sweep():
     if not scan_bars:
         return
 
-    # Daily bias filter — use mid prices (matches backtest)
+    # Daily bias filter — Variant C: strong body = directional, weak body = neutral (allow both)
     yesterday_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
     if len(yesterday_candles) < 2:
         return
     yesterday = yesterday_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
     mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
-    bias = "bullish" if mid_close > mid_open else "bearish"
+    mid_high = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
+    mid_low = (yesterday["bid_low"] + yesterday["ask_low"]) / 2
+    prev_range = mid_high - mid_low
+    if prev_range <= 0:
+        bias = "neutral"
+    elif abs(mid_close - mid_open) / prev_range < 0.4:
+        bias = "neutral"
+    else:
+        bias = "bullish" if mid_close > mid_open else "bearish"
 
     # Detect ALL sweeps in scan window (not just first)
     sweeps = []
@@ -426,11 +434,12 @@ def _run_alpha_sweep():
         if trades_today >= cfg["max_trades_per_day"]:
             break
 
-        # Bias filter
-        if sweep_dir == "bullish" and bias != "bullish":
-            continue
-        if sweep_dir == "bearish" and bias != "bearish":
-            continue
+        # Bias filter (Variant C: neutral = allow both directions)
+        if bias != "neutral":
+            if sweep_dir == "bullish" and bias != "bullish":
+                continue
+            if sweep_dir == "bearish" and bias != "bearish":
+                continue
 
         # Find engulfing after this sweep
         sweep_time = _parse_ts(sweep_ts) if isinstance(sweep_ts, str) else sweep_ts

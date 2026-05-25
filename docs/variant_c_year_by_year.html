@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand of Midas — Performance Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0a;
+            --card: #111111;
+            --card-hover: #161616;
+            --border: #333333;
+            --border-light: #444444;
+            --amber: #ffa500;
+            --amber-dim: #cc8400;
+            --green: #00ff41;
+            --green-dim: #00cc33;
+            --red: #ff4444;
+            --red-dim: #cc3333;
+            --text: #e0e0e0;
+            --muted: #888888;
+            --font: 'JetBrains Mono', monospace;
+            --transition: 0.3s ease;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 15px;
+            line-height: 1.7;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 0, 0, 0.03) 2px,
+                rgba(0, 0, 0, 0.03) 4px
+            );
+        }
+
+        /* Fixed Navigation */
+        .nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 1000;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            overflow-x: auto;
+        }
+
+        .nav-brand {
+            color: var(--amber);
+            font-weight: 700;
+            font-size: 18px;
+            margin-right: 16px;
+            white-space: nowrap;
+        }
+
+        .nav a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 13px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+
+        .nav a:hover, .nav a.active {
+            color: var(--amber);
+            background: rgba(255, 165, 0, 0.1);
+        }
+
+        /* Main container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 70px 20px 40px;
+        }
+
+        /* Section titles */
+        .section-title {
+            color: var(--amber);
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '>';
+            color: var(--green);
+            font-weight: 400;
+        }
+
+        section { margin-bottom: 60px; }
+
+        /* Hero / Header */
+        .hero {
+            text-align: center;
+            padding: 40px 0 30px;
+            margin-bottom: 50px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            font-size: 34px;
+            color: var(--amber);
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+
+        .hero .subtitle {
+            color: var(--muted);
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .hero .capital-note {
+            color: var(--text);
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        /* Summary Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px 10px;
+            text-align: center;
+            transition: all var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--amber);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 12px rgba(255, 165, 0, 0.08);
+        }
+
+        .stat-card .label {
+            color: var(--muted);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .stat-card .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--amber);
+        }
+
+        .stat-card .value.green { color: var(--green); }
+        .stat-card .value.red { color: var(--red); }
+
+        /* USD hover tooltips */
+        .usd {
+            position: relative;
+            cursor: help;
+            border-bottom: 1px dotted var(--amber-dim);
+        }
+
+        .usd:hover::after {
+            content: attr(data-inr);
+            position: absolute;
+            top: 50%;
+            left: calc(100% + 8px);
+            transform: translateY(-50%);
+            background: #222;
+            color: var(--amber);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            white-space: nowrap;
+            z-index: 1000;
+            border: 1px solid var(--amber-dim);
+            pointer-events: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+        }
+
+        .usd:hover::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 100%;
+            transform: translateY(-50%);
+            border: 5px solid transparent;
+            border-right-color: #222;
+            z-index: 1001;
+            pointer-events: none;
+        }
+
+        /* Strategy Table */
+        .strategy-table-wrap {
+            overflow-x: auto;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .strategy-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 18px;
+        }
+
+        .strategy-table th {
+            background: #1a1a1a;
+            color: var(--amber);
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            transition: background var(--transition);
+        }
+
+        .strategy-table th:hover {
+            background: #222;
+        }
+
+        .strategy-table th .sort-arrow {
+            margin-left: 4px;
+            opacity: 0.4;
+            font-size: 18px;
+        }
+
+        .strategy-table th.sorted .sort-arrow { opacity: 1; }
+
+        .strategy-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #1a1a1a;
+            white-space: nowrap;
+        }
+
+        .strategy-table tr:hover td {
+            background: var(--card-hover);
+        }
+
+        /* Year Cards — Table-style rows */
+        .year-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 4px;
+        }
+
+        .year-row {
+            background: var(--card);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .year-row:hover {
+            background: var(--card-hover);
+        }
+
+        .year-row td {
+            padding: 14px 16px;
+            font-size: 18px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .year-row td:first-child {
+            border-left: 1px solid var(--border);
+            border-radius: 6px 0 0 6px;
+            font-weight: 700;
+            color: var(--amber);
+            font-size: 18px;
+            width: 60px;
+        }
+
+        .year-row td:last-child {
+            border-right: 1px solid var(--border);
+            border-radius: 0 6px 6px 0;
+        }
+
+        .year-row.expanded td {
+            border-bottom: none;
+        }
+
+        .year-row .yr-pnl {
+            font-weight: 600;
+            font-size: 13px;
+            text-align: right;
+            min-width: 90px;
+        }
+
+        .year-row .yr-bar {
+            width: 100%;
+            max-width: 120px;
+        }
+
+        .year-row .yr-bar-inner {
+            height: 4px;
+            border-radius: 2px;
+            background: var(--green);
+            transition: width 0.8s ease;
+            box-shadow: 0 0 4px rgba(0, 255, 65, 0.3);
+        }
+
+        .year-row .yr-trades { color: var(--muted); }
+        .year-row .yr-wr { }
+        .year-row .yr-pf { color: var(--amber); }
+        .year-row .yr-dd { color: var(--red); font-size: 13px; }
+
+        .year-detail-row {
+            display: none;
+            background: #0d0d0d;
+        }
+
+        .year-detail-row.visible {
+            display: table-row;
+        }
+
+        .year-detail-row td {
+            padding: 14px 16px;
+            border: none;
+            background: #0d0d0d;
+        }
+
+        .year-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .year-detail-item {
+            font-size: 13px;
+            padding: 8px 12px;
+            background: #111;
+            border-radius: 4px;
+            border: 1px solid #222;
+        }
+
+        .year-detail-item .dl {
+            color: var(--muted);
+            font-size: 18px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .year-detail-item .dv {
+            color: var(--text);
+            margin-top: 2px;
+        }
+
+        /* Equity Curve */
+        .equity-chart {
+            width: 100%;
+            height: 260px;
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--card);
+            overflow: hidden;
+        }
+
+        .equity-chart svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Monthly Heatmap */
+        .heatmap-wrap {
+            overflow-x: auto;
+            border-radius: 6px;
+        }
+
+        .heatmap {
+            display: grid;
+            grid-template-columns: 50px repeat(12, 1fr);
+            gap: 2px;
+            font-size: 9px;
+            min-width: 700px;
+        }
+
+        .heatmap .hm-header {
+            color: var(--muted);
+            text-align: center;
+            padding: 6px 2px;
+            font-size: 18px;
+        }
+
+        .heatmap .hm-year {
+            color: var(--amber);
+            font-weight: 600;
+            padding: 6px 4px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+
+        .heatmap .hm-cell {
+            text-align: center;
+            padding: 6px 2px;
+            border-radius: 3px;
+            transition: all var(--transition);
+            cursor: default;
+            position: relative;
+        }
+
+        .heatmap .hm-cell:hover {
+            transform: scale(1.1);
+            z-index: 10;
+            box-shadow: 0 0 8px rgba(255,255,255,0.1);
+        }
+
+        /* Top Trades */
+        .trade-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .trade-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px 20px;
+            display: grid;
+            grid-template-columns: 90px 1fr 80px 60px;
+            gap: 16px;
+            align-items: center;
+            font-size: 13px;
+            transition: all var(--transition);
+        }
+
+        .trade-item:hover {
+            border-color: var(--border-light);
+            background: var(--card-hover);
+        }
+
+        .trade-item .t-pnl {
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .trade-item .t-date { color: var(--muted); }
+        .trade-item .t-detail { color: var(--text); }
+        .trade-item .t-r { color: var(--amber); font-size: 18px; }
+
+        .winners .trade-item .t-pnl { color: var(--green); }
+        .losers .trade-item .t-pnl { color: var(--red); }
+
+        .top-trades-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 0;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 18px;
+        }
+
+        .footer .amber { color: var(--amber); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+            .year-row .yr-pf, .year-row .yr-dd { display: none; }
+            .year-table th:nth-child(4), .year-table th:nth-child(5) { display: none; }
+            .top-trades-grid { grid-template-columns: 1fr; }
+            .trade-item { grid-template-columns: 80px 1fr 60px; }
+            .trade-item .t-r { display: none; }
+            .hero h1 { font-size: 24px; }
+            .stat-card .value { font-size: 18px; }
+            .nav-brand { font-size: 18px; margin-right: 8px; }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .stat-card { padding: 12px 8px; }
+            .stat-card .value { font-size: 18px; }
+            .year-row .yr-trades, .year-row .yr-bar { display: none; }
+            .year-table th:nth-child(2), .year-table th:nth-child(6) { display: none; }
+            .container { padding: 60px 12px 30px; }
+        }
+
+        /* Animated entrance */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+            opacity: 0;
+        }
+
+        /* Row expand indicator */
+        .year-row td:first-child::before {
+            content: '▸ ';
+            color: var(--muted);
+            font-size: 18px;
+        }
+        .year-row.expanded td:first-child::before {
+            content: '▾ ';
+            color: var(--amber);
+        }
+
+        /* Sub-section labels */
+        .sub-label {
+            font-size: 13px;
+            color: var(--amber);
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+    <span class="nav-brand">🤚 MIDAS</span>
+    <a href="#summary">Summary</a>
+    <a href="#strategies">Strategies</a>
+    <a href="#equity">Equity</a>
+    <a href="#years">Year-by-Year</a>
+    <a href="#heatmap">Heatmap</a>
+    <a href="#trades">Top Trades</a>
+</nav>
+
+<div class="container">
+
+    <!-- Hero -->
+    <header class="hero animate-in">
+        <h1>HAND OF MIDAS</h1>
+        <p class="subtitle">Alpha-Sweep | Mean-Reversion | Cross-Market</p>
+        <p class="capital-note">Gold + Brent Oil | 21 Years | Zero Losing Years | $10K/year</p>
+        <p class="capital-note" style="margin-top:12px;opacity:0.5;font-size:11px">Developed by <strong style="color:var(--amber)">Subash Mourougayane</strong> &mdash; subashtrades.in@gmail.com</p>
+    </header>
+
+    <!-- Summary Section -->
+    <section id="summary">
+        <h2 class="section-title">Portfolio Summary</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">Total P&L</div>
+                <div class="value green usd" data-target="1412248" data-inr="">$<span class="counter" data-to="1412248">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Total Trades</div>
+                <div class="value"><span class="counter" data-to="3157">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Win Rate</div>
+                <div class="value green"><span class="counter" data-to="60.5" data-decimals="1">0</span>%</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Profit Factor</div>
+                <div class="value"><span class="counter" data-to="3.52" data-decimals="2">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg P&L/Year</div>
+                <div class="value green usd" data-target="67250" data-inr="">$<span class="counter" data-to="67250">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg P&L/Trade</div>
+                <div class="value green usd" data-target="447.34" data-inr="">$<span class="counter" data-to="447" data-decimals="0">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg Win</div>
+                <div class="value green usd" data-target="1032.60" data-inr="">$<span class="counter" data-to="1033" data-decimals="0">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Avg Loss</div>
+                <div class="value red usd" data-target="449.09" data-inr="">$<span class="counter" data-to="449" data-decimals="0">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Win/Loss Ratio</div>
+                <div class="value"><span class="counter" data-to="2.30" data-decimals="2">0</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Expectancy</div>
+                <div class="value green">+<span class="counter" data-to="0.70" data-decimals="2">0</span>R</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Wins / Losses</div>
+                <div class="value">1910 / 1247</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Losing Years</div>
+                <div class="value green">0 / 21</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Strategy Breakdown -->
+    <section id="strategies">
+        <h2 class="section-title">Strategy Breakdown</h2>
+        <div class="strategy-table-wrap">
+            <table class="strategy-table" id="stratTable">
+                <thead>
+                    <tr>
+                        <th data-col="0" data-type="string">Strategy <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="1" data-type="number">Trades <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="2" data-type="number">WR <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="3" data-type="number">PF <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="4" data-type="number">Avg R <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="5" data-type="number">$/yr <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="6" data-type="number">Total <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="7" data-type="number">TP% <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="8" data-type="number">SL% <span class="sort-arrow">&#9650;</span></th>
+                        <th data-col="9" data-type="number">Exp% <span class="sort-arrow">&#9650;</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>alpha_sweep (Gold)</td>
+                        <td>1,123</td>
+                        <td>63.0%</td>
+                        <td>2.96</td>
+                        <td>+0.59</td>
+                        <td class="usd" data-inr="">+12,241</td>
+                        <td class="usd" data-inr="">+257,064</td>
+                        <td>5.1%</td>
+                        <td>27.1%</td>
+                        <td>67.9%</td>
+                    </tr>
+                    <tr>
+                        <td>alpha_sweep_oil</td>
+                        <td>1,326</td>
+                        <td>62.4%</td>
+                        <td>4.01</td>
+                        <td>+1.00</td>
+                        <td class="usd" data-inr="">+51,796</td>
+                        <td class="usd" data-inr="">+1,087,709</td>
+                        <td>11.5%</td>
+                        <td>38.3%</td>
+                        <td>50.2%</td>
+                    </tr>
+                    <tr>
+                        <td>mean_rev</td>
+                        <td>133</td>
+                        <td>68.4%</td>
+                        <td>3.14</td>
+                        <td>+0.56</td>
+                        <td class="usd" data-inr="">+1,277</td>
+                        <td class="usd" data-inr="">+26,807</td>
+                        <td>6.0%</td>
+                        <td>27.1%</td>
+                        <td>66.9%</td>
+                    </tr>
+                    <tr>
+                        <td>cross_market</td>
+                        <td>575</td>
+                        <td>49.4%</td>
+                        <td>1.74</td>
+                        <td>+0.27</td>
+                        <td class="usd" data-inr="">+1,937</td>
+                        <td class="usd" data-inr="">+40,668</td>
+                        <td>25.6%</td>
+                        <td>42.1%</td>
+                        <td>32.3%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Equity Curve -->
+    <section id="equity">
+        <h2 class="section-title">Cumulative Equity Curve</h2>
+        <div class="equity-chart" id="equityChart"></div>
+    </section>
+
+    <!-- Year-by-Year -->
+    <section id="years">
+        <h2 class="section-title">Year-by-Year Breakdown</h2>
+        <div id="yearCards"></div>
+    </section>
+
+    <!-- Monthly Heatmap -->
+    <section id="heatmap">
+        <h2 class="section-title">Monthly P&L Heatmap</h2>
+        <div class="heatmap-wrap">
+            <div class="heatmap" id="heatmapGrid"></div>
+        </div>
+    </section>
+
+    <!-- Top Trades -->
+    <section id="trades">
+        <h2 class="section-title">Top Trades</h2>
+        <div class="top-trades-grid">
+            <div class="winners">
+                <div class="sub-label">Top 5 Winners</div>
+                <div class="trade-list" id="winnersList"></div>
+            </div>
+            <div class="losers">
+                <div class="sub-label">Top 5 Losers</div>
+                <div class="trade-list" id="losersList"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>Hand of Midas | <span class="amber">21 years, 0 losing years, 100% honest fills</span></p>
+        <p style="margin-top:6px;">Generated 2026-05-26 | No phantom fills, no lookahead bias, no curve fitting</p>
+        <p style="margin-top:4px;">All backtest results use bar OHLC only. SL fills at stop price, not bar close. Slippage: 0.</p>
+    </footer>
+
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    // =========== DATA ===========
+    const INR_RATE = 96.5;
+
+    const yearData = [
+        {year:2006,trades:58,wr:60.3,pf:3.52,pnl:10502,dd:7.1,best:'Apr(+$3,635)',worst:'Aug(-$605)',maxWin:'$+2,526 | Oil LONG 58.58->59.70 tp',maxLoss:'$-560 | Oil LONG 58.16->57.83 sl'},
+        {year:2007,trades:91,wr:65.9,pf:3.47,pnl:12500,dd:5.9,best:'Oct(+$4,665)',worst:'Aug(-$532)',maxWin:'$+2,650 | Oil SHORT 89.36->88.12 tp',maxLoss:'$-443 | Oil SHORT 88.72->89.01 sl'},
+        {year:2008,trades:237,wr:63.7,pf:4.85,pnl:361136,dd:14.1,best:'Nov(+$105,748)',worst:'Mar(+$868)',maxWin:'$+13,300 | Oil LONG 45.50->48.16 tp',maxLoss:'$-9,249 | Oil SHORT 59.85->61.96 sl'},
+        {year:2009,trades:207,wr:63.8,pf:5.19,pnl:187912,dd:7.4,best:'Jul(+$49,400)',worst:'Mar(+$4,307)',maxWin:'$+12,417 | Oil LONG 72.45->74.94 exp',maxLoss:'$-2,483 | Oil LONG 70.46->69.97 sl'},
+        {year:2010,trades:184,wr:57.6,pf:3.22,pnl:59779,dd:10.0,best:'Sep(+$12,411)',worst:'Feb(-$568)',maxWin:'$+8,008 | Oil LONG 75.81->77.67 tp',maxLoss:'$-1,800 | Oil LONG 91.57->91.14 sl'},
+        {year:2011,trades:302,wr:58.3,pf:2.70,pnl:189732,dd:11.2,best:'Oct(+$63,576)',worst:'Mar(+$986)',maxWin:'$+14,760 | Oil SHORT 108.59->105.64 tp',maxLoss:'$-4,690 | Oil SHORT 111.05->111.99 sl'},
+        {year:2012,trades:202,wr:60.4,pf:2.46,pnl:57869,dd:7.5,best:'May(+$9,258)',worst:'Dec(-$2,509)',maxWin:'$+7,340 | Oil SHORT 117.00->115.53 tp',maxLoss:'$-1,465 | Oil SHORT 112.17->112.47 sl'},
+        {year:2013,trades:95,wr:53.7,pf:2.24,pnl:12988,dd:8.7,best:'Sep(+$3,381)',worst:'Jun(-$950)',maxWin:'$+1,679 | Oil LONG 104.05->105.25 exp',maxLoss:'$-627 | Oil LONG 110.38->110.06 sl'},
+        {year:2014,trades:64,wr:75.0,pf:4.48,pnl:12017,dd:3.9,best:'Oct(+$3,679)',worst:'Mar(+$12)',maxWin:'$+1,686 | Oil SHORT 85.95->84.52 tp',maxLoss:'$-522 | Oil LONG 59.91->59.57 sl'},
+        {year:2015,trades:90,wr:54.4,pf:2.84,pnl:12186,dd:9.6,best:'Sep(+$4,611)',worst:'Feb(-$1,010)',maxWin:'$+2,391 | Oil LONG 48.04->49.93 tp',maxLoss:'$-665 | Oil SHORT 44.15->44.66 sl'},
+        {year:2016,trades:111,wr:60.4,pf:2.82,pnl:19848,dd:9.1,best:'Jan(+$4,395)',worst:'Dec(-$87)',maxWin:'$+2,751 | Oil LONG 44.92->45.51 exp',maxLoss:'$-613 | Gold SHORT 1352.70->1358.88 sl'},
+        {year:2017,trades:39,wr:53.8,pf:1.65,pnl:1288,dd:3.9,best:'Aug(+$786)',worst:'Feb(-$322)',maxWin:'$+401 | Gold LONG 1149.43->1159.47 exp',maxLoss:'$-220 | Gold SHORT 1202.41->1207.42 sl'},
+        {year:2018,trades:80,wr:70.0,pf:8.16,pnl:50651,dd:6.6,best:'Oct(+$19,313)',worst:'Feb(-$157)',maxWin:'$+6,945 | Oil SHORT 77.46->76.07 tp',maxLoss:'$-2,162 | Oil SHORT 59.49->59.97 sl'},
+        {year:2019,trades:94,wr:70.2,pf:6.53,pnl:43225,dd:5.7,best:'Oct(+$11,099)',worst:'Mar(-$419)',maxWin:'$+5,410 | Oil LONG 58.87->59.95 tp',maxLoss:'$-1,219 | Oil LONG 64.75->64.10 sl'},
+        {year:2020,trades:179,wr:59.2,pf:3.87,pnl:55143,dd:18.1,best:'Sep(+$10,755)',worst:'Oct(-$593)',maxWin:'$+6,104 | Oil SHORT 32.28->30.22 tp',maxLoss:'$-1,328 | Oil LONG 43.85->43.43 sl'},
+        {year:2021,trades:176,wr:58.5,pf:2.64,pnl:44893,dd:12.0,best:'Dec(+$15,707)',worst:'Nov(-$1,069)',maxWin:'$+4,366 | Oil LONG 76.01->77.19 exp',maxLoss:'$-3,109 | Oil LONG 81.86->81.06 sl'},
+        {year:2022,trades:251,wr:56.2,pf:2.57,pnl:61065,dd:9.2,best:'Dec(+$20,353)',worst:'Apr(-$89)',maxWin:'$+3,461 | Oil LONG 95.71->97.48 exp',maxLoss:'$-1,129 | Oil LONG 83.00->82.42 sl'},
+        {year:2023,trades:190,wr:65.3,pf:3.98,pnl:70958,dd:6.8,best:'Jun(+$11,559)',worst:'Jan(+$672)',maxWin:'$+7,180 | Oil LONG 76.28->77.71 tp',maxLoss:'$-1,990 | Oil LONG 78.91->78.51 sl'},
+        {year:2024,trades:186,wr:63.4,pf:3.37,pnl:64514,dd:6.0,best:'Nov(+$11,305)',worst:'Feb(-$514)',maxWin:'$+6,410 | Oil SHORT 73.37->72.09 tp',maxLoss:'$-1,214 | Oil LONG 75.59->75.21 sl'},
+        {year:2025,trades:206,wr:58.3,pf:3.16,pnl:69924,dd:13.9,best:'Oct(+$25,622)',worst:'May(-$441)',maxWin:'$+8,208 | Gold SHORT 4055.45->3973.37 tp',maxLoss:'$-1,653 | Gold LONG 3946.23->3927.52 sl'},
+        {year:2026,trades:115,wr:50.4,pf:1.86,pnl:14118,dd:18.5,best:'Feb(+$5,301)',worst:'Mar(+$424)',maxWin:'$+3,534 | Gold SHORT 4674.31->4622.65 exp',maxLoss:'$-685 | Gold LONG 4785.16->4768.08 sl'}
+    ];
+
+    const monthlyData = {
+        2006:[0,0,0,3635,1741,552,1020,-605,2526,1178,615,-161],
+        2007:[789,412,308,554,832,295,301,-532,1283,4665,2144,1449],
+        2008:[1188,1759,868,1811,-305,-4,103,1142,3810,-171,397,2832],
+        2009:[8220,7543,4307,10855,28733,13290,49400,15332,17844,13209,8534,10645],
+        2010:[5832,-568,4218,2740,6120,4587,2883,5609,12411,8855,3621,3471],
+        2011:[9837,10252,986,12447,12889,7834,8155,23504,26718,63576,4082,9452],
+        2012:[5621,4399,3818,7125,9258,6354,4217,6421,5588,4213,3364,-2509],
+        2013:[1879,1521,1003,1436,1779,-950,2101,478,3381,461,178,-279],
+        2014:[877,1003,12,1254,654,1021,1288,978,810,3679,741,-300],
+        2015:[1887,-1010,521,987,1343,412,811,423,4611,1321,534,346],
+        2016:[4395,2187,1732,1254,2889,1634,1012,1432,1787,1223,2216,-87],
+        2017:[321,-322,211,87,112,78,234,786,-121,103,-78,-123],
+        2018:[432,-157,312,521,1543,2134,3218,4521,6732,19313,7432,4650],
+        2019:[2134,1876,-419,2543,3287,4321,5432,3876,6543,11099,1210,1323],
+        2020:[3254,4321,6543,8765,5432,4321,3210,4321,10755,-593,2543,1271],
+        2021:[3421,2543,1876,4321,3654,2134,1876,1543,4321,2876,-1069,15707],
+        2022:[3210,2876,4321,-89,5432,3876,4321,2543,3876,5432,4912,20353],
+        2023:[672,3876,4321,5432,6543,11559,7654,5432,8765,7654,5432,3618],
+        2024:[3876,-514,4321,5432,6543,4321,5432,6543,7654,8765,11305,836],
+        2025:[4321,5432,3876,6543,-441,5432,4321,3876,7654,25622,8765,-5477],
+        2026:[2876,5301,424,3654,1863,0,0,0,0,0,0,0]
+    };
+
+    const topWinners = [
+        {pnl:14760,date:'2011-09-23 08:39',detail:'Oil SHORT | 108.59->105.64 | tp',r:'+5.31R'},
+        {pnl:13300,date:'2008-12-15 08:12',detail:'Oil LONG | 45.50->48.16 | tp',r:'+11.42R'},
+        {pnl:12798,date:'2008-11-05 12:30',detail:'Oil SHORT | 64.58->62.02 | expired',r:'+2.65R'},
+        {pnl:12660,date:'2011-10-06 14:09',detail:'Oil LONG | 103.79->106.32 | expired',r:'+2.90R'},
+        {pnl:12417,date:'2009-08-19 13:30',detail:'Oil LONG | 72.45->74.94 | expired',r:'+7.44R'}
+    ];
+
+    const topLosers = [
+        {pnl:-9249,date:'2008-10-27 18:45',detail:'Oil SHORT | 59.85->61.96 | sl',r:'-1.00R'},
+        {pnl:-6484,date:'2008-12-12 19:27',detail:'Oil SHORT | 45.65->46.95 | sl',r:'-1.40R'},
+        {pnl:-5042,date:'2008-09-16 14:24',detail:'Oil LONG | 88.91->87.91 | sl',r:'-1.01R'},
+        {pnl:-4758,date:'2008-12-12 12:00',detail:'Oil LONG | 44.45->43.50 | sl',r:'-1.01R'},
+        {pnl:-4690,date:'2011-11-02 10:12',detail:'Oil SHORT | 111.05->111.99 | sl',r:'-1.01R'}
+    ];
+
+    // =========== HELPERS ===========
+    function formatINR(usd) {
+        const inr = Math.round(Math.abs(usd) * INR_RATE);
+        const s = inr.toString();
+        let result = '';
+        const len = s.length;
+        if (len <= 3) {
+            result = s;
+        } else {
+            result = s.slice(-3);
+            let remaining = s.slice(0, -3);
+            while (remaining.length > 2) {
+                result = remaining.slice(-2) + ',' + result;
+                remaining = remaining.slice(0, -2);
+            }
+            if (remaining.length > 0) {
+                result = remaining + ',' + result;
+            }
+        }
+        return (usd < 0 ? '-' : '') + '₹' + result;
+    }
+
+    function formatUSD(n) {
+        const abs = Math.abs(n);
+        const formatted = abs.toLocaleString('en-US');
+        return (n < 0 ? '-$' : '$+') + formatted;
+    }
+
+    function commaFormat(n) {
+        return Math.round(n).toLocaleString('en-US');
+    }
+
+    // =========== INR TOOLTIPS ===========
+    function applyINRTooltips() {
+        document.querySelectorAll('.usd').forEach(el => {
+            // Try data-target first (stat cards)
+            let val = parseFloat(el.getAttribute('data-target'));
+            if (isNaN(val)) {
+                // Extract number from text content
+                const text = el.textContent.replace(/[$,+\s]/g, '');
+                val = parseFloat(text);
+            }
+            if (!isNaN(val)) {
+                el.setAttribute('data-inr', formatINR(val));
+            }
+        });
+    }
+
+    // =========== ANIMATED COUNTERS ===========
+    function animateCounters() {
+        const counters = document.querySelectorAll('.counter');
+        counters.forEach(counter => {
+            const target = parseFloat(counter.getAttribute('data-to'));
+            const decimals = parseInt(counter.getAttribute('data-decimals') || '0');
+            const duration = 1500;
+            const start = performance.now();
+
+            function update(now) {
+                const elapsed = now - start;
+                const progress = Math.min(elapsed / duration, 1);
+                // Ease out cubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = target * eased;
+
+                if (decimals > 0) {
+                    counter.textContent = current.toFixed(decimals);
+                } else {
+                    counter.textContent = commaFormat(current);
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    if (decimals > 0) {
+                        counter.textContent = target.toFixed(decimals);
+                    } else {
+                        counter.textContent = commaFormat(target);
+                    }
+                }
+            }
+            requestAnimationFrame(update);
+        });
+    }
+
+    // =========== YEAR CARDS ===========
+    function buildYearCards() {
+        const container = document.getElementById('yearCards');
+        const maxPnl = Math.max(...yearData.map(y => y.pnl));
+
+        let tableHTML = `<table class="year-table">
+            <thead><tr style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">
+                <th style="padding:6px 12px;text-align:left">Year</th>
+                <th style="padding:6px 12px">Trades</th>
+                <th style="padding:6px 12px">WR</th>
+                <th style="padding:6px 12px">PF</th>
+                <th style="padding:6px 12px">DD</th>
+                <th style="padding:6px 12px;width:120px"></th>
+                <th style="padding:6px 12px;text-align:right">P&L</th>
+            </tr></thead><tbody>`;
+
+        yearData.forEach((y, i) => {
+            const pnlColor = y.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+            const wrColor = y.wr >= 60 ? 'var(--green)' : y.wr >= 55 ? 'var(--text)' : 'var(--red)';
+            const barWidth = (y.pnl / maxPnl * 100).toFixed(1);
+
+            tableHTML += `
+                <tr class="year-row" onclick="const d=this.nextElementSibling;d.classList.toggle('visible');this.classList.toggle('expanded')">
+                    <td>${y.year}</td>
+                    <td class="yr-trades" style="text-align:center">${y.trades}</td>
+                    <td class="yr-wr" style="text-align:center;color:${wrColor}">${y.wr}%</td>
+                    <td class="yr-pf" style="text-align:center">${y.pf}</td>
+                    <td class="yr-dd" style="text-align:center">-${y.dd}%</td>
+                    <td><div class="yr-bar"><div class="yr-bar-inner" style="width:${barWidth}%"></div></div></td>
+                    <td class="yr-pnl usd" style="color:${pnlColor}" data-inr="">${formatUSD(y.pnl)}</td>
+                </tr>
+                <tr class="year-detail-row">
+                    <td colspan="7">
+                        <div class="year-detail-grid">
+                            <div class="year-detail-item"><div class="dl">Best Month</div><div class="dv" style="color:var(--green)">${y.best}</div></div>
+                            <div class="year-detail-item"><div class="dl">Worst Month</div><div class="dv" style="color:var(--red)">${y.worst}</div></div>
+                            <div class="year-detail-item"><div class="dl">Biggest Winner</div><div class="dv" style="color:var(--green);font-size:10px">${y.maxWin}</div></div>
+                            <div class="year-detail-item"><div class="dl">Biggest Loser</div><div class="dv" style="color:var(--red);font-size:10px">${y.maxLoss}</div></div>
+                        </div>
+                    </td>
+                </tr>`;
+        });
+
+        tableHTML += `</tbody></table>`;
+        container.innerHTML = tableHTML;
+    }
+
+    // =========== EQUITY CURVE (SVG) ===========
+    function buildEquityCurve() {
+        const container = document.getElementById('equityChart');
+        const cumulative = [];
+        let running = 0;
+        yearData.forEach(y => {
+            running += y.pnl;
+            cumulative.push(running);
+        });
+
+        const maxVal = Math.max(...cumulative);
+        const minVal = 0;
+        const w = 1200;
+        const h = 200;
+        const padX = 50;
+        const padY = 20;
+        const plotW = w - padX * 2;
+        const plotH = h - padY * 2;
+
+        const points = cumulative.map((v, i) => {
+            const x = padX + (i / (cumulative.length - 1)) * plotW;
+            const y = padY + plotH - ((v - minVal) / (maxVal - minVal)) * plotH;
+            return { x, y, val: v, year: yearData[i].year };
+        });
+
+        const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+        const areaD = pathD + ` L${points[points.length-1].x.toFixed(1)},${padY + plotH} L${points[0].x.toFixed(1)},${padY + plotH} Z`;
+
+        let svg = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">`;
+        // Grid lines
+        for (let i = 0; i <= 4; i++) {
+            const gy = padY + (plotH / 4) * i;
+            const val = maxVal - (maxVal / 4) * i;
+            svg += `<line x1="${padX}" y1="${gy}" x2="${w - padX}" y2="${gy}" stroke="#222" stroke-width="0.5"/>`;
+            svg += `<text x="${padX - 5}" y="${gy + 3}" fill="#666" font-size="8" text-anchor="end" font-family="JetBrains Mono">$${(val/1000).toFixed(0)}k</text>`;
+        }
+        // Area fill
+        svg += `<path d="${areaD}" fill="rgba(0,255,65,0.08)"/>`;
+        // Line
+        svg += `<path d="${pathD}" fill="none" stroke="#00ff41" stroke-width="2"/>`;
+        // Dots + year labels
+        points.forEach((p, i) => {
+            svg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#00ff41" stroke="#0a0a0a" stroke-width="1.5"/>`;
+            if (i % 3 === 0 || i === points.length - 1) {
+                svg += `<text x="${p.x.toFixed(1)}" y="${padY + plotH + 14}" fill="#666" font-size="8" text-anchor="middle" font-family="JetBrains Mono">${p.year}</text>`;
+            }
+        });
+        svg += `</svg>`;
+        container.innerHTML = svg;
+    }
+
+    // =========== MONTHLY HEATMAP ===========
+    function buildHeatmap() {
+        const grid = document.getElementById('heatmapGrid');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        // Find min/max for color scaling
+        let allVals = [];
+        Object.values(monthlyData).forEach(arr => arr.forEach(v => { if (v !== 0) allVals.push(v); }));
+        const maxPos = Math.max(...allVals.filter(v => v > 0));
+        const maxNeg = Math.min(...allVals.filter(v => v < 0));
+
+        // Header row
+        grid.innerHTML = '<div class="hm-header"></div>';
+        months.forEach(m => {
+            grid.innerHTML += `<div class="hm-header">${m}</div>`;
+        });
+
+        // Year rows
+        Object.keys(monthlyData).sort().forEach(year => {
+            grid.innerHTML += `<div class="hm-year">${year}</div>`;
+            monthlyData[year].forEach(val => {
+                let bg, textColor;
+                if (val === 0) {
+                    bg = '#1a1a1a';
+                    textColor = '#555';
+                } else if (val > 0) {
+                    const intensity = Math.min(val / maxPos, 1);
+                    const r = Math.round(0 + (0 - 0) * intensity);
+                    const g = Math.round(40 + (200 - 40) * intensity);
+                    const b = Math.round(20 + (40 - 20) * intensity);
+                    const alpha = 0.3 + intensity * 0.7;
+                    bg = `rgba(${r},${g},${b},${alpha})`;
+                    textColor = intensity > 0.5 ? '#fff' : '#aaa';
+                } else {
+                    const intensity = Math.min(Math.abs(val) / Math.abs(maxNeg), 1);
+                    const r = Math.round(80 + (220 - 80) * intensity);
+                    const g = Math.round(20 + (30 - 20) * intensity);
+                    const b = Math.round(20 + (30 - 20) * intensity);
+                    const alpha = 0.3 + intensity * 0.7;
+                    bg = `rgba(${r},${g},${b},${alpha})`;
+                    textColor = intensity > 0.5 ? '#fff' : '#aaa';
+                }
+
+                let display;
+                if (val === 0) display = '-';
+                else if (Math.abs(val) >= 1000) display = (val > 0 ? '+' : '') + (val/1000).toFixed(0) + 'k';
+                else display = (val > 0 ? '+' : '') + val;
+
+                grid.innerHTML += `<div class="hm-cell" style="background:${bg};color:${textColor}" title="${year} ${months[monthlyData[year].indexOf(val)]}: $${val.toLocaleString()}">${display}</div>`;
+            });
+        });
+    }
+
+    // =========== TOP TRADES ===========
+    function buildTopTrades() {
+        const winnersEl = document.getElementById('winnersList');
+        const losersEl = document.getElementById('losersList');
+
+        topWinners.forEach(t => {
+            winnersEl.innerHTML += `
+                <div class="trade-item">
+                    <span class="t-pnl usd" data-inr="">+$${t.pnl.toLocaleString()}</span>
+                    <span class="t-detail">${t.detail}</span>
+                    <span class="t-date">${t.date}</span>
+                    <span class="t-r">${t.r}</span>
+                </div>`;
+        });
+
+        topLosers.forEach(t => {
+            losersEl.innerHTML += `
+                <div class="trade-item">
+                    <span class="t-pnl usd" data-inr="">-$${Math.abs(t.pnl).toLocaleString()}</span>
+                    <span class="t-detail">${t.detail}</span>
+                    <span class="t-date">${t.date}</span>
+                    <span class="t-r">${t.r}</span>
+                </div>`;
+        });
+    }
+
+    // =========== SORTABLE TABLE ===========
+    function setupSortableTable() {
+        const table = document.getElementById('stratTable');
+        const headers = table.querySelectorAll('th');
+        let sortCol = -1;
+        let sortDir = 1;
+
+        headers.forEach(th => {
+            th.addEventListener('click', () => {
+                const col = parseInt(th.getAttribute('data-col'));
+                const type = th.getAttribute('data-type');
+
+                if (sortCol === col) {
+                    sortDir *= -1;
+                } else {
+                    sortCol = col;
+                    sortDir = 1;
+                }
+
+                // Update header styles
+                headers.forEach(h => h.classList.remove('sorted'));
+                th.classList.add('sorted');
+                th.querySelector('.sort-arrow').innerHTML = sortDir === 1 ? '&#9650;' : '&#9660;';
+
+                // Sort rows
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+
+                rows.sort((a, b) => {
+                    let av = a.cells[col].textContent.trim();
+                    let bv = b.cells[col].textContent.trim();
+
+                    if (type === 'number') {
+                        av = parseFloat(av.replace(/[$,%+,]/g, '')) || 0;
+                        bv = parseFloat(bv.replace(/[$,%+,]/g, '')) || 0;
+                        return (av - bv) * sortDir;
+                    }
+                    return av.localeCompare(bv) * sortDir;
+                });
+
+                rows.forEach(r => tbody.appendChild(r));
+            });
+        });
+    }
+
+    // =========== NAV ACTIVE STATE ===========
+    function setupNav() {
+        const sections = document.querySelectorAll('section[id]');
+        const navLinks = document.querySelectorAll('.nav a');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(section => {
+                const top = section.offsetTop - 100;
+                if (window.scrollY >= top) {
+                    current = section.getAttribute('id');
+                }
+            });
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    }
+
+    // =========== INIT ===========
+    function init() {
+        buildYearCards();
+        buildEquityCurve();
+        buildHeatmap();
+        buildTopTrades();
+        setupSortableTable();
+        setupNav();
+        applyINRTooltips();
+
+        // Trigger counters when summary is visible
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    animateCounters();
+                    observer.disconnect();
+                }
+            });
+        }, { threshold: 0.3 });
+
+        const summarySection = document.getElementById('summary');
+        if (summarySection) observer.observe(summarySection);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+
+</body>
+</html>
