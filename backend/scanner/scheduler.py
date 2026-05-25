@@ -531,6 +531,51 @@ def position_monitor_job():
     check_open_positions()
 
 
+def heartbeat_job():
+    """Hourly heartbeat during scan window — sends Telegram status."""
+    try:
+        from backend.execution.oanda_executor import get_current_price, get_candles
+        from backend import notify
+
+        now = datetime.now(timezone.utc)
+        today = now.date()
+
+        # Current price
+        price = get_current_price(instrument="XAU_USD")
+        gold_price = f"${price['mid']:.2f}" if price else "N/A"
+
+        # Asia range
+        h1 = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
+        asia_high, asia_low = 0, 999999
+        for c in h1:
+            ts = _parse_ts(c["timestamp"])
+            if ts.date() == today and 0 <= ts.hour < 8:
+                asia_high = max(asia_high, (c["bid_high"] + c["ask_high"]) / 2)
+                asia_low = min(asia_low, (c["bid_low"] + c["ask_low"]) / 2)
+
+        asia_range = asia_high - asia_low if asia_high > 0 and asia_low < 999999 else 0
+
+        # Today's trades
+        trades_today = execute(
+            "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
+            (today,), fetch=True
+        )
+        trade_count = trades_today[0]["cnt"] if trades_today else 0
+
+        # Open positions
+        open_pos = execute("SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL", fetch=True)
+        open_count = open_pos[0]["cnt"] if open_pos else 0
+
+        notify.send(
+            f"🫀 Heartbeat {now.strftime('%H:%M')} UTC\n"
+            f"Gold: {gold_price} | Range: ${asia_range:.0f}\n"
+            f"Trades today: {trade_count}/3 | Open: {open_count}\n"
+            f"Status: {'Scanning' if price and price.get('tradeable') else 'Closed'}"
+        )
+    except Exception as e:
+        print(f"  Heartbeat error: {e}")
+
+
 def start_scheduler():
     """Start all scheduled jobs."""
     # 22:00 UTC daily — Cross-Market + Mean-Rev
@@ -542,11 +587,15 @@ def start_scheduler():
     # Every 1 min — position monitoring
     scheduler.add_job(position_monitor_job, "interval", minutes=1, id="position_monitor")
 
+    # Hourly heartbeat during scan window
+    scheduler.add_job(heartbeat_job, "cron", minute=0, hour="8-19", id="heartbeat")
+
     scheduler.start()
     print("Scheduler started:")
     print("  - Daily close (Cross-Market + Mean-Rev): 22:00 UTC")
     print("  - Alpha-Sweep poll: every 3 min, 08:00-20:00 UTC (London + NY)")
     print("  - Position monitor: every 1 min")
+    print("  - Heartbeat: hourly during scan window")
 
 
 def stop_scheduler():
