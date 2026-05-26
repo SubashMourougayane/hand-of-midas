@@ -43,10 +43,42 @@ Tested relaxing the strict `cb <= pb` to `cb <= pb + tolerance`:
 | $0.50 | 1,431 | 68.8% | 4.44 | +$242,547 | +$11,550 |
 | $1.00 | 1,446 | 69.2% | 4.55 | +$250,247 | +$11,917 |
 
-Key findings:
+**Gold** key findings:
 - 2,261 near-miss patterns over 21 years (median miss: $0.045)
 - +190 extra trades at $0.10 tolerance, ALL with higher WR and PF
 - The risk/reward filters (SL distance, TP ratio, asia range cap) reject bad setups — engulfing strictness is redundant as primary gatekeeper
+
+#### Oil results (21-year simulation, same methodology)
+
+Oil uses smaller absolute prices (~$70-100 vs Gold $1200-4500), so tolerance values are proportionally smaller:
+
+| Tolerance | Trades | WR | PF | Total $ | $/yr | Extra |
+|---|---|---|---|---|---|---|
+| $0.000 (current) | 1,350 | 62.3% | 3.92 | +$273,418 | +$13,020 | — |
+| $0.005 | 1,500 | 64.0% | 4.37 | +$336,113 | +$16,005 | +150 |
+| **$0.010** | **1,628** | **66.3%** | **5.17** | **+$422,195** | **+$20,105** | **+278** |
+| $0.020 | 1,690 | 67.5% | 5.57 | +$468,349 | +$22,302 | +340 |
+| $0.050 | 1,742 | 68.8% | 6.29 | +$538,722 | +$25,653 | +392 |
+| $0.100 | 1,778 | 69.2% | 6.59 | +$575,075 | +$27,385 | +428 |
+
+**Oil** key findings:
+- Oil improvement is STRONGER than Gold (PF 3.92→5.17 at just $0.01 tolerance)
+- 1,594 near-miss patterns over 21 years at $0.01 level (76/year, median miss: $0.007)
+- Oil's smaller price = smaller body sizes = more frequent near-misses
+- $0.01 for Oil is equivalent to $0.10 for Gold in relative terms (~0.01% of price)
+
+#### Combined impact if implemented
+
+| | Current | With Tolerance | Delta |
+|---|---|---|---|
+| Gold ($0.10) | 1,203 trades, PF 3.15, $145K | 1,393 trades, PF 4.18, $221K | +$76K |
+| Oil ($0.01) | 1,350 trades, PF 3.92, $273K | 1,628 trades, PF 5.17, $422K | +$149K |
+| **Combined** | **2,553 trades, $418K** | **3,021 trades, $643K** | **+$225K (+54%)** |
+
+**Recommended tolerance per instrument (if implemented):**
+- Gold: `cb <= pb + 0.10` (0.002% of price)
+- Oil: `cb <= pb + 0.01` (0.01% of price)
+- Both are sub-spread noise levels that don't change the structural meaning of engulfing
 
 #### Why NOT implement now
 
