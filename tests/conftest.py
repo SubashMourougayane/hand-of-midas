@@ -5,11 +5,16 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone, timedelta
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend-oil"))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OIL_BACKEND_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, "backend-oil"))
 
-TEST_DB_URL = os.getenv("TEST_DB_URL", "postgresql://subash@localhost:5432/golddigger_test")
+# Order matters: Oil path FIRST so 'from scanner.live_engine' resolves to Oil's version
+# when called from Oil tests. Gold tests use 'from backend.scanner.live_engine' (fully qualified).
+sys.path.insert(0, OIL_BACKEND_PATH)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "backend"))
+sys.path.insert(0, PROJECT_ROOT)
+
+TEST_DB_URL = os.getenv("TEST_DB_URL", "postgresql://postgres:postgres@localhost:5432/golddigger_test")
 
 
 @pytest.fixture(autouse=True)
