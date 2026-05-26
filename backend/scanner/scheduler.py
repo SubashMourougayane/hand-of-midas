@@ -21,7 +21,7 @@ def _parse_ts(ts_str: str) -> datetime:
     # Truncate nanoseconds to microseconds: .000000000 → .000000
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
     return datetime.fromisoformat(cleaned)
-from backend.config import CROSS_MARKET, MEAN_REV, ALPHA_SWEEP, slippage
+from backend.config import CROSS_MARKET, MEAN_REV, ALPHA_SWEEP, slippage, ENGULFING_TOLERANCE
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -475,9 +475,10 @@ def _run_alpha_sweep():
             pt = max(po, pc)
             pb = min(po, pc)
 
-            if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+            tol = ENGULFING_TOLERANCE
+            if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
                 continue
-            if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
+            if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                 continue
 
             # Engulfing confirmed

@@ -18,6 +18,9 @@ SESSIONS_UTC = {
     "new_york": {"start": 13, "end": 21},
 }
 
+# Engulfing tolerance — relaxes strict body-wrap by this amount (sub-spread noise)
+ENGULFING_TOLERANCE = 0.10  # $0.10 for Gold (0.002% of price)
+
 # Alpha-Sweep (V4)
 ALPHA_SWEEP = {
     "asia_min_range": 5.0,

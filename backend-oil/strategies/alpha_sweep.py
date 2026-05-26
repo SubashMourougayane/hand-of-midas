@@ -9,7 +9,7 @@ from typing import Optional
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import ALPHA_SWEEP, slippage
+from config import ALPHA_SWEEP, slippage, ENGULFING_TOLERANCE
 
 
 @dataclass
@@ -105,9 +105,10 @@ def generate_signals(
                 pt = max(po, pc)
                 pb = min(po, pc)
 
-                if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+                tol = ENGULFING_TOLERANCE
+                if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
                     continue
-                if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
+                if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
 
                 if sweep_dir == "bullish":

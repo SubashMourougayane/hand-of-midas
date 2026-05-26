@@ -19,6 +19,9 @@ SESSIONS_UTC = {
     "london": {"start": 8, "end": 16},
 }
 
+# Engulfing tolerance — relaxes strict body-wrap (sub-spread noise for Oil)
+ENGULFING_TOLERANCE = 0.01  # $0.01 for Oil (0.01% of price)
+
 # Alpha-Sweep for Oil (same logic, different thresholds)
 ALPHA_SWEEP = {
     "asia_min_range": 0.50,       # $0.50 min range (vs $5 for gold)

@@ -16,7 +16,7 @@ def _parse_ts(ts_str: str) -> datetime:
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
     return datetime.fromisoformat(cleaned)
 
-from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage
+from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE
 from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -171,9 +171,10 @@ def _run_alpha_sweep():
             ct, cb = max(co, cc), min(co, cc)
             pt, pb = max(po, pc), min(po, pc)
 
-            if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+            tol = ENGULFING_TOLERANCE
+            if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
                 continue
-            if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
+            if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                 continue
 
             # Engulfing confirmed
