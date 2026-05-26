@@ -1,4 +1,5 @@
 """Scan Status API — real-time sweep proximity for dashboard gauge."""
+import time
 from fastapi import APIRouter
 from backend.execution.oanda_executor import get_current_price, get_candles
 from backend.config import ALPHA_SWEEP
@@ -8,6 +9,9 @@ import re
 
 router = APIRouter()
 
+_scan_cache = {"data": None, "ts": 0}
+_CACHE_TTL = 15  # seconds
+
 
 def _parse_ts(ts_str: str):
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
@@ -16,16 +20,18 @@ def _parse_ts(ts_str: str):
 
 @router.get("/scan-status")
 def get_scan_status():
-    """Real-time Alpha-Sweep scan state — updated every call."""
+    """Real-time Alpha-Sweep scan state. Cached 15s to avoid OANDA 522 blocking."""
+    now_ts = time.time()
+    if _scan_cache["data"] and (now_ts - _scan_cache["ts"]) < _CACHE_TTL:
+        return _scan_cache["data"]
+
     cfg = ALPHA_SWEEP
     now = datetime.now(timezone.utc)
     today = now.date()
     utc_hour = now.hour + now.minute / 60.0
 
-    # Is scan active?
     scan_active = cfg["scan_start"] <= utc_hour <= cfg["scan_end"]
 
-    # Current price
     price = get_current_price(instrument="XAU_USD")
     if not price:
         return {"error": "Price unavailable", "scan_active": scan_active}
@@ -33,7 +39,6 @@ def get_scan_status():
     current_mid = price["mid"]
     tradeable = price.get("tradeable", False)
 
-    # Asia range
     h1 = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
     asia_high, asia_low = 0, 999999
     for c in h1:
@@ -48,28 +53,22 @@ def get_scan_status():
     asia_range = asia_high - asia_low
     sweep_threshold = cfg["sweep_threshold"]
 
-    # Sweep levels
     bearish_sweep_level = asia_high + sweep_threshold
     bullish_sweep_level = asia_low - sweep_threshold
 
-    # Distance from sweep
-    dist_to_bearish = current_mid - asia_high  # positive = above asia high
-    dist_to_bullish = asia_low - current_mid   # positive = below asia low
+    dist_to_bearish = current_mid - asia_high
+    dist_to_bullish = asia_low - current_mid
 
-    # Proximity percentage (0% = at asia mid, 100% = at sweep level)
     asia_mid = (asia_high + asia_low) / 2
     half_range = asia_range / 2 + sweep_threshold
 
     if current_mid >= asia_mid:
-        # Moving toward bearish sweep
         proximity_pct = min(100, max(0, (current_mid - asia_mid) / (half_range) * 100))
         sweep_direction = "bearish"
     else:
-        # Moving toward bullish sweep
         proximity_pct = min(100, max(0, (asia_mid - current_mid) / (half_range) * 100))
         sweep_direction = "bullish"
 
-    # Did sweep already happen today? Check scan bars
     sweep_detected = False
     sweep_info = None
     for c in h1:
@@ -85,23 +84,30 @@ def get_scan_status():
                 sweep_detected = True
                 sweep_info = {"direction": "bullish", "wick": mid_low, "time": c["timestamp"]}
 
-    # Trades today
     trades_today = execute(
         "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
         (today,), fetch=True
     )
     trade_count = trades_today[0]["cnt"] if trades_today else 0
 
-    # Daily bias
+    # Daily bias — Variant C: strong body = directional, weak body = neutral
     daily = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
     bias = "neutral"
     if len(daily) >= 2:
         yesterday = daily[-2]
         mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
         mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
-        bias = "bullish" if mid_close > mid_open else "bearish"
+        mid_high_d = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
+        mid_low_d = (yesterday["bid_low"] + yesterday["ask_low"]) / 2
+        prev_range = mid_high_d - mid_low_d
+        if prev_range <= 0:
+            bias = "neutral"
+        elif abs(mid_close - mid_open) / prev_range < 0.4:
+            bias = "neutral"
+        else:
+            bias = "bullish" if mid_close > mid_open else "bearish"
 
-    return {
+    result = {
         "scan_active": scan_active,
         "tradeable": tradeable,
         "price": round(current_mid, 2),
@@ -122,3 +128,7 @@ def get_scan_status():
         "max_trades_per_day": cfg["max_trades_per_day"],
         "utc_time": now.strftime("%H:%M:%S"),
     }
+
+    _scan_cache["data"] = result
+    _scan_cache["ts"] = now_ts
+    return result

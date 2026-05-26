@@ -1,14 +1,23 @@
 """State API — GET /api/gold/state for live dashboard."""
+import time
 from fastapi import APIRouter
 from backend.execution.oanda_executor import get_current_price, get_account_summary, get_open_trades
 from backend.db import execute
 
 router = APIRouter()
 
+_state_cache = {"data": None, "ts": 0}
+_CACHE_TTL = 15  # seconds
+
 
 @router.get("/state")
 def get_state():
-    """Current live state — price, account, positions, DD state, recent signals."""
+    """Current live state — price, account, positions, DD state, recent signals.
+    Cached for 15s to prevent OANDA 522 retries from blocking the dashboard."""
+    now = time.time()
+    if _state_cache["data"] and (now - _state_cache["ts"]) < _CACHE_TTL:
+        return _state_cache["data"]
+
     price = get_current_price()
     account = get_account_summary()
     positions = get_open_trades(instrument="XAU_USD")
@@ -16,7 +25,6 @@ def get_state():
     # DD state
     dd_rows = execute("SELECT * FROM gd_dd_state WHERE id = 1", fetch=True)
     dd_state = dict(dd_rows[0]) if dd_rows else {}
-    # Convert Decimal to float
     dd_state = {k: float(v) if hasattr(v, '__float__') and k != 'id' else v for k, v in dd_state.items()}
 
     # Recent signals (last 10)
@@ -70,7 +78,7 @@ def get_state():
             "exit_time": t["exit_time"].isoformat() if t["exit_time"] else None,
         })
 
-    return {
+    result = {
         "price": price,
         "account": account,
         "oanda_positions": positions,
@@ -80,3 +88,7 @@ def get_state():
         "recent_trades": recent,
         "scheduler_active": True,
     }
+
+    _state_cache["data"] = result
+    _state_cache["ts"] = now
+    return result
