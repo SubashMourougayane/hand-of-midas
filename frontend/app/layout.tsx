@@ -3,6 +3,8 @@ import "./globals.css";
 import InstrumentProvider from "@/components/InstrumentProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Hand Of Midas",
   description: "Multi-Asset Algorithmic Trading Engine",
