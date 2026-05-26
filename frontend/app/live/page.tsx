@@ -565,8 +565,6 @@ function SweepProximity() {
     return () => clearInterval(interval);
   }, [fetchScan]);
 
-  // Don't render for oil
-  if (instrument === "oil") return null;
 
   // Loading / error state
   if (!scan && !scanError) {

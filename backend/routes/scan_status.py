@@ -91,6 +91,7 @@ def get_scan_status():
 
     sweep_detected = False
     sweep_info = None
+    sweep_status = "WAITING"
     for c in h1:
         ts = _parse_ts(c["timestamp"])
         if ts.date() == today and ts.hour >= cfg["scan_start"]:
@@ -109,6 +110,19 @@ def get_scan_status():
         (today,), fetch=True
     )
     trade_count = trades_today[0]["cnt"] if trades_today else 0
+
+    # Determine sweep status for UI
+    if sweep_detected and sweep_info:
+        sweep_time = _parse_ts(sweep_info["time"])
+        window_end = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
+        if trade_count > 0:
+            sweep_status = "TRADED"
+        elif now > window_end:
+            sweep_status = "EXPIRED"
+        else:
+            sweep_status = "ACTIVE"
+    else:
+        sweep_status = "WAITING"
 
     # Daily bias — Variant C: strong body = directional, weak body = neutral
     daily = _scan_oanda["daily"] or []
@@ -142,6 +156,7 @@ def get_scan_status():
         "proximity_pct": round(proximity_pct, 1),
         "sweep_direction": sweep_direction,
         "sweep_detected": sweep_detected,
+        "sweep_status": sweep_status,
         "sweep_info": sweep_info,
         "daily_bias": bias,
         "trades_today": trade_count,
