@@ -11,7 +11,7 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from backend.execution.oanda_executor import get_candles, get_current_price
+from backend.execution import get_candles, get_current_price
 from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _get_dd_state, _log_journal
 from backend.db import execute, get_conn
 import re

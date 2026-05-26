@@ -2,6 +2,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
+# Executor selection: "oanda" or "mt5"
+EXECUTOR = os.getenv("EXECUTOR", "oanda")
+
 OANDA_TOKEN = os.getenv("OANDA_TOKEN", "")
 OANDA_ACCOUNT = os.getenv("OANDA_ACCOUNT", "")
 OANDA_URL = os.getenv("OANDA_URL", "https://api-fxpractice.oanda.com/v3")

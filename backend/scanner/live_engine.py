@@ -8,13 +8,22 @@ import pandas as pd
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from backend.execution.oanda_executor import (
+from backend.execution import (
     get_candles, get_current_price, place_market_order,
     close_trade, get_open_trades, get_account_summary, modify_stop_loss,
+    get_trade_details,
 )
+from backend.config import EXECUTOR, STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, MEAN_REV, CROSS_MARKET, slippage
 from backend.db import execute, insert_returning, get_conn
-from backend.config import STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, MEAN_REV, CROSS_MARKET, slippage
 from backend import notify
+
+
+def _get_gbp_usd_rate():
+    """Get GBP/USD rate. MT5 account is USD so returns 1.0. OANDA account is GBP."""
+    if EXECUTOR == "mt5":
+        return 1.0
+    from backend.execution.oanda_executor import _get_gbp_usd_rate as _rate
+    return _rate()
 
 
 def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: float, taken: bool, skip_reason: str = "", trade_ref: str = ""):
@@ -217,7 +226,7 @@ def check_open_positions():
                     entry_time = entry_time.replace(tzinfo=timezone.utc)
                 bars_held = (datetime.now(timezone.utc) - entry_time).total_seconds() / 180  # M3 = 180s
                 if bars_held >= 80:
-                    from backend.execution.oanda_executor import close_trade as _close, _get_gbp_usd_rate
+                    from backend.execution import close_trade as _close
                     print(f"  [MAX HOLD] {trade['strategy']} {trade['trade_ref']} held {bars_held:.0f} bars — force closing")
                     result = _close(oanda_id)
                     if result.get("success"):
@@ -243,7 +252,7 @@ def check_open_positions():
             continue
 
         # Trade closed on OANDA side (SL or TP hit)
-        from backend.execution.oanda_executor import get_trade_details
+        # get_trade_details imported at top of module
         details = get_trade_details(oanda_id)
 
         if details and details["state"] == "CLOSED":
@@ -261,7 +270,7 @@ def check_open_positions():
                 exit_reason = "CLOSED"
 
             # Update DB — OANDA returns P&L in account currency (GBP)
-            from backend.execution.oanda_executor import _get_gbp_usd_rate
+            # _get_gbp_usd_rate defined at top of module
             gbp_usd = _get_gbp_usd_rate()
             pnl_usd = realized_pl * gbp_usd
 
@@ -281,7 +290,7 @@ def check_open_positions():
                 if new_consecutive >= 5:
                     new_pause = 2
 
-            from backend.execution.oanda_executor import _get_gbp_usd_rate
+            # _get_gbp_usd_rate defined at top of module
             gbp_usd_rate = _get_gbp_usd_rate()
             pnl_usd_for_equity = realized_pl * gbp_usd_rate
             new_equity = float(dd_state["equity"]) + pnl_usd_for_equity
