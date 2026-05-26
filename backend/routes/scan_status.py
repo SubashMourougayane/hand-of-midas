@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from backend.execution.oanda_executor import get_current_price, get_candles
 from backend.config import ALPHA_SWEEP
 from backend.db import execute
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import re
 
 router = APIRouter()
@@ -76,21 +76,19 @@ def get_scan_status():
     bearish_sweep_level = asia_high + sweep_threshold
     bullish_sweep_level = asia_low - sweep_threshold
 
-    dist_to_bearish = current_mid - asia_high
-    dist_to_bullish = asia_low - current_mid
+    dist_to_bearish = bearish_sweep_level - current_mid
+    dist_to_bullish = current_mid - bullish_sweep_level
 
-    asia_mid = (asia_high + asia_low) / 2
-    half_range = asia_range / 2 + sweep_threshold
-
-    if current_mid >= asia_mid:
-        proximity_pct = min(100, max(0, (current_mid - asia_mid) / (half_range) * 100))
+    if current_mid >= (asia_high + asia_low) / 2:
         sweep_direction = "bearish"
+        proximity_pct = min(100, max(0, (1 - dist_to_bearish / (bearish_sweep_level - asia_low)) * 100))
     else:
-        proximity_pct = min(100, max(0, (asia_mid - current_mid) / (half_range) * 100))
         sweep_direction = "bullish"
+        proximity_pct = min(100, max(0, (1 - dist_to_bullish / (asia_high - bullish_sweep_level)) * 100))
 
     sweep_detected = False
     sweep_info = None
+    sweep_status = "WAITING"
     for c in h1:
         ts = _parse_ts(c["timestamp"])
         if ts.date() == today and ts.hour >= cfg["scan_start"]:
@@ -109,6 +107,19 @@ def get_scan_status():
         (today,), fetch=True
     )
     trade_count = trades_today[0]["cnt"] if trades_today else 0
+
+    # Determine sweep status for UI
+    if sweep_detected and sweep_info:
+        sweep_time = _parse_ts(sweep_info["time"])
+        window_end = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
+        if trade_count > 0:
+            sweep_status = "TRADED"
+        elif now > window_end:
+            sweep_status = "EXPIRED"
+        else:
+            sweep_status = "ACTIVE"
+    else:
+        sweep_status = "WAITING"
 
     # Daily bias — Variant C: strong body = directional, weak body = neutral
     daily = _scan_oanda["daily"] or []
@@ -142,6 +153,7 @@ def get_scan_status():
         "proximity_pct": round(proximity_pct, 1),
         "sweep_direction": sweep_direction,
         "sweep_detected": sweep_detected,
+        "sweep_status": sweep_status,
         "sweep_info": sweep_info,
         "daily_bias": bias,
         "trades_today": trade_count,

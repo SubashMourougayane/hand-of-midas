@@ -542,7 +542,7 @@ function SweepProximity() {
       setScan(null);
       return;
     }
-    const prefix = "gold";
+    const prefix = instrument === "oil" ? "oil" : "gold";
     try {
       const res = await fetch(`${apiBase}/api/${prefix}/scan-status`);
       if (!res.ok) throw new Error(`${res.status}`);
@@ -565,8 +565,6 @@ function SweepProximity() {
     return () => clearInterval(interval);
   }, [fetchScan]);
 
-  // Don't render for oil
-  if (instrument === "oil") return null;
 
   // Loading / error state
   if (!scan && !scanError) {

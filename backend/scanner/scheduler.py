@@ -425,6 +425,13 @@ def _run_alpha_sweep():
     if not sweeps:
         return
 
+    # Log sweep detection
+    for sd, sw, st in sweeps:
+        _log_journal("SYSTEM", "alpha_sweep", "SWEEP_DETECTED",
+            price=sw, context={"direction": sd, "sweep_wick": sw, "sweep_time": str(st),
+                               "asia_high": asia_high, "asia_low": asia_low, "bias": bias})
+        print(f"  [SWEEP] {sd.upper()} sweep detected @ {sw:.2f} (wick)")
+
     # Get M3 candles for engulfing detection
     m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
     _persist_m3_candles(m3_candles)
@@ -513,6 +520,12 @@ def _run_alpha_sweep():
 
             trades_today += 1
             break  # One engulfing per sweep
+        else:
+            # No engulfing found in this sweep's window
+            _log_journal("SYSTEM", "alpha_sweep", "NO_ENGULFING",
+                price=sweep_wick, context={"direction": sweep_dir, "sweep_wick": sweep_wick,
+                                           "m3_bars_checked": len(relevant_m3), "bias": bias})
+            print(f"  [SWEEP] {sweep_dir} sweep — no engulfing found ({len(relevant_m3)} M3 bars checked)")
 
 
 def _persist_m3_candles(candles: list[dict]):
