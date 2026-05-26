@@ -547,8 +547,13 @@ function SweepProximity() {
       const res = await fetch(`${apiBase}/api/${prefix}/scan-status`);
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
-      setScan(data);
-      setScanError(false);
+      if (data.error || !data.asia_high) {
+        setScan(null);
+        setScanError(true);
+      } else {
+        setScan(data);
+        setScanError(false);
+      }
     } catch {
       setScanError(true);
     }
