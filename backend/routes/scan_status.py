@@ -79,12 +79,22 @@ def get_scan_status():
     dist_to_bearish = bearish_sweep_level - current_mid
     dist_to_bullish = current_mid - bullish_sweep_level
 
-    if current_mid >= (asia_high + asia_low) / 2:
+    # Determine sweep direction and proximity
+    # If price is past a sweep level → pin at 100%
+    if current_mid >= bearish_sweep_level:
         sweep_direction = "bearish"
-        proximity_pct = min(100, max(0, (1 - dist_to_bearish / (bearish_sweep_level - asia_low)) * 100))
+        proximity_pct = 100.0
+    elif current_mid <= bullish_sweep_level:
+        sweep_direction = "bullish"
+        proximity_pct = 100.0
+    elif current_mid >= (asia_high + asia_low) / 2:
+        sweep_direction = "bearish"
+        full_range = bearish_sweep_level - asia_low
+        proximity_pct = min(100, max(0, (1 - dist_to_bearish / full_range) * 100)) if full_range > 0 else 0
     else:
         sweep_direction = "bullish"
-        proximity_pct = min(100, max(0, (1 - dist_to_bullish / (asia_high - bullish_sweep_level)) * 100))
+        full_range = asia_high - bullish_sweep_level
+        proximity_pct = min(100, max(0, (1 - dist_to_bullish / full_range) * 100)) if full_range > 0 else 0
 
     sweep_detected = False
     sweep_info = None
