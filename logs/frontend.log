@@ -4,88 +4,40 @@
 
 ▲ Next.js 16.2.6 (Turbopack)
 - Local:         http://localhost:3001
-- Network:       http://192.168.0.102:3001
-✓ Ready in 427ms
+- Network:       http://192.168.0.100:3001
+✓ Ready in 266ms
 
- GET /trades 200 in 744ms (next.js: 384ms, application-code: 360ms)
- GET /trades 200 in 42ms (next.js: 3ms, application-code: 38ms)
- GET /trades 200 in 21ms (next.js: 5ms, application-code: 16ms)
- GET /trades 200 in 16ms (next.js: 2ms, application-code: 14ms)
- GET /backtest 200 in 50ms (next.js: 33ms, application-code: 17ms)
- GET /trades 200 in 18ms (next.js: 3ms, application-code: 15ms)
- GET /backtest 200 in 23ms (next.js: 5ms, application-code: 18ms)
- GET /trades 200 in 18ms (next.js: 4ms, application-code: 14ms)
- GET /trades 200 in 10ms (next.js: 3ms, application-code: 7ms)
- GET /trades 200 in 17ms (next.js: 1841µs, application-code: 15ms)
- GET /trades 200 in 14ms (next.js: 3ms, application-code: 10ms)
- GET /trades 200 in 27ms (next.js: 3ms, application-code: 25ms)
- GET /trades 200 in 10ms (next.js: 3ms, application-code: 7ms)
- GET /trades 200 in 19ms (next.js: 2ms, application-code: 16ms)
- GET /trades 200 in 9ms (next.js: 3ms, application-code: 6ms)
- GET /trades 200 in 16ms (next.js: 1917µs, application-code: 14ms)
- GET /trades 200 in 38ms (next.js: 1636µs, application-code: 37ms)
- GET /trades 200 in 13ms (next.js: 5ms, application-code: 8ms)
- GET /trades 200 in 17ms (next.js: 1833µs, application-code: 15ms)
- GET /trades 200 in 55ms (next.js: 4ms, application-code: 51ms)
- GET /trades 200 in 10ms (next.js: 4ms, application-code: 6ms)
- GET /trades 200 in 16ms (next.js: 1842µs, application-code: 14ms)
- GET /trades 200 in 7ms (next.js: 2ms, application-code: 5ms)
- GET /trades 200 in 13ms (next.js: 1361µs, application-code: 12ms)
- GET /trades 200 in 9ms (next.js: 2ms, application-code: 6ms)
- GET /trades 200 in 14ms (next.js: 1885µs, application-code: 12ms)
- GET /trades 200 in 54ms (next.js: 6ms, application-code: 48ms)
- GET /backtest 200 in 23ms (next.js: 5ms, application-code: 18ms)
- GET /trades 200 in 17ms (next.js: 2ms, application-code: 15ms)
- GET /trades 200 in 11ms (next.js: 3ms, application-code: 7ms)
- GET /trades 200 in 24ms (next.js: 1606µs, application-code: 23ms)
- GET /trades 200 in 9ms (next.js: 3ms, application-code: 5ms)
- GET /trades 200 in 16ms (next.js: 2ms, application-code: 14ms)
- GET /live 200 in 71ms (next.js: 45ms, application-code: 25ms)
- GET /live 200 in 21ms (next.js: 3ms, application-code: 17ms)
- GET /backtest 200 in 27ms (next.js: 6ms, application-code: 21ms)
- GET /backtest 200 in 96ms (next.js: 8ms, application-code: 88ms)
- GET /backtest 200 in 62ms (next.js: 4ms, application-code: 58ms)
- GET /backtest 200 in 22ms (next.js: 1808µs, application-code: 20ms)
-✓ Compiled in 152ms
- GET /backtest 200 in 112ms (next.js: 5ms, application-code: 107ms)
- GET /live 200 in 21ms (next.js: 7ms, application-code: 14ms)
-✓ Compiled in 74ms
-⚠ Fast Refresh had to perform a full reload due to a runtime error.
-✓ Compiled in 27ms
- GET /live 200 in 136ms (next.js: 7ms, application-code: 129ms)
-⚠ Fast Refresh had to perform a full reload due to a runtime error.
-⨯ ReferenceError: SystemMode is not defined
-    at LivePage (app/live/page.tsx:71:10)
-  69 |
-  70 |         {/* System Mode */}
-> 71 |         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?....
-     |          ^
-  72 |
-  73 |         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disc...
-  74 | {
-  digest: '1399808346'
-}
-✓ Compiled in 50ms
- GET /live 500 in 83ms (next.js: 7ms, application-code: 76ms)
-⚠ Fast Refresh had to perform a full reload due to a runtime error.
-⨯ ReferenceError: SystemMode is not defined
-    at LivePage (app/live/page.tsx:71:10)
-  69 |
-  70 |         {/* System Mode */}
-> 71 |         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?....
-     |          ^
-  72 |
-  73 |         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disc...
-  74 | {
-  digest: '1399808346'
-}
-✓ Compiled in 34ms
- GET /live 500 in 58ms (next.js: 5ms, application-code: 54ms)
-⚠ Fast Refresh had to perform a full reload due to a runtime error.
-✓ Compiled in 26ms
- GET /live 200 in 66ms (next.js: 5ms, application-code: 61ms)
- GET /live 200 in 19ms (next.js: 8ms, application-code: 11ms)
- GET /live 200 in 17ms (next.js: 2ms, application-code: 15ms)
- GET /live 200 in 8ms (next.js: 1746µs, application-code: 6ms)
- GET /live 200 in 16ms (next.js: 1652µs, application-code: 14ms)
- GET /live 200 in 55ms (next.js: 6ms, application-code: 49ms)
+ GET /live 200 in 191ms (next.js: 109ms, application-code: 82ms)
+ GET /live 200 in 49ms (next.js: 6ms, application-code: 43ms)
+ GET /live 200 in 28ms (next.js: 2ms, application-code: 25ms)
+ GET /live 200 in 12ms (next.js: 4ms, application-code: 7ms)
+ GET /live 200 in 12ms (next.js: 2ms, application-code: 10ms)
+[browser] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. 
+ GET /live 200 in 32ms (next.js: 5ms, application-code: 26ms)
+ GET /live 200 in 7ms (next.js: 2ms, application-code: 5ms)
+ GET /live 200 in 11ms (next.js: 3ms, application-code: 8ms)
+ GET /backtest 200 in 68ms (next.js: 45ms, application-code: 24ms)
+ GET /live 200 in 12ms (next.js: 2ms, application-code: 9ms)
+ GET /live 200 in 14ms (next.js: 7ms, application-code: 6ms)
+ GET /live 200 in 13ms (next.js: 2ms, application-code: 10ms)
+ GET /live 200 in 5ms (next.js: 2ms, application-code: 3ms)
+ GET /live 200 in 9ms (next.js: 1372µs, application-code: 8ms)
+ GET / 200 in 244ms (next.js: 218ms, application-code: 26ms)
+ GET /login 200 in 55ms (next.js: 39ms, application-code: 16ms)
+[browser] Cannot update a component (`Router`) while rendering a different component (`LoginPage`). To locate the bad setState() call inside `LoginPage`, follow the stack trace as described in https://react.dev/link/setstate-in-render 
+    at LoginPage (app/login/page.tsx:17:12)
+  15 |   // If already logged in, redirect
+  16 |   if (user) {
+> 17 |     router.push("/live");
+     |            ^
+  18 |     return null;
+  19 |   }
+  20 | (app/login/page.tsx:17:12)
+ GET /live 200 in 42ms (next.js: 3ms, application-code: 39ms)
+ GET /live 200 in 24ms (next.js: 4ms, application-code: 20ms)
+ GET /live 200 in 29ms (next.js: 9ms, application-code: 20ms)
+ GET /live 200 in 35ms (next.js: 16ms, application-code: 19ms)
+ GET /live 200 in 15ms (next.js: 3ms, application-code: 13ms)
+ GET /live 200 in 16ms (next.js: 4ms, application-code: 12ms)
+ GET /live 200 in 18ms (next.js: 3ms, application-code: 15ms)
+[?25h

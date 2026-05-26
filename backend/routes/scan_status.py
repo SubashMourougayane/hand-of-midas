@@ -2,7 +2,7 @@
 import time
 import threading
 from fastapi import APIRouter
-from backend.execution.oanda_executor import get_current_price, get_candles
+from backend.execution import get_current_price, get_candles
 from backend.config import ALPHA_SWEEP
 from backend.db import execute
 from datetime import datetime, timezone, timedelta

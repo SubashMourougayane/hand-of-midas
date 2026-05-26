@@ -12,7 +12,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.execution.oanda_executor import (
+from backend.execution import (
     get_current_price, place_market_order,
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details, _get_gbp_usd_rate,

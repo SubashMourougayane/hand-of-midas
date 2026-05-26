@@ -1,6 +1,6 @@
 """Oil Scan Status API — real-time sweep proximity for dashboard gauge."""
 from fastapi import APIRouter
-from backend.execution.oanda_executor import get_current_price, get_candles
+from backend.execution import get_current_price, get_candles
 from backend.db import execute
 from config import ALPHA_SWEEP
 from datetime import datetime, timezone

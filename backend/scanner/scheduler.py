@@ -63,7 +63,7 @@ def daily_close_job():
 
 def _check_mean_rev_exit():
     """Check if open Mean-Rev trades should exit (conditions reversed or max 5 days)."""
-    from backend.execution.oanda_executor import close_trade, get_candles, _get_gbp_usd_rate
+    from backend.execution import close_trade, get_candles; from backend.scanner.live_engine import _get_gbp_usd_rate
 
     open_mr = execute(
         "SELECT * FROM gd_trades WHERE strategy='mean_rev' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
@@ -132,7 +132,7 @@ def _check_mean_rev_exit():
 
 def _check_max_hold_exits():
     """Close Cross-Market trades held > 20 days."""
-    from backend.execution.oanda_executor import close_trade, _get_gbp_usd_rate
+    from backend.execution import close_trade; from backend.scanner.live_engine import _get_gbp_usd_rate
 
     open_cm = execute(
         "SELECT * FROM gd_trades WHERE strategy='cross_market' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
@@ -557,7 +557,7 @@ def position_monitor_job():
 def heartbeat_job():
     """Hourly heartbeat during scan window — sends Telegram status."""
     try:
-        from backend.execution.oanda_executor import get_current_price, get_candles
+        from backend.execution import get_current_price, get_candles
         from backend import notify
 
         now = datetime.now(timezone.utc)
