@@ -76,18 +76,15 @@ def get_scan_status():
     bearish_sweep_level = asia_high + sweep_threshold
     bullish_sweep_level = asia_low - sweep_threshold
 
-    dist_to_bearish = current_mid - asia_high
-    dist_to_bullish = asia_low - current_mid
+    dist_to_bearish = bearish_sweep_level - current_mid
+    dist_to_bullish = current_mid - bullish_sweep_level
 
-    asia_mid = (asia_high + asia_low) / 2
-    half_range = asia_range / 2 + sweep_threshold
-
-    if current_mid >= asia_mid:
-        proximity_pct = min(100, max(0, (current_mid - asia_mid) / (half_range) * 100))
+    if current_mid >= (asia_high + asia_low) / 2:
         sweep_direction = "bearish"
+        proximity_pct = min(100, max(0, (1 - dist_to_bearish / (bearish_sweep_level - asia_low)) * 100))
     else:
-        proximity_pct = min(100, max(0, (asia_mid - current_mid) / (half_range) * 100))
         sweep_direction = "bullish"
+        proximity_pct = min(100, max(0, (1 - dist_to_bullish / (asia_high - bullish_sweep_level)) * 100))
 
     sweep_detected = False
     sweep_info = None
