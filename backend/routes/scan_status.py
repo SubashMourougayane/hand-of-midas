@@ -1,5 +1,6 @@
 """Scan Status API — real-time sweep proximity for dashboard gauge."""
 import time
+import threading
 from fastapi import APIRouter
 from backend.execution.oanda_executor import get_current_price, get_candles
 from backend.config import ALPHA_SWEEP
@@ -9,8 +10,29 @@ import re
 
 router = APIRouter()
 
-_scan_cache = {"data": None, "ts": 0}
-_CACHE_TTL = 15  # seconds
+_scan_oanda = {"price": None, "h1": [], "daily": [], "ts": 0, "fetching": False}
+_SCAN_TTL = 10
+
+
+def _refresh_scan_oanda():
+    """Fetch scan data in background — never blocks."""
+    if _scan_oanda["fetching"]:
+        return
+    _scan_oanda["fetching"] = True
+    try:
+        _scan_oanda["price"] = get_current_price(instrument="XAU_USD")
+        _scan_oanda["h1"] = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
+        _scan_oanda["daily"] = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+        _scan_oanda["ts"] = time.time()
+    except:
+        pass
+    finally:
+        _scan_oanda["fetching"] = False
+
+
+def _ensure_scan_fresh():
+    if time.time() - _scan_oanda["ts"] > _SCAN_TTL:
+        threading.Thread(target=_refresh_scan_oanda, daemon=True).start()
 
 
 def _parse_ts(ts_str: str):
@@ -20,10 +42,8 @@ def _parse_ts(ts_str: str):
 
 @router.get("/scan-status")
 def get_scan_status():
-    """Real-time Alpha-Sweep scan state. Cached 15s to avoid OANDA 522 blocking."""
-    now_ts = time.time()
-    if _scan_cache["data"] and (now_ts - _scan_cache["ts"]) < _CACHE_TTL:
-        return _scan_cache["data"]
+    """Real-time Alpha-Sweep scan state. NEVER blocks on OANDA."""
+    _ensure_scan_fresh()
 
     cfg = ALPHA_SWEEP
     now = datetime.now(timezone.utc)
@@ -32,14 +52,14 @@ def get_scan_status():
 
     scan_active = cfg["scan_start"] <= utc_hour <= cfg["scan_end"]
 
-    price = get_current_price(instrument="XAU_USD")
+    price = _scan_oanda["price"]
     if not price:
-        return {"error": "Price unavailable", "scan_active": scan_active}
+        return {"error": "Price unavailable (warming up)", "scan_active": scan_active}
 
     current_mid = price["mid"]
     tradeable = price.get("tradeable", False)
 
-    h1 = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
+    h1 = _scan_oanda["h1"] or []
     asia_high, asia_low = 0, 999999
     for c in h1:
         ts = _parse_ts(c["timestamp"])
@@ -91,7 +111,7 @@ def get_scan_status():
     trade_count = trades_today[0]["cnt"] if trades_today else 0
 
     # Daily bias — Variant C: strong body = directional, weak body = neutral
-    daily = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+    daily = _scan_oanda["daily"] or []
     bias = "neutral"
     if len(daily) >= 2:
         yesterday = daily[-2]
@@ -129,6 +149,4 @@ def get_scan_status():
         "utc_time": now.strftime("%H:%M:%S"),
     }
 
-    _scan_cache["data"] = result
-    _scan_cache["ts"] = now_ts
     return result

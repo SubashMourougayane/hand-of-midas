@@ -1,26 +1,46 @@
 """State API — GET /api/gold/state for live dashboard."""
 import time
+import threading
 from fastapi import APIRouter
 from backend.execution.oanda_executor import get_current_price, get_account_summary, get_open_trades
 from backend.db import execute
 
 router = APIRouter()
 
-_state_cache = {"data": None, "ts": 0}
-_CACHE_TTL = 15  # seconds
+_oanda_cache = {"price": None, "account": None, "positions": [], "ts": 0, "fetching": False}
+_OANDA_TTL = 10  # refresh OANDA data every 10s in background
+
+
+def _refresh_oanda():
+    """Fetch OANDA data in background thread — never blocks API."""
+    if _oanda_cache["fetching"]:
+        return
+    _oanda_cache["fetching"] = True
+    try:
+        _oanda_cache["price"] = get_current_price()
+        _oanda_cache["account"] = get_account_summary()
+        _oanda_cache["positions"] = get_open_trades(instrument="XAU_USD")
+        _oanda_cache["ts"] = time.time()
+    except:
+        pass
+    finally:
+        _oanda_cache["fetching"] = False
+
+
+def _ensure_oanda_fresh():
+    """Kick off background refresh if stale. Never blocks."""
+    if time.time() - _oanda_cache["ts"] > _OANDA_TTL:
+        threading.Thread(target=_refresh_oanda, daemon=True).start()
 
 
 @router.get("/state")
 def get_state():
-    """Current live state — price, account, positions, DD state, recent signals.
-    Cached for 15s to prevent OANDA 522 retries from blocking the dashboard."""
-    now = time.time()
-    if _state_cache["data"] and (now - _state_cache["ts"]) < _CACHE_TTL:
-        return _state_cache["data"]
+    """Current live state — NEVER blocks on OANDA. Returns last known data immediately."""
+    _ensure_oanda_fresh()
 
-    price = get_current_price()
-    account = get_account_summary()
-    positions = get_open_trades(instrument="XAU_USD")
+    price = _oanda_cache["price"]
+    account = _oanda_cache["account"]
+    positions = _oanda_cache["positions"]
 
     # DD state
     dd_rows = execute("SELECT * FROM gd_dd_state WHERE id = 1", fetch=True)
@@ -78,7 +98,7 @@ def get_state():
             "exit_time": t["exit_time"].isoformat() if t["exit_time"] else None,
         })
 
-    result = {
+    return {
         "price": price,
         "account": account,
         "oanda_positions": positions,
@@ -88,7 +108,3 @@ def get_state():
         "recent_trades": recent,
         "scheduler_active": True,
     }
-
-    _state_cache["data"] = result
-    _state_cache["ts"] = now
-    return result
