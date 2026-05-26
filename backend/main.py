@@ -21,18 +21,25 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     from backend.backtest.engine import _get_cached_data
     from backend.scanner.scheduler import start_scheduler, stop_scheduler
-    from backend.scanner.price_stream import start_stream, stop_stream
+    from backend.config import EXECUTOR
 
     print("Pre-loading market data for backtest...")
     _get_cached_data()
     print("Starting live trading scheduler...")
     start_scheduler()
-    print("Starting real-time price stream...")
-    start_stream()
+
+    if EXECUTOR != "mt5":
+        from backend.scanner.price_stream import start_stream, stop_stream
+        print("Starting real-time price stream...")
+        start_stream()
+    else:
+        print("MT5 mode — OANDA price stream disabled (DWX handles prices)")
+
     print("GoldDigger ready.")
     yield
     print("Shutting down...")
-    stop_stream()
+    if EXECUTOR != "mt5":
+        stop_stream()
     stop_scheduler()
 
 
