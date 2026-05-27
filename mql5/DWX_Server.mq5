@@ -321,7 +321,7 @@ void ExecuteOpen(string symbol, string type, double volume, double price, double
     request.deviation = 20;
     request.magic = InpMagic;
     request.comment = comment;
-    request.type_filling = ORDER_FILLING_IOC;
+    request.type_filling = ORDER_FILLING_FOK;
 
     if(type == "BUY")
     {
@@ -421,7 +421,7 @@ void ExecuteClose(ulong ticket)
     request.volume = volume;
     request.deviation = 20;
     request.magic = InpMagic;
-    request.type_filling = ORDER_FILLING_IOC;
+    request.type_filling = ORDER_FILLING_FOK;
 
     if(posType == POSITION_TYPE_BUY)
     {
