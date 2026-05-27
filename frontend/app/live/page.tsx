@@ -414,17 +414,18 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
   const IST_OFFSET = 5.5;
   const istTime = (utcTime + IST_OFFSET) % 24;
 
-  // Sessions in IST — NY overlaps with London (18.5-21.5 IST)
+  // Gold market sessions in IST (UTC + 5:30)
+  // Market closed: 3:00-3:30 AM IST (21:30-22:00 UTC) — 30 min only
   const sessions = [
-    { name: "ASIA", start: 5.5, end: 13.5, color: "#9ca3b4" },
-    { name: "LONDON", start: 13.5, end: 21.5, color: "#4fc3f7" },
-    { name: "NEW YORK", start: 18.5, end: 24, color: "#ff8c00" },
+    { name: "ASIA", start: 3.5, end: 13.5, color: "#4da6ff" },      // 3:30 AM - 1:30 PM IST
+    { name: "LONDON", start: 13.5, end: 18.5, color: "#4fc3f7" },   // 1:30 PM - 6:30 PM IST
+    { name: "NEW YORK", start: 18.5, end: 24, color: "#ff8c00" },   // 6:30 PM - 3:00 AM IST (wraps)
   ];
 
   const tradingWindows = [
-    { name: "Alpha-Sweep", start: 0, end: 2.5, color: "#4fc3f7" },
-    { name: "Alpha-Sweep", start: 13.5, end: 24, color: "#4fc3f7" },
-    { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },
+    { name: "Alpha-Sweep", start: 0, end: 1.5, color: "#4fc3f7" },   // 00:00-20:00 UTC = wraps: 5:30 AM IST prev day continues
+    { name: "Alpha-Sweep", start: 9.5, end: 24, color: "#4fc3f7" },  // 04:00-20:00 UTC = 9:30 AM - 1:30 AM IST
+    { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },  // 22:00 UTC = 3:30 AM IST
   ];
 
   return (
@@ -454,15 +455,15 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
           </div>
         </div>
 
-        {/* Sessions row — single row, NY overlaps London */}
+        {/* Sessions row — Gold market hours */}
         <div className="relative h-11 mb-2 rounded" style={{ background: "#0d1017" }}>
-          {/* NY wrap (12 AM – 2:30 AM) — active when NY session is running */}
+          {/* NY wrap (12 AM – 3:00 AM IST) */}
           {(() => {
-            const nyActive = istTime >= 18.5 || istTime < 2.5;
+            const nyActive = istTime >= 18.5 || istTime < 3;
             return (
               <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
                 style={{
-                  left: "0%", width: `${(2.5 / 24) * 100}%`,
+                  left: "0%", width: `${(3 / 24) * 100}%`,
                   background: nyActive ? "#ff8c0018" : "#ff8c0006",
                   border: nyActive ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
                 }}>
@@ -470,49 +471,47 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
               </div>
             );
           })()}
-          {/* CLOSED (2:30 - 5:30 AM) */}
+          {/* CLOSED (3:00 - 3:30 AM IST) — 30 min rollover */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center"
-            style={{ left: `${(2.5 / 24) * 100}%`, width: `${(3 / 24) * 100}%` }}>
-            <span className="text-[9px] font-extrabold tracking-wider" style={{ color: "#9ca3b4" }}>CLOSED</span>
+            style={{ left: `${(3 / 24) * 100}%`, width: `${(0.5 / 24) * 100}%` }}>
+            <span className="text-[7px] font-bold" style={{ color: "#ff3e3e" }}>✕</span>
           </div>
-          {/* ASIA (5:30 AM - 1:30 PM) */}
+          {/* ASIA / TOKYO (3:30 AM - 1:30 PM IST) */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
             style={{
-              left: `${(5.5 / 24) * 100}%`, width: `${(8 / 24) * 100}%`,
-              background: (istTime >= 5.5 && istTime < 13.5) ? "#9ca3b418" : "#9ca3b406",
-              border: (istTime >= 5.5 && istTime < 13.5) ? "1.5px solid #9ca3b4" : "1px solid #9ca3b420",
+              left: `${(3.5 / 24) * 100}%`, width: `${(10 / 24) * 100}%`,
+              background: (istTime >= 3.5 && istTime < 13.5) ? "#4da6ff18" : "#4da6ff06",
+              border: (istTime >= 3.5 && istTime < 13.5) ? "1.5px solid #4da6ff" : "1px solid #4da6ff20",
             }}>
-            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 5.5 && istTime < 13.5) ? "#fff" : "#9ca3b4" }}>ASIA</span>
+            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 3.5 && istTime < 13.5) ? "#fff" : "#4da6ff" }}>ASIA</span>
           </div>
-          {/* LONDON (1:30 PM - 9:30 PM) */}
+          {/* LONDON (1:30 PM - 6:30 PM IST) */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
             style={{
               left: `${(13.5 / 24) * 100}%`, width: `${(5 / 24) * 100}%`,
-              background: (istTime >= 13.5 && istTime < 21.5) ? "#4fc3f718" : "#4fc3f706",
-              border: (istTime >= 13.5 && istTime < 21.5) ? "1.5px solid #4fc3f7" : "1px solid #4fc3f720",
-              borderRight: "none", borderTopRightRadius: 0, borderBottomRightRadius: 0,
+              background: (istTime >= 13.5 && istTime < 18.5) ? "#4fc3f718" : "#4fc3f706",
+              border: (istTime >= 13.5 && istTime < 18.5) ? "1.5px solid #4fc3f7" : "1px solid #4fc3f720",
             }}>
             <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 13.5 && istTime < 18.5) ? "#fff" : "#4fc3f7" }}>LONDON</span>
           </div>
-          {/* OVERLAP zone (6:30 - 9:30 PM) — London + NY both active */}
+          {/* OVERLAP (6:30 PM - 10:30 PM IST) */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center"
             style={{
-              left: `${(18.5 / 24) * 100}%`, width: `${(3 / 24) * 100}%`,
-              background: (istTime >= 18.5 && istTime < 21.5) ? "linear-gradient(90deg, #4fc3f720, #ff8c0020)" : "linear-gradient(90deg, #4fc3f708, #ff8c0008)",
-              borderTop: (istTime >= 18.5 && istTime < 21.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
-              borderBottom: (istTime >= 18.5 && istTime < 21.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
+              left: `${(18.5 / 24) * 100}%`, width: `${(4 / 24) * 100}%`,
+              background: (istTime >= 18.5 && istTime < 22.5) ? "linear-gradient(90deg, #4fc3f720, #ff8c0020)" : "linear-gradient(90deg, #4fc3f708, #ff8c0008)",
+              borderTop: (istTime >= 18.5 && istTime < 22.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
+              borderBottom: (istTime >= 18.5 && istTime < 22.5) ? "1.5px solid #e8c300" : "1px solid #e8c30030",
             }}>
             <span className="text-[8px] font-bold tracking-wider" style={{ color: "#e8c300" }}>OVERLAP</span>
           </div>
-          {/* NEW YORK (9:30 PM - midnight) */}
+          {/* NEW YORK (10:30 PM - midnight) */}
           <div className="absolute top-1.5 bottom-1.5 flex items-center justify-center rounded"
             style={{
-              left: `${(21.5 / 24) * 100}%`, width: `${(2.5 / 24) * 100}%`,
-              background: (istTime >= 21.5) ? "#ff8c0018" : "#ff8c0006",
-              border: (istTime >= 21.5) ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
-              borderLeft: "none", borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+              left: `${(22.5 / 24) * 100}%`, width: `${(1.5 / 24) * 100}%`,
+              background: (istTime >= 22.5) ? "#ff8c0018" : "#ff8c0006",
+              border: (istTime >= 22.5) ? "1.5px solid #ff8c00" : "1px solid #ff8c0020",
             }}>
-            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 21.5) ? "#fff" : "#ff8c00" }}>NY</span>
+            <span className="text-[10px] font-extrabold tracking-wider" style={{ color: (istTime >= 22.5) ? "#fff" : "#ff8c00" }}>NY</span>
           </div>
         </div>
 
@@ -569,8 +568,9 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
 
       {/* Legend — desktop only */}
       <div className="hidden md:flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[9px]" style={{ color: "#8b95a5" }}>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (1:30 PM – 1:30 AM)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#4fc3f715", border: "1px solid #4fc3f7" }} /> Alpha-Sweep (9:30 AM – 1:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-2.5 rounded-sm" style={{ background: "#ffd54f15", border: "1px solid #ffd54f" }} /> Daily Scan (3:30 AM)</span>
+        <span className="flex items-center gap-1.5"><span className="text-[7px] text-[#ff3e3e]">✕</span> Closed (3:00-3:30 AM)</span>
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
         <span className="flex items-center gap-1.5"><span className="w-5 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 6px)" }} /> Monitor (24/7)</span>
       </div>

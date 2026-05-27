@@ -47,9 +47,9 @@ def get_state():
     dd_state = dict(dd_rows[0]) if dd_rows else {}
     dd_state = {k: float(v) if hasattr(v, '__float__') and k != 'id' else v for k, v in dd_state.items()}
 
-    # Recent signals (last 10)
+    # Recent signals (last 10, Gold Macro only — exclude Micro and Oil)
     signals = execute(
-        "SELECT * FROM gd_signals ORDER BY timestamp DESC LIMIT 10",
+        "SELECT * FROM gd_signals WHERE strategy NOT IN ('micro_alpha_sweep', 'alpha_sweep_oil') ORDER BY timestamp DESC LIMIT 10",
         fetch=True
     )
     signals_list = []
