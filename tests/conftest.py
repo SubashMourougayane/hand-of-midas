@@ -18,6 +18,17 @@ sys.path.insert(0, OIL_BACKEND_PATH)
 TEST_DB_URL = os.getenv("TEST_DB_URL", "postgresql://postgres:postgres@localhost:5432/golddigger_test")
 
 
+def get_oil_live_engine():
+    """Import Oil's live_engine without module cache collision.
+    Use this instead of 'from scanner.live_engine import X' in Oil tests."""
+    import importlib.util
+    oil_le_path = os.path.join(OIL_BACKEND_PATH, "scanner", "live_engine.py")
+    spec = importlib.util.spec_from_file_location("oil_scanner_live_engine", oil_le_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 @pytest.fixture(autouse=True)
 def seed_random():
     import numpy as np

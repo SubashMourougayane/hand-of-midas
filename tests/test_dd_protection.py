@@ -169,7 +169,7 @@ class TestOilNo50MAGate:
     """Oil _should_skip only checks pause — no 50MA gate."""
 
     def test_oil_no_50ma_gate(self, test_db, mock_oanda_success, oil_dd_state):
-        from scanner.live_engine import _should_skip as oil_should_skip, _get_dd_state as oil_get_dd
+        from conftest import get_oil_live_engine; _oil_mod = get_oil_live_engine(); oil_should_skip = _oil_mod._should_skip; oil_get_dd = _oil_mod._get_dd_state
 
         oil_dd_state(consecutive_losses=0, pause_counter=0)
         dd = oil_get_dd()
@@ -178,7 +178,7 @@ class TestOilNo50MAGate:
         assert reason is None
 
     def test_oil_pause_works(self, test_db, mock_oanda_success, oil_dd_state):
-        from scanner.live_engine import _should_skip as oil_should_skip, _get_dd_state as oil_get_dd
+        from conftest import get_oil_live_engine; _oil_mod = get_oil_live_engine(); oil_should_skip = _oil_mod._should_skip; oil_get_dd = _oil_mod._get_dd_state
 
         oil_dd_state(pause_counter=2)
         dd = oil_get_dd()
@@ -190,8 +190,8 @@ class TestPerInstrumentDDIsolation:
     """Gold DD (id=1) and Oil DD (id=2) are independent."""
 
     def test_oil_not_affected_by_gold_dd(self, test_db, mock_oanda_success, gold_dd_state, oil_dd_state, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         # Gold paused, Oil clean
         gold_dd_state(consecutive_losses=5, pause_counter=2)

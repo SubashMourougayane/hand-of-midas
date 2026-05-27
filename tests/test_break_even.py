@@ -113,12 +113,12 @@ class TestOilBreakEven:
 
     @pytest.fixture(autouse=True)
     def _patch_oil_oanda(self, mock_oanda_success, monkeypatch):
-        import scanner.live_engine as oil_le
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
         monkeypatch.setattr(oil_le, "get_current_price", mock_oanda_success["price"])
         monkeypatch.setattr(oil_le, "modify_stop_loss", mock_oanda_success["modify"])
 
     def test_oil_long_triggers_at_50pct(self, test_db, mock_oanda_success, open_oil_trade):
-        from scanner.live_engine import check_alpha_sweep_breakeven as oil_be
+        from conftest import get_oil_live_engine; oil_be = get_oil_live_engine().check_alpha_sweep_breakeven
 
         # entry=104.50, tp=105.50, sl=104.00 → target_50 = 104.50 + (105.50-104.50)*0.5 = 105.00
         open_oil_trade(entry_price=104.50, tp_price=105.50, sl_price=104.00,
@@ -137,7 +137,7 @@ class TestOilBreakEven:
         assert float(trades[0]["sl_price"]) == pytest.approx(104.51, abs=0.001)
 
     def test_oil_short_triggers_at_50pct(self, test_db, mock_oanda_success, open_oil_trade):
-        from scanner.live_engine import check_alpha_sweep_breakeven as oil_be
+        from conftest import get_oil_live_engine; oil_be = get_oil_live_engine().check_alpha_sweep_breakeven
 
         # entry=104.50, tp=103.50, sl=105.00 → target_50 = 104.50 - (104.50-103.50)*0.5 = 104.00
         open_oil_trade(entry_price=104.50, tp_price=103.50, sl_price=105.00,

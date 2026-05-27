@@ -82,15 +82,15 @@ class TestOilSLTPDetection:
 
     @pytest.fixture(autouse=True)
     def _patch_oil_oanda(self, mock_oanda_success, monkeypatch):
-        import scanner.live_engine as oil_le
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
         monkeypatch.setattr(oil_le, "get_open_trades", mock_oanda_success["open_trades"])
         monkeypatch.setattr(oil_le, "close_trade", mock_oanda_success["close"])
         monkeypatch.setattr(oil_le, "get_trade_details", MagicMock())
         monkeypatch.setattr(oil_le, "_get_gbp_usd_rate", mock_oanda_success["rate"])
 
     def test_oil_detect_sl_with_tolerance(self, test_db, mock_oanda_success, open_oil_trade, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import check_open_positions as oil_check
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_check = get_oil_live_engine().check_open_positions
 
         open_oil_trade(sl_price=104.20, tp_price=105.10, oanda_trade_id="67890")
 
@@ -106,8 +106,8 @@ class TestOilSLTPDetection:
         assert trades[0]["exit_reason"] == "SL"
 
     def test_oil_detect_tp_with_tolerance(self, test_db, mock_oanda_success, open_oil_trade, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import check_open_positions as oil_check
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_check = get_oil_live_engine().check_open_positions
 
         open_oil_trade(sl_price=104.00, tp_price=105.10, oanda_trade_id="67890")
 
@@ -190,8 +190,8 @@ class TestMaxHold:
         assert len(journal) == 1
 
     def test_oil_max_hold_triggers(self, test_db, mock_oanda_success, open_oil_trade, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import check_open_positions as oil_check
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_check = get_oil_live_engine().check_open_positions
 
         entry_time = datetime.now(timezone.utc) - timedelta(seconds=14500)
         open_oil_trade(strategy="alpha_sweep_oil", oanda_trade_id="67890", entry_time=entry_time)

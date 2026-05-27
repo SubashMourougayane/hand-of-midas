@@ -159,7 +159,7 @@ class TestOilExecuteSignal:
         """Also patch Oil's live_engine module."""
         import importlib
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend-oil"))
-        import scanner.live_engine as oil_le
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
         monkeypatch.setattr(oil_le, "place_market_order", mock_oanda_success["place"])
         monkeypatch.setattr(oil_le, "get_account_summary", mock_oanda_success["account"])
         monkeypatch.setattr(oil_le, "get_open_trades", mock_oanda_success["open_trades"])
@@ -169,7 +169,7 @@ class TestOilExecuteSignal:
         monkeypatch.setattr(oil_le, "_get_gbp_usd_rate", mock_oanda_success["rate"])
 
     def test_oil_long_success(self, test_db, mock_oanda_success):
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         mock_oanda_success["place"].return_value["fill_price"] = 104.55
         ref = oil_execute("long", 104.50, 104.20, 105.10)
@@ -190,7 +190,7 @@ class TestOilExecuteSignal:
         assert call_kwargs["instrument"] == "BCO_USD"
 
     def test_oil_sizing_capped_at_5000(self, test_db, mock_oanda_success):
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         # sl_distance = $0.01 → units = 132000*0.04/0.01 = 528,000 → capped at 5000
         ref = oil_execute("long", 104.50, 104.49, 105.50)
@@ -200,7 +200,7 @@ class TestOilExecuteSignal:
         assert trades[0]["units"] == 5000  # MAX_UNITS for Oil
 
     def test_oil_dd_separate_from_gold(self, test_db, mock_oanda_success, gold_dd_state, oil_dd_state):
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         # Gold paused (5 losses), Oil clean
         gold_dd_state(consecutive_losses=5, pause_counter=2)
@@ -210,8 +210,8 @@ class TestOilExecuteSignal:
         assert ref is not None  # Oil NOT paused despite Gold being paused
 
     def test_oil_oanda_rejects_insufficient_margin(self, test_db, mock_oanda_success, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         mock_oanda_success["place"].return_value = {"success": False, "error": "INSUFFICIENT_MARGIN"}
         monkeypatch.setattr(oil_le, "place_market_order", mock_oanda_success["place"])

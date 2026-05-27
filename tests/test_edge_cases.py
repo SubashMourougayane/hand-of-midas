@@ -189,7 +189,7 @@ class TestOilEdgeCases:
 
     @pytest.fixture(autouse=True)
     def _patch_oil_oanda(self, mock_oanda_success, monkeypatch):
-        import scanner.live_engine as oil_le
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
         monkeypatch.setattr(oil_le, "place_market_order", mock_oanda_success["place"])
         monkeypatch.setattr(oil_le, "get_account_summary", mock_oanda_success["account"])
         monkeypatch.setattr(oil_le, "get_open_trades", mock_oanda_success["open_trades"])
@@ -200,7 +200,7 @@ class TestOilEdgeCases:
         monkeypatch.setattr(oil_le, "get_trade_details", mock_oanda_success["details"])
 
     def test_oil_zero_equity(self, test_db, mock_oanda_success):
-        from scanner.live_engine import execute_signal as oil_execute
+        from conftest import get_oil_live_engine; oil_execute = get_oil_live_engine().execute_signal
 
         mock_oanda_success["account"].return_value["nav_usd"] = 0.0
 
@@ -210,8 +210,8 @@ class TestOilEdgeCases:
         assert len(signals) == 1
 
     def test_oil_realized_pl_zero_is_loss(self, test_db, mock_oanda_success, open_oil_trade, oil_dd_state, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import check_open_positions as oil_check
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_check = get_oil_live_engine().check_open_positions
 
         oil_dd_state(consecutive_losses=1)
         open_oil_trade(sl_price=104.00, tp_price=105.50, oanda_trade_id="67890")
@@ -228,8 +228,8 @@ class TestOilEdgeCases:
         assert dd[0]["consecutive_losses"] == 2  # Incremented (0 is not > 0)
 
     def test_oil_details_returns_none_no_crash(self, test_db, mock_oanda_success, open_oil_trade, monkeypatch):
-        import scanner.live_engine as oil_le
-        from scanner.live_engine import check_open_positions as oil_check
+        from conftest import get_oil_live_engine; oil_le = get_oil_live_engine()
+        from conftest import get_oil_live_engine; oil_check = get_oil_live_engine().check_open_positions
 
         open_oil_trade(oanda_trade_id="67890")
 
