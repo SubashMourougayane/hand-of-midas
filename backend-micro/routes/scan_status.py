@@ -77,8 +77,10 @@ def get_scan_status():
             if ts.date() == today and start_hour <= ts.hour < end_hour:
                 consol_bars.append(c)
 
+        # Cap scan window at configured scan_end_hour (never scan past 20:00 UTC)
+        scan_end_hour = min(scan_end_hour, cfg["scan_end_hour"] if "scan_end_hour" in cfg else 20)
+
         if len(consol_bars) < 2:
-            # Window status
             if now.hour < end_hour:
                 status = "building"
             else:

@@ -337,6 +337,7 @@ export default function LivePage() {
 
 
 function SystemMode({ hasPositions }: { hasPositions: boolean }) {
+  const { instrument } = useInstrument();
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -423,11 +424,16 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     { name: "NEW YORK", start: 18.5, end: 24, color: "#ff8c00" },   // 6:30 PM - 3:00 AM IST (wraps)
   ];
 
-  const tradingWindows = [
-    { name: "Alpha-Sweep", start: 0, end: 1.5, color: "#4fc3f7" },   // 00:00-20:00 UTC = wraps: 5:30 AM IST prev day continues
-    { name: "Alpha-Sweep", start: 9.5, end: 24, color: "#4fc3f7" },  // 04:00-20:00 UTC = 9:30 AM - 1:30 AM IST
-    { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },  // 22:00 UTC = 3:30 AM IST
-  ];
+  const tradingWindows = instrument === "micro"
+    ? [
+        { name: "Alpha-Sweep", start: 9.5, end: 24, color: "#ff8c00" },  // Micro: 04:00-20:00 UTC = 9:30 AM - 1:30 AM IST
+        { name: "Alpha-Sweep", start: 0, end: 1.5, color: "#ff8c00" },   // Micro wraps past midnight
+      ]
+    : [
+        { name: "Alpha-Sweep", start: 13.5, end: 24, color: "#4fc3f7" }, // Macro: 08:00-20:00 UTC = 1:30 PM - 1:30 AM IST
+        { name: "Alpha-Sweep", start: 0, end: 1.5, color: "#4fc3f7" },   // Macro wraps
+        { name: "Daily Scan", start: 3.5, end: 3.7, color: "#ffd54f" },  // 22:00 UTC = 3:30 AM IST
+      ];
 
   return (
     <div className="t-panel p-3 mb-4">
