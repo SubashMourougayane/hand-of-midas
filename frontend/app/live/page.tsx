@@ -639,10 +639,12 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
             const ampm = h < 12 ? "AM" : "PM";
             return m > 0 ? `${hr12}:${String(Math.round(m)).padStart(2, "0")} ${ampm}` : `${hr12} ${ampm}`;
           };
+          const isActive = w.status === "scanning";
           return (
             <div key={i} className="p-4 rounded-lg transition-all" style={{
-              background: hasSweep ? "#ff8c0015" : cfg.bg,
-              border: `1.5px solid ${hasSweep ? "#ff8c0050" : cfg.color}30`,
+              background: hasSweep && isActive ? "#ff8c0020" : isActive ? "#00e87b15" : hasSweep ? "#ff8c0010" : cfg.bg,
+              border: `${isActive ? "2px" : "1.5px"} solid ${hasSweep && isActive ? "#ff8c00" : isActive ? "#00e87b60" : hasSweep ? "#ff8c0030" : cfg.color + "22"}`,
+              boxShadow: isActive ? `0 0 12px ${hasSweep ? "#ff8c0020" : "#00e87b15"}` : "none",
             }}>
               {/* Window hours in IST */}
               <div className="flex items-center justify-between mb-2">
