@@ -626,44 +626,53 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
       </div>
 
       {/* Window cards grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {windows.map((w, i) => {
           const cfg = statusConfig[w.status] || statusConfig.no_data;
           const hasSweep = w.sweep_detected && w.sweep_info;
+          // Convert UTC hours to IST 12hr format
+          const toIST12 = (utcH: number) => {
+            const ist = (utcH + 5.5) % 24;
+            const h = Math.floor(ist);
+            const m = (ist % 1) * 60;
+            const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+            const ampm = h < 12 ? "AM" : "PM";
+            return m > 0 ? `${hr12}:${String(Math.round(m)).padStart(2, "0")} ${ampm}` : `${hr12} ${ampm}`;
+          };
           return (
-            <div key={i} className="p-3 rounded-lg transition-all" style={{
-              background: hasSweep ? "#ff8c0012" : cfg.bg,
-              border: `1px solid ${hasSweep ? "#ff8c0040" : cfg.color}22`,
+            <div key={i} className="p-4 rounded-lg transition-all" style={{
+              background: hasSweep ? "#ff8c0015" : cfg.bg,
+              border: `1.5px solid ${hasSweep ? "#ff8c0050" : cfg.color}30`,
             }}>
-              {/* Window hours */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-bold text-[var(--text)]">{String(w.start).padStart(2, "0")}:00 – {String(w.end).padStart(2, "0")}:00</span>
-                <span className="text-[8px]">{cfg.emoji}</span>
+              {/* Window hours in IST */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-[var(--text)]">{toIST12(w.start)} – {toIST12(w.end)}</span>
+                <span className="text-sm">{cfg.emoji}</span>
               </div>
 
               {/* Status */}
-              <div className="text-[8px] font-bold mb-1.5" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
-                {hasSweep ? `SWEEP ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
+              <div className="text-xs font-bold mb-2" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
+                {hasSweep ? `⚡ SWEEP ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
               </div>
 
               {/* Range (if available) */}
               {w.range > 0 && (
-                <div className="text-[9px] text-[var(--text-dim)]">
-                  Range: ${w.range.toFixed(1)}
+                <div className="text-xs text-[var(--text-dim)]">
+                  Range: <span className="text-[var(--text)] font-semibold">${w.range.toFixed(1)}</span>
                 </div>
               )}
 
               {/* Sweep wick */}
               {hasSweep && w.sweep_info && (
-                <div className="text-[9px] mt-0.5" style={{ color: "#ff8c00" }}>
-                  Wick: ${w.sweep_info.wick.toFixed(1)}
+                <div className="text-xs mt-1" style={{ color: "#ff8c00" }}>
+                  Wick: <span className="font-semibold">${w.sweep_info.wick.toFixed(1)}</span>
                 </div>
               )}
 
-              {/* Scan until */}
+              {/* Scan until in IST */}
               {w.status === "scanning" && (
-                <div className="text-[8px] text-[var(--text-dim)] mt-0.5">
-                  Scan until {String(w.scan_until).padStart(2, "0")}:00
+                <div className="text-[10px] text-[var(--text-dim)] mt-1">
+                  Scanning until {toIST12(w.scan_until)}
                 </div>
               )}
             </div>
