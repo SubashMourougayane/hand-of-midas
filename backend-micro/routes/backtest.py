@@ -16,7 +16,7 @@ MICRO_STRATEGIES_FILTER = ["micro_alpha_sweep"]
 
 class BacktestRequest(BaseModel):
     strategies: list[str] = Field(default=["micro_alpha_sweep", "mean_rev", "cross_market"])
-    start_date: str = Field(default="2006-01-01")
+    start_date: str = Field(default="2020-01-01")
     end_date: str = Field(default="2026-12-31")
     capital: float = Field(default=5000.0)
     risk_pct: float = Field(default=3.0)
