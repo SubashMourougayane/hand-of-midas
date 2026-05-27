@@ -72,6 +72,47 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: l
                 "pnl": round(sum(t.pnl_sized for t in st), 2),
             }
 
+        # Session breakdown by entry time UTC
+        # Tokyo: 22:00-08:00 UTC, London: 08:00-13:00, Overlap: 13:00-17:00, NY: 17:00-22:00
+        def _get_session(date_str):
+            from datetime import datetime as dt
+            try:
+                ts = dt.fromisoformat(date_str.replace("+00:00", "").replace("Z", ""))
+                h = ts.hour
+            except:
+                return "unknown"
+            if h >= 22 or h < 8:
+                return "asian"
+            elif 8 <= h < 13:
+                return "london"
+            elif 13 <= h < 17:
+                return "overlap"
+            else:
+                return "newyork"
+
+        session_data = {"asian": [], "london": [], "overlap": [], "newyork": []}
+        for t in trades:
+            sess = _get_session(t.date)
+            if sess in session_data:
+                session_data[sess].append(t.pnl_sized)
+
+        sessions = {}
+        for sess, pnls in session_data.items():
+            if not pnls:
+                sessions[sess] = {"trades": 0, "wins": 0, "win_rate": 0, "pnl": 0, "pf": 0, "monthly": 0}
+                continue
+            sw = sum(1 for p in pnls if p > 0)
+            gw = sum(p for p in pnls if p > 0)
+            gl = abs(sum(p for p in pnls if p <= 0))
+            sessions[sess] = {
+                "trades": len(pnls),
+                "wins": sw,
+                "win_rate": round(sw / len(pnls) * 100, 1),
+                "pnl": round(sum(pnls), 0),
+                "pf": round(gw / gl, 2) if gl > 0 else 0,
+                "monthly": round(sum(pnls) / max(months_span, 1), 0),
+            }
+
         stats = {
             "total_trades": result.total_trades,
             "wins": result.wins,
@@ -85,6 +126,7 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: l
             "risk_reward": round(rr, 2),
             "trades_per_year": round(result.total_trades / years_span, 1),
             "months": months_span,
+            "sessions": sessions,
             "strategies": strat_stats,
         }
 

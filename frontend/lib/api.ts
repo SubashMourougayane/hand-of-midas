@@ -41,6 +41,7 @@ export interface BacktestStats {
   trades_per_year: number;
   months: number;
   strategies: Record<string, StrategyStats>;
+  sessions?: Record<string, { trades: number; wins: number; win_rate: number; pnl: number; pf: number; monthly: number }>;
 }
 
 export interface EquityPoint {

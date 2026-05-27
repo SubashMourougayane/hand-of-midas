@@ -170,6 +170,57 @@ export default function BacktestPage() {
               </div>
             </div>
 
+            {/* Session Breakdown */}
+            {result.stats.sessions && (
+              <div className="t-panel p-4 mb-4">
+                <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">Session Breakdown (by entry time IST)</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { key: "asian", label: "TOKYO", time: "3:30 AM – 1:30 PM", color: "#4da6ff", emoji: "🇯🇵" },
+                    { key: "london", label: "LONDON", time: "1:30 PM – 6:30 PM", color: "#4fc3f7", emoji: "🇬🇧" },
+                    { key: "overlap", label: "OVERLAP", time: "6:30 PM – 10:30 PM", color: "#ff8c00", emoji: "⚡" },
+                    { key: "newyork", label: "NEW YORK", time: "10:30 PM – 3:30 AM", color: "#00e87b", emoji: "🇺🇸" },
+                  ].map(({ key, label, time, color, emoji }) => {
+                    const s = (result.stats.sessions as Record<string, { trades: number; wins: number; win_rate: number; pnl: number; pf: number; monthly: number }>)[key];
+                    if (!s || s.trades === 0) return null;
+                    return (
+                      <div key={key} className="p-4 rounded-lg" style={{ background: "#0d1017", border: `1px solid ${color}22` }}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-base">{emoji}</span>
+                          <span className="text-xs font-bold" style={{ color }}>{label}</span>
+                        </div>
+                        <div className="text-[9px] mb-3" style={{ color: "#9ca3b4" }}>{time} IST</div>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-[11px]">
+                            <span style={{ color: "#9ca3b4" }}>Trades</span>
+                            <span className="font-bold text-[var(--text)]">{s.trades}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span style={{ color: "#9ca3b4" }}>Win Rate</span>
+                            <span className="font-bold" style={{ color: s.win_rate >= 60 ? "#00e87b" : "#c8cdd5" }}>{s.win_rate}%</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span style={{ color: "#9ca3b4" }}>P&L</span>
+                            <span className="font-bold" style={{ color: s.pnl >= 0 ? "#00e87b" : "#ff3e3e" }}>
+                              ${s.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span style={{ color: "#9ca3b4" }}>$/month</span>
+                            <span style={{ color: s.monthly >= 0 ? "#00e87b" : "#ff3e3e" }}>${s.monthly}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span style={{ color: "#9ca3b4" }}>PF</span>
+                            <span className="font-bold" style={{ color }}>{s.pf}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Equity Curve */}
             <div className="t-panel p-4 mb-4">
               <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">Equity Curve (Cumulative P&L)</h2>
