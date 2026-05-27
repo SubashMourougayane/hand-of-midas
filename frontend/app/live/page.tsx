@@ -584,6 +584,9 @@ function SweepProximity() {
     );
   }
 
+  // Gauge is "stale" when sweep already resolved — dim everything
+  const isGaugeStale = scan.sweep_status === "EXPIRED" || scan.sweep_status === "TRADED";
+
   // Calculate gauge position (0% = full bullish side, 100% = full bearish side)
   // Use proximity_pct from API which correctly handles "past sweep" cases
   const clampedPosition = scan.sweep_direction === "bearish"
@@ -599,18 +602,24 @@ function SweepProximity() {
     ? ((scan.asia_high - scan.bullish_sweep_level) / totalRange) * 100
     : 80;
 
-  // Color based on proximity
-  const isNearSweep = scan.proximity_pct > 80;
-  const isApproaching = scan.proximity_pct > 50;
-  let dotColor = "#00e87b"; // green = safe inside asia
-  if (isNearSweep) dotColor = "#ff3e3e"; // red = at sweep
-  else if (isApproaching) dotColor = "#ffd54f"; // yellow = approaching
+  // Dot color follows arc gradient at needle position (matches visual)
+  // Arc: 0%=green, 40%=green, 60%=yellow, 80%=orange, 100%=red
+  let dotColor: string;
+  if (isGaugeStale) {
+    dotColor = "#5b6370"; // gray when stale
+  } else if (clampedPosition <= 20 || clampedPosition >= 80) {
+    dotColor = clampedPosition >= 80 ? "#ff3e3e" : "#00e87b"; // at extremes
+  } else if (clampedPosition <= 40 || clampedPosition >= 60) {
+    dotColor = clampedPosition >= 60 ? "#ff8c00" : "#00e87b"; // approaching
+  } else {
+    dotColor = "#ffd54f"; // center = yellow (between sweeps)
+  }
 
-  // Glow/pulse when within $5 of sweep
+  // Only pulse when actively near a sweep AND gauge is live
   const distBearish = Math.abs(scan.dist_to_bearish);
   const distBullish = Math.abs(scan.dist_to_bullish);
   const closestDist = Math.min(distBearish, distBullish);
-  const shouldPulse = closestDist <= 5;
+  const shouldPulse = !isGaugeStale && closestDist <= 5 && scan.sweep_status === "ACTIVE";
 
   // Bias badge color
   const biasColor = scan.daily_bias === "bullish" ? "#00e87b" : scan.daily_bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
@@ -652,7 +661,7 @@ function SweepProximity() {
 
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
         {/* Semicircle Speedometer */}
-        <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0 }}>
+        <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0, opacity: isGaugeStale ? 0.4 : 1, transition: "opacity 0.5s" }}>
           {/* SVG semicircle arc */}
           <svg viewBox="0 0 200 110" style={{ width: "100%", height: "100%" }}>
             {/* Background arc */}
@@ -660,11 +669,11 @@ function SweepProximity() {
             {/* Gradient arc — green to yellow to red */}
             <defs>
               <linearGradient id="sweepGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#00e87b" />
-                <stop offset="40%" stopColor="#00e87b" />
-                <stop offset="60%" stopColor="#ffd54f" />
-                <stop offset="80%" stopColor="#ff8c00" />
-                <stop offset="100%" stopColor="#ff3e3e" />
+                <stop offset="0%" stopColor={isGaugeStale ? "#3a3f4a" : "#00e87b"} />
+                <stop offset="40%" stopColor={isGaugeStale ? "#3a3f4a" : "#00e87b"} />
+                <stop offset="60%" stopColor={isGaugeStale ? "#4a4f5a" : "#ffd54f"} />
+                <stop offset="80%" stopColor={isGaugeStale ? "#5a5f6a" : "#ff8c00"} />
+                <stop offset="100%" stopColor={isGaugeStale ? "#6a6f7a" : "#ff3e3e"} />
               </linearGradient>
             </defs>
             <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#sweepGrad)" strokeWidth="8" strokeLinecap="round" opacity="0.4" />
@@ -672,9 +681,9 @@ function SweepProximity() {
             <path d="M 15 100 A 85 85 0 0 1 185 100" fill="none" stroke="url(#sweepGrad)" strokeWidth="8" strokeLinecap="round"
               strokeDasharray={`${clampedPosition * 2.67} 267`} />
             {/* Asia Low tick */}
-            <line x1={15 + (asiaLowPct / 100) * 170} y1="92" x2={15 + (asiaLowPct / 100) * 170} y2="100" stroke="#4fc3f7" strokeWidth="2" />
+            <line x1={15 + (asiaLowPct / 100) * 170} y1="92" x2={15 + (asiaLowPct / 100) * 170} y2="100" stroke={isGaugeStale ? "#3a4550" : "#4fc3f7"} strokeWidth="2" />
             {/* Asia High tick */}
-            <line x1={15 + (asiaHighPct / 100) * 170} y1="92" x2={15 + (asiaHighPct / 100) * 170} y2="100" stroke="#4fc3f7" strokeWidth="2" />
+            <line x1={15 + (asiaHighPct / 100) * 170} y1="92" x2={15 + (asiaHighPct / 100) * 170} y2="100" stroke={isGaugeStale ? "#3a4550" : "#4fc3f7"} strokeWidth="2" />
           </svg>
 
           {/* Needle */}
@@ -700,14 +709,23 @@ function SweepProximity() {
           }} />
 
           {/* Labels */}
-          <div style={{ position: "absolute", bottom: "0", left: "4px", fontSize: "8px", color: "#00e87b" }}>BULL</div>
-          <div style={{ position: "absolute", bottom: "0", right: "4px", fontSize: "8px", color: "#ff3e3e" }}>BEAR</div>
+          <div style={{ position: "absolute", bottom: "0", left: "4px", fontSize: "8px", color: isGaugeStale ? "#5b6370" : "#00e87b" }}>BULL</div>
+          <div style={{ position: "absolute", bottom: "0", right: "4px", fontSize: "8px", color: isGaugeStale ? "#5b6370" : "#ff3e3e" }}>BEAR</div>
 
           {/* Price in center */}
           <div style={{ position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
-            <div style={{ fontSize: "16px", fontWeight: "bold", color: dotColor }}>${scan.price.toFixed(2)}</div>
+            <div style={{ fontSize: "16px", fontWeight: "bold", color: isGaugeStale ? "#9ca3b4" : dotColor }}>${scan.price.toFixed(2)}</div>
             <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" ? "BCO/USD" : "XAU/USD"}</div>
           </div>
+
+          {/* Stale overlay label */}
+          {isGaugeStale && (
+            <div style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
+              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#1a1f2b", color: "#5b6370", border: "1px solid #333" }}>
+                {scan.sweep_status === "TRADED" ? "TRADED" : "EXPIRED"}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Stats panel (right side) */}
