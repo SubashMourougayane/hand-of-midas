@@ -7,9 +7,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backtest.engine import run_backtest
-from backend.db import execute
+from backend.db import execute, insert_returning, get_conn
 
 router = APIRouter()
+
+MICRO_STRATEGIES_FILTER = ["micro_alpha_sweep"]
 
 
 class BacktestRequest(BaseModel):
@@ -119,6 +121,12 @@ def api_backtest(req: BacktestRequest):
     trade_responses = [t.__dict__ for t in trades]
     duration_ms = int((time.time() - t0) * 1000)
 
+    # Persist to DB (same tables as Gold, filtered by strategies containing micro_alpha_sweep)
+    try:
+        _save_backtest_to_db(req, stats, trade_responses, equity_curve, duration_ms)
+    except Exception as e:
+        print(f"Warning: failed to persist Micro backtest to DB: {e}")
+
     return {
         "stats": stats,
         "trades": trade_responses,
@@ -129,28 +137,159 @@ def api_backtest(req: BacktestRequest):
     }
 
 
-@router.get("/backtest/latest")
-def get_latest():
-    """Return last saved Micro backtest from DB (or null if never run)."""
+def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
+    """Save Micro backtest run to shared tables."""
+    # Mark previous Micro runs as not latest
+    execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies @> %s", (MICRO_STRATEGIES_FILTER,))
+
+    run_id = insert_returning(
+        """INSERT INTO gd_backtest_runs
+           (strategies, start_date, end_date, capital, risk_pct,
+            total_trades, wins, losses, win_rate, profit_factor,
+            total_pnl, max_drawdown_pct, avg_win, avg_loss, risk_reward, duration_ms)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+           RETURNING id""",
+        (req.strategies, req.start_date, req.end_date, float(req.capital), float(req.risk_pct),
+         int(stats["total_trades"]), int(stats["wins"]), int(stats["losses"]),
+         float(stats["win_rate"]), float(stats["profit_factor"]),
+         float(stats["total_pnl"]), float(stats["max_drawdown_pct"]),
+         float(stats["avg_win"]), float(stats["avg_loss"]), float(stats["risk_reward"]), int(duration_ms))
+    )
+
+    if not run_id:
+        return
+
+    conn = get_conn()
     try:
-        rows = execute(
-            "SELECT * FROM gd_backtest_results WHERE instrument='micro' ORDER BY created_at DESC LIMIT 1",
+        with conn.cursor() as cur:
+            for i, t in enumerate(trades):
+                cur.execute(
+                    """INSERT INTO gd_backtest_trades
+                       (run_id, trade_index, date, year, month, strategy, direction,
+                        entry, sl, tp, exit_price, pnl_unit, pnl_sized, units,
+                        status, bars_held, hold_human, risk, r_mult, equity_after)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (run_id, i, str(t["date"]), int(t["year"]), int(t["month"]), t["strategy"], t["direction"],
+                     float(t["entry"]), float(t["sl"]), float(t["tp"]), float(t["exit_price"]),
+                     float(t["pnl_unit"]), float(t["pnl_sized"]), float(t["units"]),
+                     t["status"], int(t["bars_held"]), t["hold_human"], float(t["risk"]), float(t["r_mult"]), float(t["equity_after"]))
+                )
+            for pt in equity_curve:
+                cur.execute(
+                    "INSERT INTO gd_backtest_equity (run_id, date, cumulative_pnl, equity) VALUES (%s,%s,%s,%s)",
+                    (run_id, str(pt["date"]), float(pt["pnl"]), float(pt["equity"]))
+                )
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+
+@router.get("/backtest/latest")
+def get_latest_backtest():
+    """Load the most recent Micro backtest run from DB."""
+    try:
+        runs = execute(
+            "SELECT * FROM gd_backtest_runs WHERE is_latest = TRUE AND strategies @> %s ORDER BY created_at DESC LIMIT 1",
+            (MICRO_STRATEGIES_FILTER,),
             fetch=True
         )
-        if not rows:
+        if not runs:
             return {"result": None}
-        import json
-        row = rows[0]
+
+        run = runs[0]
+        run_id = run["id"]
+
+        trades = execute(
+            "SELECT * FROM gd_backtest_trades WHERE run_id = %s ORDER BY trade_index",
+            (run_id,), fetch=True
+        )
+
+        equity = execute(
+            "SELECT date, cumulative_pnl as pnl, equity FROM gd_backtest_equity WHERE run_id = %s ORDER BY date",
+            (run_id,), fetch=True
+        )
+
+        # Strategy breakdown
+        strat_stats = {}
+        for t in trades:
+            s = t["strategy"]
+            if s not in strat_stats:
+                strat_stats[s] = {"trades": 0, "wins": 0, "pnl": 0.0}
+            strat_stats[s]["trades"] += 1
+            strat_stats[s]["pnl"] += float(t["pnl_sized"])
+            if float(t["pnl_sized"]) > 0:
+                strat_stats[s]["wins"] += 1
+        for s in strat_stats:
+            st = strat_stats[s]
+            st["wr"] = st["wins"] / st["trades"] if st["trades"] > 0 else 0
+            gw = sum(float(t["pnl_sized"]) for t in trades if t["strategy"] == s and float(t["pnl_sized"]) > 0)
+            gl = abs(sum(float(t["pnl_sized"]) for t in trades if t["strategy"] == s and float(t["pnl_sized"]) <= 0))
+            st["pf"] = gw / gl if gl > 0 else 0
+            st["pnl"] = round(st["pnl"], 2)
+
+        avg_win = float(run["avg_win"]) if run.get("avg_win") else 0
+        avg_loss = float(run["avg_loss"]) if run.get("avg_loss") else 0
+
+        # Monthly P&L from trades
+        monthly_map = {}
+        for t in trades:
+            key = f"{t['year']}-{t['month']:02d}"
+            monthly_map[key] = monthly_map.get(key, 0) + float(t["pnl_sized"])
+        monthly_pnl = [{"month": k, "pnl": round(v, 2)} for k, v in sorted(monthly_map.items())]
+
+        # Yearly P&L
+        yearly_map = {}
+        for t in trades:
+            y = t["year"]
+            if y not in yearly_map:
+                yearly_map[y] = {"year": y, "trades": 0, "wins": 0, "pnl": 0.0}
+            yearly_map[y]["trades"] += 1
+            yearly_map[y]["pnl"] += float(t["pnl_sized"])
+            if float(t["pnl_sized"]) > 0:
+                yearly_map[y]["wins"] += 1
+        yearly_pnl = []
+        for y in sorted(yearly_map.keys()):
+            d = yearly_map[y]
+            d["wr"] = round(d["wins"] / d["trades"], 3) if d["trades"] > 0 else 0
+            d["pnl"] = round(d["pnl"], 2)
+            d["start_fund"] = float(run["capital"])
+            d["end_fund"] = round(float(run["capital"]) + d["pnl"], 2)
+            d["return_pct"] = round(d["pnl"] / max(float(run["capital"]), 1) * 100, 1)
+            yearly_pnl.append(d)
+
         return {
-            "stats": json.loads(row["stats_json"]) if row.get("stats_json") else None,
-            "trades": json.loads(row["trades_json"]) if row.get("trades_json") else [],
-            "equity_curve": json.loads(row["equity_json"]) if row.get("equity_json") else [],
-            "monthly_pnl": json.loads(row["monthly_json"]) if row.get("monthly_json") else [],
-            "yearly_pnl": json.loads(row["yearly_json"]) if row.get("yearly_json") else [],
-            "duration_ms": row.get("duration_ms", 0),
-            "config": json.loads(row["config_json"]) if row.get("config_json") else None,
-            "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
-            "result": True,
+            "stats": {
+                "total_trades": run["total_trades"],
+                "wins": run["wins"],
+                "losses": run["losses"],
+                "win_rate": float(run["win_rate"]),
+                "profit_factor": float(run["profit_factor"]),
+                "total_pnl": float(run["total_pnl"]),
+                "max_drawdown_pct": float(run["max_drawdown_pct"]),
+                "avg_win": avg_win,
+                "avg_loss": avg_loss,
+                "risk_reward": float(run["risk_reward"]) if run.get("risk_reward") else 0,
+                "trades_per_year": round(run["total_trades"] / max(len(yearly_map), 1), 1),
+                "months": len(yearly_map) * 12,
+                "strategies": strat_stats,
+            },
+            "trades": [dict(t) for t in trades],
+            "equity_curve": [dict(e) for e in equity],
+            "monthly_pnl": monthly_pnl,
+            "yearly_pnl": yearly_pnl,
+            "duration_ms": run.get("duration_ms", 0),
+            "config": {
+                "strategies": run["strategies"],
+                "start_date": run["start_date"],
+                "end_date": run["end_date"],
+                "capital": float(run["capital"]),
+                "risk_pct": float(run["risk_pct"]),
+            },
+            "created_at": run["created_at"].isoformat() if run.get("created_at") else None,
         }
-    except Exception:
+    except Exception as e:
+        print(f"Micro backtest/latest error: {e}")
         return {"result": None}
