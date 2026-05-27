@@ -44,6 +44,12 @@ def run_backtest(
     gold_h1 = data["gold_h1"]
     gold_m3 = data["gold_m3"]
 
+    # Pre-filter data to date range + 1 month buffer (saves memory + time)
+    filter_start = pd.Timestamp(start_date, tz="UTC") - pd.Timedelta(days=60)
+    filter_end = pd.Timestamp(end_date, tz="UTC") + pd.Timedelta(days=30)
+    gold_h1 = gold_h1[(gold_h1.index >= filter_start) & (gold_h1.index <= filter_end)]
+    gold_m3 = gold_m3[(gold_m3.index >= filter_start) & (gold_m3.index <= filter_end)]
+
     # Daily bias + 50MA (same as Gold Macro)
     daily_bias = {}
     gold_50ma_vals = pd.Series(gold_d["mid_close"].values).rolling(50, min_periods=50).mean().values
