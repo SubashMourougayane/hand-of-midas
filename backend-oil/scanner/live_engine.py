@@ -137,8 +137,8 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
     result = place_market_order(
         instrument="BCO_USD",
         units=oanda_units,
-        sl_price=sl_price,
-        tp_price=tp_price,
+        sl=sl_price,
+        tp=tp_price,
         comment=f"alpha_sweep_oil|{trade_ref}",
     )
 

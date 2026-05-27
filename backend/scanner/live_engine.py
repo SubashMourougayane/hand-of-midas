@@ -163,8 +163,8 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     result = place_market_order(
         instrument="XAU_USD",
         units=oanda_units,
-        sl_price=sl_price,
-        tp_price=tp_price if tp_price > 0 else None,
+        sl=sl_price,
+        tp=tp_price if tp_price > 0 else None,
         comment=f"{strategy}|{trade_ref}",
     )
 
