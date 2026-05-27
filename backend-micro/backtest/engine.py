@@ -26,6 +26,9 @@ def run_backtest(
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market)."""
     if strategies is None:
         strategies = ["micro_alpha_sweep", "mean_rev", "cross_market"]
+    # Frontend sends "alpha_sweep" — map to micro variant
+    if "alpha_sweep" in strategies:
+        strategies = [s if s != "alpha_sweep" else "micro_alpha_sweep" for s in strategies]
 
     np.random.seed(seed)
 
