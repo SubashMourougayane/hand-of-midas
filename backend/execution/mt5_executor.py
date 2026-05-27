@@ -34,13 +34,20 @@ MAGIC = 200000
 
 
 def _read_json(filename):
-    """Read a JSON file from DWX directory. Returns None if unavailable."""
+    """Read a JSON file from DWX directory. Retries once on decode error (EA mid-write)."""
     path = os.path.join(DWX_DIR, filename)
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, IOError):
-        return None
+    for attempt in range(2):
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            if attempt == 0:
+                time.sleep(0.05)
+                continue
+            return None
+        except (FileNotFoundError, IOError):
+            return None
+    return None
 
 
 def _write_command(cmd_string):

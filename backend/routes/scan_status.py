@@ -15,14 +15,20 @@ _SCAN_TTL = 10
 
 
 def _refresh_scan_oanda():
-    """Fetch scan data in background — never blocks."""
+    """Fetch scan data in background — never blocks. Keeps last good data on failure."""
     if _scan_oanda["fetching"]:
         return
     _scan_oanda["fetching"] = True
     try:
-        _scan_oanda["price"] = get_current_price(instrument="XAU_USD")
-        _scan_oanda["h1"] = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
-        _scan_oanda["daily"] = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+        price = get_current_price(instrument="XAU_USD")
+        if price:
+            _scan_oanda["price"] = price
+        h1 = get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA")
+        if h1:
+            _scan_oanda["h1"] = h1
+        daily = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+        if daily:
+            _scan_oanda["daily"] = daily
         _scan_oanda["ts"] = time.time()
     except:
         pass

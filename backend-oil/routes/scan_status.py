@@ -1,4 +1,6 @@
 """Oil Scan Status API — real-time sweep proximity for dashboard gauge."""
+import time
+import threading
 from fastapi import APIRouter
 from backend.execution import get_current_price, get_candles
 from backend.db import execute
@@ -8,6 +10,36 @@ import re
 
 router = APIRouter()
 
+_scan_cache = {"price": None, "h1": [], "daily": [], "ts": 0, "fetching": False}
+_SCAN_TTL = 10
+
+
+def _refresh_scan_cache():
+    """Fetch Oil scan data in background — keeps last good data on failure."""
+    if _scan_cache["fetching"]:
+        return
+    _scan_cache["fetching"] = True
+    try:
+        price = get_current_price(instrument="BCO_USD")
+        if price:
+            _scan_cache["price"] = price
+        h1 = get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA")
+        if h1:
+            _scan_cache["h1"] = h1
+        daily = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
+        if daily:
+            _scan_cache["daily"] = daily
+        _scan_cache["ts"] = time.time()
+    except:
+        pass
+    finally:
+        _scan_cache["fetching"] = False
+
+
+def _ensure_scan_fresh():
+    if time.time() - _scan_cache["ts"] > _SCAN_TTL:
+        threading.Thread(target=_refresh_scan_cache, daemon=True).start()
+
 
 def _parse_ts(ts_str: str):
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
@@ -16,6 +48,8 @@ def _parse_ts(ts_str: str):
 
 @router.get("/scan-status")
 def get_scan_status():
+    _ensure_scan_fresh()
+
     cfg = ALPHA_SWEEP
     now = datetime.now(timezone.utc)
     today = now.date()
@@ -23,14 +57,14 @@ def get_scan_status():
 
     scan_active = cfg["scan_start"] <= utc_hour <= cfg["scan_end"]
 
-    price = get_current_price(instrument="BCO_USD")
+    price = _scan_cache["price"]
     if not price:
-        return {"error": "Price unavailable", "scan_active": scan_active}
+        return {"error": "Price unavailable (warming up)", "scan_active": scan_active}
 
     current_mid = price["mid"]
     tradeable = price.get("tradeable", False)
 
-    h1 = get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA")
+    h1 = _scan_cache["h1"] or []
     asia_high, asia_low = 0, 999999
     for c in h1:
         ts = _parse_ts(c["timestamp"])
@@ -98,7 +132,7 @@ def get_scan_status():
         else:
             sweep_status = "ACTIVE"
 
-    daily = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
+    daily = _scan_cache["daily"] or []
     bias = "neutral"
     if len(daily) >= 2:
         yesterday = daily[-2]

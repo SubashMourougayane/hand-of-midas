@@ -540,26 +540,22 @@ function SweepProximity() {
   const [scanError, setScanError] = useState(false);
 
   const fetchScan = useCallback(async () => {
-    if (false) { // Both gold and oil supported
-      setScan(null);
-      return;
-    }
     const prefix = instrument === "oil" ? "oil" : "gold";
     try {
       const res = await fetch(`${apiBase}/api/${prefix}/scan-status`);
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       if (data.error || !data.asia_high) {
-        setScan(null);
-        setScanError(true);
+        // Transient error — keep showing last good data instead of blanking
+        if (!scan) setScanError(true);
       } else {
         setScan(data);
         setScanError(false);
       }
     } catch {
-      setScanError(true);
+      if (!scan) setScanError(true);
     }
-  }, [apiBase, instrument]);
+  }, [apiBase, instrument, scan]);
 
   useEffect(() => {
     fetchScan();
@@ -730,49 +726,56 @@ function SweepProximity() {
 
         {/* Stats panel (right side) */}
         <div className="w-full flex-1 grid grid-cols-2 gap-3">
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Bearish Sweep</div>
-            <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>
-              {scan.dist_to_bearish <= 0
-                ? <><span className="text-[9px] opacity-70">SWEPT</span> ${Math.abs(scan.dist_to_bearish).toFixed(1)} past</>
-                : `$${scan.dist_to_bearish.toFixed(1)} away`}
-            </div>
-            <div className="text-[8px] text-[var(--text-dim)]">Need &gt;${scan.bearish_sweep_level.toFixed(0)}</div>
-          </div>
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Bullish Sweep</div>
-            <div className="text-sm font-bold" style={{ color: "#00e87b" }}>
-              {scan.dist_to_bullish <= 0
-                ? <><span className="text-[9px] opacity-70">SWEPT</span> ${Math.abs(scan.dist_to_bullish).toFixed(1)} past</>
-                : `$${scan.dist_to_bullish.toFixed(1)} away`}
-            </div>
-            <div className="text-[8px] text-[var(--text-dim)]">Need &lt;${scan.bullish_sweep_level.toFixed(0)}</div>
-          </div>
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Daily Bias</div>
-            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ color: biasColor, background: `${biasColor}15`, border: `1px solid ${biasColor}40` }}>
-              {scan.daily_bias.toUpperCase()}
-            </span>
-          </div>
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Trades Today</div>
-            <div className="text-sm font-bold text-[var(--text)]">{scan.trades_today} / {scan.max_trades_per_day}</div>
-          </div>
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Asia Range</div>
-            <div className="text-sm font-bold text-[#4fc3f7]">${scan.asia_range.toFixed(0)}</div>
-            <div className="text-[8px] text-[var(--text-dim)]">${scan.asia_low.toFixed(0)} – ${scan.asia_high.toFixed(0)}</div>
-          </div>
-          <div className="p-2 rounded" style={{ background: "#0d1017" }}>
-            <div className="text-[8px] text-[var(--text-dim)] uppercase">Sweep Status</div>
-            <div className="text-sm font-bold" style={{ color:
-              scan.sweep_status === "ACTIVE" ? "#00e87b" :
-              scan.sweep_status === "TRADED" ? "#4fc3f7" :
-              scan.sweep_status === "EXPIRED" ? "#9ca3b4" : "#5b6370"
-            }}>
-              {scan.sweep_status || (scan.sweep_detected ? "DETECTED" : "WAITING")}
-            </div>
-          </div>
+          {(() => {
+            const isOil = String(instrument) === "oil";
+            const dp = isOil ? 2 : 1; // decimal places for distances
+            const lp = isOil ? 2 : 0; // decimal places for levels
+            return (<>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Bearish Sweep</div>
+                <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>
+                  {scan.dist_to_bearish <= 0
+                    ? <><span className="text-[9px]">BREACHED</span> ${Math.abs(scan.dist_to_bearish).toFixed(dp)} past</>
+                    : `$${scan.dist_to_bearish.toFixed(dp)} away`}
+                </div>
+                <div className="text-[8px] text-[var(--text-dim)]">Level: ${scan.bearish_sweep_level.toFixed(lp)}</div>
+              </div>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Bullish Sweep</div>
+                <div className="text-sm font-bold" style={{ color: "#00e87b" }}>
+                  {scan.dist_to_bullish <= 0
+                    ? <><span className="text-[9px]">BREACHED</span> ${Math.abs(scan.dist_to_bullish).toFixed(dp)} past</>
+                    : `$${scan.dist_to_bullish.toFixed(dp)} away`}
+                </div>
+                <div className="text-[8px] text-[var(--text-dim)]">Level: ${scan.bullish_sweep_level.toFixed(lp)}</div>
+              </div>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Daily Bias</div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ color: biasColor, background: `${biasColor}15`, border: `1px solid ${biasColor}40` }}>
+                  {scan.daily_bias.toUpperCase()}
+                </span>
+              </div>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Trades Today</div>
+                <div className="text-sm font-bold text-[var(--text)]">{scan.trades_today} / {scan.max_trades_per_day}</div>
+              </div>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Asia Range</div>
+                <div className="text-sm font-bold text-[#4fc3f7]">${scan.asia_range.toFixed(lp)}</div>
+                <div className="text-[8px] text-[var(--text-dim)]">${scan.asia_low.toFixed(lp)} – ${scan.asia_high.toFixed(lp)}</div>
+              </div>
+              <div className="p-2 rounded" style={{ background: "#0d1017" }}>
+                <div className="text-[8px] text-[var(--text-dim)] uppercase">Sweep Status</div>
+                <div className="text-sm font-bold" style={{ color:
+                  scan.sweep_status === "ACTIVE" ? "#00e87b" :
+                  scan.sweep_status === "TRADED" ? "#4fc3f7" :
+                  scan.sweep_status === "EXPIRED" ? "#9ca3b4" : "#5b6370"
+                }}>
+                  {scan.sweep_status || (scan.sweep_detected ? "DETECTED" : "WAITING")}
+                </div>
+              </div>
+            </>);
+          })()}
         </div>
       </div>
 
