@@ -27,8 +27,11 @@ def api_backtest(req: BacktestRequest):
     """Run Micro portfolio backtest."""
     t0 = time.time()
 
+    # Map alpha_sweep → micro_alpha_sweep before passing to engine
+    mapped_strategies = [s if s != "alpha_sweep" else "micro_alpha_sweep" for s in req.strategies]
+
     result = run_backtest(
-        strategies=req.strategies,
+        strategies=mapped_strategies,
         start_date=req.start_date,
         end_date=req.end_date,
         capital=req.capital,
@@ -123,7 +126,7 @@ def api_backtest(req: BacktestRequest):
 
     # Persist to DB (same tables as Gold, filtered by strategies containing micro_alpha_sweep)
     try:
-        _save_backtest_to_db(req, stats, trade_responses, equity_curve, duration_ms)
+        _save_backtest_to_db(req, mapped_strategies, stats, trade_responses, equity_curve, duration_ms)
     except Exception as e:
         print(f"Warning: failed to persist Micro backtest to DB: {e}")
 
@@ -137,7 +140,7 @@ def api_backtest(req: BacktestRequest):
     }
 
 
-def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
+def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, duration_ms):
     """Save Micro backtest run to shared tables."""
     # Mark previous Micro runs as not latest
     execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies @> %s", (MICRO_STRATEGIES_FILTER,))
@@ -149,7 +152,7 @@ def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
             total_pnl, max_drawdown_pct, avg_win, avg_loss, risk_reward, duration_ms)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            RETURNING id""",
-        (req.strategies, req.start_date, req.end_date, float(req.capital), float(req.risk_pct),
+        (mapped_strategies, req.start_date, req.end_date, float(req.capital), float(req.risk_pct),
          int(stats["total_trades"]), int(stats["wins"]), int(stats["losses"]),
          float(stats["win_rate"]), float(stats["profit_factor"]),
          float(stats["total_pnl"]), float(stats["max_drawdown_pct"]),
