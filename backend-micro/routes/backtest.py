@@ -132,22 +132,25 @@ def api_backtest(req: BacktestRequest):
 @router.get("/backtest/latest")
 def get_latest():
     """Return last saved Micro backtest from DB (or null if never run)."""
-    rows = execute(
-        "SELECT * FROM gd_backtest_results WHERE instrument='micro' ORDER BY created_at DESC LIMIT 1",
-        fetch=True
-    )
-    if not rows:
+    try:
+        rows = execute(
+            "SELECT * FROM gd_backtest_results WHERE instrument='micro' ORDER BY created_at DESC LIMIT 1",
+            fetch=True
+        )
+        if not rows:
+            return {"result": None}
+        import json
+        row = rows[0]
+        return {
+            "stats": json.loads(row["stats_json"]) if row.get("stats_json") else None,
+            "trades": json.loads(row["trades_json"]) if row.get("trades_json") else [],
+            "equity_curve": json.loads(row["equity_json"]) if row.get("equity_json") else [],
+            "monthly_pnl": json.loads(row["monthly_json"]) if row.get("monthly_json") else [],
+            "yearly_pnl": json.loads(row["yearly_json"]) if row.get("yearly_json") else [],
+            "duration_ms": row.get("duration_ms", 0),
+            "config": json.loads(row["config_json"]) if row.get("config_json") else None,
+            "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+            "result": True,
+        }
+    except Exception:
         return {"result": None}
-    import json
-    row = rows[0]
-    return {
-        "stats": json.loads(row["stats_json"]) if row.get("stats_json") else None,
-        "trades": json.loads(row["trades_json"]) if row.get("trades_json") else [],
-        "equity_curve": json.loads(row["equity_json"]) if row.get("equity_json") else [],
-        "monthly_pnl": json.loads(row["monthly_json"]) if row.get("monthly_json") else [],
-        "yearly_pnl": json.loads(row["yearly_json"]) if row.get("yearly_json") else [],
-        "duration_ms": row.get("duration_ms", 0),
-        "config": json.loads(row["config_json"]) if row.get("config_json") else None,
-        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
-        "result": True,
-    }
