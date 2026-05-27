@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
@@ -42,28 +42,64 @@ interface LiveState {
 export default function LivePage() {
   const { apiBase, instrument } = useInstrument();
   const [state, setState] = useState<LiveState | null>(null);
+  const [scan, setScan] = useState<ScanStatus | null>(null);
   const [error, setError] = useState("");
   const [lastUpdate, setLastUpdate] = useState("");
 
-  const fetchState = async () => {
-    const prefix = instrument === "oil" ? "oil" : "gold";
-    try {
-      const res = await fetch(`${apiBase}/api/${prefix}/state`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const data = await res.json();
-      setState(data);
-      setLastUpdate(new Date().toLocaleTimeString());
-      setError("");
-    } catch {
-      setError("Connecting to backend...");
-    }
-  };
-
   useEffect(() => {
     setState(null);
-    fetchState();
-    const interval = setInterval(fetchState, 5000);
-    return () => clearInterval(interval);
+    setScan(null);
+    const prefix = instrument === "oil" ? "oil" : "gold";
+    const url = `${apiBase}/api/${prefix}/stream`;
+    let es: EventSource | null = null;
+    let fallbackInterval: NodeJS.Timeout | null = null;
+
+    const connectSSE = () => {
+      es = new EventSource(url);
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.state) setState(data.state);
+          if (data.scan) setScan(data.scan);
+          setLastUpdate(new Date().toLocaleTimeString());
+          setError("");
+        } catch {}
+      };
+      es.onerror = () => {
+        setError("Stream disconnected, reconnecting...");
+        es?.close();
+        // Reconnect after 3s
+        setTimeout(connectSSE, 3000);
+      };
+    };
+
+    // Start SSE connection
+    connectSSE();
+
+    // Fallback poll every 30s in case SSE fails silently
+    const fallbackFetch = async () => {
+      if (state && scan) return; // SSE working, skip
+      try {
+        const [stateRes, scanRes] = await Promise.all([
+          fetch(`${apiBase}/api/${prefix}/state`),
+          fetch(`${apiBase}/api/${prefix}/scan-status`),
+        ]);
+        if (stateRes.ok) setState(await stateRes.json());
+        if (scanRes.ok) {
+          const d = await scanRes.json();
+          if (!d.error) setScan(d);
+        }
+        setLastUpdate(new Date().toLocaleTimeString());
+      } catch {}
+    };
+    fallbackInterval = setInterval(fallbackFetch, 30000);
+    // Also fetch once immediately for fast first load
+    fallbackFetch();
+
+    return () => {
+      es?.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instrument]);
 
@@ -95,7 +131,7 @@ export default function LivePage() {
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
 
         {/* Sweep Proximity */}
-        <SweepProximity />
+        <SweepProximity scan={scan} />
 
         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
 
@@ -534,48 +570,14 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
 }
 
 
-function SweepProximity() {
-  const { apiBase, instrument } = useInstrument();
-  const [scan, setScan] = useState<ScanStatus | null>(null);
-  const [scanError, setScanError] = useState(false);
-
-  const fetchScan = useCallback(async () => {
-    const prefix = instrument === "oil" ? "oil" : "gold";
-    try {
-      const res = await fetch(`${apiBase}/api/${prefix}/scan-status`);
-      if (!res.ok) throw new Error(`${res.status}`);
-      const data = await res.json();
-      if (data.error || !data.asia_high) {
-        // Transient error — keep showing last good data instead of blanking
-        if (!scan) setScanError(true);
-      } else {
-        setScan(data);
-        setScanError(false);
-      }
-    } catch {
-      if (!scan) setScanError(true);
-    }
-  }, [apiBase, instrument, scan]);
-
-  useEffect(() => {
-    fetchScan();
-    const interval = setInterval(fetchScan, 10000);
-    return () => clearInterval(interval);
-  }, [fetchScan]);
+function SweepProximity({ scan }: { scan: ScanStatus | null }) {
+  const { instrument } = useInstrument();
 
 
-  // Loading / error state
-  if (!scan && !scanError) {
+  if (!scan) {
     return (
       <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
         <div className="text-[10px] text-[var(--text-dim)]">Loading sweep proximity...</div>
-      </div>
-    );
-  }
-  if (scanError || !scan) {
-    return (
-      <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
-        <div className="text-[10px] text-[var(--text-dim)]">Sweep proximity: N/A (scan-status unavailable)</div>
       </div>
     );
   }

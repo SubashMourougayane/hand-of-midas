@@ -13,6 +13,7 @@ from backend.routes.journal import router as journal_router
 from backend.routes.journey import router as journey_router
 from backend.routes.auth_routes import router as auth_router
 from backend.routes.scan_status import router as scan_status_router
+from backend.routes.stream import router as stream_router
 
 from contextlib import asynccontextmanager
 
@@ -54,6 +55,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
+app.include_router(stream_router, prefix="/api/gold")
 app.include_router(scan_status_router, prefix="/api/gold")
 app.include_router(backtest_router, prefix="/api/gold")
 app.include_router(state_router, prefix="/api/gold")
