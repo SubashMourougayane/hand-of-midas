@@ -583,7 +583,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
   const { instrument } = useInstrument();
 
 
-  if (!scan) {
+  if (!scan || scan.dist_to_bearish === undefined) {
     return (
       <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
         <div className="text-[10px] text-[var(--text-dim)]">Loading sweep proximity...</div>

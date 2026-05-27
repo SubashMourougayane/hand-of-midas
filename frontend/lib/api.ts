@@ -86,7 +86,7 @@ export const API_BASE_GOLD = "";
 export const API_BASE_OIL = "";
 
 export async function runBacktest(req: BacktestRequest, apiBase: string, instrument: string = "gold"): Promise<BacktestResult> {
-  const prefix = instrument === "oil" ? "oil" : "gold";
+  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
   const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -108,7 +108,7 @@ export interface LatestBacktestResponse {
 }
 
 export async function getLatestBacktest(apiBase: string, instrument: string = "gold"): Promise<LatestBacktestResponse | null> {
-  const prefix = instrument === "oil" ? "oil" : "gold";
+  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
   const res = await fetch(`${apiBase}/api/${prefix}/backtest/latest`);
   if (!res.ok) return null;
   const data = await res.json();

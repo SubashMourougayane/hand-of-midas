@@ -17,7 +17,7 @@ interface BacktestTrade {
 export default function JournalPage() {
   const { apiBase, instrument } = useInstrument();
   const API_BASE = apiBase;
-  const prefix = instrument === "oil" ? "oil" : "gold";
+  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
   const [tab, setTab] = useState<"live" | "backtest">("live");
   const [events, setEvents] = useState<JournalEvent[]>([]);
   const [btTrades, setBtTrades] = useState<BacktestTrade[]>([]);
