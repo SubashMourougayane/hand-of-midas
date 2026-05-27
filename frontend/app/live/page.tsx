@@ -139,8 +139,8 @@ export default function LivePage() {
         {/* System Mode */}
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
 
-        {/* Sweep Proximity */}
-        <SweepProximity scan={scan} />
+        {/* Sweep Proximity (Gold Macro / Oil only — Micro has different scan-status shape) */}
+        {instrument !== "micro" && <SweepProximity scan={scan} />}
 
         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
 
