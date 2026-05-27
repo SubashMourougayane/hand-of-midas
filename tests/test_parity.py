@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from backend.config import ALPHA_SWEEP, slippage
+from backend.config import ALPHA_SWEEP, slippage, ENGULFING_TOLERANCE
 from backend.strategies.alpha_sweep import generate_signals
 from backend.strategies.base import Signal
 
@@ -24,7 +24,8 @@ def market_data():
     """Load real market data once for all tests."""
     DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "raw")
 
-    h1 = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_H1.csv"), parse_dates=["timestamp"])
+    h1 = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_H1.csv"))
+    h1["timestamp"] = pd.to_datetime(h1["timestamp"], utc=True, format="mixed")
     h1 = h1.sort_values("timestamp").reset_index(drop=True)
     h1.set_index("timestamp", inplace=True)
     h1["mid_high"] = (h1["bid_high"] + h1["ask_high"]) / 2
@@ -32,7 +33,8 @@ def market_data():
     h1["mid_close"] = (h1["bid_close"] + h1["ask_close"]) / 2
     h1["mid_open"] = (h1["bid_open"] + h1["ask_open"]) / 2
 
-    m3 = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_M3.csv"), parse_dates=["timestamp"])
+    m3 = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_M3.csv"))
+    m3["timestamp"] = pd.to_datetime(m3["timestamp"], utc=True, format="mixed")
     m3 = m3.sort_values("timestamp").reset_index(drop=True)
     m3.set_index("timestamp", inplace=True)
     m3["mid_open"] = (m3["bid_open"] + m3["ask_open"]) / 2
@@ -40,21 +42,30 @@ def market_data():
     m3["mid_high"] = (m3["bid_high"] + m3["ask_high"]) / 2
     m3["mid_low"] = (m3["bid_low"] + m3["ask_low"]) / 2
 
-    daily = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_D.csv"), parse_dates=["timestamp"])
+    daily = pd.read_csv(os.path.join(DATA_DIR, "XAU_USD_D.csv"))
+    daily["timestamp"] = pd.to_datetime(daily["timestamp"], utc=True, format="mixed")
     daily = daily.sort_values("timestamp").reset_index(drop=True)
 
     return h1, m3, daily
 
 
 def _get_daily_bias_from_df(daily: pd.DataFrame) -> dict:
-    """Build daily bias dict from daily DataFrame."""
+    """Build daily bias dict from daily DataFrame (Variant C: body < 40% → neutral)."""
     bias = {}
     for i in range(1, len(daily)):
         prev = daily.iloc[i - 1]
-        date = daily.iloc[i]["timestamp"].date()
+        date = pd.to_datetime(daily.iloc[i]["timestamp"]).date()
         mid_close = (prev["bid_close"] + prev["ask_close"]) / 2
         mid_open = (prev["bid_open"] + prev["ask_open"]) / 2
-        bias[date] = "bullish" if mid_close > mid_open else "bearish"
+        mid_high = (prev["bid_high"] + prev["ask_high"]) / 2
+        mid_low = (prev["bid_low"] + prev["ask_low"]) / 2
+        prev_range = mid_high - mid_low
+        if prev_range <= 0:
+            bias[date] = "neutral"
+        elif abs(mid_close - mid_open) / prev_range < 0.4:
+            bias[date] = "neutral"
+        else:
+            bias[date] = "bullish" if mid_close > mid_open else "bearish"
     return bias
 
 
@@ -81,17 +92,26 @@ def _simulate_live_scheduler_for_date(h1: pd.DataFrame, m3: pd.DataFrame, daily:
     scan_bars = h1[(h1.index.date == today) &
                    (h1.index.hour >= cfg["scan_start"]) &
                    (h1.index.hour < cfg["scan_end"])]
-    if len(scan_bars) == 0:
+    if len(scan_bars) < 2:
         return []
 
-    # Daily bias
-    prev_days = daily[daily["timestamp"].dt.date < today]
+    # Daily bias (Variant C: body < 40% of range → neutral)
+    daily_ts = pd.to_datetime(daily["timestamp"])
+    prev_days = daily[daily_ts.dt.date < today]
     if len(prev_days) == 0:
         return []
     prev = prev_days.iloc[-1]
     mid_close = (prev["bid_close"] + prev["ask_close"]) / 2
     mid_open = (prev["bid_open"] + prev["ask_open"]) / 2
-    bias = "bullish" if mid_close > mid_open else "bearish"
+    mid_high = (prev["bid_high"] + prev["ask_high"]) / 2
+    mid_low = (prev["bid_low"] + prev["ask_low"]) / 2
+    prev_range = mid_high - mid_low
+    if prev_range <= 0:
+        bias = "neutral"
+    elif abs(mid_close - mid_open) / prev_range < 0.4:
+        bias = "neutral"
+    else:
+        bias = "bullish" if mid_close > mid_open else "bearish"
 
     # Find ALL sweeps
     sweeps = []
@@ -116,10 +136,11 @@ def _simulate_live_scheduler_for_date(h1: pd.DataFrame, m3: pd.DataFrame, daily:
         if len(signals) >= max_per_day:
             break
 
-        if sweep_dir == "bullish" and bias != "bullish":
-            continue
-        if sweep_dir == "bearish" and bias != "bearish":
-            continue
+        if bias != "neutral":
+            if sweep_dir == "bullish" and bias != "bullish":
+                continue
+            if sweep_dir == "bearish" and bias != "bearish":
+                continue
 
         # M3 engulfing
         end_time = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
@@ -143,9 +164,10 @@ def _simulate_live_scheduler_for_date(h1: pd.DataFrame, m3: pd.DataFrame, daily:
             pt = max(po, pc)
             pb = min(po, pc)
 
-            if sweep_dir == "bullish" and not (cc > co and cb <= pb and ct >= pt):
+            tol = ENGULFING_TOLERANCE
+            if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
                 continue
-            if sweep_dir == "bearish" and not (cc < co and cb <= pb and ct >= pt):
+            if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                 continue
 
             # Engulfing confirmed — compute entry using ASK/BID (same as live)

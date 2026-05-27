@@ -8,11 +8,12 @@ from datetime import datetime, timezone, timedelta
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OIL_BACKEND_PATH = os.path.abspath(os.path.join(PROJECT_ROOT, "backend-oil"))
 
-# Order matters: Oil path FIRST so 'from scanner.live_engine' resolves to Oil's version
-# when called from Oil tests. Gold tests use 'from backend.scanner.live_engine' (fully qualified).
-sys.path.insert(0, OIL_BACKEND_PATH)
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "backend"))
+# Order matters: insert in reverse priority order (last insert(0) = highest priority).
+# Oil path inserted LAST so it's at position 0 → 'from scanner.live_engine' resolves to Oil's version.
+# Gold tests use 'from backend.scanner.live_engine' (fully qualified) which is unambiguous.
 sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "backend"))
+sys.path.insert(0, OIL_BACKEND_PATH)
 
 TEST_DB_URL = os.getenv("TEST_DB_URL", "postgresql://postgres:postgres@localhost:5432/golddigger_test")
 
@@ -95,7 +96,7 @@ def _make_oanda_mocks(success=True):
 def mock_oanda_success(monkeypatch):
     """Mock OANDA that fills orders successfully."""
     import backend.scanner.live_engine as gold_le
-    import backend.execution.oanda_executor as oanda
+    import backend.execution as execution_mod
 
     mocks = _make_oanda_mocks(success=True)
 
@@ -105,9 +106,12 @@ def mock_oanda_success(monkeypatch):
     monkeypatch.setattr(gold_le, "get_current_price", mocks["price"])
     monkeypatch.setattr(gold_le, "close_trade", mocks["close"])
     monkeypatch.setattr(gold_le, "modify_stop_loss", mocks["modify"])
-    monkeypatch.setattr(oanda, "get_trade_details", mocks["details"])
-    monkeypatch.setattr(oanda, "_get_gbp_usd_rate", mocks["rate"])
-    monkeypatch.setattr(oanda, "get_candles", mocks["candles"])
+    monkeypatch.setattr(gold_le, "get_trade_details", mocks["details"])
+    monkeypatch.setattr(gold_le, "get_candles", mocks["candles"])
+    monkeypatch.setattr(gold_le, "_get_gbp_usd_rate", mocks["rate"])
+    # Also patch on backend.execution for local re-imports (e.g. max-hold path)
+    monkeypatch.setattr(execution_mod, "close_trade", mocks["close"])
+    monkeypatch.setattr(execution_mod, "get_trade_details", mocks["details"])
 
     return mocks
 
@@ -116,7 +120,7 @@ def mock_oanda_success(monkeypatch):
 def mock_oanda_failure(monkeypatch):
     """Mock OANDA that returns errors."""
     import backend.scanner.live_engine as gold_le
-    import backend.execution.oanda_executor as oanda
+    import backend.execution as execution_mod
 
     mocks = _make_oanda_mocks(success=False)
 
@@ -126,9 +130,12 @@ def mock_oanda_failure(monkeypatch):
     monkeypatch.setattr(gold_le, "get_current_price", mocks["price"])
     monkeypatch.setattr(gold_le, "close_trade", mocks["close"])
     monkeypatch.setattr(gold_le, "modify_stop_loss", mocks["modify"])
-    monkeypatch.setattr(oanda, "get_trade_details", mocks["details"])
-    monkeypatch.setattr(oanda, "_get_gbp_usd_rate", mocks["rate"])
-    monkeypatch.setattr(oanda, "get_candles", mocks["candles"])
+    monkeypatch.setattr(gold_le, "get_trade_details", mocks["details"])
+    monkeypatch.setattr(gold_le, "get_candles", mocks["candles"])
+    monkeypatch.setattr(gold_le, "_get_gbp_usd_rate", mocks["rate"])
+    # Also patch on backend.execution for local re-imports
+    monkeypatch.setattr(execution_mod, "close_trade", mocks["close"])
+    monkeypatch.setattr(execution_mod, "get_trade_details", mocks["details"])
 
     return mocks
 

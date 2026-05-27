@@ -15,18 +15,18 @@ from tests.conftest import query_db
 class TestGoldSLTPDetection:
     """Gold: detect SL/TP closure from OANDA trade details."""
 
-    def test_detect_sl_closure(self, test_db, mock_oanda_success, open_gold_trade):
+    def test_detect_sl_closure(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         # OANDA says trade is gone (not in open trades) and details show SL fill
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": -50.0, "price": 2610.2,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
@@ -38,17 +38,17 @@ class TestGoldSLTPDetection:
         journal = query_db(test_db, "SELECT * FROM gd_journal WHERE event_type = 'EXIT_FILLED'")
         assert len(journal) == 1
 
-    def test_detect_tp_closure(self, test_db, mock_oanda_success, open_gold_trade):
+    def test_detect_tp_closure(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": 100.0, "price": 2639.8,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
@@ -59,17 +59,17 @@ class TestGoldSLTPDetection:
         dd = query_db(test_db, "SELECT * FROM gd_dd_state WHERE id = 1")
         assert dd[0]["consecutive_losses"] == 0
 
-    def test_detect_manual_close(self, test_db, mock_oanda_success, open_gold_trade):
+    def test_detect_manual_close(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": 20.0, "price": 2625.0,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
@@ -128,7 +128,7 @@ class TestMaxHold:
 
     def test_gold_max_hold_80_bars_triggers_close(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
+        import backend.execution as execution_mod
 
         # 80 bars × 180s = 14400s = 4 hours ago
         entry_time = datetime.now(timezone.utc) - timedelta(seconds=14500)
@@ -137,11 +137,11 @@ class TestMaxHold:
         # Trade is still on OANDA's open list so max-hold path runs
         mock_oanda_success["open_trades"].return_value = [{"trade_id": "12345"}]
 
-        # close_trade is imported locally inside the function
+        # close_trade is re-imported locally from backend.execution inside check_open_positions
         close_mock = MagicMock(return_value={
             "success": True, "close_price": 2625.0, "realized_pl": 30.0, "time": "2026-05-22T12:00:00Z",
         })
-        monkeypatch.setattr(oanda, "close_trade", close_mock)
+        monkeypatch.setattr(execution_mod, "close_trade", close_mock)
 
         check_open_positions()
 
@@ -171,15 +171,15 @@ class TestMaxHold:
 
     def test_gold_max_hold_close_fails(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
+        import backend.execution as execution_mod
 
         entry_time = datetime.now(timezone.utc) - timedelta(seconds=14500)
         open_gold_trade(strategy="alpha_sweep", oanda_trade_id="12345", entry_time=entry_time)
 
         mock_oanda_success["open_trades"].return_value = [{"trade_id": "12345"}]
 
-        # close_trade is imported locally inside the function from oanda_executor
-        monkeypatch.setattr(oanda, "close_trade", MagicMock(return_value={"success": False, "error": "timeout"}))
+        # close_trade is re-imported locally from backend.execution inside check_open_positions
+        monkeypatch.setattr(execution_mod, "close_trade", MagicMock(return_value={"success": False, "error": "timeout"}))
 
         check_open_positions()
 
@@ -219,13 +219,13 @@ class TestEdgeCases:
         mock_oanda_success["open_trades"].assert_not_called()
 
     def test_trade_details_returns_none(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         open_gold_trade(oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        monkeypatch.setattr(oanda, "get_trade_details", MagicMock(return_value=None))
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value=None))
 
         # Should not crash
         check_open_positions()
@@ -234,8 +234,9 @@ class TestEdgeCases:
         assert trades[0]["exit_time"] is None  # Left open
 
     def test_multiple_open_trades_handled(self, test_db, mock_oanda_success, open_gold_trade, monkeypatch):
+        import backend.scanner.live_engine as gold_le
+        import backend.execution as execution_mod
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         # 3 trades: one closed by SL, one at max hold, one still open
         open_gold_trade(trade_ref="GD-AL-trade001", oanda_trade_id="111", sl_price=2610.0, tp_price=2640.0)
@@ -245,15 +246,15 @@ class TestEdgeCases:
 
         # 111 is closed (not in open trades), 222 still open (max hold), 333 still open
         mock_oanda_success["open_trades"].return_value = [{"trade_id": "222"}, {"trade_id": "333"}]
-        monkeypatch.setattr(oanda, "get_trade_details", MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": -50.0, "price": 2610.1,
             "close_time": "2026-05-22T12:00:00Z",
         }))
-        # close_trade is imported locally for max-hold path
+        # close_trade is re-imported locally from backend.execution for max-hold path
         close_mock = MagicMock(return_value={
             "success": True, "close_price": 2625.0, "realized_pl": 30.0, "time": "2026-05-22T12:00:00Z",
         })
-        monkeypatch.setattr(oanda, "close_trade", close_mock)
+        monkeypatch.setattr(execution_mod, "close_trade", close_mock)
 
         check_open_positions()
 
@@ -273,54 +274,54 @@ class TestEdgeCases:
 class TestDDStateAfterExit:
     """DD state transitions after position closure."""
 
-    def test_loss_increments_consecutive(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state):
+    def test_loss_increments_consecutive(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         gold_dd_state(consecutive_losses=2)
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": -50.0, "price": 2610.1,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
         dd = query_db(test_db, "SELECT * FROM gd_dd_state WHERE id = 1")
         assert dd[0]["consecutive_losses"] == 3
 
-    def test_win_resets_consecutive(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state):
+    def test_win_resets_consecutive(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         gold_dd_state(consecutive_losses=4)
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": 100.0, "price": 2639.8,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
         dd = query_db(test_db, "SELECT * FROM gd_dd_state WHERE id = 1")
         assert dd[0]["consecutive_losses"] == 0
 
-    def test_5_losses_sets_pause(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state):
+    def test_5_losses_sets_pause(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         gold_dd_state(consecutive_losses=4)
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": -50.0, "price": 2610.1,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
@@ -328,19 +329,19 @@ class TestDDStateAfterExit:
         assert dd[0]["consecutive_losses"] == 5
         assert dd[0]["pause_counter"] == 2
 
-    def test_equity_updated_on_exit(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state):
+    def test_equity_updated_on_exit(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         gold_dd_state(equity=5000, peak_equity=5000)
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
         # realized_pl is in GBP, gbp_usd_rate=1.337 → pnl_usd = 100 * 1.337 = 133.7
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": 100.0, "price": 2639.8,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
@@ -348,19 +349,19 @@ class TestDDStateAfterExit:
         assert float(dd[0]["equity"]) == pytest.approx(5000 + 100 * 1.337, abs=1)
         assert float(dd[0]["peak_equity"]) == pytest.approx(5000 + 100 * 1.337, abs=1)
 
-    def test_peak_equity_not_lowered(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state):
+    def test_peak_equity_not_lowered(self, test_db, mock_oanda_success, open_gold_trade, gold_dd_state, monkeypatch):
+        import backend.scanner.live_engine as gold_le
         from backend.scanner.live_engine import check_open_positions
-        import backend.execution.oanda_executor as oanda
 
         gold_dd_state(equity=5500, peak_equity=6000)
         open_gold_trade(sl_price=2610.0, tp_price=2640.0, oanda_trade_id="12345")
 
         mock_oanda_success["open_trades"].return_value = []
         # Loss: pnl_usd = -50 * 1.337 = -66.85
-        oanda.get_trade_details = MagicMock(return_value={
+        monkeypatch.setattr(gold_le, "get_trade_details", MagicMock(return_value={
             "state": "CLOSED", "realized_pl": -50.0, "price": 2610.1,
             "close_time": "2026-05-22T12:00:00Z",
-        })
+        }))
 
         check_open_positions()
 
