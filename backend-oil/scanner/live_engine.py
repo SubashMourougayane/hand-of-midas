@@ -15,8 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from backend.execution import (
     get_current_price, place_market_order,
     close_trade, get_open_trades, get_account_summary,
-    modify_stop_loss, get_trade_details, _get_gbp_usd_rate,
+    modify_stop_loss, get_trade_details,
 )
+
+def _get_gbp_usd_rate():
+    """Oil account is USD — no conversion needed."""
+    return 1.0
 from backend.db import execute
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, slippage

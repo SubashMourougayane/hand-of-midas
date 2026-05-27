@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from config import OANDA_TOKEN, OANDA_ACCOUNT, OANDA_URL
-from backend.execution.oanda_executor import modify_stop_loss
+from backend.execution import modify_stop_loss
 from backend.db import execute
 
 STREAM_URL = OANDA_URL.replace("api-fxpractice", "stream-fxpractice")
