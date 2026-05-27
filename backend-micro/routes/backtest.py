@@ -292,6 +292,46 @@ def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, du
         conn.close()
 
 
+def _compute_sessions(trades, months_span):
+    """Classify trades by session based on entry hour (UTC)."""
+    from datetime import datetime as dt
+    session_data = {"asian": [], "london": [], "overlap": [], "newyork": []}
+    for t in trades:
+        try:
+            date_str = str(t["date"]) if isinstance(t, dict) else str(t.date)
+            ts = dt.fromisoformat(date_str.replace("+00:00", "").replace("Z", ""))
+            h = ts.hour
+        except:
+            continue
+        pnl = float(t["pnl_sized"]) if isinstance(t, dict) else t.pnl_sized
+        if h >= 22 or h < 8:
+            session_data["asian"].append(pnl)
+        elif 8 <= h < 13:
+            session_data["london"].append(pnl)
+        elif 13 <= h < 17:
+            session_data["overlap"].append(pnl)
+        else:
+            session_data["newyork"].append(pnl)
+
+    sessions = {}
+    for sess, pnls in session_data.items():
+        if not pnls:
+            sessions[sess] = {"trades": 0, "wins": 0, "win_rate": 0, "pnl": 0, "pf": 0, "monthly": 0}
+            continue
+        sw = sum(1 for p in pnls if p > 0)
+        gw = sum(p for p in pnls if p > 0)
+        gl = abs(sum(p for p in pnls if p <= 0))
+        sessions[sess] = {
+            "trades": len(pnls),
+            "wins": sw,
+            "win_rate": round(sw / len(pnls) * 100, 1),
+            "pnl": round(sum(pnls), 0),
+            "pf": round(gw / gl, 2) if gl > 0 else 0,
+            "monthly": round(sum(pnls) / max(months_span, 1), 0),
+        }
+    return sessions
+
+
 @router.get("/backtest/latest")
 def get_latest_backtest():
     """Load the most recent Micro backtest run from DB."""
@@ -377,6 +417,7 @@ def get_latest_backtest():
                 "trades_per_year": round(run["total_trades"] / max(len(yearly_map), 1), 1),
                 "months": len(yearly_map) * 12,
                 "strategies": strat_stats,
+                "sessions": _compute_sessions(trades, len(yearly_map) * 12),
             },
             "trades": [dict(t) for t in trades],
             "equity_curve": [dict(e) for e in equity],
