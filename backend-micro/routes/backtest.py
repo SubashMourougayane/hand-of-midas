@@ -75,12 +75,11 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: l
         # Session breakdown by entry time UTC
         # Tokyo: 22:00-08:00 UTC, London: 08:00-13:00, Overlap: 13:00-17:00, NY: 17:00-22:00
         def _get_session(date_str):
-            from datetime import datetime as dt
-            try:
-                ts = dt.fromisoformat(date_str.replace("+00:00", "").replace("Z", ""))
-                h = ts.hour
-            except:
+            import re as _re
+            match = _re.search(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}):', str(date_str))
+            if not match:
                 return "unknown"
+            h = int(match.group(2))
             if h >= 22 or h < 8:
                 return "asian"
             elif 8 <= h < 13:
@@ -294,13 +293,16 @@ def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, du
 
 def _compute_sessions(trades, months_span):
     """Classify trades by session based on entry hour (UTC)."""
-    from datetime import datetime as dt
+    import re
     session_data = {"asian": [], "london": [], "overlap": [], "newyork": []}
     for t in trades:
         try:
             date_str = str(t["date"]) if isinstance(t, dict) else str(t.date)
-            ts = dt.fromisoformat(date_str.replace("+00:00", "").replace("Z", ""))
-            h = ts.hour
+            # Extract hour from various formats: "2019-01-02T09:15:00+00:00", "2019-01-02 09:15:00", etc.
+            match = re.search(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}):', date_str)
+            if not match:
+                continue
+            h = int(match.group(2))
         except:
             continue
         pnl = float(t["pnl_sized"]) if isinstance(t, dict) else t.pnl_sized
