@@ -1,5 +1,6 @@
 """Micro Backtest API — stub until full Micro backtest engine is built."""
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
@@ -11,4 +12,7 @@ def get_latest():
 
 @router.post("/backtest")
 def run_backtest():
-    return {"error": "Micro backtest not yet implemented. Use scripts/compare_strategies.py for now."}
+    return JSONResponse(
+        status_code=501,
+        content={"error": "Micro backtest not yet implemented. Use scripts/compare_strategies.py for now."},
+    )

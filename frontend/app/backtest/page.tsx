@@ -31,7 +31,10 @@ export default function BacktestPage() {
   // Load latest backtest from DB on mount or instrument change
   useEffect(() => {
     setResult(null);
+    setShowTrades(50);
+    let cancelled = false;
     getLatestBacktest(apiBase, instrument).then((data) => {
+      if (cancelled) return;
       if (data) {
         setResult(data);
         if (data.config) {
@@ -43,6 +46,7 @@ export default function BacktestPage() {
         }
       }
     }).catch(() => {});
+    return () => { cancelled = true; };
   }, [apiBase, instrument]);
 
   const handleRun = async () => {
