@@ -26,18 +26,38 @@ def _parse_ts(ts_str: str) -> datetime:
 
 
 def _get_active_windows(now: datetime) -> list:
-    """Return all consolidation windows currently in their scan phase."""
+    """Return all consolidation windows currently in their scan phase.
+    Handles midnight wrap: windows can start at 22, 0, 2, ... up to 18.
+    Market close: 21:00-22:00 UTC — no scanning during this hour.
+    """
     cfg = MICRO_ALPHA_SWEEP
-    windows = []
-    for start_hour in range(cfg["scan_start_hour"], cfg["scan_end_hour"] - cfg["consol_hours"] + 1, cfg["scan_gap_hours"]):
-        end_hour = start_hour + cfg["consol_hours"]
-        # Cap scan window at configured scan_end_hour (never scan past 20:00 UTC)
-        scan_end_hour = min(end_hour + cfg["scan_after_hours"], cfg["scan_end_hour"])
+    close_start = cfg["market_close_start"]  # 21
+    close_end = cfg["market_close_end"]      # 22
+    current_hour = now.hour
 
-        if now.hour < end_hour:
-            continue  # Consolidation not done yet
-        if now.hour >= scan_end_hour:
-            continue  # Scan window expired
+    # Skip during market close
+    if close_start <= current_hour < close_end:
+        return []
+
+    windows = []
+    # Generate windows starting every 2 hours across full day (0,2,4,...,22)
+    for start_hour in range(0, 24, cfg["scan_gap_hours"]):
+        end_hour = (start_hour + cfg["consol_hours"]) % 24
+        scan_end_hour = (start_hour + cfg["consol_hours"] + cfg["scan_after_hours"]) % 24
+
+        # Skip windows whose consolidation or scan overlaps market close
+        # If consolidation spans 21:00 (e.g. 20-00) or scan would run into 21:00
+        consol_hours = _hours_in_range(start_hour, end_hour)
+        if close_start in consol_hours:
+            continue
+
+        # Check if consolidation is done (current hour is past end_hour)
+        if not _hour_past(current_hour, end_hour):
+            continue
+
+        # Check if scan window hasn't expired
+        if _hour_past(current_hour, scan_end_hour):
+            continue
 
         windows.append({
             "consol_start": start_hour,
@@ -45,6 +65,22 @@ def _get_active_windows(now: datetime) -> list:
             "scan_until": scan_end_hour,
         })
     return windows
+
+
+def _hours_in_range(start: int, end: int) -> set:
+    """Return set of hours in [start, end) handling midnight wrap."""
+    if start < end:
+        return set(range(start, end))
+    return set(range(start, 24)) | set(range(0, end))
+
+
+def _hour_past(current: int, target: int) -> bool:
+    """Check if current hour is past target, handling midnight wrap.
+    'Past' means: target has already occurred in the current day cycle.
+    We use a 22-hour window: if current is within 22 hours ahead of target, it's past.
+    """
+    diff = (current - target) % 24
+    return 0 < diff < 22
 
 
 def micro_sweep_job():
@@ -134,11 +170,12 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         if trades_today >= cfg["max_trades_per_day"]:
             break
 
-        # Build consolidation range from H1 bars in this window
+        # Build consolidation range from H1 bars in this window (handles midnight wrap)
+        consol_hours = _hours_in_range(window["consol_start"], window["consol_end"])
         consol_bars = []
         for c in h1_candles:
             ts = _parse_ts(c["timestamp"])
-            if ts.date() == today and window["consol_start"] <= ts.hour < window["consol_end"]:
+            if ts.hour in consol_hours:
                 c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
                 c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
                 c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
@@ -158,7 +195,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         scan_bars = []
         for c in h1_candles:
             ts = _parse_ts(c["timestamp"])
-            if ts.date() == today and window["consol_end"] <= ts.hour < window["scan_until"]:
+            scan_hours = _hours_in_range(window["consol_end"], window["scan_until"])
+            if ts.hour in scan_hours:
                 c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
                 c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
                 c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2

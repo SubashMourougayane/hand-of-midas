@@ -17,6 +17,7 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://subash@localhost:5432/golddigge
 ENGULFING_TOLERANCE = 0.10
 
 # Micro Alpha-Sweep: rolling 4hr consolidation windows every 2 hours
+# Full market coverage: 22:00 - 21:00 UTC (skip 21:00-22:00 = market close)
 MICRO_ALPHA_SWEEP = {
     "consol_hours": 4,
     "scan_gap_hours": 2,
@@ -31,8 +32,8 @@ MICRO_ALPHA_SWEEP = {
     "skip_first_bar": True,
     "engulfing_window_hours": 2,
     "max_trades_per_day": 3,
-    "scan_start_hour": 0,
-    "scan_end_hour": 20,
+    "market_close_start": 21,
+    "market_close_end": 22,
 }
 
 STRATEGY_RISK = {"micro_alpha_sweep": 4.0, "mean_rev": 3.0, "cross_market": 2.0}

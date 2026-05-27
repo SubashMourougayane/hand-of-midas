@@ -64,27 +64,53 @@ def get_scan_status():
     current_mid = price["mid"]
     h1 = _cache["h1"] or []
 
+    def _hours_in_range(start: int, end: int) -> set:
+        if start < end:
+            return set(range(start, end))
+        return set(range(start, 24)) | set(range(0, end))
+
+    def _hour_past(current: int, target: int) -> bool:
+        diff = (current - target) % 24
+        return 0 < diff < 22
+
+    close_start = cfg.get("market_close_start", 21)
+    close_end = cfg.get("market_close_end", 22)
+
     # Build all windows and their states
     active_windows = []
-    for start_hour in range(cfg["scan_start_hour"], cfg["scan_end_hour"] - cfg["consol_hours"] + 1, cfg["scan_gap_hours"]):
-        end_hour = start_hour + cfg["consol_hours"]
-        scan_end_hour = end_hour + cfg["scan_after_hours"]
+    for start_hour in range(0, 24, cfg["scan_gap_hours"]):
+        end_hour = (start_hour + cfg["consol_hours"]) % 24
+        scan_end_hour = (start_hour + cfg["consol_hours"] + cfg["scan_after_hours"]) % 24
 
-        # Compute range for this window
+        # Skip windows whose consolidation overlaps market close
+        consol_hours = _hours_in_range(start_hour, end_hour)
+        if close_start in consol_hours:
+            continue
+
+        # Compute range for this window (handles midnight wrap)
         consol_bars = []
         for c in h1:
             ts = _parse_ts(c["timestamp"])
-            if ts.date() == today and start_hour <= ts.hour < end_hour:
+            if ts.hour in consol_hours:
                 consol_bars.append(c)
 
-        # Cap scan window at configured scan_end_hour (never scan past 20:00 UTC)
-        scan_end_hour = min(scan_end_hour, cfg["scan_end_hour"] if "scan_end_hour" in cfg else 20)
-
-        if len(consol_bars) < 2:
-            if now.hour < end_hour:
-                status = "building"
+        # Determine window status
+        if not _hour_past(now.hour, end_hour):
+            status = "building"
+        elif _hour_past(now.hour, scan_end_hour):
+            status = "expired"
+        elif len(consol_bars) < 2:
+            status = "no_data"
+        else:
+            range_high = max((c["bid_high"] + c["ask_high"]) / 2 for c in consol_bars)
+            range_low = min((c["bid_low"] + c["ask_low"]) / 2 for c in consol_bars)
+            consol_range = range_high - range_low
+            if consol_range < cfg["min_range"]:
+                status = "range_too_small"
             else:
-                status = "no_data"
+                status = "scanning"
+
+        if len(consol_bars) < 2 or status in ("building", "no_data"):
             active_windows.append({
                 "start": start_hour, "end": end_hour, "scan_until": scan_end_hour,
                 "status": status, "range_high": 0, "range_low": 0, "range": 0,
@@ -96,11 +122,9 @@ def get_scan_status():
         range_low = min((c["bid_low"] + c["ask_low"]) / 2 for c in consol_bars)
         consol_range = range_high - range_low
 
-        # Determine window status
-        if now.hour < end_hour:
-            status = "building"
-        elif now.hour >= scan_end_hour:
-            status = "expired"
+        if status != "scanning":
+            # Already determined above (range_too_small or expired)
+            pass
         elif consol_range < cfg["min_range"]:
             status = "range_too_small"
         else:
@@ -112,9 +136,10 @@ def get_scan_status():
         if status == "scanning" or status == "expired":
             bearish_level = range_high + cfg["sweep_threshold"]
             bullish_level = range_low - cfg["sweep_threshold"]
+            scan_hours = _hours_in_range(end_hour, scan_end_hour)
             for c in h1:
                 ts = _parse_ts(c["timestamp"])
-                if ts.date() == today and end_hour <= ts.hour < scan_end_hour:
+                if ts.hour in scan_hours:
                     mh = (c["bid_high"] + c["ask_high"]) / 2
                     ml = (c["bid_low"] + c["ask_low"]) / 2
                     mc = (c["bid_close"] + c["ask_close"]) / 2
