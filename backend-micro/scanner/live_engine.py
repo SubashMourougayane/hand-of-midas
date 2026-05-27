@@ -122,7 +122,11 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="account_summary_failed")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
         return None
-    equity_usd = acct.get("nav_usd", acct.get("nav", 10000))
+    equity_usd = acct.get("nav_usd") or acct.get("nav")
+    if not equity_usd:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="no_equity_in_account")
+        _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "nav_usd missing from account summary"})
+        return None
     risk_mult = _get_risk_multiplier(dd_state, equity_usd)
 
     sl_distance = abs(entry_price - sl_price)
