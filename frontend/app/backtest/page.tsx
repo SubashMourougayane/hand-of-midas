@@ -49,9 +49,12 @@ export default function BacktestPage() {
     return () => { cancelled = true; };
   }, [apiBase, instrument]);
 
+  const [progressMsg, setProgressMsg] = useState("");
+
   const handleRun = async () => {
     setLoading(true);
     setError("");
+    setProgressMsg("");
     try {
       const data = await runBacktest({
         strategies: selectedStrategies,
@@ -59,12 +62,13 @@ export default function BacktestPage() {
         end_date: endDate,
         capital,
         risk_pct: riskPct,
-      }, apiBase, instrument);
+      }, apiBase, instrument, (msg) => setProgressMsg(msg));
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Backtest failed");
     }
     setLoading(false);
+    setProgressMsg("");
   };
 
   const toggleStrategy = (id: string) => {
@@ -114,7 +118,7 @@ export default function BacktestPage() {
 
         {error && <div className="text-[var(--red)] text-xs mb-4">{error}</div>}
 
-        {loading && <BacktestProgress instrument={instrument} />}
+        {loading && <BacktestProgress instrument={instrument} progressMsg={progressMsg} />}
 
         {result && !loading && (
           <>
@@ -296,7 +300,7 @@ export default function BacktestPage() {
   );
 }
 
-function BacktestProgress({ instrument }: { instrument: string }) {
+function BacktestProgress({ instrument, progressMsg }: { instrument: string; progressMsg?: string }) {
   const [elapsed, setElapsed] = useState(0);
   const [dots, setDots] = useState("");
 
@@ -323,14 +327,18 @@ function BacktestProgress({ instrument }: { instrument: string }) {
         <span className="text-sm font-semibold text-[var(--text)]">Running backtest{dots}</span>
         <span className="text-xs text-[var(--text-dim)]">{elapsed}s elapsed</span>
       </div>
-      <div className="space-y-1.5">
-        {steps.map((step, i) => (
-          <div key={i} className={`text-xs flex items-center gap-2 ${i < currentStep ? "text-[var(--green)]" : i === currentStep ? "text-[var(--text)]" : "text-[var(--text-dim)]"}`}>
-            <span>{i < currentStep ? "✓" : i === currentStep ? "▶" : "○"}</span>
-            <span>{step}</span>
-          </div>
-        ))}
-      </div>
+      {progressMsg ? (
+        <div className="text-xs text-[var(--green)] font-mono">{progressMsg}</div>
+      ) : (
+        <div className="space-y-1.5">
+          {steps.map((step, i) => (
+            <div key={i} className={`text-xs flex items-center gap-2 ${i < currentStep ? "text-[var(--green)]" : i === currentStep ? "text-[var(--text)]" : "text-[var(--text-dim)]"}`}>
+              <span>{i < currentStep ? "✓" : i === currentStep ? "▶" : "○"}</span>
+              <span>{step}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-4 h-1 bg-[var(--bg)] overflow-hidden">
         <div className="h-full bg-[var(--green)] transition-all duration-1000" style={{ width: `${Math.min((elapsed / 90) * 100, 95)}%` }} />
       </div>

@@ -85,7 +85,12 @@ export interface BacktestRequest {
 export const API_BASE_GOLD = "";
 export const API_BASE_OIL = "";
 
-export async function runBacktest(req: BacktestRequest, apiBase: string, instrument: string = "gold"): Promise<BacktestResult> {
+export async function runBacktest(
+  req: BacktestRequest,
+  apiBase: string,
+  instrument: string = "gold",
+  onProgress?: (msg: string) => void,
+): Promise<BacktestResult> {
   const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
   const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
     method: "POST",
@@ -93,6 +98,40 @@ export async function runBacktest(req: BacktestRequest, apiBase: string, instrum
     body: JSON.stringify(req),
   });
   if (!res.ok) throw new Error(`Backtest failed: ${res.status}`);
+
+  // Micro returns SSE stream, others return JSON directly
+  if (instrument === "micro" && res.headers.get("content-type")?.includes("text/event-stream")) {
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+    const decoder = new TextDecoder();
+    let finalResult: BacktestResult | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      const lines = text.split("\n");
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const payload = JSON.parse(line.slice(6));
+            if (payload.type === "progress" && onProgress) {
+              onProgress(payload.message);
+            } else if (payload.type === "result") {
+              finalResult = payload.data;
+            } else if (payload.type === "error") {
+              throw new Error(payload.message);
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
+          }
+        }
+      }
+    }
+    if (!finalResult) throw new Error("Backtest stream ended without result");
+    return finalResult;
+  }
+
   return res.json();
 }
 

@@ -31,7 +31,8 @@ def _get_active_windows(now: datetime) -> list:
     windows = []
     for start_hour in range(cfg["scan_start_hour"], cfg["scan_end_hour"] - cfg["consol_hours"] + 1, cfg["scan_gap_hours"]):
         end_hour = start_hour + cfg["consol_hours"]
-        scan_end_hour = end_hour + cfg["scan_after_hours"]
+        # Cap scan window at configured scan_end_hour (never scan past 20:00 UTC)
+        scan_end_hour = min(end_hour + cfg["scan_after_hours"], cfg["scan_end_hour"])
 
         if now.hour < end_hour:
             continue  # Consolidation not done yet
@@ -50,6 +51,10 @@ def micro_sweep_job():
     """Every 3 min — scan all active rolling windows for sweeps + engulfings."""
     now = datetime.now(timezone.utc)
     cfg = MICRO_ALPHA_SWEEP
+
+    # Skip during market rollover (JustMarkets closes Gold ~21:00-22:00 UTC daily)
+    if now.hour >= 21:
+        return
 
     # Reset daily state at midnight
     global _daily_state

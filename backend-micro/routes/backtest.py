@@ -1,10 +1,16 @@
-"""Micro Backtest API — POST /api/micro/backtest, GET /api/micro/backtest/latest."""
-from fastapi import APIRouter
-from pydantic import BaseModel, Field
+"""Micro Backtest API — SSE streaming backtest + GET /api/micro/backtest/latest."""
+import asyncio
+import json
 import time
+import threading
+import uuid
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from backtest.engine import run_backtest
 from backend.db import execute, insert_returning, get_conn
@@ -12,6 +18,9 @@ from backend.db import execute, insert_returning, get_conn
 router = APIRouter()
 
 MICRO_STRATEGIES_FILTER = ["micro_alpha_sweep"]
+
+# In-memory store for running backtests
+_runs = {}  # run_id -> {"status": "running"|"done"|"error", "progress": [...], "result": None}
 
 
 class BacktestRequest(BaseModel):
@@ -22,127 +31,178 @@ class BacktestRequest(BaseModel):
     risk_pct: float = Field(default=3.0)
 
 
-@router.post("/backtest")
-def api_backtest(req: BacktestRequest):
-    """Run Micro portfolio backtest."""
+def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: list):
+    """Run backtest in background thread, push progress to _runs store."""
     t0 = time.time()
+    _runs[run_id]["progress"].append("Loading 20 years of data...")
 
-    # Map alpha_sweep → micro_alpha_sweep before passing to engine
-    mapped_strategies = [s if s != "alpha_sweep" else "micro_alpha_sweep" for s in req.strategies]
+    try:
+        result = run_backtest(
+            strategies=mapped_strategies,
+            start_date=req.start_date,
+            end_date=req.end_date,
+            capital=req.capital,
+            risk_pct=req.risk_pct,
+        )
 
-    result = run_backtest(
-        strategies=mapped_strategies,
-        start_date=req.start_date,
-        end_date=req.end_date,
-        capital=req.capital,
-        risk_pct=req.risk_pct,
-    )
+        _runs[run_id]["progress"].append(f"Generating signals complete ({len(result.trades)} trades)")
+        _runs[run_id]["progress"].append("Computing statistics...")
 
-    trades = result.trades
-    wins = [t for t in trades if t.pnl_sized > 0]
-    losses = [t for t in trades if t.pnl_sized <= 0]
-    avg_win = sum(t.pnl_sized for t in wins) / len(wins) if wins else 0
-    avg_loss = abs(sum(t.pnl_sized for t in losses) / len(losses)) if losses else 0
-    rr = avg_win / avg_loss if avg_loss > 0 else 0
+        trades = result.trades
+        wins = [t for t in trades if t.pnl_sized > 0]
+        losses = [t for t in trades if t.pnl_sized <= 0]
+        avg_win = sum(t.pnl_sized for t in wins) / len(wins) if wins else 0
+        avg_loss = abs(sum(t.pnl_sized for t in losses) / len(losses)) if losses else 0
+        rr = avg_win / avg_loss if avg_loss > 0 else 0
 
-    years_span = len(set(t.year for t in trades)) if trades else 1
-    months_span = years_span * 12
+        years_span = len(set(t.year for t in trades)) if trades else 1
+        months_span = years_span * 12
 
-    # Per-strategy breakdown
-    strat_stats = {}
-    for strat in set(t.strategy for t in trades):
-        st = [t for t in trades if t.strategy == strat]
-        sw = [t for t in st if t.pnl_sized > 0]
-        sl = [t for t in st if t.pnl_sized <= 0]
-        gw = sum(t.pnl_sized for t in sw)
-        gl = abs(sum(t.pnl_sized for t in sl))
-        strat_stats[strat] = {
-            "trades": len(st),
-            "wins": len(sw),
-            "wr": len(sw) / len(st) if st else 0,
-            "pf": gw / gl if gl > 0 else 0,
-            "pnl": round(sum(t.pnl_sized for t in st), 2),
+        strat_stats = {}
+        for strat in set(t.strategy for t in trades):
+            st = [t for t in trades if t.strategy == strat]
+            sw = [t for t in st if t.pnl_sized > 0]
+            sl = [t for t in st if t.pnl_sized <= 0]
+            gw = sum(t.pnl_sized for t in sw)
+            gl = abs(sum(t.pnl_sized for t in sl))
+            strat_stats[strat] = {
+                "trades": len(st), "wins": len(sw),
+                "wr": len(sw) / len(st) if st else 0,
+                "pf": gw / gl if gl > 0 else 0,
+                "pnl": round(sum(t.pnl_sized for t in st), 2),
+            }
+
+        stats = {
+            "total_trades": result.total_trades,
+            "wins": result.wins,
+            "losses": result.losses,
+            "win_rate": result.win_rate,
+            "profit_factor": result.profit_factor,
+            "total_pnl": round(result.total_pnl, 2),
+            "max_drawdown_pct": round(result.max_drawdown_pct, 1),
+            "avg_win": round(avg_win, 2),
+            "avg_loss": round(avg_loss, 2),
+            "risk_reward": round(rr, 2),
+            "trades_per_year": round(result.total_trades / years_span, 1),
+            "months": months_span,
+            "strategies": strat_stats,
         }
 
-    stats = {
-        "total_trades": result.total_trades,
-        "wins": result.wins,
-        "losses": result.losses,
-        "win_rate": result.win_rate,
-        "profit_factor": result.profit_factor,
-        "total_pnl": round(result.total_pnl, 2),
-        "max_drawdown_pct": round(result.max_drawdown_pct, 1),
-        "avg_win": round(avg_win, 2),
-        "avg_loss": round(avg_loss, 2),
-        "risk_reward": round(rr, 2),
-        "trades_per_year": round(result.total_trades / years_span, 1),
-        "months": months_span,
-        "strategies": strat_stats,
-    }
+        cumulative = 0
+        equity_curve = []
+        for t in trades:
+            cumulative += t.pnl_sized
+            equity_curve.append({"date": t.date, "pnl": round(cumulative, 2), "equity": t.equity_after})
 
-    # Equity curve
-    cumulative = 0
-    equity_curve = []
-    for t in trades:
-        cumulative += t.pnl_sized
-        equity_curve.append({"date": t.date, "pnl": round(cumulative, 2), "equity": t.equity_after})
+        monthly_map = {}
+        for t in trades:
+            key = f"{t.year}-{t.month:02d}"
+            monthly_map[key] = monthly_map.get(key, 0) + t.pnl_sized
+        monthly_pnl = [{"month": k, "pnl": round(v, 2)} for k, v in sorted(monthly_map.items())]
 
-    # Monthly P&L
-    monthly_map = {}
-    for t in trades:
-        key = f"{t.year}-{t.month:02d}"
-        monthly_map[key] = monthly_map.get(key, 0) + t.pnl_sized
-    monthly_pnl = [{"month": k, "pnl": round(v, 2)} for k, v in sorted(monthly_map.items())]
+        yearly_map = {}
+        for t in trades:
+            if t.year not in yearly_map:
+                yearly_map[t.year] = {"year": t.year, "trades": 0, "wins": 0, "pnl": 0.0}
+            yearly_map[t.year]["trades"] += 1
+            yearly_map[t.year]["pnl"] += t.pnl_sized
+            if t.pnl_sized > 0:
+                yearly_map[t.year]["wins"] += 1
 
-    # Yearly P&L
-    yearly_map = {}
-    for t in trades:
-        if t.year not in yearly_map:
-            yearly_map[t.year] = {"year": t.year, "trades": 0, "wins": 0, "pnl": 0.0}
-        yearly_map[t.year]["trades"] += 1
-        yearly_map[t.year]["pnl"] += t.pnl_sized
-        if t.pnl_sized > 0:
-            yearly_map[t.year]["wins"] += 1
+        yearly_pnl = []
+        for y in sorted(yearly_map.keys()):
+            d = yearly_map[y]
+            d["pnl"] = round(d["pnl"], 2)
+            d["wr"] = round(d["wins"] / d["trades"], 3) if d["trades"] > 0 else 0
+            year_trades_list = [t for t in trades if t.year == y]
+            if year_trades_list:
+                start_fund = round(year_trades_list[0].equity_after - year_trades_list[0].pnl_sized, 2)
+                end_fund = round(year_trades_list[-1].equity_after, 2)
+            else:
+                start_fund = req.capital
+                end_fund = req.capital
+            d["start_fund"] = start_fund
+            d["end_fund"] = end_fund
+            d["return_pct"] = round((end_fund - start_fund) / max(start_fund, 1) * 100, 1)
+            yearly_pnl.append(d)
 
-    yearly_pnl = []
-    for y in sorted(yearly_map.keys()):
-        d = yearly_map[y]
-        d["pnl"] = round(d["pnl"], 2)
-        d["wr"] = round(d["wins"] / d["trades"], 3) if d["trades"] > 0 else 0
-        year_trades_list = [t for t in trades if t.year == y]
-        if year_trades_list:
-            start_fund = round(year_trades_list[0].equity_after - year_trades_list[0].pnl_sized, 2)
-            end_fund = round(year_trades_list[-1].equity_after, 2)
-        else:
-            start_fund = req.capital
-            end_fund = req.capital
-        d["start_fund"] = start_fund
-        d["end_fund"] = end_fund
-        d["return_pct"] = round((end_fund - start_fund) / max(start_fund, 1) * 100, 1)
-        yearly_pnl.append(d)
+        trade_responses = [t.__dict__ for t in trades]
+        duration_ms = int((time.time() - t0) * 1000)
 
-    trade_responses = [t.__dict__ for t in trades]
-    duration_ms = int((time.time() - t0) * 1000)
+        response_data = {
+            "stats": stats,
+            "trades": trade_responses,
+            "equity_curve": equity_curve,
+            "monthly_pnl": monthly_pnl,
+            "yearly_pnl": yearly_pnl,
+            "duration_ms": duration_ms,
+        }
 
-    # Persist to DB (same tables as Gold, filtered by strategies containing micro_alpha_sweep)
-    try:
-        _save_backtest_to_db(req, mapped_strategies, stats, trade_responses, equity_curve, duration_ms)
+        # Save to DB
+        try:
+            _save_backtest_to_db(req, mapped_strategies, stats, trade_responses, equity_curve, duration_ms)
+            _runs[run_id]["progress"].append("Saved to database")
+        except Exception as e:
+            _runs[run_id]["progress"].append(f"DB save warning: {e}")
+
+        _runs[run_id]["result"] = response_data
+        _runs[run_id]["status"] = "done"
+        _runs[run_id]["progress"].append(f"Complete! {result.total_trades} trades, PF {result.profit_factor:.2f}, P&L ${result.total_pnl:,.0f} ({duration_ms/1000:.1f}s)")
+
     except Exception as e:
-        print(f"Warning: failed to persist Micro backtest to DB: {e}")
+        _runs[run_id]["status"] = "error"
+        _runs[run_id]["progress"].append(f"ERROR: {str(e)}")
 
-    return {
-        "stats": stats,
-        "trades": trade_responses,
-        "equity_curve": equity_curve,
-        "monthly_pnl": monthly_pnl,
-        "yearly_pnl": yearly_pnl,
-        "duration_ms": duration_ms,
-    }
+
+@router.post("/backtest")
+async def api_backtest(req: BacktestRequest):
+    """Start backtest and stream results via SSE."""
+    mapped_strategies = [s if s != "alpha_sweep" else "micro_alpha_sweep" for s in req.strategies]
+
+    run_id = str(uuid.uuid4())[:8]
+    _runs[run_id] = {"status": "running", "progress": [], "result": None}
+
+    # Start in background thread
+    t = threading.Thread(target=_run_backtest_thread, args=(run_id, req, mapped_strategies), daemon=True)
+    t.start()
+
+    # Stream progress via SSE
+    async def event_generator():
+        last_idx = 0
+        while True:
+            run = _runs.get(run_id)
+            if not run:
+                break
+
+            # Send new progress messages
+            while last_idx < len(run["progress"]):
+                msg = run["progress"][last_idx]
+                yield f"data: {json.dumps({'type': 'progress', 'message': msg})}\n\n"
+                last_idx += 1
+
+            # Send final result
+            if run["status"] == "done":
+                yield f"data: {json.dumps({'type': 'result', 'data': run['result']}, default=str)}\n\n"
+                break
+            elif run["status"] == "error":
+                yield f"data: {json.dumps({'type': 'error', 'message': run['progress'][-1] if run['progress'] else 'Unknown error'})}\n\n"
+                break
+
+            await asyncio.sleep(0.5)
+
+        # Cleanup
+        if run_id in _runs:
+            del _runs[run_id]
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, duration_ms):
     """Save Micro backtest run to shared tables."""
-    # Mark previous Micro runs as not latest
     execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies @> %s", (MICRO_STRATEGIES_FILTER,))
 
     run_id = insert_returning(
@@ -215,7 +275,6 @@ def get_latest_backtest():
             (run_id,), fetch=True
         )
 
-        # Strategy breakdown
         strat_stats = {}
         for t in trades:
             s = t["strategy"]
@@ -236,14 +295,12 @@ def get_latest_backtest():
         avg_win = float(run["avg_win"]) if run.get("avg_win") else 0
         avg_loss = float(run["avg_loss"]) if run.get("avg_loss") else 0
 
-        # Monthly P&L from trades
         monthly_map = {}
         for t in trades:
             key = f"{t['year']}-{t['month']:02d}"
             monthly_map[key] = monthly_map.get(key, 0) + float(t["pnl_sized"])
         monthly_pnl = [{"month": k, "pnl": round(v, 2)} for k, v in sorted(monthly_map.items())]
 
-        # Yearly P&L
         yearly_map = {}
         for t in trades:
             y = t["year"]
