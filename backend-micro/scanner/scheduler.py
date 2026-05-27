@@ -52,9 +52,6 @@ def micro_sweep_job():
     now = datetime.now(timezone.utc)
     cfg = MICRO_ALPHA_SWEEP
 
-    # Skip during market rollover (JustMarkets closes Gold ~21:00-22:00 UTC daily)
-    if now.hour >= 21:
-        return
 
     # Reset daily state at midnight
     global _daily_state
