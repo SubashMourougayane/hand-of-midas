@@ -30,12 +30,6 @@ def run_backtest(
     if "alpha_sweep" in strategies:
         strategies = [s if s != "alpha_sweep" else "micro_alpha_sweep" for s in strategies]
 
-    # Cap to max 7 years to prevent OOM on VPS (rolling windows = 8x more signals than original)
-    from datetime import datetime
-    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    if (end_dt - start_dt).days > 7 * 365:
-        start_date = f"{end_dt.year - 7}-01-01"
 
     np.random.seed(seed)
 
