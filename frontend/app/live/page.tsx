@@ -582,12 +582,11 @@ function SweepProximity() {
     );
   }
 
-  // Calculate gauge position (0-100%)
-  const totalRange = scan.bearish_sweep_level - scan.bullish_sweep_level;
-  const pricePosition = totalRange > 0
-    ? ((scan.price - scan.bullish_sweep_level) / totalRange) * 100
-    : 50;
-  const clampedPosition = Math.max(0, Math.min(100, pricePosition));
+  // Calculate gauge position (0% = full bullish side, 100% = full bearish side)
+  // Use proximity_pct from API which correctly handles "past sweep" cases
+  const clampedPosition = scan.sweep_direction === "bearish"
+    ? 50 + (scan.proximity_pct / 100) * 50   // bearish = right side (50-100%)
+    : 50 - (scan.proximity_pct / 100) * 50;  // bullish = left side (0-50%)
 
   // Asia range markers within gauge
   const asiaLowPct = totalRange > 0
