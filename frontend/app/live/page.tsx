@@ -141,6 +141,7 @@ export default function LivePage() {
 
         {/* Sweep Proximity (Gold Macro / Oil only — Micro has different scan-status shape) */}
         {instrument !== "micro" && <SweepProximity scan={scan} />}
+        {instrument === "micro" && scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
 
         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
 
@@ -574,6 +575,107 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
         <span className="flex items-center gap-1.5"><span className="w-[3px] h-3 rounded" style={{ background: "#ff3e3e" }} /> Now</span>
         <span className="flex items-center gap-1.5"><span className="w-5 h-[1px]" style={{ background: "repeating-linear-gradient(90deg, #00e87b 0px, #00e87b 3px, transparent 3px, transparent 6px)" }} /> Monitor (24/7)</span>
       </div>
+    </div>
+  );
+}
+
+
+function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
+  const windows = (scan as { active_windows?: Array<{
+    start: number; end: number; scan_until: number; status: string;
+    range_high: number; range_low: number; range: number;
+    sweep_detected: boolean; sweep_info: { direction: string; wick: number } | null;
+  }> }).active_windows || [];
+  const price = (scan as { price?: number }).price || 0;
+  const bias = (scan as { daily_bias?: string }).daily_bias || "neutral";
+  const tradesToday = (scan as { trades_today?: number }).trades_today || 0;
+  const maxTrades = (scan as { max_trades_per_day?: number }).max_trades_per_day || 3;
+  const skipReasons = (scan as { skip_reasons?: string[] }).skip_reasons || [];
+
+  const statusConfig: Record<string, { color: string; bg: string; label: string; emoji: string }> = {
+    building: { color: "#4da6ff", bg: "#4da6ff12", label: "BUILDING", emoji: "🔵" },
+    scanning: { color: "#00e87b", bg: "#00e87b12", label: "SCANNING", emoji: "🟢" },
+    expired: { color: "#5b6370", bg: "#5b637008", label: "EXPIRED", emoji: "⬜" },
+    range_too_small: { color: "#9ca3b4", bg: "#9ca3b408", label: "TOO SMALL", emoji: "➖" },
+    no_data: { color: "#5b6370", bg: "#5b637008", label: "NO DATA", emoji: "⬜" },
+  };
+
+  const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+
+  return (
+    <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Rolling Windows</h2>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: biasColor, background: `${biasColor}15`, border: `1px solid ${biasColor}40` }}>
+            BIAS: {bias.toUpperCase()}
+          </span>
+          <span className="text-[10px] text-[var(--text-dim)]">{tradesToday}/{maxTrades} trades</span>
+          {skipReasons.length > 0 && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: "#ffd54f20", color: "#ffd54f", border: "1px solid #ffd54f40" }}>
+              SKIP: {skipReasons.join(", ")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Price */}
+      <div className="text-center mb-3">
+        <span className="text-xl font-bold text-[var(--text)]">${price.toFixed(2)}</span>
+        <span className="text-[9px] text-[var(--text-dim)] ml-2">XAU/USD</span>
+      </div>
+
+      {/* Window cards grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-2">
+        {windows.map((w, i) => {
+          const cfg = statusConfig[w.status] || statusConfig.no_data;
+          const hasSweep = w.sweep_detected && w.sweep_info;
+          return (
+            <div key={i} className="p-3 rounded-lg transition-all" style={{
+              background: hasSweep ? "#ff8c0012" : cfg.bg,
+              border: `1px solid ${hasSweep ? "#ff8c0040" : cfg.color}22`,
+            }}>
+              {/* Window hours */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] font-bold text-[var(--text)]">{String(w.start).padStart(2, "0")}:00 – {String(w.end).padStart(2, "0")}:00</span>
+                <span className="text-[8px]">{cfg.emoji}</span>
+              </div>
+
+              {/* Status */}
+              <div className="text-[8px] font-bold mb-1.5" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
+                {hasSweep ? `SWEEP ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
+              </div>
+
+              {/* Range (if available) */}
+              {w.range > 0 && (
+                <div className="text-[9px] text-[var(--text-dim)]">
+                  Range: ${w.range.toFixed(1)}
+                </div>
+              )}
+
+              {/* Sweep wick */}
+              {hasSweep && w.sweep_info && (
+                <div className="text-[9px] mt-0.5" style={{ color: "#ff8c00" }}>
+                  Wick: ${w.sweep_info.wick.toFixed(1)}
+                </div>
+              )}
+
+              {/* Scan until */}
+              {w.status === "scanning" && (
+                <div className="text-[8px] text-[var(--text-dim)] mt-0.5">
+                  Scan until {String(w.scan_until).padStart(2, "0")}:00
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {windows.length === 0 && (
+        <div className="text-center text-[10px] text-[var(--text-dim)] py-4">
+          No active windows (outside scan hours 04:00-20:00 UTC)
+        </div>
+      )}
     </div>
   );
 }
