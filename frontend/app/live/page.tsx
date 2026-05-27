@@ -53,7 +53,11 @@ export default function LivePage() {
     setScan(null);
     sseConnected.current = false;
     const prefix = instrument === "oil" ? "oil" : "gold";
-    const url = `${apiBase}/api/${prefix}/stream`;
+    // SSE must bypass Next.js proxy (it buffers streaming responses)
+    const sseBase = typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "https://midas.subashtrades.in"
+      : "";
+    const url = `${sseBase}/api/${prefix}/stream`;
     let es: EventSource | null = null;
     let fallbackInterval: NodeJS.Timeout | null = null;
     let reconnectTimeout: NodeJS.Timeout | null = null;
