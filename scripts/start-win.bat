@@ -37,10 +37,8 @@ echo   Frontend: http://localhost:3001
 echo.
 echo   Logs: logs\gold.log, logs\oil.log, logs\frontend.log
 echo.
-echo   Press any key to stop all services...
-pause >nul
+echo   Tailing all logs (Ctrl+C to stop)...
+echo ============================================
+echo.
 
-REM Stop all
-taskkill /F /IM "python.exe" >nul 2>&1
-taskkill /F /IM "node.exe" >nul 2>&1
-echo Services stopped.
+powershell -Command "Get-Content logs\gold.log, logs\oil.log -Wait -Tail 5"
