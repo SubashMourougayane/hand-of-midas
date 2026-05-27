@@ -82,9 +82,8 @@ export interface BacktestRequest {
   risk_pct: number;
 }
 
-const _isLocal = typeof window !== "undefined" && window.location.hostname === "localhost";
-export const API_BASE_GOLD = _isLocal ? "http://localhost:5053" : "";
-export const API_BASE_OIL = _isLocal ? "http://localhost:5054" : "";
+export const API_BASE_GOLD = "";
+export const API_BASE_OIL = "";
 
 export async function runBacktest(req: BacktestRequest, apiBase: string, instrument: string = "gold"): Promise<BacktestResult> {
   const prefix = instrument === "oil" ? "oil" : "gold";

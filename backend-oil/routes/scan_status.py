@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from backend.execution import get_current_price, get_candles
 from backend.db import execute
 from config import ALPHA_SWEEP
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import re
 
 router = APIRouter()
@@ -86,6 +86,18 @@ def get_scan_status():
     )
     trade_count = trades_today[0]["cnt"] if trades_today else 0
 
+    # Determine sweep status
+    sweep_status = "WAITING"
+    if sweep_detected and sweep_info:
+        sweep_time = _parse_ts(sweep_info["time"])
+        window_end = sweep_time + timedelta(hours=cfg.get("engulfing_window_hours", 2))
+        if trade_count > 0:
+            sweep_status = "TRADED"
+        elif now > window_end:
+            sweep_status = "EXPIRED"
+        else:
+            sweep_status = "ACTIVE"
+
     daily = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
     bias = "neutral"
     if len(daily) >= 2:
@@ -93,6 +105,19 @@ def get_scan_status():
         mc = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
         mo = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
         bias = "bullish" if mc > mo else "bearish"
+
+    # Compute skip reasons
+    skip_reasons = []
+    if sweep_detected and sweep_info:
+        sweep_dir = sweep_info["direction"]
+        if sweep_dir != bias and bias != "neutral":
+            skip_reasons.append("bias_mismatch")
+        if sweep_status == "EXPIRED":
+            skip_reasons.append("expired")
+        if trade_count >= cfg["max_trades_per_day"]:
+            skip_reasons.append("max_trades")
+        if not scan_active:
+            skip_reasons.append("outside_window")
 
     return {
         "scan_active": scan_active,
@@ -109,9 +134,11 @@ def get_scan_status():
         "proximity_pct": round(proximity_pct, 1),
         "sweep_direction": sweep_direction,
         "sweep_detected": sweep_detected,
+        "sweep_status": sweep_status,
         "sweep_info": sweep_info,
         "daily_bias": bias,
         "trades_today": trade_count,
         "max_trades_per_day": cfg["max_trades_per_day"],
         "utc_time": now.strftime("%H:%M:%S"),
+        "skip_reasons": skip_reasons,
     }

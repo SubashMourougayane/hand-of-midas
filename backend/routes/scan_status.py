@@ -148,6 +148,19 @@ def get_scan_status():
         else:
             bias = "bullish" if mid_close > mid_open else "bearish"
 
+    # Compute skip reasons — why a detected sweep won't trade
+    skip_reasons = []
+    if sweep_detected and sweep_info:
+        sweep_dir = sweep_info["direction"]
+        if sweep_dir != bias and bias != "neutral":
+            skip_reasons.append("bias_mismatch")
+        if sweep_status == "EXPIRED":
+            skip_reasons.append("expired")
+        if trade_count >= cfg["max_trades_per_day"]:
+            skip_reasons.append("max_trades")
+        if not scan_active:
+            skip_reasons.append("outside_window")
+
     result = {
         "scan_active": scan_active,
         "tradeable": tradeable,
@@ -169,6 +182,7 @@ def get_scan_status():
         "trades_today": trade_count,
         "max_trades_per_day": cfg["max_trades_per_day"],
         "utc_time": now.strftime("%H:%M:%S"),
+        "skip_reasons": skip_reasons,
     }
 
     return result

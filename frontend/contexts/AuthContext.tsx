@@ -3,8 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-const API_BASE = typeof window !== "undefined" && window.location.hostname !== "localhost"
-  ? "" : "http://localhost:5053";
+const API_BASE = "";
 
 interface User {
   id: string;

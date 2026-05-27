@@ -19,11 +19,13 @@ interface ScanStatus {
   proximity_pct: number;
   sweep_direction: string;
   sweep_detected: boolean;
+  sweep_status: string;
   sweep_info: string | null;
   daily_bias: string;
   trades_today: number;
   max_trades_per_day: number;
   utc_time: string;
+  skip_reasons?: string[];
 }
 
 interface LiveState {
@@ -102,7 +104,7 @@ export default function LivePage() {
             {/* Price + Account Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">XAU/USD</div>
+                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">{instrument === "oil" ? "BCO/USD" : "XAU/USD"}</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">
                   {state.price ? `$${state.price.mid.toFixed(2)}` : "—"}
                 </div>
@@ -113,17 +115,17 @@ export default function LivePage() {
               <div className="t-panel p-3">
                 <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Account NAV</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">
-                  £{state.account?.nav?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
+                  {state.account?.currency === "GBP" ? "£" : "$"}{state.account?.nav?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
                 </div>
                 <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"} USD | Rate: {state.account?.gbp_usd_rate?.toFixed(4) || "—"}
+                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"} USD{state.account?.currency === "GBP" ? ` | Rate: ${state.account?.gbp_usd_rate?.toFixed(4)}` : ""}
                 </div>
               </div>
               <div className="t-panel p-3">
                 <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Open Positions</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">{state.db_positions?.length || 0}</div>
                 <div className="text-[10px] mt-0.5" style={{ color: (state.account?.unrealized_pl || 0) >= 0 ? "#00e87b" : "#ff3e3e" }}>
-                  {(state.account?.unrealized_pl || 0) !== 0 ? `Unrealized: £${state.account.unrealized_pl.toFixed(2)}` : "No positions"}
+                  {(state.account?.unrealized_pl || 0) !== 0 ? `Unrealized: ${state.account?.currency === "GBP" ? "£" : "$"}${state.account.unrealized_pl.toFixed(2)}` : "No positions"}
                 </div>
               </div>
               <div className="t-panel p-3">
@@ -136,7 +138,7 @@ export default function LivePage() {
                       (state.dd_state?.consecutive_losses || 0) >= 3 ? "HALVED" : `${state.dd_state?.consecutive_losses || 0} losses`}
                 </div>
                 <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  Streak: {state.dd_state?.consecutive_losses || 0} | Equity: ${(state.dd_state?.equity || 0).toFixed(0)}
+                  Streak: {state.dd_state?.consecutive_losses || 0} | Equity: ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
                 </div>
               </div>
             </div>
@@ -589,6 +591,7 @@ function SweepProximity() {
     : 50 - (scan.proximity_pct / 100) * 50;  // bullish = left side (0-50%)
 
   // Asia range markers within gauge
+  const totalRange = scan.bearish_sweep_level - scan.bullish_sweep_level;
   const asiaLowPct = totalRange > 0
     ? ((scan.asia_low - scan.bullish_sweep_level) / totalRange) * 100
     : 20;
@@ -621,10 +624,26 @@ function SweepProximity() {
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Sweep Proximity</h2>
         <div className="flex items-center gap-2">
-          {scan.sweep_detected && (
+          {scan.sweep_detected && (() => {
+            const status = scan.sweep_status || "ACTIVE";
+            const statusStyle = status === "ACTIVE"
+              ? { bg: "#00e87b20", color: "#00e87b", border: "#00e87b", anim: "sweepFlash 0.8s ease-in-out infinite alternate" }
+              : status === "EXPIRED"
+              ? { bg: "#9ca3b415", color: "#9ca3b4", border: "#9ca3b440", anim: "none" }
+              : status === "TRADED"
+              ? { bg: "#4fc3f720", color: "#4fc3f7", border: "#4fc3f7", anim: "none" }
+              : { bg: "#ff3e3e20", color: "#ff3e3e", border: "#ff3e3e", anim: "sweepFlash 0.8s ease-in-out infinite alternate" };
+            return (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded"
+                style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, animation: statusStyle.anim }}>
+                SWEEP {status} ({scan.sweep_direction.toUpperCase()})
+              </span>
+            );
+          })()}
+          {scan.skip_reasons && scan.skip_reasons.length > 0 && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-              style={{ background: "#ff3e3e20", color: "#ff3e3e", border: "1px solid #ff3e3e", animation: "sweepFlash 0.8s ease-in-out infinite alternate" }}>
-              SWEEP DETECTED ({scan.sweep_direction.toUpperCase()})
+              style={{ background: "#ffd54f20", color: "#ffd54f", border: "1px solid #ffd54f40" }}>
+              SKIP: {scan.skip_reasons.join(", ")}
             </span>
           )}
           <span className="text-[9px] text-[var(--text-dim)]">UTC {scan.utc_time}</span>
@@ -695,12 +714,20 @@ function SweepProximity() {
         <div className="w-full flex-1 grid grid-cols-2 gap-3">
           <div className="p-2 rounded" style={{ background: "#0d1017" }}>
             <div className="text-[8px] text-[var(--text-dim)] uppercase">Bearish Sweep</div>
-            <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>${Math.abs(scan.dist_to_bearish).toFixed(1)} away</div>
+            <div className="text-sm font-bold" style={{ color: "#ff3e3e" }}>
+              {scan.dist_to_bearish <= 0
+                ? <><span className="text-[9px] opacity-70">SWEPT</span> ${Math.abs(scan.dist_to_bearish).toFixed(1)} past</>
+                : `$${scan.dist_to_bearish.toFixed(1)} away`}
+            </div>
             <div className="text-[8px] text-[var(--text-dim)]">Need &gt;${scan.bearish_sweep_level.toFixed(0)}</div>
           </div>
           <div className="p-2 rounded" style={{ background: "#0d1017" }}>
             <div className="text-[8px] text-[var(--text-dim)] uppercase">Bullish Sweep</div>
-            <div className="text-sm font-bold" style={{ color: "#00e87b" }}>${Math.abs(scan.dist_to_bullish).toFixed(1)} away</div>
+            <div className="text-sm font-bold" style={{ color: "#00e87b" }}>
+              {scan.dist_to_bullish <= 0
+                ? <><span className="text-[9px] opacity-70">SWEPT</span> ${Math.abs(scan.dist_to_bullish).toFixed(1)} past</>
+                : `$${scan.dist_to_bullish.toFixed(1)} away`}
+            </div>
             <div className="text-[8px] text-[var(--text-dim)]">Need &lt;${scan.bullish_sweep_level.toFixed(0)}</div>
           </div>
           <div className="p-2 rounded" style={{ background: "#0d1017" }}>
@@ -720,8 +747,12 @@ function SweepProximity() {
           </div>
           <div className="p-2 rounded" style={{ background: "#0d1017" }}>
             <div className="text-[8px] text-[var(--text-dim)] uppercase">Sweep Status</div>
-            <div className="text-sm font-bold" style={{ color: scan.sweep_detected ? "#ff3e3e" : "#5b6370" }}>
-              {scan.sweep_detected ? "DETECTED" : "WAITING"}
+            <div className="text-sm font-bold" style={{ color:
+              scan.sweep_status === "ACTIVE" ? "#00e87b" :
+              scan.sweep_status === "TRADED" ? "#4fc3f7" :
+              scan.sweep_status === "EXPIRED" ? "#9ca3b4" : "#5b6370"
+            }}>
+              {scan.sweep_status || (scan.sweep_detected ? "DETECTED" : "WAITING")}
             </div>
           </div>
         </div>
