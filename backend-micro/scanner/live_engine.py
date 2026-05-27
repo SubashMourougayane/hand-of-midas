@@ -50,16 +50,15 @@ def _get_dd_state() -> dict:
     if rows:
         return dict(rows[0])
     execute(
-        f"INSERT INTO gd_dd_state (id, consecutive_losses, pause_counter, equity, peak_equity) VALUES ({DD_STATE_ID}, 0, 0, 10000, 10000) ON CONFLICT (id) DO NOTHING"
+        f"INSERT INTO gd_dd_state (id, consecutive_losses, pause_counter) VALUES ({DD_STATE_ID}, 0, 0) ON CONFLICT (id) DO NOTHING"
     )
-    return {"id": DD_STATE_ID, "consecutive_losses": 0, "pause_counter": 0, "equity": 10000, "peak_equity": 10000}
+    return {"id": DD_STATE_ID, "consecutive_losses": 0, "pause_counter": 0}
 
 
-def _update_dd_state(consecutive_losses: int, pause_counter: int, equity: float, peak_equity: float):
+def _update_dd_state(consecutive_losses: int, pause_counter: int):
     execute(
-        f"""UPDATE gd_dd_state SET consecutive_losses=%s, pause_counter=%s, equity=%s, peak_equity=%s, updated_at=NOW()
-           WHERE id={DD_STATE_ID}""",
-        (consecutive_losses, pause_counter, equity, peak_equity)
+        f"UPDATE gd_dd_state SET consecutive_losses=%s, pause_counter=%s, updated_at=NOW() WHERE id={DD_STATE_ID}",
+        (consecutive_losses, pause_counter)
     )
 
 
@@ -70,20 +69,21 @@ def _should_skip(dd_state: dict) -> Optional[str]:
     return None
 
 
-def _get_risk_multiplier(dd_state: dict) -> float:
+def _get_risk_multiplier(dd_state: dict, nav_usd: float) -> float:
+    """Half risk after 3 consecutive losses OR if account is declining."""
     mult = 1.0
     if dd_state["consecutive_losses"] >= DD_PROTECTION["half_after_consecutive"]:
         mult = 0.5
+    # Equity MA: compare live NAV against average of last 20 trade exits
     rows = execute(
         f"SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY exit_time DESC LIMIT 20",
         fetch=True
     )
     if len(rows) >= 20:
         cumulative_pnl = sum(float(r["pnl_usd"] or 0) for r in rows)
-        current_eq = float(dd_state["equity"])
-        equity_20_ago = current_eq - cumulative_pnl
-        equity_ma = (equity_20_ago + current_eq) / 2
-        if current_eq < equity_ma:
+        equity_20_ago = nav_usd - cumulative_pnl
+        equity_ma = (equity_20_ago + nav_usd) / 2
+        if nav_usd < equity_ma:
             mult *= 0.5
     return mult
 
@@ -116,14 +116,14 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         print(f"  [MICRO] Signal SKIPPED: {skip_reason}")
         return None
 
-    risk_mult = _get_risk_multiplier(dd_state)
     risk_pct = STRATEGY_RISK.get(strategy, 4.0)
     acct = get_account_summary()
     if not acct or "error" in acct:
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="account_summary_failed")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
         return None
-    equity_usd = acct.get("nav_usd", acct.get("nav", float(dd_state["equity"])))
+    equity_usd = acct.get("nav_usd", acct.get("nav", 10000))
+    risk_mult = _get_risk_multiplier(dd_state, equity_usd)
 
     sl_distance = abs(entry_price - sl_price)
     if sl_distance <= 0:
@@ -211,7 +211,7 @@ def check_open_positions():
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
                             (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
-                        _update_dd_after_exit(realized_pl, pnl_usd)
+                        _update_dd_after_exit(realized_pl)
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", result["close_price"], {
                             "reason": "MAX_HOLD", "bars_held": int(bars_held), "pnl_usd": pnl_usd,
                         })
@@ -247,7 +247,7 @@ def check_open_positions():
                 (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
             )
 
-            _update_dd_after_exit(realized_pl, pnl_usd)
+            _update_dd_after_exit(realized_pl)
             _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
                 "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
             })
@@ -255,17 +255,16 @@ def check_open_positions():
             print(f"  [MICRO] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${pnl_usd:.2f}")
 
 
-def _update_dd_after_exit(realized_pl_gbp: float, pnl_usd: float):
+def _update_dd_after_exit(realized_pl_gbp: float):
     dd_state = _get_dd_state()
     if realized_pl_gbp > 0:
         new_consecutive = 0
     else:
         new_consecutive = dd_state["consecutive_losses"] + 1
-        if new_consecutive >= DD_PROTECTION["consecutive_loss_pause"]:
-            execute(f"UPDATE gd_dd_state SET pause_counter = {DD_PROTECTION['pause_signals']} WHERE id = {DD_STATE_ID}")
-    new_equity = float(dd_state["equity"]) + pnl_usd
-    new_peak = max(float(dd_state["peak_equity"]), new_equity)
-    _update_dd_state(new_consecutive, dd_state["pause_counter"], new_equity, new_peak)
+    new_pause = dd_state["pause_counter"]
+    if new_consecutive >= DD_PROTECTION["consecutive_loss_pause"]:
+        new_pause = DD_PROTECTION["pause_signals"]
+    _update_dd_state(new_consecutive, new_pause)
 
 
 def check_alpha_sweep_breakeven():
