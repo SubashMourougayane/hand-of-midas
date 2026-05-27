@@ -591,14 +591,24 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
     );
   }
 
-  // Gauge is "stale" when sweep already resolved — dim everything
+  // Determine gauge mode
   const isGaugeStale = scan.sweep_status === "EXPIRED" || scan.sweep_status === "TRADED";
+  const isSweepActive = scan.sweep_detected && scan.sweep_status === "ACTIVE";
+  // Price is past a level but no sweep pattern formed (just drifted out)
+  const isOutsideRange = !scan.sweep_detected && scan.proximity_pct >= 100;
 
-  // Calculate gauge position (0% = full bullish side, 100% = full bearish side)
-  // Use proximity_pct from API which correctly handles "past sweep" cases
-  const clampedPosition = scan.sweep_direction === "bearish"
-    ? 50 + (scan.proximity_pct / 100) * 50   // bearish = right side (50-100%)
-    : 50 - (scan.proximity_pct / 100) * 50;  // bullish = left side (0-50%)
+  // Gauge position: where the needle sits (0-100%)
+  // Inside range: show actual position proportional to proximity
+  // Outside range: pin at 50% center (neutral — not meaningful to show extreme)
+  // Sweep active: show at extreme (sweep IS happening)
+  let clampedPosition: number;
+  if (isOutsideRange) {
+    clampedPosition = 50; // center — neutral, waiting
+  } else if (scan.sweep_direction === "bearish") {
+    clampedPosition = 50 + (scan.proximity_pct / 100) * 50;
+  } else {
+    clampedPosition = 50 - (scan.proximity_pct / 100) * 50;
+  }
 
   // Asia range markers within gauge
   const totalRange = scan.bearish_sweep_level - scan.bullish_sweep_level;
@@ -609,24 +619,31 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
     ? ((scan.asia_high - scan.bullish_sweep_level) / totalRange) * 100
     : 80;
 
-  // Dot color follows arc gradient at needle position (matches visual)
-  // Arc: 0%=green, 40%=green, 60%=yellow, 80%=orange, 100%=red
+  // Dot color based on gauge mode
   let dotColor: string;
+  let gaugeLabel = "";
   if (isGaugeStale) {
-    dotColor = "#5b6370"; // gray when stale
+    dotColor = "#5b6370";
+    gaugeLabel = scan.sweep_status === "TRADED" ? "TRADED" : "EXPIRED";
+  } else if (isOutsideRange) {
+    dotColor = "#9ca3b4"; // gray — price drifted out, no setup
+    gaugeLabel = scan.sweep_direction === "bullish" ? "BELOW RANGE" : "ABOVE RANGE";
+  } else if (isSweepActive) {
+    dotColor = "#00e87b"; // green — sweep active, looking for engulfing
+    gaugeLabel = "SWEEP LIVE";
   } else if (clampedPosition <= 20 || clampedPosition >= 80) {
-    dotColor = clampedPosition >= 80 ? "#ff3e3e" : "#00e87b"; // at extremes
-  } else if (clampedPosition <= 40 || clampedPosition >= 60) {
-    dotColor = clampedPosition >= 60 ? "#ff8c00" : "#00e87b"; // approaching
+    dotColor = clampedPosition >= 80 ? "#ff3e3e" : "#00e87b";
+  } else if (clampedPosition <= 35 || clampedPosition >= 65) {
+    dotColor = clampedPosition >= 65 ? "#ff8c00" : "#00e87b";
   } else {
-    dotColor = "#ffd54f"; // center = yellow (between sweeps)
+    dotColor = "#ffd54f"; // center = safe inside range
   }
 
-  // Only pulse when actively near a sweep AND gauge is live
+  // Pulse only during active sweep or very close to level
   const distBearish = Math.abs(scan.dist_to_bearish);
   const distBullish = Math.abs(scan.dist_to_bullish);
   const closestDist = Math.min(distBearish, distBullish);
-  const shouldPulse = !isGaugeStale && closestDist <= 5 && scan.sweep_status === "ACTIVE";
+  const shouldPulse = isSweepActive || (!isGaugeStale && !isOutsideRange && closestDist <= 5);
 
   // Bias badge color
   const biasColor = scan.daily_bias === "bullish" ? "#00e87b" : scan.daily_bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
@@ -668,7 +685,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
 
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
         {/* Semicircle Speedometer */}
-        <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0, opacity: isGaugeStale ? 0.4 : 1, transition: "opacity 0.5s" }}>
+        <div style={{ position: "relative", width: "220px", height: "130px", flexShrink: 0, opacity: isGaugeStale ? 0.35 : isOutsideRange ? 0.6 : 1, transition: "opacity 0.5s" }}>
           {/* SVG semicircle arc */}
           <svg viewBox="0 0 200 110" style={{ width: "100%", height: "100%" }}>
             {/* Background arc */}
@@ -725,11 +742,16 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
             <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" ? "BCO/USD" : "XAU/USD"}</div>
           </div>
 
-          {/* Stale overlay label */}
-          {isGaugeStale && (
+          {/* Gauge status label */}
+          {gaugeLabel && (
             <div style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
-              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#1a1f2b", color: "#5b6370", border: "1px solid #333" }}>
-                {scan.sweep_status === "TRADED" ? "TRADED" : "EXPIRED"}
+              <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
+                background: isSweepActive ? "#00e87b15" : "#1a1f2b",
+                color: isSweepActive ? "#00e87b" : isOutsideRange ? "#9ca3b4" : "#5b6370",
+                border: `1px solid ${isSweepActive ? "#00e87b40" : "#333"}`,
+                animation: isSweepActive ? "sweepFlash 0.8s ease-in-out infinite alternate" : "none",
+              }}>
+                {gaugeLabel}
               </span>
             </div>
           )}
