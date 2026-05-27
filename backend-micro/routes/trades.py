@@ -1,5 +1,5 @@
 """Micro Trades API."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -7,6 +7,8 @@ from backend.db import execute
 from config import TRADE_REF_PREFIX
 
 router = APIRouter()
+
+MICRO_STRATEGIES_FILTER = ["micro_alpha_sweep"]
 
 
 @router.get("/trades")
@@ -31,3 +33,23 @@ def get_trades():
         }
         for t in (rows or [])
     ]
+
+
+@router.get("/trades/backtest")
+def get_backtest_trades(limit: int = Query(default=2000)):
+    """Load backtest trades from latest Micro run."""
+    try:
+        runs = execute(
+            "SELECT id FROM gd_backtest_runs WHERE is_latest = TRUE AND strategies @> %s ORDER BY created_at DESC LIMIT 1",
+            (MICRO_STRATEGIES_FILTER,), fetch=True
+        )
+        if not runs:
+            return {"trades": [], "message": "No backtest results in DB. Run a backtest first from the Backtest page."}
+        run_id = runs[0]["id"]
+        trades = execute(
+            "SELECT * FROM gd_backtest_trades WHERE run_id = %s ORDER BY trade_index LIMIT %s",
+            (run_id, limit), fetch=True
+        )
+        return {"trades": [dict(t) for t in trades]}
+    except Exception:
+        return {"trades": [], "message": "No backtest results in DB. Run a backtest first from the Backtest page."}
