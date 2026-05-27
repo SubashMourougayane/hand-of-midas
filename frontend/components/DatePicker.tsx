@@ -70,13 +70,24 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
 
       {open && (
         <div className="absolute top-full left-0 mt-1 z-50 w-[320px] bg-[var(--panel)] border border-[var(--border)] shadow-2xl shadow-black/50 p-4">
-          {/* Month/Year header */}
+          {/* Year nav */}
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <button onClick={() => setViewYear(viewYear - 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[#1a2030]">
+              ‹‹ {viewYear - 1}
+            </button>
+            <span className="text-[10px] font-bold text-[var(--green)]">{viewYear}</span>
+            <button onClick={() => setViewYear(viewYear + 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[#1a2030]">
+              {viewYear + 1} ››
+            </button>
+          </div>
+
+          {/* Month nav */}
           <div className="flex items-center justify-between mb-4">
             <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)]">
               <ChevronLeft size={14} />
             </button>
             <span className="text-xs font-bold tracking-widest text-[var(--text)]">
-              {monthNames[viewMonth]} {viewYear}
+              {monthNames[viewMonth]}
             </span>
             <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)]">
               <ChevronRight size={14} />
