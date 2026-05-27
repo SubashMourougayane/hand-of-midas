@@ -294,15 +294,20 @@ def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, du
 def _compute_sessions(trades, months_span):
     """Classify trades by session based on entry hour (UTC)."""
     import re
+    from datetime import datetime as dt
     session_data = {"asian": [], "london": [], "overlap": [], "newyork": []}
     for t in trades:
         try:
-            date_str = str(t["date"]) if isinstance(t, dict) else str(t.date)
-            # Extract hour from various formats: "2019-01-02T09:15:00+00:00", "2019-01-02 09:15:00", etc.
-            match = re.search(r'(\d{4}-\d{2}-\d{2})[T ](\d{2}):', date_str)
-            if not match:
-                continue
-            h = int(match.group(2))
+            date_val = t["date"] if isinstance(t, dict) else t.date
+            # Handle datetime objects (psycopg2 may auto-convert)
+            if hasattr(date_val, 'hour'):
+                h = date_val.hour
+            else:
+                date_str = str(date_val)
+                match = re.search(r'[T ](\d{2}):', date_str)
+                if not match:
+                    continue
+                h = int(match.group(1))
         except:
             continue
         pnl = float(t["pnl_sized"]) if isinstance(t, dict) else t.pnl_sized
