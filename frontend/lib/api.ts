@@ -104,7 +104,7 @@ export async function runBacktest(
     const reader = res.body?.getReader();
     if (!reader) throw new Error("No response body");
     const decoder = new TextDecoder();
-    let finalResult: BacktestResult | null = null;
+    let completed = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -117,8 +117,8 @@ export async function runBacktest(
             const payload = JSON.parse(line.slice(6));
             if (payload.type === "progress" && onProgress) {
               onProgress(payload.message);
-            } else if (payload.type === "result") {
-              finalResult = payload.data;
+            } else if (payload.type === "done") {
+              completed = true;
             } else if (payload.type === "error") {
               throw new Error(payload.message);
             }
@@ -127,9 +127,13 @@ export async function runBacktest(
           }
         }
       }
+      if (completed) break;
     }
-    if (!finalResult) throw new Error("Backtest stream ended without result");
-    return finalResult;
+    if (!completed) throw new Error("Backtest stream ended without completion");
+    // Load full result from DB
+    const latest = await getLatestBacktest(apiBase, instrument);
+    if (!latest) throw new Error("Backtest completed but results not found in DB");
+    return latest as unknown as BacktestResult;
   }
 
   return res.json();

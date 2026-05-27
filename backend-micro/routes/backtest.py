@@ -180,9 +180,9 @@ async def api_backtest(req: BacktestRequest):
                 yield f"data: {json.dumps({'type': 'progress', 'message': msg})}\n\n"
                 last_idx += 1
 
-            # Send final result
+            # Send completion signal (frontend loads full data from /backtest/latest)
             if run["status"] == "done":
-                yield f"data: {json.dumps({'type': 'result', 'data': run['result']}, default=str)}\n\n"
+                yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 break
             elif run["status"] == "error":
                 yield f"data: {json.dumps({'type': 'error', 'message': run['progress'][-1] if run['progress'] else 'Unknown error'})}\n\n"
