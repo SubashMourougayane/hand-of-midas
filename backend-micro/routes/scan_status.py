@@ -71,7 +71,7 @@ def get_scan_status():
 
     def _hour_past(current: int, target: int) -> bool:
         diff = (current - target) % 24
-        return 0 < diff < 22
+        return 0 < diff <= 12
 
     close_start = cfg.get("market_close_start", 21)
     close_end = cfg.get("market_close_end", 22)

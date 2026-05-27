@@ -76,11 +76,10 @@ def _hours_in_range(start: int, end: int) -> set:
 
 def _hour_past(current: int, target: int) -> bool:
     """Check if current hour is past target, handling midnight wrap.
-    'Past' means: target has already occurred in the current day cycle.
-    We use a 22-hour window: if current is within 22 hours ahead of target, it's past.
+    'Past' means target occurred recently (within last 12 hours).
     """
     diff = (current - target) % 24
-    return 0 < diff < 22
+    return 0 < diff <= 12
 
 
 def micro_sweep_job():
