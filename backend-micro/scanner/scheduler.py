@@ -1,0 +1,291 @@
+"""Micro Alpha-Sweep scheduler — rolling 4hr consolidation windows every 2 hours."""
+import numpy as np
+import pandas as pd
+from datetime import datetime, timezone, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from backend.execution import get_candles, get_current_price, get_account_summary
+from backend.db import execute
+import re
+
+from config import MICRO_ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE, DD_PROTECTION, TRADE_REF_PREFIX
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal
+
+scheduler = BackgroundScheduler(timezone="UTC")
+
+# Daily PnL tracking (resets at midnight UTC)
+_daily_state = {"date": None, "pnl": 0.0, "trades": 0}
+
+
+def _parse_ts(ts_str: str) -> datetime:
+    cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
+    return datetime.fromisoformat(cleaned)
+
+
+def _get_active_windows(now: datetime) -> list:
+    """Return all consolidation windows currently in their scan phase."""
+    cfg = MICRO_ALPHA_SWEEP
+    windows = []
+    for start_hour in range(cfg["scan_start_hour"], cfg["scan_end_hour"] - cfg["consol_hours"] + 1, cfg["scan_gap_hours"]):
+        end_hour = start_hour + cfg["consol_hours"]
+        scan_end_hour = end_hour + cfg["scan_after_hours"]
+
+        if now.hour < end_hour:
+            continue  # Consolidation not done yet
+        if now.hour >= scan_end_hour:
+            continue  # Scan window expired
+
+        windows.append({
+            "consol_start": start_hour,
+            "consol_end": end_hour,
+            "scan_until": scan_end_hour,
+        })
+    return windows
+
+
+def micro_sweep_job():
+    """Every 3 min — scan all active rolling windows for sweeps + engulfings."""
+    now = datetime.now(timezone.utc)
+    cfg = MICRO_ALPHA_SWEEP
+
+    # Reset daily state at midnight
+    global _daily_state
+    today = now.date()
+    if _daily_state["date"] != today:
+        _daily_state = {"date": today, "pnl": 0.0, "trades": 0}
+
+    # Daily max loss check
+    if DD_PROTECTION["daily_max_loss"] and _daily_state["pnl"] <= -DD_PROTECTION["daily_max_loss"]:
+        return
+
+    active_windows = _get_active_windows(now)
+    if not active_windows:
+        return
+
+    print(f"  [MICRO {now.strftime('%H:%M:%S')} UTC] Scanning {len(active_windows)} active windows...")
+
+    try:
+        _run_micro_sweep(now, active_windows)
+    except Exception as e:
+        print(f"  [MICRO] Error: {e}")
+        _log_journal("SYSTEM", "micro_alpha_sweep", "ERROR", None, {"error": str(e), "job": "micro_sweep"})
+
+
+def position_monitor_job():
+    """Every 1 min — check positions for SL/TP closures + max hold + break-even."""
+    try:
+        check_open_positions()
+        check_alpha_sweep_breakeven()
+    except Exception as e:
+        print(f"  [MICRO] Position monitor error: {e}")
+        _log_journal("SYSTEM", "micro_alpha_sweep", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+
+
+def _run_micro_sweep(now: datetime, active_windows: list):
+    """Process all active windows for sweep detection."""
+    cfg = MICRO_ALPHA_SWEEP
+    today = now.date()
+
+    # Check trades today
+    existing = execute(
+        f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s",
+        (today,), fetch=True
+    )
+    trades_today = existing[0]["cnt"] if existing else 0
+    if trades_today >= cfg["max_trades_per_day"]:
+        return
+
+    # Get H1 bars (complete only)
+    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
+    if len(h1_candles) < 6:
+        return
+
+    # Daily bias (Variant C)
+    daily_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+    if len(daily_candles) < 2:
+        return
+    yesterday = daily_candles[-2]
+    mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
+    mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
+    mid_high = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
+    mid_low = (yesterday["bid_low"] + yesterday["ask_low"]) / 2
+    prev_range = mid_high - mid_low
+    if prev_range <= 0:
+        bias = "neutral"
+    elif abs(mid_close - mid_open) / prev_range < 0.4:
+        bias = "neutral"
+    else:
+        bias = "bullish" if mid_close > mid_open else "bearish"
+
+    # Get M3 candles for engulfing detection
+    m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
+    if not m3_candles:
+        return
+
+    # Track which sweep times we've already processed (dedup across overlapping windows)
+    processed_sweeps = set()
+
+    for window in active_windows:
+        if trades_today >= cfg["max_trades_per_day"]:
+            break
+
+        # Build consolidation range from H1 bars in this window
+        consol_bars = []
+        for c in h1_candles:
+            ts = _parse_ts(c["timestamp"])
+            if ts.date() == today and window["consol_start"] <= ts.hour < window["consol_end"]:
+                c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
+                c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
+                c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
+                consol_bars.append(c)
+
+        if len(consol_bars) < 2:
+            continue
+
+        range_high = max(c["mid_high"] for c in consol_bars)
+        range_low = min(c["mid_low"] for c in consol_bars)
+        consol_range = range_high - range_low
+
+        if consol_range < cfg["min_range"]:
+            continue
+
+        # Scan bars: after consolidation, within scan window
+        scan_bars = []
+        for c in h1_candles:
+            ts = _parse_ts(c["timestamp"])
+            if ts.date() == today and window["consol_end"] <= ts.hour < window["scan_until"]:
+                c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
+                c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
+                c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
+                scan_bars.append(c)
+
+        if not scan_bars:
+            continue
+
+        # Detect sweeps
+        bearish_level = range_high + cfg["sweep_threshold"]
+        bullish_level = range_low - cfg["sweep_threshold"]
+
+        for bar in scan_bars:
+            if trades_today >= cfg["max_trades_per_day"]:
+                break
+
+            sweep_dir = None
+            sweep_wick = None
+
+            if bar["mid_high"] > bearish_level and bar["mid_close"] < range_high:
+                sweep_dir = "bearish"
+                sweep_wick = bar["mid_high"]
+            elif bar["mid_low"] < bullish_level and bar["mid_close"] > range_low:
+                sweep_dir = "bullish"
+                sweep_wick = bar["mid_low"]
+
+            if not sweep_dir:
+                continue
+
+            # Dedup: don't process same sweep bar twice across overlapping windows
+            sweep_key = f"{bar['timestamp']}_{sweep_dir}"
+            if sweep_key in processed_sweeps:
+                continue
+            processed_sweeps.add(sweep_key)
+
+            # Bias filter
+            if bias != "neutral":
+                if sweep_dir == "bullish" and bias != "bullish":
+                    continue
+                if sweep_dir == "bearish" and bias != "bearish":
+                    continue
+
+            # Find engulfing in M3 candles
+            sweep_time = _parse_ts(bar["timestamp"])
+            window_end = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
+
+            relevant_m3 = []
+            for c in m3_candles:
+                ts = _parse_ts(c["timestamp"])
+                if sweep_time < ts <= window_end:
+                    relevant_m3.append(c)
+
+            if len(relevant_m3) < 3:
+                continue
+
+            for j in range(2, len(relevant_m3)):
+                c = relevant_m3[j]
+                prev = relevant_m3[j - 1]
+
+                co = (c["bid_open"] + c["ask_open"]) / 2
+                cc = (c["bid_close"] + c["ask_close"]) / 2
+                po = (prev["bid_open"] + prev["ask_open"]) / 2
+                pc = (prev["bid_close"] + prev["ask_close"]) / 2
+
+                ct, cb = max(co, cc), min(co, cc)
+                pt, pb = max(po, pc), min(po, pc)
+
+                tol = ENGULFING_TOLERANCE
+                if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
+                    continue
+                if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
+                    continue
+
+                # Engulfing confirmed — calculate entry
+                br = (c["ask_high"] + c["bid_high"]) / 2 - (c["ask_low"] + c["bid_low"]) / 2
+
+                if sweep_dir == "bullish":
+                    entry = c["ask_close"] + slippage(br)
+                    sl = sweep_wick - cfg["sl_buffer"]
+                    risk = entry - sl
+                    if risk < cfg["min_sl"]:
+                        sl = entry - cfg["min_sl"]
+                        risk = cfg["min_sl"]
+                    if risk < 0.3 or risk > consol_range * 0.8:
+                        continue
+                    tp = entry + consol_range * cfg["tp_multiplier"]
+                    if tp - entry < risk * 0.8:
+                        continue
+                    direction = "long"
+                else:
+                    entry = c["bid_close"] - slippage(br)
+                    sl = sweep_wick + cfg["sl_buffer"]
+                    risk = sl - entry
+                    if risk < cfg["min_sl"]:
+                        sl = entry + cfg["min_sl"]
+                        risk = cfg["min_sl"]
+                    if risk < 0.3 or risk > consol_range * 0.8:
+                        continue
+                    tp = entry - consol_range * cfg["tp_multiplier"]
+                    if entry - tp < risk * 0.8:
+                        continue
+                    direction = "short"
+
+                # Execute
+                trade_ref = execute_signal(
+                    strategy="micro_alpha_sweep",
+                    direction=direction,
+                    entry_price=entry,
+                    sl_price=sl,
+                    tp_price=tp,
+                    context={
+                        "range_high": range_high, "range_low": range_low,
+                        "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
+                        "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                    },
+                    daily_pnl=_daily_state["pnl"],
+                )
+                if trade_ref:
+                    trades_today += 1
+                    _daily_state["trades"] += 1
+                break  # One engulfing per sweep
+
+
+def start_scheduler():
+    scheduler.add_job(micro_sweep_job, "cron", minute="*/3", id="micro_sweep_poll")
+    scheduler.add_job(position_monitor_job, "cron", minute="*", id="micro_position_monitor")
+    scheduler.start()
+    print("Micro scheduler started: Rolling window sweep poll (every 3 min) + Position monitor (every 1 min)")
+
+
+def stop_scheduler():
+    scheduler.shutdown(wait=False)

@@ -52,7 +52,7 @@ export default function LivePage() {
     setState(null);
     setScan(null);
     sseConnected.current = false;
-    const prefix = instrument === "oil" ? "oil" : "gold";
+    const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
     // SSE must bypass Next.js proxy (it buffers streaming responses)
     const sseBase = typeof window !== "undefined" && window.location.hostname === "localhost"
       ? "https://midas.subashtrades.in"

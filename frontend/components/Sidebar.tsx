@@ -18,6 +18,7 @@ export default function Sidebar() {
   const { instrument, setInstrument } = useInstrument();
   const { logout } = useAuth();
   const [goldOpen, setGoldOpen] = useState(true);
+  const [microOpen, setMicroOpen] = useState(true);
   const [oilOpen, setOilOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -42,7 +43,7 @@ export default function Sidebar() {
         🤚 MIDAS
       </div>
 
-      {/* GoldDigger Section */}
+      {/* Gold Macro Section */}
       <div className="mb-3">
         <button
           onClick={() => setGoldOpen(!goldOpen)}
@@ -50,7 +51,7 @@ export default function Sidebar() {
         >
           {goldOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span>⛏️</span>
-          <span>GOLDDIGGER</span>
+          <span>GOLD MACRO</span>
         </button>
         {goldOpen && (
           <div className="ml-5 border-l border-[var(--border)] pl-3 mt-1">
@@ -61,6 +62,35 @@ export default function Sidebar() {
                   onClick={() => setInstrument("gold")}
                   className={`flex items-center gap-2.5 px-2 py-2 text-xs transition-colors ${
                     active ? "text-[#e8c300] bg-[#e8c30015]" : "text-[var(--text-dim)] hover:text-[var(--text)]"
+                  }`}>
+                  <item.icon size={14} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Gold Micro Section */}
+      <div className="mb-3">
+        <button
+          onClick={() => setMicroOpen(!microOpen)}
+          className="w-full flex items-center gap-2 px-1 py-2 text-sm font-bold transition-colors text-[#ff8c00] hover:text-[#ffa040]"
+        >
+          {microOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span>⚡</span>
+          <span>GOLD MICRO</span>
+        </button>
+        {microOpen && (
+          <div className="ml-5 border-l border-[var(--border)] pl-3 mt-1">
+            {PAGES.map((item) => {
+              const active = path === item.href && instrument === "micro";
+              return (
+                <Link key={`micro-${item.href}`} href={item.href}
+                  onClick={() => setInstrument("micro")}
+                  className={`flex items-center gap-2.5 px-2 py-2 text-xs transition-colors ${
+                    active ? "text-[#ff8c00] bg-[#ff8c0015]" : "text-[var(--text-dim)] hover:text-[var(--text)]"
                   }`}>
                   <item.icon size={14} />
                   {item.label}

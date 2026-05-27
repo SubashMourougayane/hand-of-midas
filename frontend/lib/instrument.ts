@@ -1,10 +1,11 @@
 "use client";
 import { createContext, useContext } from "react";
 
-export type Instrument = "gold" | "oil";
+export type Instrument = "gold" | "micro" | "oil";
 
 export const INSTRUMENTS = {
-  gold: { label: "GOLD", api: "", color: "#e8c300", symbol: "XAU/USD" },
+  gold: { label: "GOLD MACRO", api: "", color: "#e8c300", symbol: "XAU/USD" },
+  micro: { label: "GOLD MICRO", api: "", color: "#ff8c00", symbol: "XAU/USD" },
   oil: { label: "OIL", api: "", color: "#4fc3f7", symbol: "BCO/USD" },
 };
 

@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         destination: `${process.env.NODE_ENV === "production" ? "http://localhost:5054" : "https://midas.subashtrades.in"}/api/oil/:path*`,
       },
       {
+        source: "/api/micro/:path*",
+        destination: `${process.env.NODE_ENV === "production" ? "http://localhost:5055" : "https://midas.subashtrades.in"}/api/micro/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${apiTarget}/api/:path*`,
       },
