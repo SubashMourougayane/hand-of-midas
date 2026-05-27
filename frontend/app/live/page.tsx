@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
@@ -46,13 +46,17 @@ export default function LivePage() {
   const [error, setError] = useState("");
   const [lastUpdate, setLastUpdate] = useState("");
 
+  const sseConnected = useRef(false);
+
   useEffect(() => {
     setState(null);
     setScan(null);
+    sseConnected.current = false;
     const prefix = instrument === "oil" ? "oil" : "gold";
     const url = `${apiBase}/api/${prefix}/stream`;
     let es: EventSource | null = null;
     let fallbackInterval: NodeJS.Timeout | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
     const connectSSE = () => {
       es = new EventSource(url);
@@ -63,22 +67,22 @@ export default function LivePage() {
           if (data.scan) setScan(data.scan);
           setLastUpdate(new Date().toLocaleTimeString());
           setError("");
+          sseConnected.current = true;
         } catch {}
       };
       es.onerror = () => {
+        sseConnected.current = false;
         setError("Stream disconnected, reconnecting...");
         es?.close();
-        // Reconnect after 3s
-        setTimeout(connectSSE, 3000);
+        reconnectTimeout = setTimeout(connectSSE, 3000);
       };
     };
 
-    // Start SSE connection
     connectSSE();
 
-    // Fallback poll every 30s in case SSE fails silently
+    // Fallback poll only if SSE hasn't delivered data
     const fallbackFetch = async () => {
-      if (state && scan) return; // SSE working, skip
+      if (sseConnected.current) return;
       try {
         const [stateRes, scanRes] = await Promise.all([
           fetch(`${apiBase}/api/${prefix}/state`),
@@ -93,12 +97,13 @@ export default function LivePage() {
       } catch {}
     };
     fallbackInterval = setInterval(fallbackFetch, 30000);
-    // Also fetch once immediately for fast first load
+    // Initial fetch for fast first paint (SSE takes ~5s for first push)
     fallbackFetch();
 
     return () => {
       es?.close();
       if (fallbackInterval) clearInterval(fallbackInterval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instrument]);
