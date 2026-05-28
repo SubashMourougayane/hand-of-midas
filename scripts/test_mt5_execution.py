@@ -27,11 +27,14 @@ if not connected:
     print("  FAIL: DWX not connected. Is the EA running?")
     sys.exit(1)
 
-# Step 2: Get price
+# Step 2: Get price (retry once if DWX file is mid-write)
 print("\n[2/6] Getting current XAU_USD price...")
 price = get_current_price(instrument="XAU_USD")
 if not price:
-    print("  FAIL: No price data")
+    time.sleep(1)
+    price = get_current_price(instrument="XAU_USD")
+if not price:
+    print("  FAIL: No price data (DWX file empty). Is EA running on XAU chart?")
     sys.exit(1)
 print(f"  Bid: {price['bid']}, Ask: {price['ask']}, Spread: {price['spread']:.2f}")
 
