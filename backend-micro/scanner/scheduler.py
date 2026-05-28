@@ -164,9 +164,10 @@ def _run_micro_sweep(now: datetime, active_windows: list):
 
     # Track which sweep times we've already processed (dedup across overlapping windows)
     processed_sweeps = set()
+    trade_placed_this_cycle = False
 
     for window in active_windows:
-        if trades_today >= cfg["max_trades_per_day"]:
+        if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
             break
 
         # Build consolidation range from H1 bars in this window (handles midnight wrap)
@@ -316,7 +317,13 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                 if trade_ref:
                     trades_today += 1
                     _daily_state["trades"] += 1
+                    trade_placed_this_cycle = True
                 break  # One engulfing per sweep
+
+            # If trade was placed, exit scan_bars loop
+            if trade_placed_this_cycle:
+                break
+        # trade_placed_this_cycle checked at top of window loop
 
 
 def start_scheduler():
