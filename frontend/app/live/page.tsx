@@ -236,7 +236,11 @@ export default function LivePage() {
                 <Clock size={12} /> Recent Signals
               </h2>
               {(state.recent_signals?.length || 0) === 0 ? (
-                <p className="text-xs text-[var(--text-dim)]">No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan).</p>
+                <p className="text-xs text-[var(--text-dim)]">
+                  {instrument === "micro"
+                    ? "No signals yet. Scanning all market hours (rolling 4hr windows)."
+                    : "No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan)."}
+                </p>
               ) : (
                 <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -379,6 +383,20 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     color = "#00e87b";
     icon = "📈";
     countdown = "Monitoring every 1 min";
+  } else if (instrument === "micro") {
+    // Micro scans 22:00-21:00 UTC (only 21-22 is closed)
+    if (utcTime >= 21 && utcTime < 22) {
+      mode = "MARKET CLOSED";
+      color = "#9ca3b4";
+      icon = "🌙";
+      const minsLeft = Math.floor((22 - utcTime) * 60);
+      countdown = `Opens in ${minsLeft}m`;
+    } else {
+      mode = "SCANNING";
+      color = "#ff8c00";
+      icon = "🔍";
+      countdown = "Rolling windows active (22:00-21:00 UTC)";
+    }
   } else if (utcTime >= 8 && utcTime <= 20) {
     mode = "SCANNING";
     color = "#4fc3f7";
