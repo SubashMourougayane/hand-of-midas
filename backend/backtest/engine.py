@@ -137,10 +137,13 @@ def run_backtest(
     all_signals = [s for s in all_signals if start_ts <= s.date <= end_ts]
 
     # Execute with DD protection + fresh capital each year
+    COOLDOWN_SECONDS = 300  # 5-min cooldown between signals (matches live)
+
     np.random.seed(seed)
     state = DDState()
     trades: list[BacktestTrade] = []
     current_year = None
+    last_signal_time = None
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -159,6 +162,10 @@ def run_backtest(
             current_year = trade_year
 
         if state.equity < 100:
+            continue
+
+        # 5-min cooldown between signals (matches live)
+        if last_signal_time and (signal.date - last_signal_time).total_seconds() < COOLDOWN_SECONDS:
             continue
 
         # DD filters
@@ -204,6 +211,7 @@ def run_backtest(
 
         pnl_dollar = result.pnl_per_unit * units
         update_after_trade(state, pnl_dollar)
+        last_signal_time = signal.date
 
         # Hold time string
         if signal.strategy == "alpha_sweep":
