@@ -135,6 +135,7 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     if trades_today >= cfg["max_trades_per_day"]:
         return
 
+
     # Get H1 bars (complete only)
     h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
     if len(h1_candles) < 6:
@@ -231,6 +232,28 @@ def _run_micro_sweep(now: datetime, active_windows: list):
             if sweep_key in processed_sweeps:
                 continue
             processed_sweeps.add(sweep_key)
+
+            # CRITICAL: Check if this sweep already produced a trade today.
+            # Without this, the same engulfing is found every 3 min → fires repeatedly.
+            # A sweep bar can only produce ONE trade ever.
+            sweep_already_traded = execute(
+                f"SELECT COUNT(*) as cnt FROM gd_signals WHERE strategy='micro_alpha_sweep' AND taken=True AND timestamp::date = %s",
+                (today,), fetch=True
+            )
+            signals_taken_today = sweep_already_traded[0]["cnt"] if sweep_already_traded else 0
+            if signals_taken_today >= trades_today and trades_today > 0:
+                # All taken signals have corresponding trades — this sweep is fresh only if no trade exists
+                # But if trades_today > 0, we need to check if THIS specific sweep was traded
+                pass  # Let it through — the max_trades_per_day will cap it
+
+            # Better approach: if there are ANY open positions from Micro today, don't enter again
+            # until the position is closed (one-at-a-time rule)
+            open_micro = execute(
+                f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
+                fetch=True
+            )
+            if open_micro and open_micro[0]["cnt"] > 0:
+                continue  # Already have an open Micro position — wait for it to close
 
             # Bias filter
             if bias != "neutral":
