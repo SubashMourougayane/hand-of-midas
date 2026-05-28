@@ -156,7 +156,31 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="units_too_small")
         return None
 
-    # Place order on OANDA
+    # Validate SL distance from current price (broker minimum stop level)
+    price_now = get_current_price(instrument="XAU_USD")
+    if price_now:
+        current_ask = price_now["ask"]
+        current_bid = price_now["bid"]
+        if direction == "short" and sl_price <= current_ask + 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [{strategy}] SKIP: SL ${sl_price:.2f} too close to ask ${current_ask:.2f}")
+            return None
+        if direction == "long" and sl_price >= current_bid - 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [{strategy}] SKIP: SL ${sl_price:.2f} too close to bid ${current_bid:.2f}")
+            return None
+
+    # Check if there's already an open Macro position (one at a time)
+    open_macro = execute(
+        "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
+        fetch=True
+    )
+    if open_macro and open_macro[0]["cnt"] > 0:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="position_already_open")
+        print(f"  [{strategy}] SKIP: already have open Macro position")
+        return None
+
+    # Place order on MT5/OANDA
     oanda_units = units if direction == "long" else -units
     print(f"  [{strategy}] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
 
@@ -175,17 +199,21 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         print(f"  [{strategy}] Order FAILED: {error}")
         return None
 
-    # Order filled — persist to DB
+    # Order filled — persist to DB (CRITICAL: wrapped in try/except)
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
 
     _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
 
-    execute(
-        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
-           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
-        (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 100.0, units, oanda_trade_id)
-    )
+    try:
+        execute(
+            """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+               VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
+            (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 100.0, units, oanda_trade_id)
+        )
+    except Exception as e:
+        print(f"  [{strategy}] ⚠️ DB INSERT FAILED (trade is open on broker!): {e}")
+        _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
 
     _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "units": units, "sl": sl_price, "tp": tp_price, "oanda_id": oanda_trade_id,
@@ -194,7 +222,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     notify.trade_filled(trade_ref, "XAU_USD", direction, fill_price, units, sl_price, tp_price)
     print(f"  [{strategy}] FILLED: {direction.upper()} {units} units @ {fill_price:.2f}, trade_id={oanda_trade_id}")
-    return trade_ref
+    return trade_ref  # ALWAYS return — trade exists on broker
 
 
 def check_open_positions():

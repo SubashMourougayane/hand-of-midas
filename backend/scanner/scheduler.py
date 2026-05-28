@@ -346,6 +346,8 @@ def _run_alpha_sweep():
 
     # Check how many trades today
     today = datetime.now(timezone.utc).date()
+    now = datetime.now(timezone.utc)
+
     existing = execute(
         "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
         (today,), fetch=True
@@ -353,6 +355,26 @@ def _run_alpha_sweep():
     trades_today = existing[0]["cnt"] if existing else 0
     if trades_today >= cfg["max_trades_per_day"]:
         return
+
+    # 5-min cooldown after last taken signal (prevents same-scan re-entry)
+    recent_taken = execute(
+        "SELECT timestamp FROM gd_signals WHERE strategy='alpha_sweep' AND taken = True ORDER BY timestamp DESC LIMIT 1",
+        fetch=True
+    )
+    if recent_taken and recent_taken[0]["timestamp"]:
+        last_taken_time = recent_taken[0]["timestamp"]
+        if last_taken_time.tzinfo is None:
+            last_taken_time = last_taken_time.replace(tzinfo=timezone.utc)
+        if now < last_taken_time + timedelta(minutes=5):
+            return  # Cooldown: same signal can't re-fire within 5 min
+
+    # One position at a time (skip if open Macro trade exists)
+    open_macro = execute(
+        "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
+        fetch=True
+    )
+    if open_macro and open_macro[0]["cnt"] > 0:
+        return  # Already have an open position
 
     # Get H1 bars (need up to 20 hours of today's data) — only use complete bars
     h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
