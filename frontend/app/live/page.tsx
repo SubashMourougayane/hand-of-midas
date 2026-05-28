@@ -632,7 +632,7 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
       </div>
 
       {/* Window cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-2 gap-3">
         {windows.map((w, i) => {
           const cfg = statusConfig[w.status] || statusConfig.no_data;
           const hasSweep = w.sweep_detected && w.sweep_info;
