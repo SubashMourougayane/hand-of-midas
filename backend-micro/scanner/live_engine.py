@@ -138,6 +138,20 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": "units_too_small", "equity": equity_usd, "risk_mult": risk_mult})
         return None
 
+    # Validate SL distance from current price (broker minimum stop level)
+    price_now = get_current_price(instrument="XAU_USD")
+    if price_now:
+        current_ask = price_now["ask"]
+        current_bid = price_now["bid"]
+        if direction == "short" and sl_price <= current_ask + 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [MICRO] SKIP: SL ${sl_price:.2f} too close to ask ${current_ask:.2f} (need >$1 gap)")
+            return None
+        if direction == "long" and sl_price >= current_bid - 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [MICRO] SKIP: SL ${sl_price:.2f} too close to bid ${current_bid:.2f} (need >$1 gap)")
+            return None
+
     oanda_units = units if direction == "long" else -units
     print(f"  [MICRO] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
 
