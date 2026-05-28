@@ -162,9 +162,9 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
 
     execute(
-        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, units, mode, oanda_trade_id)
-           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, 'live', %s)""",
-        (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units, oanda_trade_id)
+        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
+        (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 100.0, units, oanda_trade_id)
     )
 
     _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
