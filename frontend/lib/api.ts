@@ -93,7 +93,11 @@ export async function runBacktest(
   onProgress?: (msg: string) => void,
 ): Promise<BacktestResult> {
   const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
-  const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
+  // Micro backtest uses SSE — bypass Next.js proxy (30s timeout kills stream)
+  const backtestBase = instrument === "micro" && typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "https://midas.subashtrades.in"
+    : apiBase;
+  const res = await fetch(`${backtestBase}/api/${prefix}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
