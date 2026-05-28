@@ -81,13 +81,30 @@ else:
 
 # Step 6: Close the trade
 print("\n[6/6] Closing test trade...")
-time.sleep(2)
-close_result = close_trade(trade_id)
-if close_result.get("success"):
-    print(f"  SUCCESS! Closed at ${close_result.get('close_price', '?')}, P&L: {close_result.get('realized_pl', '?')}")
+time.sleep(5)  # Wait longer for EA to process modify first
+
+# Verify trade still exists before closing
+print(f"  Checking if trade {trade_id} is still open...")
+open_trades = get_open_trades()
+open_ids = [t["trade_id"] for t in open_trades] if open_trades else []
+print(f"  Open trade IDs: {open_ids}")
+
+if str(trade_id) not in [str(x) for x in open_ids]:
+    print(f"  Trade {trade_id} NOT in open trades list!")
+    print(f"  Possible reasons:")
+    print(f"    - SL was hit immediately after modification (SL={new_sl}, current bid ~{price['bid']})")
+    print(f"    - Trade was closed by broker (margin/overnight)")
+    print(f"    - DWX EA lost track of the position")
+    close_result = {"success": False, "error": "Position not in open_trades"}
 else:
-    print(f"  FAIL: {close_result.get('error', 'Unknown')}")
-    print("  WARNING: Trade may still be open! Check MT5 manually.")
+    print(f"  Trade confirmed open. Sending close command...")
+    close_result = close_trade(trade_id)
+    if close_result.get("success"):
+        print(f"  SUCCESS! Closed at ${close_result.get('close_price', '?')}, P&L: {close_result.get('realized_pl', '?')}")
+    else:
+        print(f"  FAIL: {close_result.get('error', 'Unknown')}")
+        print(f"  Full response: {close_result}")
+        print("  WARNING: Trade may still be open! Check MT5 manually.")
 
 # Summary
 print("\n" + "=" * 60)
