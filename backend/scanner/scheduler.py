@@ -356,17 +356,19 @@ def _run_alpha_sweep():
     if trades_today >= cfg["max_trades_per_day"]:
         return
 
-    # 5-min cooldown after last taken signal (prevents same-scan re-entry)
-    recent_taken = execute(
-        "SELECT timestamp FROM gd_signals WHERE strategy='alpha_sweep' AND taken = True ORDER BY timestamp DESC LIMIT 1",
+    # 5-min cooldown after last signal attempt (taken OR failed with execution error)
+    recent_signal = execute(
+        "SELECT timestamp, taken, skip_reason FROM gd_signals WHERE strategy='alpha_sweep' ORDER BY timestamp DESC LIMIT 1",
         fetch=True
     )
-    if recent_taken and recent_taken[0]["timestamp"]:
-        last_taken_time = recent_taken[0]["timestamp"]
-        if last_taken_time.tzinfo is None:
-            last_taken_time = last_taken_time.replace(tzinfo=timezone.utc)
-        if now < last_taken_time + timedelta(minutes=5):
-            return  # Cooldown: same signal can't re-fire within 5 min
+    if recent_signal and recent_signal[0]["timestamp"]:
+        last_signal_time = recent_signal[0]["timestamp"]
+        if last_signal_time.tzinfo is None:
+            last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
+        skip = recent_signal[0].get("skip_reason", "")
+        if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
+            if now < last_signal_time + timedelta(minutes=5):
+                return  # Cooldown: same signal can't re-fire within 5 min
 
     # One position at a time (skip if open Macro trade exists)
     open_macro = execute(

@@ -167,18 +167,21 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     processed_sweeps = set()
     trade_placed_this_cycle = False
 
-    # 5-min cooldown after last taken signal (prevents same-scan re-entry bug)
+    # 5-min cooldown after last signal attempt (taken OR failed with order/SL error)
     from datetime import timedelta as _td
-    recent_taken = execute(
-        f"SELECT timestamp FROM gd_signals WHERE strategy='micro_alpha_sweep' AND taken = True ORDER BY timestamp DESC LIMIT 1",
+    recent_signal = execute(
+        f"SELECT timestamp, taken, skip_reason FROM gd_signals WHERE strategy='micro_alpha_sweep' ORDER BY timestamp DESC LIMIT 1",
         fetch=True
     )
-    if recent_taken and recent_taken[0]["timestamp"]:
-        last_taken_time = recent_taken[0]["timestamp"]
-        if last_taken_time.tzinfo is None:
-            last_taken_time = last_taken_time.replace(tzinfo=timezone.utc)
-        if now < last_taken_time + _td(minutes=5):
-            return  # Cooldown: same signal can't re-fire within 5 min
+    if recent_signal and recent_signal[0]["timestamp"]:
+        last_signal_time = recent_signal[0]["timestamp"]
+        if last_signal_time.tzinfo is None:
+            last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
+        skip = recent_signal[0].get("skip_reason", "")
+        # Cooldown applies if: signal was taken, OR it failed with execution error (same signal will fail again)
+        if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
+            if now < last_signal_time + _td(minutes=5):
+                return  # Cooldown: same signal can't re-fire within 5 min
 
     for window in active_windows:
         if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
