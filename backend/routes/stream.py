@@ -167,7 +167,7 @@ def _build_state():
     if dd_rows:
         dd_state = {k: float(v) if hasattr(v, '__float__') and k != 'id' else v for k, v in dict(dd_rows[0]).items()}
 
-    signals = execute("SELECT * FROM gd_signals ORDER BY timestamp DESC LIMIT 10", fetch=True)
+    signals = execute("SELECT * FROM gd_signals WHERE strategy NOT IN ('micro_alpha_sweep', 'alpha_sweep_oil') ORDER BY timestamp DESC LIMIT 10", fetch=True)
     signals_list = []
     for s in (signals or []):
         signals_list.append({
