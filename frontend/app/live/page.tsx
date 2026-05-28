@@ -627,12 +627,12 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
     return m > 0 ? `${hr12}:${String(Math.round(m)).padStart(2, "0")} ${ampm}` : `${hr12} ${ampm}`;
   };
 
-  // Sort: active first, then sweeps, then building, then expired
-  const sortOrder: Record<string, number> = { scanning: 0, building: 2, expired: 3, range_too_small: 4, no_data: 5 };
+  // Sort chronologically by IST market day (starts 22:00 UTC = 3:30 AM IST)
   const sorted = [...windows].sort((a, b) => {
-    const aScore = a.sweep_detected ? 1 : (sortOrder[a.status] ?? 5);
-    const bScore = b.sweep_detected ? 1 : (sortOrder[b.status] ?? 5);
-    return aScore - bScore;
+    // Shift hours so 22 UTC (market open) = 0, wraps naturally
+    const aKey = (a.start - 22 + 24) % 24;
+    const bKey = (b.start - 22 + 24) % 24;
+    return aKey - bKey;
   });
 
   return (
