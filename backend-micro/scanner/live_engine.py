@@ -161,11 +161,17 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
 
-    execute(
-        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
-           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
-        (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 100.0, units, oanda_trade_id)
-    )
+    # DB INSERT — CRITICAL: if this fails, trade is STILL open on MT5.
+    # Must return trade_ref regardless to prevent duplicate orders.
+    try:
+        execute(
+            """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+               VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
+            (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 100.0, units, oanda_trade_id)
+        )
+    except Exception as e:
+        print(f"  [MICRO] ⚠️ DB INSERT FAILED (trade is open on MT5!): {e}")
+        _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
 
     _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "instrument": "XAU_USD", "units": units, "sl": sl_price, "tp": tp_price,
@@ -175,7 +181,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     notify.trade_filled(trade_ref, "XAU_USD", direction, fill_price, units, sl_price, tp_price)
     print(f"  [MICRO] FILLED: {direction.upper()} {units} units @ {fill_price:.2f}, trade_id={oanda_trade_id}")
-    return trade_ref
+    return trade_ref  # ALWAYS return — trade exists on broker regardless of DB state
 
 
 def check_open_positions():
