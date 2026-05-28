@@ -723,7 +723,7 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
               {/* Active indicator */}
               {isActive && (
                 <div className="flex-shrink-0 flex items-center">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: barColor, animation: "sweepPulse 1.5s ease-in-out infinite" }} />
+                  <div className="w-2.5 h-2.5 rounded-full animate-ping" style={{ background: barColor, opacity: 0.75 }} />
                 </div>
               )}
             </div>
