@@ -92,6 +92,7 @@ def run_backtest(
     # DD protection config (matches live)
     DAILY_MAX_LOSS = 400
     HALF_AFTER_CONSECUTIVE = 3
+    COOLDOWN_SECONDS = 300  # 5-minute cooldown between signals (matches live)
 
     # Execute with DD protection + fresh capital each year
     np.random.seed(seed)
@@ -100,6 +101,7 @@ def run_backtest(
     current_year = None
     current_date = None
     daily_pnl = 0.0
+    last_signal_time = None  # For cooldown tracking
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -119,6 +121,10 @@ def run_backtest(
         if trade_date != current_date:
             daily_pnl = 0.0
             current_date = trade_date
+
+        # 5-minute cooldown between signals (same as live — prevents same-scan re-entry)
+        if last_signal_time and (signal.date - last_signal_time).total_seconds() < COOLDOWN_SECONDS:
+            continue
 
         # Daily max loss circuit breaker (same as live)
         if daily_pnl <= -DAILY_MAX_LOSS:
@@ -173,6 +179,7 @@ def run_backtest(
         pnl_dollar = result.pnl_per_unit * units
         update_after_trade(state, pnl_dollar)
         daily_pnl += pnl_dollar
+        last_signal_time = signal.date  # Update cooldown tracker
 
         if signal.strategy == "micro_alpha_sweep":
             hold_str = f"{result.bars_held * 3}min" if result.bars_held < 20 else f"{result.bars_held * 3 / 60:.1f}hrs"
