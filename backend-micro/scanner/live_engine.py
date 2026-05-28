@@ -228,37 +228,63 @@ def check_open_positions():
                         })
             continue
 
+        # Trade not in MT5 open positions — it was closed (SL/TP hit or manual)
         details = get_trade_details(oanda_id)
-        if not details:
-            _log_journal(trade["trade_ref"], trade["strategy"], "DETAILS_FETCH_FAILED", None, {"oanda_id": oanda_id})
-            continue
 
-        if details["state"] == "CLOSED":
+        if details and details["state"] == "CLOSED":
             realized_pl = details["realized_pl"]
             close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
             fill_price = details.get("price", 0)
+        elif not details:
+            # Position gone from open_orders.json — closed by broker (SL/TP)
+            # We don't have exact fill price, estimate from SL/TP
+            price = get_current_price(instrument="XAU_USD")
+            current_price = price["mid"] if price else 0
+            sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
+            tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
+            entry_price = float(trade["entry_price"])
 
-            exit_reason = "CLOSED"
-            if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 2:
-                exit_reason = "SL"
-            elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
-                exit_reason = "TP"
+            # Determine which was hit based on current price proximity
+            if trade["side"] == "SHORT":
+                if current_price >= sl_price - 5:  # Near SL
+                    fill_price = sl_price
+                    realized_pl = (entry_price - sl_price) * (trade["units"] or 1)
+                else:
+                    fill_price = tp_price if tp_price > 0 else current_price
+                    realized_pl = (entry_price - fill_price) * (trade["units"] or 1)
+            else:
+                if current_price <= sl_price + 5:
+                    fill_price = sl_price
+                    realized_pl = (sl_price - entry_price) * (trade["units"] or 1)
+                else:
+                    fill_price = tp_price if tp_price > 0 else current_price
+                    realized_pl = (fill_price - entry_price) * (trade["units"] or 1)
+            close_time = datetime.now(timezone.utc).isoformat()
+            print(f"  [MICRO] Position {oanda_id} gone from MT5 — estimating exit")
+        else:
+            continue  # Still open somehow
 
-            gbp_usd = _get_gbp_usd_rate()
-            pnl_usd = realized_pl * gbp_usd
+        exit_reason = "CLOSED"
+        if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 2:
+            exit_reason = "SL"
+        elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
+            exit_reason = "TP"
 
-            execute(
-                """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
-                   WHERE trade_ref=%s""",
-                (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
-            )
+        gbp_usd = _get_gbp_usd_rate()
+        pnl_usd = realized_pl * gbp_usd
 
-            _update_dd_after_exit(realized_pl)
-            _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
-                "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
-            })
-            notify.trade_closed(trade["trade_ref"], "XAU_USD", exit_reason, realized_pl, pnl_usd)
-            print(f"  [MICRO] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${pnl_usd:.2f}")
+        execute(
+            """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
+               WHERE trade_ref=%s""",
+            (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
+        )
+
+        _update_dd_after_exit(realized_pl)
+        _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
+            "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
+        })
+        notify.trade_closed(trade["trade_ref"], "XAU_USD", exit_reason, realized_pl, pnl_usd)
+        print(f"  [MICRO] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${pnl_usd:.2f}")
 
 
 def _update_dd_after_exit(realized_pl_gbp: float):
