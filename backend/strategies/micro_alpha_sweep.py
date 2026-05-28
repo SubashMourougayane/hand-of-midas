@@ -2,10 +2,12 @@
 Micro Alpha-Sweep: Rolling 4-hour consolidation windows every 2 hours.
 
 Signal generation matches live scheduler exactly:
+- Full 24hr coverage with midnight wrap (windows: 22-02, 00-04, ..., 16-20)
+- Market close skip: windows whose consolidation includes hour 21 are excluded
 - Walks each H1 bar chronologically (simulates scheduler poll)
 - For each bar, checks ALL active windows
 - For each window, checks ALL completed scan bars (not just current)
-- Deduplicates by (sweep_bar_ts, window_start) — same as live's DB check
+- Deduplicates by (sweep_bar_ts, window_start)
 """
 import numpy as np
 import pandas as pd
@@ -18,9 +20,23 @@ MICRO_CONFIG = {
     "consol_hours": 4,
     "scan_gap_hours": 2,
     "scan_after_hours": 6,
-    "scan_start_hour": 0,
-    "scan_end_hour": 20,
+    "market_close_start": 21,
+    "market_close_end": 22,
+    "max_trades_per_day": 3,
 }
+
+
+def _hours_in_range(start: int, end: int) -> set:
+    """Return set of hours in [start, end) handling midnight wrap."""
+    if start < end:
+        return set(range(start, end))
+    return set(range(start, 24)) | set(range(0, end))
+
+
+def _hour_past(current: int, target: int) -> bool:
+    """Check if current hour is past target (within last 12 hours)."""
+    diff = (current - target) % 24
+    return 0 < diff <= 12
 
 
 def generate_signals(
@@ -30,6 +46,7 @@ def generate_signals(
 ) -> list[Signal]:
     cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
+    close_start = mcfg["market_close_start"]
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -41,7 +58,7 @@ def generate_signals(
 
         bias = daily_bias.get(date, "none")
         day_trades = 0
-        max_per_day = cfg.get("max_trades_per_day", 3)
+        max_per_day = mcfg["max_trades_per_day"]
         traded_sweeps = set()
 
         for bar_ts, bar in day_h1.iterrows():
@@ -50,17 +67,33 @@ def generate_signals(
 
             now_hour = bar_ts.hour
 
-            for start_hour in range(mcfg["scan_start_hour"], mcfg["scan_end_hour"] - mcfg["consol_hours"] + 1, mcfg["scan_gap_hours"]):
+            # Skip during market close (same as live)
+            if mcfg["market_close_start"] <= now_hour < mcfg["market_close_end"]:
+                continue
+
+            # Check all windows (0, 2, 4, ..., 22) — same as live scheduler
+            for start_hour in range(0, 24, mcfg["scan_gap_hours"]):
                 if day_trades >= max_per_day:
                     break
 
-                end_hour = start_hour + mcfg["consol_hours"]
-                scan_end_hour = end_hour + mcfg["scan_after_hours"]
+                end_hour = (start_hour + mcfg["consol_hours"]) % 24
+                scan_end_hour = (start_hour + mcfg["consol_hours"] + mcfg["scan_after_hours"]) % 24
 
-                if now_hour < end_hour or now_hour >= scan_end_hour:
+                # Skip windows whose consolidation overlaps market close
+                consol_hours = _hours_in_range(start_hour, end_hour)
+                if close_start in consol_hours:
                     continue
 
-                consol = day_h1[(day_h1.index.hour >= start_hour) & (day_h1.index.hour < end_hour)]
+                # Check if consolidation is done
+                if not _hour_past(now_hour, end_hour):
+                    continue
+
+                # Check if scan window hasn't expired
+                if _hour_past(now_hour, scan_end_hour):
+                    continue
+
+                # Build consolidation range (handles midnight wrap)
+                consol = day_h1[day_h1.index.hour.isin(consol_hours)]
                 if len(consol) < 2:
                     continue
 
@@ -73,8 +106,9 @@ def generate_signals(
                 bearish_level = range_high + cfg["sweep_threshold"]
                 bullish_level = range_low - cfg["sweep_threshold"]
 
-                # Check ALL scan bars up to current bar (live sees all past completed bars)
-                scan_bars = day_h1[(day_h1.index.hour >= end_hour) & (day_h1.index <= bar_ts)]
+                # Check ALL scan bars up to current bar (handles midnight wrap)
+                scan_hours = _hours_in_range(end_hour, scan_end_hour)
+                scan_bars = day_h1[(day_h1.index.hour.isin(scan_hours)) & (day_h1.index <= bar_ts)]
 
                 for sbar_ts, sb in scan_bars.iterrows():
                     if day_trades >= max_per_day:
@@ -97,7 +131,7 @@ def generate_signals(
                     if sk in traded_sweeps:
                         continue
 
-                    # Bias filter
+                    # Bias filter (Variant C)
                     if bias != "neutral":
                         if sweep_dir == "bullish" and bias != "bullish":
                             continue
@@ -108,7 +142,7 @@ def generate_signals(
                     eng_end = sbar_ts + timedelta(hours=cfg["engulfing_window_hours"])
                     m3_window = gold_m3[(gold_m3.index > sbar_ts) & (gold_m3.index <= eng_end)]
                     if len(m3_window) < 3:
-                        traded_sweeps.add(sk)  # Mark as checked (no engulfing possible)
+                        traded_sweeps.add(sk)
                         continue
 
                     start_idx = 2 if cfg["skip_first_bar"] else 1
@@ -131,6 +165,7 @@ def generate_signals(
                         if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                             continue
 
+                        # Entry calculation
                         if sweep_dir == "bullish":
                             entry = gold_m3["ask_close"].iat[idx] + slippage(br)
                             slv = sweep_wick - cfg["sl_buffer"]
@@ -178,6 +213,8 @@ def generate_signals(
                     if not found:
                         traded_sweeps.add(sk)
                     if found:
-                        break  # One trade per sweep bar per window, move to next sweep
+                        break  # One trade per sweep, move to next window
+                if day_trades >= max_per_day:
+                    break
 
     return signals

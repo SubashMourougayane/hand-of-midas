@@ -89,11 +89,17 @@ def run_backtest(
     end_ts = pd.Timestamp(end_date, tz="UTC")
     all_signals = [s for s in all_signals if start_ts <= s.date <= end_ts]
 
+    # DD protection config (matches live)
+    DAILY_MAX_LOSS = 400
+    HALF_AFTER_CONSECUTIVE = 3
+
     # Execute with DD protection + fresh capital each year
     np.random.seed(seed)
     state = DDState()
     trades: list[BacktestTrade] = []
     current_year = None
+    current_date = None
+    daily_pnl = 0.0
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -106,6 +112,17 @@ def run_backtest(
             state.pause_counter = 0
             state.equity_history = []
             current_year = trade_year
+            daily_pnl = 0.0
+            current_date = None
+
+        # Daily reset
+        if trade_date != current_date:
+            daily_pnl = 0.0
+            current_date = trade_date
+
+        # Daily max loss circuit breaker (same as live)
+        if daily_pnl <= -DAILY_MAX_LOSS:
+            continue
 
         if state.equity < 100:
             continue
@@ -116,8 +133,10 @@ def run_backtest(
         if should_skip_signal(signal.strategy, signal.direction, gp, gma, state):
             continue
 
-        # Position sizing
+        # Position sizing with consecutive loss halving (same as live)
         risk_mult = get_risk_multiplier(state)
+        if state.consecutive_losses >= HALF_AFTER_CONSECUTIVE:
+            risk_mult *= 0.5
         strat_risk_pct = STRATEGY_RISK.get(signal.strategy, risk_pct)
         risk_dollar = state.equity * (strat_risk_pct / 100) * risk_mult
         if signal.risk <= 0:
@@ -153,6 +172,7 @@ def run_backtest(
 
         pnl_dollar = result.pnl_per_unit * units
         update_after_trade(state, pnl_dollar)
+        daily_pnl += pnl_dollar
 
         if signal.strategy == "micro_alpha_sweep":
             hold_str = f"{result.bars_held * 3}min" if result.bars_held < 20 else f"{result.bars_held * 3 / 60:.1f}hrs"
