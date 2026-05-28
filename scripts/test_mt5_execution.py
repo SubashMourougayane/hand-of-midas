@@ -97,7 +97,15 @@ if str(trade_id) not in [str(x) for x in open_ids]:
     print(f"    - DWX EA lost track of the position")
     close_result = {"success": False, "error": "Position not in open_trades"}
 else:
-    print(f"  Trade confirmed open. Sending close command...")
+    print(f"  Trade confirmed open. Clearing stale response + waiting...")
+    # Delete stale last_response.json so close reads fresh
+    import os as _os
+    resp_path = _os.path.join(_os.getenv("DWX_DIR", _os.path.expanduser("~/Documents/DWX/DWX_Server_MT5")), "last_response.json")
+    if _os.path.exists(resp_path):
+        _os.remove(resp_path)
+        print(f"  Cleared {resp_path}")
+    time.sleep(3)
+    print(f"  Sending close command...")
     close_result = close_trade(trade_id)
     if close_result.get("success"):
         print(f"  SUCCESS! Closed at ${close_result.get('close_price', '?')}, P&L: {close_result.get('realized_pl', '?')}")
