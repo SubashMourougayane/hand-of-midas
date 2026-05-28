@@ -167,8 +167,7 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     processed_sweeps = set()
     trade_placed_this_cycle = False
 
-    # Don't re-enter if a trade was taken in the last 2 hours (engulfing window)
-    # This prevents: sweep fires trade → SL hit → same sweep still valid → re-enters immediately
+    # 5-min cooldown after last taken signal (prevents same-scan re-entry bug)
     from datetime import timedelta as _td
     recent_taken = execute(
         f"SELECT timestamp FROM gd_signals WHERE strategy='micro_alpha_sweep' AND taken = True ORDER BY timestamp DESC LIMIT 1",
@@ -178,9 +177,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         last_taken_time = recent_taken[0]["timestamp"]
         if last_taken_time.tzinfo is None:
             last_taken_time = last_taken_time.replace(tzinfo=timezone.utc)
-        cooldown_end = last_taken_time + _td(hours=2)
-        if now < cooldown_end:
-            return  # Cooldown: don't re-enter within 2hr of last trade (same sweep might still be valid)
+        if now < last_taken_time + _td(minutes=5):
+            return  # Cooldown: same signal can't re-fire within 5 min
 
     for window in active_windows:
         if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
