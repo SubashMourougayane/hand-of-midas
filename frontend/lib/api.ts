@@ -130,11 +130,24 @@ export async function runBacktest(
       }
       if (completed) break;
     }
-    if (!completed) throw new Error("Backtest stream ended without completion");
-    // Load full result from DB
-    const latest = await getLatestBacktest(apiBase, instrument);
-    if (!latest) throw new Error("Backtest completed but results not found in DB");
-    return latest as unknown as BacktestResult;
+    if (!completed) {
+      // SSE disconnected — poll for completion
+      if (onProgress) onProgress("Stream disconnected, checking results...");
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 5000));
+        const poll = await getLatestBacktest(apiBase, instrument);
+        if (poll) return poll as unknown as BacktestResult;
+      }
+      throw new Error("Backtest timed out");
+    }
+    // Load full result from DB (retry a few times for DB save to complete)
+    for (let i = 0; i < 10; i++) {
+      const latest = await getLatestBacktest(apiBase, instrument);
+      if (latest) return latest as unknown as BacktestResult;
+      await new Promise(r => setTimeout(r, 3000));
+      if (onProgress) onProgress("Saving to database...");
+    }
+    throw new Error("Backtest completed but results not found in DB");
   }
 
   return res.json();

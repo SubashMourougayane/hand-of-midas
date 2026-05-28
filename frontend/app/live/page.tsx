@@ -444,8 +444,8 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
 
   const tradingWindows = instrument === "micro"
     ? [
-        { name: "Alpha-Sweep", start: 9.5, end: 24, color: "#ff8c00" },  // Micro: 04:00-20:00 UTC = 9:30 AM - 1:30 AM IST
-        { name: "Alpha-Sweep", start: 0, end: 1.5, color: "#ff8c00" },   // Micro wraps past midnight
+        { name: "Alpha-Sweep", start: 3.5, end: 24, color: "#ff8c00" },  // Micro: 22:00-21:00 UTC = 3:30 AM - 3:00 AM IST (full market)
+        { name: "Alpha-Sweep", start: 0, end: 3, color: "#ff8c00" },     // Micro wraps: midnight - 3:00 AM IST
       ]
     : [
         { name: "Alpha-Sweep", start: 13.5, end: 24, color: "#4fc3f7" }, // Macro: 08:00-20:00 UTC = 1:30 PM - 1:30 AM IST

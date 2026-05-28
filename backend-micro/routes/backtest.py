@@ -179,16 +179,15 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: l
             "duration_ms": duration_ms,
         }
 
-        # Save to DB
-        try:
-            _save_backtest_to_db(req, mapped_strategies, stats, trade_responses, equity_curve, duration_ms)
-            _runs[run_id]["progress"].append("Saved to database")
-        except Exception as e:
-            _runs[run_id]["progress"].append(f"DB save warning: {e}")
-
         _runs[run_id]["result"] = response_data
         _runs[run_id]["status"] = "done"
         _runs[run_id]["progress"].append(f"Complete! {result.total_trades} trades, PF {result.profit_factor:.2f}, P&L ${result.total_pnl:,.0f} ({duration_ms/1000:.1f}s)")
+
+        # Save to DB in background (after SSE "done" is sent)
+        try:
+            _save_backtest_to_db(req, mapped_strategies, stats, trade_responses, equity_curve, duration_ms)
+        except Exception as e:
+            print(f"DB save warning: {e}")
 
     except Exception as e:
         _runs[run_id]["status"] = "error"
@@ -266,23 +265,36 @@ def _save_backtest_to_db(req, mapped_strategies, stats, trades, equity_curve, du
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            for i, t in enumerate(trades):
-                cur.execute(
-                    """INSERT INTO gd_backtest_trades
-                       (run_id, trade_index, date, year, month, strategy, direction,
-                        entry, sl, tp, exit_price, pnl_unit, pnl_sized, units,
-                        status, bars_held, hold_human, risk, r_mult, equity_after)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (run_id, i, str(t["date"]), int(t["year"]), int(t["month"]), t["strategy"], t["direction"],
-                     float(t["entry"]), float(t["sl"]), float(t["tp"]), float(t["exit_price"]),
-                     float(t["pnl_unit"]), float(t["pnl_sized"]), float(t["units"]),
-                     t["status"], int(t["bars_held"]), t["hold_human"], float(t["risk"]), float(t["r_mult"]), float(t["equity_after"]))
-                )
-            for pt in equity_curve:
-                cur.execute(
-                    "INSERT INTO gd_backtest_equity (run_id, date, cumulative_pnl, equity) VALUES (%s,%s,%s,%s)",
-                    (run_id, str(pt["date"]), float(pt["pnl"]), float(pt["equity"]))
-                )
+            # Bulk insert trades (executemany — single round trip)
+            trade_rows = [
+                (run_id, i, str(t["date"]), int(t["year"]), int(t["month"]), t["strategy"], t["direction"],
+                 float(t["entry"]), float(t["sl"]), float(t["tp"]), float(t["exit_price"]),
+                 float(t["pnl_unit"]), float(t["pnl_sized"]), float(t["units"]),
+                 t["status"], int(t["bars_held"]), t["hold_human"], float(t["risk"]), float(t["r_mult"]), float(t["equity_after"]))
+                for i, t in enumerate(trades)
+            ]
+            from psycopg2.extras import execute_values
+            execute_values(
+                cur,
+                """INSERT INTO gd_backtest_trades
+                   (run_id, trade_index, date, year, month, strategy, direction,
+                    entry, sl, tp, exit_price, pnl_unit, pnl_sized, units,
+                    status, bars_held, hold_human, risk, r_mult, equity_after)
+                   VALUES %s""",
+                trade_rows,
+                page_size=500,
+            )
+            # Bulk insert equity curve
+            equity_rows = [
+                (run_id, str(pt["date"]), float(pt["pnl"]), float(pt["equity"]))
+                for pt in equity_curve
+            ]
+            execute_values(
+                cur,
+                "INSERT INTO gd_backtest_equity (run_id, date, cumulative_pnl, equity) VALUES %s",
+                equity_rows,
+                page_size=500,
+            )
             conn.commit()
     except Exception as e:
         conn.rollback()
