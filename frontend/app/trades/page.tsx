@@ -29,41 +29,47 @@ export default function TradesPage() {
   const [stats, setStats] = useState<Record<string, number>>({});
   const [filter, setFilter] = useState({ strategy: "", side: "", result: "", year: "" });
   const [loading, setLoading] = useState(true);
-  const [showCount, setShowCount] = useState(100);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalTrades, setTotalTrades] = useState(0);
+  const perPage = 50;
   const [selectedTrade, setSelectedTrade] = useState<BacktestTrade | null>(null);
 
   const fetchTrades = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filter.strategy) params.set("strategy", filter.strategy);
+      if (filter.strategy) params.set("strategy", filter.strategy === "alpha_sweep" ? "micro_alpha_sweep" : filter.strategy);
       if (filter.side) params.set("side", filter.side);
-      if (filter.result) params.set("result", filter.result);
+      if (filter.result) params.set("result", filter.result.toUpperCase());
 
       if (tab === "live") {
         params.set("limit", "200");
         const res = await fetch(`${API_BASE}/api/${prefix}/trades?${params}`);
         if (!res.ok) throw new Error(`${res.status}`);
         const data = await res.json();
-        setLiveTrades(data.trades || []);
+        setLiveTrades(data.trades || data || []);
         setStats(data.stats || {});
       } else {
         if (filter.year) params.set("year", filter.year);
-        params.set("limit", "2000");
+        params.set("page", String(page));
+        params.set("per_page", String(perPage));
         const res = await fetch(`${API_BASE}/api/${prefix}/trades/backtest?${params}`);
         if (!res.ok) throw new Error(`${res.status}`);
         const data = await res.json();
         setBtTrades(data.trades || []);
+        setTotalPages(data.pages || 1);
+        setTotalTrades(data.total || 0);
         setStats(data.stats || {});
       }
     } catch {
-      // Backend not ready yet — retry in 3s
       setTimeout(fetchTrades, 3000);
     }
     setLoading(false);
   };
 
-  useEffect(() => { fetchTrades(); }, [tab, filter, apiBase, instrument]);
+  useEffect(() => { fetchTrades(); }, [tab, filter, page, apiBase, instrument]);
+  useEffect(() => { setPage(1); }, [filter, tab, instrument]);
 
   const stratColor = (s: string) => s.includes("alpha_sweep") ? "#4fc3f7" : s === "mean_rev" ? "#00e87b" : "#ffd54f";
   const stratLabel = (s: string) => s.includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MREV" : "CROSS";
@@ -93,6 +99,7 @@ export default function TradesPage() {
             className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
             <option value="">All Strategies</option>
             <option value="alpha_sweep">Alpha-Sweep</option>
+            <option value="micro_alpha_sweep">Micro Alpha-Sweep</option>
             <option value="mean_rev">Mean-Rev</option>
             <option value="cross_market">Cross-Market</option>
           </select>
@@ -105,8 +112,8 @@ export default function TradesPage() {
           <select value={filter.result} onChange={(e) => setFilter({ ...filter, result: e.target.value })}
             className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
             <option value="">All Results</option>
-            <option value="win">Winners</option>
-            <option value="loss">Losers</option>
+            <option value="WIN">Winners</option>
+            <option value="LOSS">Losers</option>
           </select>
           {tab === "backtest" && (
             <select value={filter.year} onChange={(e) => setFilter({ ...filter, year: e.target.value })}
@@ -210,7 +217,7 @@ export default function TradesPage() {
                       <td>{t.units}</td>
                     </tr>
                   ))}
-                  {tab === "backtest" && btTrades.slice(0, showCount).map((t, i) => (
+                  {tab === "backtest" && btTrades.map((t, i) => (
                     <tr key={i} onClick={() => setSelectedTrade(t)}
                       className={`border-t border-[var(--border)] hover:bg-[var(--panel-alt)] cursor-pointer ${selectedTrade?.date === t.date && selectedTrade?.entry === t.entry ? "bg-[var(--panel-alt)]" : ""}`}>
                       <td className="py-1 text-[var(--text-dim)]">{t.date}</td>
@@ -231,11 +238,34 @@ export default function TradesPage() {
               </table>
             </div>
           )}
-          {tab === "backtest" && btTrades.length > showCount && (
-            <button onClick={() => setShowCount(showCount + 100)}
-              className="mt-3 text-xs text-[var(--blue)] hover:underline">
-              Show more ({btTrades.length - showCount} remaining)
-            </button>
+          {/* Pagination */}
+          {tab === "backtest" && totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--border)]">
+              <span className="text-[10px] text-[var(--text-dim)]">
+                Showing {(page-1)*perPage + 1}–{Math.min(page*perPage, totalTrades)} of {totalTrades} trades
+              </span>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(1)} disabled={page === 1}
+                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
+                  «
+                </button>
+                <button onClick={() => setPage(page - 1)} disabled={page === 1}
+                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
+                  ‹
+                </button>
+                <span className="px-3 py-1 text-xs font-bold text-[var(--text)] bg-[var(--bg)] border border-[var(--border)]">
+                  {page} / {totalPages}
+                </span>
+                <button onClick={() => setPage(page + 1)} disabled={page === totalPages}
+                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
+                  ›
+                </button>
+                <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
+                  »
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </main>
