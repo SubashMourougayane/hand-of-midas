@@ -632,7 +632,7 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
       </div>
 
       {/* Window cards grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {windows.map((w, i) => {
           const cfg = statusConfig[w.status] || statusConfig.no_data;
           const hasSweep = w.sweep_detected && w.sweep_info;
@@ -647,47 +647,38 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
           };
           const isActive = w.status === "scanning";
           return (
-            <div key={i} className="p-4 rounded-lg transition-all" style={{
+            <div key={i} className="p-3 rounded-lg transition-all" style={{
               background: hasSweep && isActive ? "#ff8c0020" : isActive ? "#00e87b15" : hasSweep ? "#ff8c0010" : cfg.bg,
               border: `${isActive ? "2px" : "1.5px"} solid ${hasSweep && isActive ? "#ff8c00" : isActive ? "#00e87b60" : hasSweep ? "#ff8c0030" : cfg.color + "22"}`,
               boxShadow: isActive ? `0 0 12px ${hasSweep ? "#ff8c0020" : "#00e87b15"}` : "none",
             }}>
-              {/* Window hours in IST */}
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-bold text-[var(--text)]">{toIST12(w.start)} – {toIST12(w.end)}</span>
+              {/* Window hours */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-[var(--text)]">{toIST12(w.start)} – {toIST12(w.end)}</span>
                 <span className="text-sm">{cfg.emoji}</span>
               </div>
 
-              {/* Status + description */}
-              <div className="text-xs font-bold" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
-                {hasSweep ? `⚡ SWEEP ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
+              {/* Status */}
+              <div className="text-[11px] font-bold" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
+                {hasSweep ? `⚡ ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
               </div>
-              <div className="text-[10px] text-[var(--text-dim)] mb-2">
+              <div className="text-[9px] text-[var(--text-dim)]">
                 {hasSweep
-                  ? (isActive ? "Waiting for engulfing candle..." : "Sweep detected, window over")
+                  ? (isActive ? "Engulfing search..." : "No engulfing found")
                   : cfg.desc}
               </div>
 
-              {/* Range */}
+              {/* Range + Wick */}
               {w.range > 0 && (
-                <div className="flex justify-between text-xs">
-                  <span className="text-[var(--text-dim)]">Range</span>
-                  <span className="text-[var(--text)] font-semibold">${w.range.toFixed(1)}</span>
+                <div className="text-[10px] text-[var(--text-dim)] mt-1">
+                  ${w.range.toFixed(0)}{hasSweep && w.sweep_info ? ` · wick $${w.sweep_info.wick.toFixed(0)}` : ""}
                 </div>
               )}
 
-              {/* Sweep wick */}
-              {hasSweep && w.sweep_info && (
-                <div className="flex justify-between text-xs mt-1">
-                  <span className="text-[var(--text-dim)]">Wick</span>
-                  <span className="font-semibold" style={{ color: "#ff8c00" }}>${w.sweep_info.wick.toFixed(1)}</span>
-                </div>
-              )}
-
-              {/* Scan until */}
+              {/* Scan timer */}
               {isActive && (
-                <div className="text-[10px] text-[var(--text-dim)] mt-2 pt-1 border-t border-[#ffffff08]">
-                  ⏱ Scanning until {toIST12(w.scan_until)}
+                <div className="text-[9px] text-[var(--text-dim)] mt-1">
+                  ⏱ until {toIST12(w.scan_until)}
                 </div>
               )}
             </div>
