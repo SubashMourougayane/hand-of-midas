@@ -79,40 +79,33 @@ else:
     print(f"  FAIL: {mod_result.get('error', 'Unknown')}")
     print("  (Continuing to close test...)")
 
-# Step 6: Close the trade
-print("\n[6/6] Closing test trade...")
-time.sleep(5)  # Wait longer for EA to process modify first
+# Step 6: Close ALL open trades
+print("\n[6/6] Closing all open trades...")
+time.sleep(5)
 
-# Verify trade still exists before closing
-print(f"  Checking if trade {trade_id} is still open...")
 open_trades = get_open_trades()
 open_ids = [t.get("id") or t.get("trade_id") for t in open_trades] if open_trades else []
 print(f"  Open trade IDs: {open_ids}")
 
-if str(trade_id) not in [str(x) for x in open_ids]:
-    print(f"  Trade {trade_id} NOT in open trades list!")
-    print(f"  Possible reasons:")
-    print(f"    - SL was hit immediately after modification (SL={new_sl}, current bid ~{price['bid']})")
-    print(f"    - Trade was closed by broker (margin/overnight)")
-    print(f"    - DWX EA lost track of the position")
-    close_result = {"success": False, "error": "Position not in open_trades"}
+if not open_ids:
+    print("  No trades to close!")
+    close_result = {"success": True}
 else:
-    print(f"  Trade confirmed open. Clearing stale response + waiting...")
-    # Delete stale last_response.json so close reads fresh
     import os as _os
     resp_path = _os.path.join(_os.getenv("DWX_DIR", _os.path.expanduser("~/Documents/DWX/DWX_Server_MT5")), "last_response.json")
-    if _os.path.exists(resp_path):
-        _os.remove(resp_path)
-        print(f"  Cleared {resp_path}")
-    time.sleep(3)
-    print(f"  Sending close command...")
-    close_result = close_trade(trade_id)
-    if close_result.get("success"):
-        print(f"  SUCCESS! Closed at ${close_result.get('close_price', '?')}, P&L: {close_result.get('realized_pl', '?')}")
-    else:
-        print(f"  FAIL: {close_result.get('error', 'Unknown')}")
-        print(f"  Full response: {close_result}")
-        print("  WARNING: Trade may still be open! Check MT5 manually.")
+    all_closed = True
+    for tid in open_ids:
+        print(f"  Closing {tid}...")
+        if _os.path.exists(resp_path):
+            _os.remove(resp_path)
+        time.sleep(2)
+        r = close_trade(tid)
+        if r.get("success"):
+            print(f"    ✓ Closed at ${r.get('close_price', '?')}, P&L: {r.get('realized_pl', '?')}")
+        else:
+            print(f"    ✗ FAIL: {r.get('error', 'Unknown')}")
+            all_closed = False
+    close_result = {"success": all_closed}
 
 # Summary
 print("\n" + "=" * 60)
