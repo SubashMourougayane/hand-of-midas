@@ -598,12 +598,12 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
   const maxTrades = (scan as { max_trades_per_day?: number }).max_trades_per_day || 3;
   const skipReasons = (scan as { skip_reasons?: string[] }).skip_reasons || [];
 
-  const statusConfig: Record<string, { color: string; bg: string; label: string; emoji: string }> = {
-    building: { color: "#4da6ff", bg: "#4da6ff12", label: "BUILDING", emoji: "🔵" },
-    scanning: { color: "#00e87b", bg: "#00e87b12", label: "SCANNING", emoji: "🟢" },
-    expired: { color: "#5b6370", bg: "#5b637008", label: "EXPIRED", emoji: "⬜" },
-    range_too_small: { color: "#9ca3b4", bg: "#9ca3b408", label: "TOO SMALL", emoji: "➖" },
-    no_data: { color: "#5b6370", bg: "#5b637008", label: "NO DATA", emoji: "⬜" },
+  const statusConfig: Record<string, { color: string; bg: string; label: string; emoji: string; desc: string }> = {
+    building: { color: "#4da6ff", bg: "#4da6ff12", label: "BUILDING", emoji: "🔵", desc: "Range forming..." },
+    scanning: { color: "#00e87b", bg: "#00e87b12", label: "SCANNING", emoji: "🟢", desc: "Looking for sweep + engulfing" },
+    expired: { color: "#5b6370", bg: "#5b637008", label: "EXPIRED", emoji: "⬜", desc: "Window closed, no trade" },
+    range_too_small: { color: "#9ca3b4", bg: "#9ca3b408", label: "SKIP", emoji: "➖", desc: "Range too narrow to trade" },
+    no_data: { color: "#5b6370", bg: "#5b637008", label: "WAITING", emoji: "⬜", desc: "No data yet" },
   };
 
   const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
@@ -658,29 +658,36 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
                 <span className="text-sm">{cfg.emoji}</span>
               </div>
 
-              {/* Status */}
-              <div className="text-xs font-bold mb-2" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
+              {/* Status + description */}
+              <div className="text-xs font-bold" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
                 {hasSweep ? `⚡ SWEEP ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
               </div>
+              <div className="text-[10px] text-[var(--text-dim)] mb-2">
+                {hasSweep
+                  ? (isActive ? "Waiting for engulfing candle..." : "Sweep detected, window over")
+                  : cfg.desc}
+              </div>
 
-              {/* Range (if available) */}
+              {/* Range */}
               {w.range > 0 && (
-                <div className="text-xs text-[var(--text-dim)]">
-                  Range: <span className="text-[var(--text)] font-semibold">${w.range.toFixed(1)}</span>
+                <div className="flex justify-between text-xs">
+                  <span className="text-[var(--text-dim)]">Range</span>
+                  <span className="text-[var(--text)] font-semibold">${w.range.toFixed(1)}</span>
                 </div>
               )}
 
               {/* Sweep wick */}
               {hasSweep && w.sweep_info && (
-                <div className="text-xs mt-1" style={{ color: "#ff8c00" }}>
-                  Wick: <span className="font-semibold">${w.sweep_info.wick.toFixed(1)}</span>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-[var(--text-dim)]">Wick</span>
+                  <span className="font-semibold" style={{ color: "#ff8c00" }}>${w.sweep_info.wick.toFixed(1)}</span>
                 </div>
               )}
 
-              {/* Scan until in IST */}
-              {w.status === "scanning" && (
-                <div className="text-[10px] text-[var(--text-dim)] mt-1">
-                  Scanning until {toIST12(w.scan_until)}
+              {/* Scan until */}
+              {isActive && (
+                <div className="text-[10px] text-[var(--text-dim)] mt-2 pt-1 border-t border-[#ffffff08]">
+                  ⏱ Scanning until {toIST12(w.scan_until)}
                 </div>
               )}
             </div>
