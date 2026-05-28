@@ -31,7 +31,7 @@ ALPHA_SWEEP = {
     "be_trigger_pct": 0.50,
     "max_bars": 80,
     "skip_first_bar": True,
-    "engulfing_window_hours": 2,
+    "engulfing_window_hours": 0.75,  # 45 min (optimal: PF 3.34 vs 3.07 at 2hr)
     "scan_start": 8,
     "scan_end": 20,
     "max_trades_per_day": 3,

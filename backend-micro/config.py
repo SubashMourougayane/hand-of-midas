@@ -30,7 +30,7 @@ MICRO_ALPHA_SWEEP = {
     "be_trigger_pct": 0.50,
     "max_bars": 80,
     "skip_first_bar": True,
-    "engulfing_window_hours": 2,
+    "engulfing_window_hours": 0.75,  # 45 min (was 2hr — stale signals after 45min dilute PF)
     "max_trades_per_day": 3,
     "market_close_start": 21,
     "market_close_end": 22,
