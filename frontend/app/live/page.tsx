@@ -616,87 +616,114 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
   const maxTrades = (scan as { max_trades_per_day?: number }).max_trades_per_day || 3;
   const skipReasons = (scan as { skip_reasons?: string[] }).skip_reasons || [];
 
-  const statusConfig: Record<string, { color: string; bg: string; label: string; emoji: string; desc: string }> = {
-    building: { color: "#4da6ff", bg: "#4da6ff12", label: "BUILDING", emoji: "🔵", desc: "Range forming..." },
-    scanning: { color: "#00e87b", bg: "#00e87b12", label: "SCANNING", emoji: "🟢", desc: "Looking for sweep + engulfing" },
-    expired: { color: "#5b6370", bg: "#5b637008", label: "EXPIRED", emoji: "⬜", desc: "Window closed, no trade" },
-    range_too_small: { color: "#9ca3b4", bg: "#9ca3b408", label: "SKIP", emoji: "➖", desc: "Range too narrow to trade" },
-    no_data: { color: "#5b6370", bg: "#5b637008", label: "WAITING", emoji: "⬜", desc: "No data yet" },
+  const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+
+  const toIST12 = (utcH: number) => {
+    const ist = (utcH + 5.5) % 24;
+    const h = Math.floor(ist);
+    const m = (ist % 1) * 60;
+    const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    const ampm = h < 12 ? "AM" : "PM";
+    return m > 0 ? `${hr12}:${String(Math.round(m)).padStart(2, "0")} ${ampm}` : `${hr12} ${ampm}`;
   };
 
-  const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+  // Sort: active first, then sweeps, then building, then expired
+  const sortOrder: Record<string, number> = { scanning: 0, building: 2, expired: 3, range_too_small: 4, no_data: 5 };
+  const sorted = [...windows].sort((a, b) => {
+    const aScore = a.sweep_detected ? 1 : (sortOrder[a.status] ?? 5);
+    const bScore = b.sweep_detected ? 1 : (sortOrder[b.status] ?? 5);
+    return aScore - bScore;
+  });
 
   return (
     <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+      {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Rolling Windows</h2>
         <div className="flex items-center gap-3">
+          <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Micro Scanner</h2>
+          <span className="text-lg font-bold text-[var(--text)]">${price.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ color: biasColor, background: `${biasColor}15`, border: `1px solid ${biasColor}40` }}>
-            BIAS: {bias.toUpperCase()}
+            {bias.toUpperCase()}
           </span>
-          <span className="text-[10px] text-[var(--text-dim)]">{tradesToday}/{maxTrades} trades</span>
+          <span className="text-[10px] text-[var(--text-dim)]">{tradesToday}/{maxTrades}</span>
           {skipReasons.length > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: "#ffd54f20", color: "#ffd54f", border: "1px solid #ffd54f40" }}>
-              SKIP: {skipReasons.join(", ")}
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "#ffd54f20", color: "#ffd54f" }}>
+              {skipReasons.join(", ")}
             </span>
           )}
         </div>
       </div>
 
-      {/* Price */}
-      <div className="text-center mb-3">
-        <span className="text-xl font-bold text-[var(--text)]">${price.toFixed(2)}</span>
-        <span className="text-[9px] text-[var(--text-dim)] ml-2">XAU/USD</span>
-      </div>
-
-      {/* Window cards grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-        {windows.map((w, i) => {
-          const cfg = statusConfig[w.status] || statusConfig.no_data;
-          const hasSweep = w.sweep_detected && w.sweep_info;
-          // Convert UTC hours to IST 12hr format
-          const toIST12 = (utcH: number) => {
-            const ist = (utcH + 5.5) % 24;
-            const h = Math.floor(ist);
-            const m = (ist % 1) * 60;
-            const hr12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-            const ampm = h < 12 ? "AM" : "PM";
-            return m > 0 ? `${hr12}:${String(Math.round(m)).padStart(2, "0")} ${ampm}` : `${hr12} ${ampm}`;
-          };
+      {/* Timeline rows */}
+      <div className="space-y-1.5">
+        {sorted.map((w, i) => {
           const isActive = w.status === "scanning";
+          const hasSweep = w.sweep_detected && w.sweep_info;
+          const isBuilding = w.status === "building";
+          const isExpired = w.status === "expired" || w.status === "range_too_small";
+
+          // Progress bar: building=partial, scanning=filling, expired=full
+          let progress = 0;
+          if (isBuilding) progress = 30;
+          else if (isActive && !hasSweep) progress = 60;
+          else if (isActive && hasSweep) progress = 80;
+          else if (isExpired) progress = 100;
+
+          // Colors
+          let barColor = "#2a2f3a";
+          let textColor = "#5b6370";
+          let borderLeft = "3px solid #2a2f3a";
+          if (isActive && hasSweep) { barColor = "#ff8c00"; textColor = "#ff8c00"; borderLeft = "3px solid #ff8c00"; }
+          else if (isActive) { barColor = "#00e87b"; textColor = "#00e87b"; borderLeft = "3px solid #00e87b"; }
+          else if (hasSweep) { barColor = "#ff8c0060"; textColor = "#ff8c00"; borderLeft = "3px solid #ff8c0040"; }
+          else if (isBuilding) { barColor = "#4da6ff"; textColor = "#4da6ff"; borderLeft = "3px solid #4da6ff40"; }
+
+          // Status text
+          let statusText = "";
+          if (isActive && hasSweep) statusText = `⚡ ${w.sweep_info!.direction.toUpperCase()} sweep detected → searching for engulfing candle...`;
+          else if (isActive) statusText = "Scanning for price to sweep beyond range and snap back";
+          else if (hasSweep && isExpired) statusText = `⚡ ${w.sweep_info!.direction.toUpperCase()} sweep found but no engulfing formed in time`;
+          else if (isBuilding) statusText = "Building consolidation range (price ranging)";
+          else if (w.status === "range_too_small") statusText = "Range too small to trade (<$5)";
+          else statusText = "Window closed — no opportunity";
+
           return (
-            <div key={i} className="p-3 rounded-lg transition-all" style={{
-              background: hasSweep && isActive ? "#ff8c0020" : isActive ? "#00e87b15" : hasSweep ? "#ff8c0010" : cfg.bg,
-              border: `${isActive ? "2px" : "1.5px"} solid ${hasSweep && isActive ? "#ff8c00" : isActive ? "#00e87b60" : hasSweep ? "#ff8c0030" : cfg.color + "22"}`,
-              boxShadow: isActive ? `0 0 12px ${hasSweep ? "#ff8c0020" : "#00e87b15"}` : "none",
+            <div key={i} className="flex items-stretch gap-3 py-2 px-3 rounded" style={{
+              background: isActive ? `${barColor}10` : "transparent",
+              borderLeft,
+              opacity: isExpired && !hasSweep ? 0.5 : 1,
             }}>
-              {/* Window hours */}
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-[var(--text)]">{toIST12(w.start)} – {toIST12(w.end)}</span>
-                <span className="text-sm">{cfg.emoji}</span>
+              {/* Time column */}
+              <div className="w-[130px] flex-shrink-0">
+                <div className="text-xs font-bold text-[var(--text)]">{toIST12(w.start)} – {toIST12(w.end)}</div>
+                {isActive && (
+                  <div className="text-[9px]" style={{ color: textColor }}>until {toIST12(w.scan_until)}</div>
+                )}
               </div>
 
-              {/* Status */}
-              <div className="text-[11px] font-bold" style={{ color: hasSweep ? "#ff8c00" : cfg.color }}>
-                {hasSweep ? `⚡ ${w.sweep_info!.direction.toUpperCase()}` : cfg.label}
-              </div>
-              <div className="text-[9px] text-[var(--text-dim)]">
-                {hasSweep
-                  ? (isActive ? "Engulfing search..." : "No engulfing found")
-                  : cfg.desc}
-              </div>
-
-              {/* Range + Wick */}
-              {w.range > 0 && (
-                <div className="text-[10px] text-[var(--text-dim)] mt-1">
-                  ${w.range.toFixed(0)}{hasSweep && w.sweep_info ? ` · wick $${w.sweep_info.wick.toFixed(0)}` : ""}
+              {/* Progress bar */}
+              <div className="w-[80px] flex-shrink-0 flex items-center">
+                <div className="w-full h-[6px] rounded-full overflow-hidden" style={{ background: "#1a1f2b" }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: barColor }} />
                 </div>
-              )}
+              </div>
 
-              {/* Scan timer */}
+              {/* Status + details */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px]" style={{ color: textColor }}>{statusText}</div>
+                {w.range > 0 && (
+                  <div className="text-[9px] text-[var(--text-dim)]">
+                    Range ${w.range.toFixed(0)}{hasSweep && w.sweep_info ? ` · Wick $${w.sweep_info.wick.toFixed(0)}` : ""}
+                  </div>
+                )}
+              </div>
+
+              {/* Active indicator */}
               {isActive && (
-                <div className="text-[9px] text-[var(--text-dim)] mt-1">
-                  ⏱ until {toIST12(w.scan_until)}
+                <div className="flex-shrink-0 flex items-center">
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: barColor, animation: "sweepPulse 1.5s ease-in-out infinite" }} />
                 </div>
               )}
             </div>
