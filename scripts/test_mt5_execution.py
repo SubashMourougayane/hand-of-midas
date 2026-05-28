@@ -86,7 +86,7 @@ time.sleep(5)  # Wait longer for EA to process modify first
 # Verify trade still exists before closing
 print(f"  Checking if trade {trade_id} is still open...")
 open_trades = get_open_trades()
-open_ids = [t["trade_id"] for t in open_trades] if open_trades else []
+open_ids = [t.get("id") or t.get("trade_id") for t in open_trades] if open_trades else []
 print(f"  Open trade IDs: {open_ids}")
 
 if str(trade_id) not in [str(x) for x in open_ids]:
