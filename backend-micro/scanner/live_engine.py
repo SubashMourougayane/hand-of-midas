@@ -173,10 +173,13 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
 
-    _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
+    # ALL DB operations after fill are in try/except — trade exists on MT5 regardless
+    # Must ALWAYS return trade_ref to prevent duplicate orders
+    try:
+        _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
+    except Exception as e:
+        print(f"  [MICRO] ⚠️ _log_signal FAILED: {e}")
 
-    # DB INSERT — CRITICAL: if this fails, trade is STILL open on MT5.
-    # Must return trade_ref regardless to prevent duplicate orders.
     try:
         execute(
             """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
@@ -185,7 +188,10 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         )
     except Exception as e:
         print(f"  [MICRO] ⚠️ DB INSERT FAILED (trade is open on MT5!): {e}")
-        _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
+        try:
+            _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
+        except:
+            pass
 
     _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "instrument": "XAU_USD", "units": units, "sl": sl_price, "tp": tp_price,
@@ -227,9 +233,10 @@ def check_open_positions():
                         gbp_usd = _get_gbp_usd_rate()
                         realized_pl = result["realized_pl"]
                         pnl_usd = realized_pl * gbp_usd
+                        close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl)
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", result["close_price"], {

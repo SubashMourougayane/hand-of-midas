@@ -94,8 +94,14 @@ def micro_sweep_job():
     if _daily_state["date"] != today:
         _daily_state = {"date": today, "pnl": 0.0, "trades": 0}
 
-    # Daily max loss check
-    if DD_PROTECTION["daily_max_loss"] and _daily_state["pnl"] <= -DD_PROTECTION["daily_max_loss"]:
+    # Daily max loss check — query ACTUAL daily P&L from DB (not local variable)
+    daily_pnl_rows = execute(
+        f"SELECT COALESCE(SUM(pnl_usd), 0) as daily_pnl FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time::date = %s AND pnl_usd IS NOT NULL",
+        (today,), fetch=True
+    )
+    actual_daily_pnl = float(daily_pnl_rows[0]["daily_pnl"]) if daily_pnl_rows else 0
+    _daily_state["pnl"] = actual_daily_pnl  # Sync local state with DB reality
+    if DD_PROTECTION["daily_max_loss"] and actual_daily_pnl <= -DD_PROTECTION["daily_max_loss"]:
         return
 
     active_windows = _get_active_windows(now)

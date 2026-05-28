@@ -261,9 +261,10 @@ def check_open_positions():
                         gbp_usd = _get_gbp_usd_rate()
                         realized_pl = result["realized_pl"]
                         pnl_usd = realized_pl * gbp_usd
+                        close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         dd_state = _get_dd_state()
                         new_consec = 0 if realized_pl > 0 else dd_state["consecutive_losses"] + 1
