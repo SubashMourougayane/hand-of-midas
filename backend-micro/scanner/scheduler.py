@@ -140,6 +140,30 @@ def position_monitor_job():
 
 def _run_micro_sweep(now: datetime, active_windows: list):
     """Process all active windows for sweep detection."""
+    # Fetch market data
+    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
+    if len(h1_candles) < 6:
+        return
+    daily_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+    if len(daily_candles) < 2:
+        return
+    m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
+    if not m3_candles:
+        return
+
+    return _run_micro_sweep_core(now, active_windows, h1_candles, daily_candles, m3_candles)
+
+
+def _run_micro_sweep_core(now: datetime, active_windows: list,
+                          h1_candles: list, daily_candles: list, m3_candles: list,
+                          dry_run: bool = False):
+    """Core sweep logic — testable with injected data.
+
+    Args:
+        dry_run: If True, returns signals without executing (for harness testing).
+    Returns:
+        List of signal dicts if dry_run=True, else None.
+    """
     cfg = MICRO_ALPHA_SWEEP
     today = now.date()
 
@@ -150,18 +174,9 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     )
     trades_today = existing[0]["cnt"] if existing else 0
     if trades_today >= cfg["max_trades_per_day"]:
-        return
-
-
-    # Get H1 bars (complete only)
-    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
-    if len(h1_candles) < 6:
-        return
+        return [] if dry_run else None
 
     # Daily bias (Variant C)
-    daily_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
-    if len(daily_candles) < 2:
-        return
     yesterday = daily_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
     mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
@@ -175,12 +190,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     else:
         bias = "bullish" if mid_close > mid_open else "bearish"
 
-    # Get M3 candles for engulfing detection
-    m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
-    if not m3_candles:
-        return
-
     trade_placed_this_cycle = False
+    signals_found = []  # For dry_run mode
 
     # 5-min cooldown after last signal attempt (taken OR failed with order/SL error)
     from datetime import timedelta as _td
@@ -193,14 +204,13 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         if last_signal_time.tzinfo is None:
             last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
         skip = recent_signal[0].get("skip_reason", "")
-        # Cooldown applies if: signal was taken, OR it failed with execution error (same signal will fail again)
         if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
             if now < last_signal_time + _td(minutes=5):
-                return  # Cooldown: same signal can't re-fire within 5 min
+                return [] if dry_run else None
 
     # Startup cooldown: blocks until engulfing window from pre-restart signal expires (C8 fix)
     if _startup_cooldown_until and now < _startup_cooldown_until:
-        return
+        return [] if dry_run else None
 
     for window in active_windows:
         if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
@@ -349,25 +359,37 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                         continue
                     direction = "short"
 
-                # Execute
-                trade_ref = execute_signal(
-                    strategy="micro_alpha_sweep",
-                    direction=direction,
-                    entry_price=entry,
-                    sl_price=sl,
-                    tp_price=tp,
-                    context={
+                # Execute (or collect in dry_run mode)
+                if dry_run:
+                    signals_found.append({
+                        "time": c["timestamp"], "direction": direction,
+                        "entry": round(entry, 2), "sl": round(sl, 2), "tp": round(tp, 2),
+                        "risk": round(risk, 2), "bias": bias,
                         "range_high": range_high, "range_low": range_low,
-                        "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
-                        "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
-                    },
-                    daily_pnl=_daily_state["pnl"],
-                )
-                _traded_sweeps["keys"].add(sweep_key)
-                if trade_ref:
+                        "consol_range": consol_range, "sweep_wick": sweep_wick,
+                    })
+                    _traded_sweeps["keys"].add(sweep_key)
                     trades_today += 1
-                    _daily_state["trades"] += 1
                     trade_placed_this_cycle = True
+                else:
+                    trade_ref = execute_signal(
+                        strategy="micro_alpha_sweep",
+                        direction=direction,
+                        entry_price=entry,
+                        sl_price=sl,
+                        tp_price=tp,
+                        context={
+                            "range_high": range_high, "range_low": range_low,
+                            "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
+                            "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                        },
+                        daily_pnl=_daily_state["pnl"],
+                    )
+                    _traded_sweeps["keys"].add(sweep_key)
+                    if trade_ref:
+                        trades_today += 1
+                        _daily_state["trades"] += 1
+                        trade_placed_this_cycle = True
                 break  # One engulfing per sweep
 
             # No engulfing found — only consume sweep if engulfing window has expired.
@@ -380,6 +402,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
             if trade_placed_this_cycle:
                 break
         # trade_placed_this_cycle checked at top of window loop
+
+    return signals_found if dry_run else None
 
 
 def _restore_traded_sweeps_on_startup():
