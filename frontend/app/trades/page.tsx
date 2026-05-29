@@ -209,9 +209,8 @@ export default function TradesPage() {
                       <td className={t.side === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{t.side}</td>
                       <td className="text-right">${t.entry_price.toFixed(2)}</td>
                       <td className="text-right">{t.exit_price ? `$${t.exit_price.toFixed(2)}` : "—"}</td>
-                      <td className={`text-right font-semibold ${t.pnl_gbp >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                        £{t.pnl_gbp >= 0 ? "+" : ""}{t.pnl_gbp.toFixed(2)}
-                        <span className="text-[9px] text-[var(--text-dim)] ml-1">(${t.pnl_usd.toFixed(0)})</span>
+                      <td className={`text-right font-semibold ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
+                        ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}{(t.pnl_usd || t.pnl_gbp).toFixed(0)}
                       </td>
                       <td className="text-[var(--yellow)]">{t.exit_reason}</td>
                       <td>{t.units}</td>

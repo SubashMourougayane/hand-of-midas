@@ -161,17 +161,17 @@ export default function LivePage() {
               <div className="t-panel p-3">
                 <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Account NAV</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">
-                  {state.account?.currency === "GBP" ? "£" : "$"}{state.account?.nav?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
+                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || state.account?.nav?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
                 </div>
                 <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"} USD{state.account?.currency === "GBP" ? ` | Rate: ${state.account?.gbp_usd_rate?.toFixed(4)}` : ""}
+                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"} USD
                 </div>
               </div>
               <div className="t-panel p-3">
                 <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Open Positions</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">{state.db_positions?.length || 0}</div>
                 <div className="text-[10px] mt-0.5" style={{ color: (state.account?.unrealized_pl || 0) >= 0 ? "#00e87b" : "#ff3e3e" }}>
-                  {(state.account?.unrealized_pl || 0) !== 0 ? `Unrealized: ${state.account?.currency === "GBP" ? "£" : "$"}${state.account.unrealized_pl.toFixed(2)}` : "No positions"}
+                  {(state.account?.unrealized_pl || 0) !== 0 ? `Unrealized: $${state.account.unrealized_pl.toFixed(2)}` : "No positions"}
                 </div>
               </div>
               <div className="t-panel p-3">
@@ -297,9 +297,8 @@ export default function LivePage() {
                       <tr key={t.trade_ref} className="border-t border-[var(--border)]">
                         <td className="py-1"><span style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span></td>
                         <td className={t.side === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{t.side}</td>
-                        <td className={`text-right font-semibold ${t.pnl_gbp >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                          £{t.pnl_gbp >= 0 ? "+" : ""}{t.pnl_gbp.toFixed(2)}
-                          <span className="text-[9px] text-[var(--text-dim)] ml-1">(${t.pnl_usd.toFixed(0)})</span>
+                        <td className={`text-right font-semibold ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
+                          ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}{(t.pnl_usd || t.pnl_gbp).toFixed(0)}
                         </td>
                         <td className="text-[var(--yellow)]">{t.exit_reason}</td>
                         <td className="text-[var(--text-dim)]">{t.exit_time ? new Date(t.exit_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</td>

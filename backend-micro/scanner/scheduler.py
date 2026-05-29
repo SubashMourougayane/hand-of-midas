@@ -19,6 +19,11 @@ scheduler = BackgroundScheduler(timezone="UTC")
 # Daily PnL tracking (resets at midnight UTC)
 _daily_state = {"date": None, "pnl": 0.0, "trades": 0}
 
+# Sweep blacklist — persists across scan cycles, resets at midnight.
+# Matches backtest behavior: once a sweep is consumed (trade taken, SL hit, or no engulfing found),
+# it never fires again that day. Key format: "{bar_timestamp}_{sweep_dir}"
+_traded_sweeps = {"date": None, "keys": set()}
+
 
 def _parse_ts(ts_str: str) -> datetime:
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
@@ -89,10 +94,12 @@ def micro_sweep_job():
 
 
     # Reset daily state at midnight
-    global _daily_state
+    global _daily_state, _traded_sweeps
     today = now.date()
     if _daily_state["date"] != today:
         _daily_state = {"date": today, "pnl": 0.0, "trades": 0}
+    if _traded_sweeps["date"] != today:
+        _traded_sweeps = {"date": today, "keys": set()}
 
     # Daily max loss check — query ACTUAL daily P&L from DB (not local variable)
     daily_pnl_rows = execute(
@@ -169,8 +176,6 @@ def _run_micro_sweep(now: datetime, active_windows: list):
     if not m3_candles:
         return
 
-    # Track which sweep times we've already processed (dedup across overlapping windows)
-    processed_sweeps = set()
     trade_placed_this_cycle = False
 
     # 5-min cooldown after last signal attempt (taken OR failed with order/SL error)
@@ -249,26 +254,13 @@ def _run_micro_sweep(now: datetime, active_windows: list):
             if not sweep_dir:
                 continue
 
-            # Dedup: don't process same sweep bar twice across overlapping windows
+            # Dedup: once a sweep is consumed (traded, SL'd, or no engulfing), never re-fire that day.
+            # Matches backtest traded_sweeps behavior. Persists across 3-min scan cycles.
             sweep_key = f"{bar['timestamp']}_{sweep_dir}"
-            if sweep_key in processed_sweeps:
+            if sweep_key in _traded_sweeps["keys"]:
                 continue
-            processed_sweeps.add(sweep_key)
 
-            # CRITICAL: Check if this sweep already produced a trade today.
-            # Without this, the same engulfing is found every 3 min → fires repeatedly.
-            # A sweep bar can only produce ONE trade ever.
-            sweep_already_traded = execute(
-                f"SELECT COUNT(*) as cnt FROM gd_signals WHERE strategy='micro_alpha_sweep' AND taken=True AND timestamp::date = %s",
-                (today,), fetch=True
-            )
-            signals_taken_today = sweep_already_traded[0]["cnt"] if sweep_already_traded else 0
-            if signals_taken_today >= trades_today and trades_today > 0:
-                # All taken signals have corresponding trades — this sweep is fresh only if no trade exists
-                # But if trades_today > 0, we need to check if THIS specific sweep was traded
-                pass  # Let it through — the max_trades_per_day will cap it
-
-            # Better approach: if there are ANY open positions from Micro today, don't enter again
+            # One-at-a-time: if there are ANY open positions from Micro, don't enter again
             # until the position is closed (one-at-a-time rule)
             open_micro = execute(
                 f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
@@ -295,6 +287,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                     relevant_m3.append(c)
 
             if len(relevant_m3) < 3:
+                if now >= window_end:
+                    _traded_sweeps["keys"].add(sweep_key)
                 continue
 
             for j in range(2, len(relevant_m3)):
@@ -359,11 +353,18 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                     },
                     daily_pnl=_daily_state["pnl"],
                 )
+                _traded_sweeps["keys"].add(sweep_key)
                 if trade_ref:
                     trades_today += 1
                     _daily_state["trades"] += 1
                     trade_placed_this_cycle = True
                 break  # One engulfing per sweep
+
+            # No engulfing found — only consume sweep if engulfing window has expired.
+            # If window still open, a future M3 bar might form a valid engulfing.
+            else:
+                if now >= window_end:
+                    _traded_sweeps["keys"].add(sweep_key)
 
             # If trade was placed, exit scan_bars loop
             if trade_placed_this_cycle:

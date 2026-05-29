@@ -21,6 +21,9 @@ from scanner.live_engine import execute_signal, check_open_positions, check_alph
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
+# Sweep blacklist — persists across scan cycles, resets daily.
+_traded_sweeps_oil = {"date": None, "keys": set()}
+
 
 def london_session_job():
     """Every 3 min during 08:00-20:00 UTC — Oil Alpha-Sweep (London + NY)."""
@@ -50,8 +53,13 @@ def position_monitor_job():
 
 def _run_alpha_sweep():
     """Check for Oil Asia sweep + M3 engulfing. Up to max_trades_per_day."""
+    global _traded_sweeps_oil
     cfg = ALPHA_SWEEP
     today = datetime.now(timezone.utc).date()
+    now = datetime.now(timezone.utc)
+
+    if _traded_sweeps_oil["date"] != today:
+        _traded_sweeps_oil = {"date": today, "keys": set()}
 
     # Check how many trades today
     existing = execute(
@@ -140,6 +148,10 @@ def _run_alpha_sweep():
         if trades_today >= cfg["max_trades_per_day"]:
             break
 
+        sweep_key = f"{sweep_ts}_{sweep_dir}"
+        if sweep_key in _traded_sweeps_oil["keys"]:
+            continue
+
         # Bias filter (Variant C: neutral = allow both directions)
         if bias != "neutral":
             if sweep_dir == "bullish" and bias != "bullish":
@@ -218,8 +230,13 @@ def _run_alpha_sweep():
                     "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
                 },
             )
+            _traded_sweeps_oil["keys"].add(sweep_key)
             trades_today += 1
             break  # One engulfing per sweep
+        else:
+            # No engulfing found — consume only if window expired
+            if now >= window_end:
+                _traded_sweeps_oil["keys"].add(sweep_key)
 
 
 def start_scheduler():

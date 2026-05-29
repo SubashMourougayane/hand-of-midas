@@ -20,6 +20,11 @@ from backend.db import execute
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
 
+# Price cache: stores last known price per trade_id each monitoring cycle.
+# When a trade disappears from MT5, we use THIS cached price (from ~1 min ago)
+# instead of current price, which may have moved far from exit by detection time.
+_price_cache = {}  # {oanda_trade_id: {"bid": float, "ask": float}}
+
 
 def _get_gbp_usd_rate():
     from backend.config import EXECUTOR
@@ -206,6 +211,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
 def check_open_positions():
     """Monitor open Micro positions — detect closures, enforce max hold."""
+    global _price_cache
     open_db_trades = execute(
         f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
         fetch=True
@@ -216,6 +222,14 @@ def check_open_positions():
 
     oanda_open = get_open_trades()
     oanda_open_ids = {t.get("id") or t.get("trade_id") for t in oanda_open}
+
+    # Cache current price for all open trades (used next cycle if trade disappears)
+    price_now = get_current_price(instrument="XAU_USD")
+    if price_now:
+        for trade in open_db_trades:
+            oid = trade["oanda_trade_id"]
+            if oid in oanda_open_ids:
+                _price_cache[oid] = {"bid": price_now["bid"], "ask": price_now["ask"]}
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
@@ -253,35 +267,51 @@ def check_open_positions():
         details = get_trade_details(oanda_id)
 
         if details and details["state"] == "CLOSED":
+            _price_cache.pop(oanda_id, None)
             realized_pl = details["realized_pl"]
             close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
             fill_price = details.get("price", 0)
         elif not details:
-            # Position gone from open_orders.json — closed by broker (SL/TP)
-            # We don't have exact fill price, estimate from SL/TP
-            price = get_current_price(instrument="XAU_USD")
-            current_price = price["mid"] if price else 0
+            # Position gone from open_orders.json — closed by broker (SL/TP).
+            # Use CACHED price (from last cycle, ~1 min ago) — much closer to actual exit
+            # than current price which may have moved $20+ away by now.
+            cached = _price_cache.pop(oanda_id, None)
             sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
             tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
             entry_price = float(trade["entry_price"])
+            units = trade["units"] or 1
 
-            # Determine which was hit based on current price proximity
-            if trade["side"] == "SHORT":
-                if current_price >= sl_price - 5:  # Near SL
-                    fill_price = sl_price
-                    realized_pl = (entry_price - sl_price) * (trade["units"] or 1)
-                else:
-                    fill_price = tp_price if tp_price > 0 else current_price
-                    realized_pl = (entry_price - fill_price) * (trade["units"] or 1)
+            if cached:
+                # Use cached price to determine SL vs TP
+                cached_mid = (cached["bid"] + cached["ask"]) / 2
             else:
-                if current_price <= sl_price + 5:
+                # No cache (first cycle after restart) — fall back to current
+                price = get_current_price(instrument="XAU_USD")
+                cached_mid = price["mid"] if price else 0
+
+            # Determine exit: check if cached price was near SL or TP
+            if trade["side"] == "SHORT":
+                sl_dist = abs(cached_mid - sl_price) if sl_price else 999
+                tp_dist = abs(cached_mid - tp_price) if tp_price else 999
+                if sl_dist <= tp_dist:
                     fill_price = sl_price
-                    realized_pl = (sl_price - entry_price) * (trade["units"] or 1)
+                    realized_pl = (entry_price - sl_price) * units
                 else:
-                    fill_price = tp_price if tp_price > 0 else current_price
-                    realized_pl = (fill_price - entry_price) * (trade["units"] or 1)
+                    fill_price = tp_price
+                    realized_pl = (entry_price - tp_price) * units
+            else:
+                sl_dist = abs(cached_mid - sl_price) if sl_price else 999
+                tp_dist = abs(cached_mid - tp_price) if tp_price else 999
+                if sl_dist <= tp_dist:
+                    fill_price = sl_price
+                    realized_pl = (sl_price - entry_price) * units
+                else:
+                    fill_price = tp_price
+                    realized_pl = (tp_price - entry_price) * units
+
             close_time = datetime.now(timezone.utc).isoformat()
-            print(f"  [MICRO] Position {oanda_id} gone from MT5 — estimating exit")
+            source = "cached" if cached else "current"
+            print(f"  [MICRO] Position {oanda_id} gone — exit estimated from {source} price (mid={cached_mid:.2f}, SL={sl_price:.2f}, TP={tp_price:.2f})")
         else:
             continue  # Still open somehow
 

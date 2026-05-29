@@ -25,6 +25,10 @@ from backend.config import CROSS_MARKET, MEAN_REV, ALPHA_SWEEP, slippage, ENGULF
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
+# Sweep blacklist — persists across scan cycles, resets daily.
+# Once a sweep produces a trade (or SL), it never re-fires that day.
+_traded_sweeps_macro = {"date": None, "keys": set()}
+
 
 def daily_close_job():
     """
@@ -342,11 +346,16 @@ def london_session_job():
 
 def _run_alpha_sweep():
     """Check for Asia sweep + M3 engulfing setup. Allows up to max_trades_per_day."""
+    global _traded_sweeps_macro
     cfg = ALPHA_SWEEP
 
     # Check how many trades today
     today = datetime.now(timezone.utc).date()
     now = datetime.now(timezone.utc)
+
+    # Reset sweep blacklist at midnight
+    if _traded_sweeps_macro["date"] != today:
+        _traded_sweeps_macro = {"date": today, "keys": set()}
 
     existing = execute(
         "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
@@ -465,6 +474,11 @@ def _run_alpha_sweep():
         if trades_today >= cfg["max_trades_per_day"]:
             break
 
+        # Sweep blacklist: once consumed (traded or SL'd), never re-fires that day
+        sweep_key = f"{sweep_ts}_{sweep_dir}"
+        if sweep_key in _traded_sweeps_macro["keys"]:
+            continue
+
         # Bias filter (Variant C: neutral = allow both directions)
         if bias != "neutral":
             if sweep_dir == "bullish" and bias != "bullish":
@@ -543,10 +557,13 @@ def _run_alpha_sweep():
                     "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
                 })
 
+            _traded_sweeps_macro["keys"].add(sweep_key)
             trades_today += 1
             break  # One engulfing per sweep
         else:
-            # No engulfing found in this sweep's window
+            # No engulfing found — consume only if window expired
+            if now >= window_end:
+                _traded_sweeps_macro["keys"].add(sweep_key)
             _log_journal("SYSTEM", "alpha_sweep", "NO_ENGULFING",
                 price=sweep_wick, context={"direction": sweep_dir, "sweep_wick": sweep_wick,
                                            "m3_bars_checked": len(relevant_m3), "bias": bias})
