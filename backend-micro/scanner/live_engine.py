@@ -212,7 +212,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
 def check_open_positions():
     """Monitor open Micro positions — detect closures, enforce max hold."""
-    global _price_cache
+    global _price_extremes
     open_db_trades = execute(
         f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
         fetch=True
@@ -280,9 +280,6 @@ def check_open_positions():
             fill_price = details.get("price", 0)
         elif not details:
             # Position gone from open_orders.json — closed by broker (SL/TP).
-            # Use CACHED price (from last cycle, ~1 min ago) — much closer to actual exit
-            # than current price which may have moved $20+ away by now.
-            cached = _price_cache.pop(oanda_id, None)
             sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
             tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
             entry_price = float(trade["entry_price"])
