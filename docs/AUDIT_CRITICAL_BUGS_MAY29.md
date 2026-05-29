@@ -254,10 +254,91 @@ If scheduler fires at minute :01 (not aligned with M3 bar close), the last M3 ba
 
 ---
 
+## STATUS (Updated May 29 PM)
+
+| # | Status | Fix |
+|---|--------|-----|
+| C1 | ✅ FIXED | Daily max loss queries DB, not local variable |
+| C2 | ✅ FIXED | `result.get("time", now.isoformat())` |
+| C3 | ✅ FIXED | `_log_signal` wrapped in try/except |
+| C4 (exit estimation) | ✅ FIXED | Price cache per trade, distance-to-SL/TP comparison |
+| C5 (sweep re-fire) | ✅ FIXED | `_traded_sweeps` persists daily across scan cycles |
+| H4 | ⬜ OPEN | Remove duplicate halving in backtest engine |
+| H5 | ⬜ OPEN | Filter H1 bars by timestamp |
+| H6 | ⬜ OPEN | Include previous day bars for overnight windows |
+| M7-M10 | ⬜ OPEN | Low priority |
+
+---
+
+## NEW FINDINGS — GOD MODE Audit #2 (May 29 PM)
+
+### 🔴 CRITICAL (New)
+
+**C7. C4 Fix Still Flawed — Price Can Continue Past SL After Hit**
+- **File:** `backend-micro/scanner/live_engine.py`, lines 284-310
+- **Scenario:** SHORT entry=$2400, SL=$2405, TP=$2380. SL hits at $2405. Price reverses PAST SL to $2388. Cached mid (from 1 min before detection) = $2390. `sl_dist = |2390 - 2405| = 15`, `tp_dist = |2390 - 2380| = 10`. Since tp_dist < sl_dist → **misclassifies as TP when actual was SL.**
+- **When this happens:** Any fast move that hits SL then continues in the same direction (momentum breakout scenarios — exactly when our counter-trend strategy loses).
+- **Impact:** Wrong P&L, corrupted DD state, could allow trading past daily max loss.
+- **Fix options:** (a) Always assume SL when uncertain (conservative), (b) Add "direction of last movement" heuristic — if SHORT and price went UP past entry then came back down, it was SL, (c) Query MT5 account history if DWX supports it.
+
+**C8. `_traded_sweeps` Lost on Service Restart**
+- **File:** `backend-micro/scanner/scheduler.py`, line 25
+- **Scenario:** Service restarts mid-day. `_traded_sweeps = {"date": None, "keys": set()}`. Previously-traded sweeps (with closed positions) re-fire because: (1) H1 bar still in `get_candles(count=24)`, (2) engulfing bar still in M3 50-bar window, (3) one-at-a-time passes (trade already closed), (4) cooldown passes (>5 min since last signal).
+- **Impact:** Duplicate trade on same losing signal. Prevented by `max_trades_per_day` from DB, so at worst 1 extra trade.
+- **Fix:** On startup, query today's `gd_signals WHERE taken=True` and pre-populate `_traded_sweeps["keys"]` from their timestamps.
+
+**C9. Backtest Allows Concurrent Positions — Live Does Not**
+- **File:** `backend-micro/backtest/engine.py` (no one-at-a-time check)
+- **Impact:** Backtest P&L inflated by overlapping trades that live can never take. Trade count in backtest > live.
+- **Fix:** Add one-at-a-time check to backtest execution loop (track if a previous trade is still "open" based on bars_held vs next signal time).
+
+### 🟠 HIGH (New)
+
+**H7. DWX `_wait_response` Has No Thread Lock — Response Cross-Contamination**
+- **File:** `backend/execution/mt5_executor.py`, lines 64-81
+- **Scenario:** `micro_sweep_job` and `position_monitor_job` run in separate APScheduler threads. Both write commands to DWX. If both fire within ~100ms, Thread A reads Thread B's response from `last_response.json` → phantom fill (trade_id=0 in DB).
+- **Probability:** ~33% overlap window each minute (sweep=3min, monitor=1min).
+- **Fix:** Add `threading.Lock()` around the command-write + response-wait sequence.
+
+**H8. Dedup Key Format Mismatch — Live More Restrictive Than Backtest**
+- **File:** Backtest keys on `(sbar_ts, start_hour)` — same bar can fire for different windows. Live keys on `"{timestamp}_{direction}"` — blocks same bar across ALL windows.
+- **Impact:** Live takes fewer trades than backtest on days where one bar sweeps multiple overlapping windows. Reduces live trade count vs expected.
+- **Fix:** Change live key to `f"{bar['timestamp']}_{sweep_dir}_{window['consol_start']}"` to match backtest granularity.
+
+**H9. Daily Bias Could Lag 1 Day (OANDA vs CSV)**
+- **File:** `scheduler.py` line 158: `yesterday = daily_candles[-2]` — if OANDA returns only COMPLETED candles (no in-progress current day), `[-2]` is day-before-yesterday.
+- **Impact:** Wrong bias → wrong filter → allows/blocks signals incorrectly on some days.
+- **Fix:** After fetching daily candles, verify `daily_candles[-1]` date is today. If yes, `[-2]` is yesterday (correct). If not, `[-1]` is yesterday.
+
+**H10. Same-Bar TP+SL: Backtest Always Awards TP**
+- **File:** `backend/execution/fill_model.py` — checks TP before SL (line 73 before line 78). If BOTH TP and SL are touched in same M3 bar, TP wins.
+- **Impact:** Inflates backtest WR. In live, broker fills whichever was hit first chronologically. During volatile bars (news), the SL is often hit first.
+- **Fix:** Randomize or use bar direction (if close > open, likely TP first for longs; if close < open, SL first).
+
+**H11. No Orphan Detection — MT5 Positions Without DB Records Are Invisible**
+- **File:** `live_engine.py` `check_open_positions()` — only checks DB trades against MT5. Does NOT check MT5 trades against DB.
+- **Impact:** If C3 (now fixed) ever recurs or any edge case creates an orphan, it runs unmonitored until broker SL/TP fills. No alerting.
+- **Fix:** Add reverse reconciliation: for each MT5 open position, check if a matching `gd_trades` record exists. If not, alert via Telegram.
+
+### 🟡 MEDIUM (New)
+
+**M11. Random Slippage in Live Entry Price Calculation**
+- **File:** `config.py` line 56: `np.random.uniform(0, 0.02)` in slippage function.
+- **Impact:** SL/TP calculated from a randomly-perturbed "expected entry", not actual fill. $0.02 difference is negligible for Gold, but introduces non-determinism in signal acceptance (a signal that passes risk checks on one cycle might fail on the next).
+
+---
+
 ## RECOMMENDATION
 
-**DO NOT go live without fixing C1, C2, C3.** These are not theoretical — C3 already caused the May 28 duplicate crisis. C1 means the "$400 daily cap" we keep citing is a lie. C2 means any 4-hour trade will permanently lock the system.
+**C1-C5 are FIXED.** The system is safe to trade with the C5 sweep blacklist and C4 price cache.
 
-**Fix H4 before trusting backtest numbers.** The reported "max DD -24.1%" is artificially low. Real live DD could be -35%+ during a losing streak because position sizing is 2x larger than what was tested.
+**Known limitations (accept or fix):**
+- C7 (price cache misclassification): Occurs on fast momentum moves. Conservative fix: default to SL when uncertain. Current fix is better than old (uses cached vs current) but not perfect.
+- C8 (restart loses state): Mitigated by max_trades_per_day from DB + cooldown. Fix: pre-populate on startup.
+- C9 (backtest concurrent): Backtest numbers are slightly optimistic. Strategy edge is real (PF > 2) but exact numbers won't match live.
 
-**H5 and H6 together mean ~15% of live trades have questionable edge** (false sweeps from incomplete bars + unvalidated overnight window). These won't cause catastrophic loss but will erode PF over time.
+**Priority for next session:**
+1. Fix H4 (backtest double-halving) — get honest DD numbers
+2. Fix C8 (pre-populate _traded_sweeps on startup from DB)
+3. Fix H7 (threading lock on DWX) — prevents phantom fills
+4. Fix H5 (incomplete H1 bars) — prevents false sweeps

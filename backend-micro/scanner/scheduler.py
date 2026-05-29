@@ -24,6 +24,10 @@ _daily_state = {"date": None, "pnl": 0.0, "trades": 0}
 # it never fires again that day. Key format: "{bar_timestamp}_{sweep_dir}"
 _traded_sweeps = {"date": None, "keys": set()}
 
+# Startup cooldown: blocks new signals until engulfing window from last signal expires.
+# Prevents C8: service restart mid-day re-firing old sweeps.
+_startup_cooldown_until = None
+
 
 def _parse_ts(ts_str: str) -> datetime:
     cleaned = re.sub(r'(\.\d{6})\d+', r'\1', ts_str.replace("Z", "+00:00"))
@@ -193,6 +197,10 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
             if now < last_signal_time + _td(minutes=5):
                 return  # Cooldown: same signal can't re-fire within 5 min
+
+    # Startup cooldown: blocks until engulfing window from pre-restart signal expires (C8 fix)
+    if _startup_cooldown_until and now < _startup_cooldown_until:
+        return
 
     for window in active_windows:
         if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
@@ -372,7 +380,57 @@ def _run_micro_sweep(now: datetime, active_windows: list):
         # trade_placed_this_cycle checked at top of window loop
 
 
+def _restore_traded_sweeps_on_startup():
+    """On startup, block re-entry for recent signals to prevent C8 (restart re-fire).
+
+    We can't reconstruct the exact sweep_key (OANDA bar timestamps aren't in DB).
+    Instead: if any signal was taken within the last 45 minutes (the engulfing window),
+    the same sweep bar is still detectable in the H1 lookback. To prevent re-fire,
+    we insert a synthetic 'startup_block' that forces the 5-min cooldown check to
+    trigger until the engulfing window has fully expired.
+
+    The approach: insert a fake signal record with timestamp = now, which makes
+    the 5-min cooldown (line 182-195) block for 5 min. After that, if the signal
+    was taken >45 min ago, the engulfing window has expired (no re-detection).
+    If <45 min ago, we need a longer block.
+
+    Simplest correct approach: query the most recent taken signal. If it's within
+    the last 45 min, insert a cooldown-extending signal at NOW so the 5-min
+    cooldown keeps re-triggering until the engulfing window expires.
+
+    Actually even simpler: just store the last taken signal time in a module var
+    and extend the cooldown check in the main loop to use max(DB cooldown, startup cooldown).
+    """
+    global _traded_sweeps, _startup_cooldown_until
+    today = datetime.now(timezone.utc).date()
+    _traded_sweeps = {"date": today, "keys": set()}
+
+    now = datetime.now(timezone.utc)
+    recent = execute(
+        "SELECT timestamp FROM gd_signals WHERE strategy='micro_alpha_sweep' AND taken=True ORDER BY timestamp DESC LIMIT 1",
+        fetch=True
+    )
+    if recent and recent[0]["timestamp"]:
+        last_ts = recent[0]["timestamp"]
+        if last_ts.tzinfo is None:
+            last_ts = last_ts.replace(tzinfo=timezone.utc)
+        # If last taken signal is within the engulfing window (45 min),
+        # block until that signal's time + 45 min (window fully expires)
+        window_hours = MICRO_ALPHA_SWEEP.get("engulfing_window_hours", 0.75)
+        window_expiry = last_ts + timedelta(hours=window_hours)
+        if now < window_expiry:
+            _startup_cooldown_until = window_expiry
+            print(f"  [MICRO STARTUP] Cooldown active until {window_expiry.strftime('%H:%M:%S')} UTC (prevents restart re-fire)")
+        else:
+            _startup_cooldown_until = None
+            print(f"  [MICRO STARTUP] No active cooldown (last signal >45 min ago)")
+    else:
+        _startup_cooldown_until = None
+        print(f"  [MICRO STARTUP] No signals today — clean start")
+
+
 def start_scheduler():
+    _restore_traded_sweeps_on_startup()
     scheduler.add_job(micro_sweep_job, "cron", minute="*/3", id="micro_sweep_poll")
     scheduler.add_job(position_monitor_job, "cron", minute="*", id="micro_position_monitor")
     scheduler.start()

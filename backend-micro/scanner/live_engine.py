@@ -20,10 +20,11 @@ from backend.db import execute
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
 
-# Price cache: stores last known price per trade_id each monitoring cycle.
-# When a trade disappears from MT5, we use THIS cached price (from ~1 min ago)
-# instead of current price, which may have moved far from exit by detection time.
-_price_cache = {}  # {oanda_trade_id: {"bid": float, "ask": float}}
+# Price extremes cache: tracks HIGH and LOW seen per open trade.
+# When a trade disappears from MT5, we check if price reached SL or TP level.
+# If high >= SL (for SHORT) → SL was hit. If low <= TP (for SHORT) → TP was hit.
+# If BOTH reached → default to SL (conservative). If NEITHER → SL (impossible but safe).
+_price_extremes = {}  # {oanda_trade_id: {"high": float, "low": float}}
 
 
 def _get_gbp_usd_rate():
@@ -223,13 +224,19 @@ def check_open_positions():
     oanda_open = get_open_trades()
     oanda_open_ids = {t.get("id") or t.get("trade_id") for t in oanda_open}
 
-    # Cache current price for all open trades (used next cycle if trade disappears)
+    # Track price extremes for all open trades (high/low seen during trade life).
+    # Used to determine SL vs TP when trade disappears from MT5.
     price_now = get_current_price(instrument="XAU_USD")
     if price_now:
         for trade in open_db_trades:
             oid = trade["oanda_trade_id"]
             if oid in oanda_open_ids:
-                _price_cache[oid] = {"bid": price_now["bid"], "ask": price_now["ask"]}
+                mid = (price_now["bid"] + price_now["ask"]) / 2
+                if oid not in _price_extremes:
+                    _price_extremes[oid] = {"high": mid, "low": mid}
+                else:
+                    _price_extremes[oid]["high"] = max(_price_extremes[oid]["high"], mid)
+                    _price_extremes[oid]["low"] = min(_price_extremes[oid]["low"], mid)
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
@@ -267,7 +274,7 @@ def check_open_positions():
         details = get_trade_details(oanda_id)
 
         if details and details["state"] == "CLOSED":
-            _price_cache.pop(oanda_id, None)
+            _price_extremes.pop(oanda_id, None)
             realized_pl = details["realized_pl"]
             close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
             fill_price = details.get("price", 0)
@@ -281,37 +288,41 @@ def check_open_positions():
             entry_price = float(trade["entry_price"])
             units = trade["units"] or 1
 
-            if cached:
-                # Use cached price to determine SL vs TP
-                cached_mid = (cached["bid"] + cached["ask"]) / 2
-            else:
-                # No cache (first cycle after restart) — fall back to current
-                price = get_current_price(instrument="XAU_USD")
-                cached_mid = price["mid"] if price else 0
+            extremes = _price_extremes.pop(oanda_id, None)
 
-            # Determine exit: check if cached price was near SL or TP
+            # Determine exit using price extremes observed during the trade's life.
+            # For SHORT: SL is above entry, TP is below entry.
+            #   If highest price seen >= SL → SL was definitely hit at some point.
+            #   If lowest price seen <= TP → TP was definitely hit at some point.
+            #   If BOTH → ambiguous (default SL — conservative).
+            #   If NEITHER → impossible (trade closed somehow) → default SL.
+            # This eliminates the C7 failure mode because we track the ACTUAL
+            # high/low during the trade, not a single snapshot after exit.
             if trade["side"] == "SHORT":
-                sl_dist = abs(cached_mid - sl_price) if sl_price else 999
-                tp_dist = abs(cached_mid - tp_price) if tp_price else 999
-                if sl_dist <= tp_dist:
-                    fill_price = sl_price
-                    realized_pl = (entry_price - sl_price) * units
-                else:
+                sl_reached = extremes and extremes["high"] >= sl_price if sl_price else False
+                tp_reached = extremes and extremes["low"] <= tp_price if tp_price else False
+
+                if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (entry_price - tp_price) * units
-            else:
-                sl_dist = abs(cached_mid - sl_price) if sl_price else 999
-                tp_dist = abs(cached_mid - tp_price) if tp_price else 999
-                if sl_dist <= tp_dist:
-                    fill_price = sl_price
-                    realized_pl = (sl_price - entry_price) * units
                 else:
+                    # SL reached, or BOTH reached (ambiguous), or NEITHER (no data) → SL
+                    fill_price = sl_price
+                    realized_pl = (entry_price - sl_price) * units
+            else:
+                sl_reached = extremes and extremes["low"] <= sl_price if sl_price else False
+                tp_reached = extremes and extremes["high"] >= tp_price if tp_price else False
+
+                if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (tp_price - entry_price) * units
+                else:
+                    fill_price = sl_price
+                    realized_pl = (sl_price - entry_price) * units
 
             close_time = datetime.now(timezone.utc).isoformat()
-            source = "cached" if cached else "current"
-            print(f"  [MICRO] Position {oanda_id} gone — exit estimated from {source} price (mid={cached_mid:.2f}, SL={sl_price:.2f}, TP={tp_price:.2f})")
+            ext_str = f"high={extremes['high']:.2f}, low={extremes['low']:.2f}" if extremes else "no data"
+            print(f"  [MICRO] Position {oanda_id} gone — exit from extremes ({ext_str}, SL={sl_price:.2f}, TP={tp_price:.2f})")
         else:
             continue  # Still open somehow
 

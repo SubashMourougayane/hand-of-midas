@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import time
+from datetime import timedelta
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -102,6 +103,7 @@ def run_backtest(
     current_date = None
     daily_pnl = 0.0
     last_signal_time = None  # For cooldown tracking
+    position_exit_time = None  # One-at-a-time: when current position exits (C9 fix)
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -126,6 +128,10 @@ def run_backtest(
         if last_signal_time and (signal.date - last_signal_time).total_seconds() < COOLDOWN_SECONDS:
             continue
 
+        # One-at-a-time: skip if previous trade hasn't exited yet (matches live)
+        if position_exit_time and signal.date < position_exit_time:
+            continue
+
         # Daily max loss circuit breaker (same as live)
         if daily_pnl <= -DAILY_MAX_LOSS:
             continue
@@ -139,10 +145,8 @@ def run_backtest(
         if should_skip_signal(signal.strategy, signal.direction, gp, gma, state):
             continue
 
-        # Position sizing with consecutive loss halving (same as live)
+        # Position sizing (matches live — get_risk_multiplier already halves at >= 3 losses)
         risk_mult = get_risk_multiplier(state)
-        if state.consecutive_losses >= HALF_AFTER_CONSECUTIVE:
-            risk_mult *= 0.5
         strat_risk_pct = STRATEGY_RISK.get(signal.strategy, risk_pct)
         risk_dollar = state.equity * (strat_risk_pct / 100) * risk_mult
         if signal.risk <= 0:
@@ -180,6 +184,10 @@ def run_backtest(
         update_after_trade(state, pnl_dollar)
         daily_pnl += pnl_dollar
         last_signal_time = signal.date  # Update cooldown tracker
+
+        # Track when this position exits (for one-at-a-time rule)
+        bar_seconds = 180 if signal.timeframe == "M3" else 86400  # 3min or 1day
+        position_exit_time = signal.date + timedelta(seconds=result.bars_held * bar_seconds)
 
         if signal.strategy == "micro_alpha_sweep":
             hold_str = f"{result.bars_held * 3}min" if result.bars_held < 20 else f"{result.bars_held * 3 / 60:.1f}hrs"
