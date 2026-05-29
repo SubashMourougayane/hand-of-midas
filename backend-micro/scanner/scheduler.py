@@ -329,7 +329,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                         risk = cfg["min_sl"]
                     if risk < 0.3 or risk > consol_range * 0.8:
                         continue
-                    tp = entry + consol_range * cfg["tp_multiplier"]
+                    tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
+                    tp = range_high - tp_buf
                     if tp - entry < risk * 0.8:
                         continue
                     direction = "long"
@@ -342,7 +343,8 @@ def _run_micro_sweep(now: datetime, active_windows: list):
                         risk = cfg["min_sl"]
                     if risk < 0.3 or risk > consol_range * 0.8:
                         continue
-                    tp = entry - consol_range * cfg["tp_multiplier"]
+                    tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
+                    tp = range_low + tp_buf
                     if entry - tp < risk * 0.8:
                         continue
                     direction = "short"

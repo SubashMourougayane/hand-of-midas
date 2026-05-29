@@ -531,7 +531,8 @@ def _run_alpha_sweep():
                     risk = cfg["min_sl"]
                 if risk < 0.3 or risk > asia_range * 0.8:
                     continue
-                tp = entry + asia_range * cfg["tp_multiplier"]
+                tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
+                tp = asia_high - tp_buf
                 if tp - entry < risk * 0.8:
                     continue
 
@@ -548,7 +549,8 @@ def _run_alpha_sweep():
                     risk = cfg["min_sl"]
                 if risk < 0.3 or risk > asia_range * 0.8:
                     continue
-                tp = entry - asia_range * cfg["tp_multiplier"]
+                tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
+                tp = asia_low + tp_buf
                 if entry - tp < risk * 0.8:
                     continue
 

@@ -175,7 +175,8 @@ def generate_signals(
                                 risk = cfg["min_sl"]
                             if risk < 0.3 or risk > consol_range * 0.8:
                                 continue
-                            tpv = entry + consol_range * cfg["tp_multiplier"]
+                            tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
+                            tpv = range_high - tp_buf
                             if tpv - entry < risk * 0.8:
                                 continue
                             signals.append(Signal(
@@ -194,7 +195,8 @@ def generate_signals(
                                 risk = cfg["min_sl"]
                             if risk < 0.3 or risk > consol_range * 0.8:
                                 continue
-                            tpv = entry - consol_range * cfg["tp_multiplier"]
+                            tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
+                            tpv = range_low + tp_buf
                             if entry - tpv < risk * 0.8:
                                 continue
                             signals.append(Signal(

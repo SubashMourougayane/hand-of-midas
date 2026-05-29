@@ -28,7 +28,8 @@ ALPHA_SWEEP = {
     "sweep_threshold": 0.20,      # $0.20 extension (vs $2 for gold)
     "sl_buffer": 0.03,            # $0.03 buffer (vs $0.30 for gold)
     "min_sl": 0.10,               # $0.10 min SL (vs $5 for gold)
-    "tp_multiplier": 2.0,         # Same
+    "tp_multiplier": 2.0,
+    "tp_structure_buffer": 0.13,  # Oil-scaled ($2 / 15.2x ratio)
     "be_trigger_pct": 0.50,       # Same
     "max_bars": 80,               # Same (~4 hours)
     "skip_first_bar": True,       # Same

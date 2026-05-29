@@ -111,7 +111,8 @@ def generate_signals(
                     if risk < 0.3 or risk > ar * 0.8:
                         continue
 
-                    tpv = entry + ar * cfg["tp_multiplier"]
+                    tp_buf = cfg.get("tp_structure_buffer", ar * cfg["tp_multiplier"])
+                    tpv = ah - tp_buf
                     if tpv - entry < risk * 0.8:
                         continue
 
@@ -134,7 +135,8 @@ def generate_signals(
                     if risk < 0.3 or risk > ar * 0.8:
                         continue
 
-                    tpv = entry - ar * cfg["tp_multiplier"]
+                    tp_buf = cfg.get("tp_structure_buffer", ar * cfg["tp_multiplier"])
+                    tpv = al + tp_buf
                     if entry - tpv < risk * 0.8:
                         continue
 

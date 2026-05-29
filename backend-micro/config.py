@@ -27,6 +27,7 @@ MICRO_ALPHA_SWEEP = {
     "sl_buffer": 2.0,
     "min_sl": 5.0,
     "tp_multiplier": 2.0,
+    "tp_structure_buffer": 2.0,
     "be_trigger_pct": 0.50,
     "max_bars": 80,
     "skip_first_bar": True,
