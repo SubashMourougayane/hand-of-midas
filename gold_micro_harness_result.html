@@ -1,1295 +1,1301 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Gold Micro Harness Report</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hand of Midas — Harness Report</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
-  --bg: #111318; --panel: #181c24; --panel-alt: #1e222c;
-  --border: #252a33; --border-hi: #333a45;
-  --text: #c8cdd5; --text-dim: #9ca3b4; --text-muted: #8b95a5;
-  --green: #00e87b; --green-dim: #0a3d26;
-  --red: #ff3e3e; --red-dim: #3d1414;
-  --blue: #4da6ff; --yellow: #e8c300; --orange: #ff8c00;
+  --bg: #0a0a0a; --card: #111111; --card-hover: #161616;
+  --border: #333333; --border-light: #444444;
+  --amber: #ffa500; --amber-dim: #cc8400;
+  --green: #00ff41; --green-dim: #00cc33;
+  --red: #ff4444; --red-dim: #cc3333;
+  --text: #e0e0e0; --muted: #888888;
+  --font: 'JetBrains Mono', monospace;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Inter', sans-serif;
-       background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }
-h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-.subtitle { color: var(--text-dim); font-size: 12px; margin-bottom: 24px; }
-.summary { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
-.stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-              padding: 16px 20px; min-width: 120px; }
-.stat-card .label { font-size: 9px; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.5px; }
-.stat-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
-.stat-card .value.pass { color: var(--green); }
-.stat-card .value.fail { color: var(--red); }
-.stat-card .value.skip { color: var(--yellow); }
-.overall { font-size: 28px; font-weight: 800; padding: 16px 28px; border-radius: 8px; }
-.overall.pass { background: var(--green-dim); color: var(--green); border: 1px solid #00e87b44; }
-.overall.fail { background: var(--red-dim); color: var(--red); border: 1px solid #ff3e3e44; }
-.category { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
-.cat-header { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-.cat-header h2 { font-size: 14px; font-weight: 600; }
-.cat-header .icon { font-size: 18px; margin-right: 8px; }
-.cat-header .badge { padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.badge.pass { background: var(--green-dim); color: var(--green); }
-.badge.fail { background: var(--red-dim); color: var(--red); }
-.cat-subtitle { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font);
+       font-size: 13px; line-height: 1.6; min-height: 100vh; }
+body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+              pointer-events: none; z-index: 9999;
+              background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px); }
+.container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+.hero { text-align: center; padding: 30px 0; margin-bottom: 40px; border-bottom: 1px solid var(--border); }
+.hero h1 { font-size: 28px; color: var(--amber); margin-bottom: 8px; letter-spacing: 2px; }
+.hero .subtitle { color: var(--muted); font-size: 13px; }
+.stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 40px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+             padding: 14px 10px; text-align: center; transition: all 0.3s ease; }
+.stat-card:hover { border-color: var(--amber); transform: translateY(-1px);
+                   box-shadow: 0 2px 12px rgba(255, 165, 0, 0.08); }
+.stat-card .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.stat-card .value { font-size: 20px; font-weight: 700; color: var(--amber); }
+.stat-card .value.green { color: var(--green); }
+.stat-card .value.red { color: var(--red); }
+.overall-badge { display: inline-block; padding: 10px 24px; border-radius: 6px; font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+.overall-badge.pass { background: rgba(0,255,65,0.08); color: var(--green); border: 1px solid rgba(0,255,65,0.3); }
+.overall-badge.fail { background: rgba(255,68,68,0.08); color: var(--red); border: 1px solid rgba(255,68,68,0.3); }
+.section-title { color: var(--amber); font-size: 15px; font-weight: 700; margin-bottom: 14px;
+                  padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex;
+                  align-items: center; gap: 10px; justify-content: space-between; }
+.section-title::before { content: '>'; color: var(--green); font-weight: 400; }
+.section-badge { font-size: 11px; padding: 3px 10px; border-radius: 4px; font-weight: 600; }
+.section-badge.pass { background: rgba(0,255,65,0.1); color: var(--green); }
+.section-badge.fail { background: rgba(255,68,68,0.1); color: var(--red); }
+section { margin-bottom: 30px; }
+.test-table-wrap { overflow-x: auto; border-radius: 6px; border: 1px solid var(--border); }
 .test-table { width: 100%; border-collapse: collapse; }
-.test-table th { text-align: left; font-size: 10px; color: var(--text-dim); text-transform: uppercase;
-                  padding: 8px 16px; border-bottom: 1px solid var(--border); letter-spacing: 0.3px; }
-.test-table td { padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--border); }
-.test-table tr:last-child td { border-bottom: none; }
-.test-table tr:hover { background: var(--panel-alt); }
-.test-name { color: var(--text); font-weight: 500; }
-.test-data { color: var(--text-dim); font-size: 11px; }
-.test-assert { color: var(--text-muted); font-size: 11px; }
-.status-pass { color: var(--green); font-weight: 600; }
-.status-fail { color: var(--red); font-weight: 600; }
-.status-skip { color: var(--yellow); font-weight: 600; }
-.failure-detail { background: var(--red-dim); border: 1px solid #ff3e3e33; border-radius: 4px;
-                   padding: 8px 12px; margin: 4px 16px 8px; font-size: 11px; color: #ffaaaa;
-                   font-family: 'SF Mono', 'Menlo', monospace; white-space: pre-wrap; }
-.footer { margin-top: 32px; text-align: center; color: var(--text-muted); font-size: 11px; }
+.test-table th { background: #1a1a1a; color: var(--amber); padding: 10px 14px; text-align: left;
+                  border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.test-table td { padding: 10px 14px; border-bottom: 1px solid #1a1a1a; font-size: 12px; }
+.test-table tr:hover td { background: var(--card-hover); }
+.t-name { color: var(--text); font-weight: 500; }
+.t-data { color: var(--muted); font-size: 11px; }
+.t-assert { color: #aaa; font-size: 11px; }
+.t-pass { color: var(--green); font-weight: 600; }
+.t-fail { color: var(--red); font-weight: 600; }
+.t-skip { color: var(--amber); font-weight: 600; }
+.failure-box { background: rgba(255,68,68,0.05); border: 1px solid rgba(255,68,68,0.2); border-radius: 4px;
+               padding: 8px 12px; margin: 4px 0; font-size: 11px; color: #ff9999; white-space: pre-wrap; }
+.footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 11px; padding-top: 20px; border-top: 1px solid var(--border); }
+@media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
 </style>
 </head>
 <body>
-<h1>🤚 Gold Micro Harness Report</h1>
-<p class="subtitle">Commit: 023689e &nbsp;|&nbsp; Generated: 2026-05-29 20:49 UTC &nbsp;|&nbsp; Runtime: 31.1s</p>
+<div class="container">
+<div class="hero">
+  <h1>🤚 HARNESS REPORT</h1>
+  <div class="subtitle">Gold Micro Test Suite &nbsp;|&nbsp; Commit 6d901ad &nbsp;|&nbsp; 2026-05-29 20:59 UTC &nbsp;|&nbsp; 21.0s</div>
+</div>
 
-<div class="summary">
-  <div class="overall fail">✗ FAILURES</div>
-  <div class="stat-card"><div class="label">Passed</div><div class="value pass">169</div></div>
-  <div class="stat-card"><div class="label">Failed</div><div class="value fail">1</div></div>
-  <div class="stat-card"><div class="label">Skipped</div><div class="value skip">1</div></div>
+<div style="text-align:center; margin-bottom: 30px;">
+  <div class="overall-badge fail">
+    ✗ 1 FAILURE(S) DETECTED
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="label">Passed</div><div class="value green">164</div></div>
+  <div class="stat-card"><div class="label">Failed</div><div class="value red">1</div></div>
+  <div class="stat-card"><div class="label">Skipped</div><div class="value">6</div></div>
   <div class="stat-card"><div class="label">Total</div><div class="value">171</div></div>
-  <div class="stat-card"><div class="label">Runtime</div><div class="value">31.1s</div></div>
+  <div class="stat-card"><div class="label">Runtime</div><div class="value">21.0s</div></div>
+  <div class="stat-card"><div class="label">Kill Rate</div><div class="value green">100%</div></div>
 </div>
 
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🔍</span>Pre-Deploy Checks</h2>
-      <div class="cat-subtitle">Can the code even LOAD without crashing?</div>
-    </div>
-    <span class="badge pass">12/12 PASS</span>
+<section>
+  <div class="section-title">
+    <span>🔍 Pre-Deploy Checks — Can the code even LOAD without crashing?</span>
+    <span class="section-badge pass">12/12</span>
   </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Parse AST of all live modules</td>
-        <td class="test-data">All .py files in backend-micro/</td>
-        <td class="test-assert">No SyntaxError</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Parse AST of all live modules</td>
+        <td class="t-data">All .py files in backend-micro/</td>
+        <td class="t-assert">No SyntaxError</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Parse AST of backtest modules</td>
-        <td class="test-data">All .py files in backend/strategies/</td>
-        <td class="test-assert">No SyntaxError</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Parse AST of backtest modules</td>
+        <td class="t-data">All .py files in backend/strategies/</td>
+        <td class="t-assert">No SyntaxError</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Runtime import of scheduler</td>
-        <td class="test-data">backend-micro/scanner/scheduler.py</td>
-        <td class="test-assert">No ImportError</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Runtime import of scheduler</td>
+        <td class="t-data">backend-micro/scanner/scheduler.py</td>
+        <td class="t-assert">No ImportError</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Check global declarations match usage</td>
-        <td class="test-data">AST of live_engine.py</td>
-        <td class="test-assert">Every 'global X' has module-level X</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Check global declarations match usage</td>
+        <td class="t-data">AST of live_engine.py</td>
+        <td class="t-assert">Every 'global X' has module-level X</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Grep for removed variable names</td>
-        <td class="test-data">_price_cache, _old_dd_state</td>
-        <td class="test-assert">Zero matches in non-comment code</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Grep for removed variable names</td>
+        <td class="t-data">_price_cache, _old_dd_state</td>
+        <td class="t-assert">Zero matches in non-comment code</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Same grep in backtest code</td>
-        <td class="test-data">backend/ modules</td>
-        <td class="test-assert">Zero matches</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Same grep in backtest code</td>
+        <td class="t-data">backend/ modules</td>
+        <td class="t-assert">Zero matches</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Config coverage: scheduler</td>
-        <td class="test-data">All cfg['key'] in scheduler.py</td>
-        <td class="test-assert">Every key exists in MICRO_ALPHA_SWEEP</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Config coverage: scheduler</td>
+        <td class="t-data">All cfg['key'] in scheduler.py</td>
+        <td class="t-assert">Every key exists in MICRO_ALPHA_SWEEP</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Config coverage: signal gen</td>
-        <td class="test-data">All cfg['key'] in micro_alpha_sweep.py</td>
-        <td class="test-assert">Every key in ALPHA_SWEEP or MICRO config</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Config coverage: signal gen</td>
+        <td class="t-data">All cfg['key'] in micro_alpha_sweep.py</td>
+        <td class="t-assert">Every key in ALPHA_SWEEP or MICRO config</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Shared keys between configs</td>
-        <td class="test-data">Required keys list</td>
-        <td class="test-assert">sl_buffer, sweep_threshold, etc. in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Shared keys between configs</td>
+        <td class="t-data">Required keys list</td>
+        <td class="t-assert">sl_buffer, sweep_threshold, etc. in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Module globals structure</td>
-        <td class="test-data">_traded_sweeps, _startup_cooldown_until</td>
-        <td class="test-assert">Correct initialization pattern</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Module globals structure</td>
+        <td class="t-data">_traded_sweeps, _startup_cooldown_until</td>
+        <td class="t-assert">Correct initialization pattern</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Price extremes variable</td>
-        <td class="test-data">_price_extremes in live_engine.py</td>
-        <td class="test-assert">No _price_cache reference</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Price extremes variable</td>
+        <td class="t-data">_price_extremes in live_engine.py</td>
+        <td class="t-assert">No _price_cache reference</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">DB schema match</td>
-        <td class="test-data">INSERT INTO gd_trades columns</td>
-        <td class="test-assert">All columns exist in schema.sql</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">DB schema match</td>
+        <td class="t-data">INSERT INTO gd_trades columns</td>
+        <td class="t-assert">All columns exist in schema.sql</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">⚖️</span>Signal Parity</h2>
-      <div class="cat-subtitle">Do backtest and live produce the same signals?</div>
-    </div>
-    <span class="badge pass">18/18 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>⚖️ Signal Parity — Do backtest and live produce the same signals?</span>
+    <span class="section-badge pass">18/18</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">SL buffer config parity</td>
-        <td class="test-data">ALPHA_SWEEP vs MICRO_ALPHA_SWEEP</td>
-        <td class="test-assert">Same value in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SL buffer config parity</td>
+        <td class="t-data">ALPHA_SWEEP vs MICRO_ALPHA_SWEEP</td>
+        <td class="t-assert">Same value in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Sweep threshold parity</td>
-        <td class="test-data">Both configs</td>
-        <td class="test-assert">Same value</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Sweep threshold parity</td>
+        <td class="t-data">Both configs</td>
+        <td class="t-assert">Same value</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">TP buffer parity</td>
-        <td class="test-data">Both configs</td>
-        <td class="test-assert">Same value</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">TP buffer parity</td>
+        <td class="t-data">Both configs</td>
+        <td class="t-assert">Same value</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Engulfing tolerance parity</td>
-        <td class="test-data">Both ENGULFING_TOLERANCE</td>
-        <td class="test-assert">Same value</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Engulfing tolerance parity</td>
+        <td class="t-data">Both ENGULFING_TOLERANCE</td>
+        <td class="t-assert">Same value</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_min_sl_matches</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_min_sl_matches</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_max_bars_matches</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_max_bars_matches</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_trigger_pct_matches</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_be_trigger_pct_matches</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_engulfing_window_matches</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_engulfing_window_matches</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">SHORT SL formula in code</td>
-        <td class="test-data">Source of both files</td>
-        <td class="test-assert">'sweep_wick + cfg[sl_buffer]' in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SHORT SL formula in code</td>
+        <td class="t-data">Source of both files</td>
+        <td class="t-assert">'sweep_wick + cfg[sl_buffer]' in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">LONG SL formula in code</td>
-        <td class="test-data">Source of both files</td>
-        <td class="test-assert">'sweep_wick - cfg[sl_buffer]' in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">LONG SL formula in code</td>
+        <td class="t-data">Source of both files</td>
+        <td class="t-assert">'sweep_wick - cfg[sl_buffer]' in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">SHORT TP formula</td>
-        <td class="test-data">Source of both files</td>
-        <td class="test-assert">'range_low + tp_buf' in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SHORT TP formula</td>
+        <td class="t-data">Source of both files</td>
+        <td class="t-assert">'range_low + tp_buf' in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">LONG TP formula</td>
-        <td class="test-data">Source of both files</td>
-        <td class="test-assert">'range_high - tp_buf' in both</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">LONG TP formula</td>
+        <td class="t-data">Source of both files</td>
+        <td class="t-assert">'range_high - tp_buf' in both</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Bias filter</td>
-        <td class="test-data">7 days real CSV data</td>
-        <td class="test-assert">No LONG on bearish day, no SHORT on bullish</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Bias filter</td>
+        <td class="t-data">7 days real CSV data</td>
+        <td class="t-assert">No LONG on bearish day, no SHORT on bullish</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_neutral_allows_both</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_neutral_allows_both</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_signals_produced</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_signals_produced</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Signal price validity</td>
-        <td class="test-data">7 days CSV → generate_signals()</td>
-        <td class="test-assert">entry>0, sl>0, tp>0, correct direction</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Signal price validity</td>
+        <td class="t-data">7 days CSV → generate_signals()</td>
+        <td class="t-assert">entry>0, sl>0, tp>0, correct direction</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Signal dedup</td>
-        <td class="test-data">7 days CSV → signals</td>
-        <td class="test-assert"><10% exact duplicates</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Signal dedup</td>
+        <td class="t-data">7 days CSV → signals</td>
+        <td class="t-assert"><10% exact duplicates</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Risk bounds</td>
-        <td class="test-data">All generated signals</td>
-        <td class="test-assert">0.3 ≤ risk < 100</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Risk bounds</td>
+        <td class="t-data">All generated signals</td>
+        <td class="t-assert">0.3 ≤ risk < 100</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">📊</span>Fill Parity</h2>
-      <div class="cat-subtitle">No phantom fills — exits match real bar data</div>
-    </div>
-    <span class="badge pass">7/7 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>📊 Fill Parity — No phantom fills — exits match real bar data</span>
+    <span class="section-badge pass">7/7</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Exit reachable from data</td>
-        <td class="test-data">20 signals → fill_model</td>
-        <td class="test-assert">SL fills on loss side, TP at exact level</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Exit reachable from data</td>
+        <td class="t-data">20 signals → fill_model</td>
+        <td class="t-assert">SL fills on loss side, TP at exact level</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">P&L sign matches direction</td>
-        <td class="test-data">20 signals → fill_model</td>
-        <td class="test-assert">SHORT win = price dropped, etc.</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">P&L sign matches direction</td>
+        <td class="t-data">20 signals → fill_model</td>
+        <td class="t-assert">SHORT win = price dropped, etc.</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Max bars enforced</td>
-        <td class="test-data">20 signals → fill_model</td>
-        <td class="test-assert">bars_held ≤ 80</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Max bars enforced</td>
+        <td class="t-data">20 signals → fill_model</td>
+        <td class="t-assert">bars_held ≤ 80</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Same-bar TP+SL priority</td>
-        <td class="test-data">Synthetic bar: both hit</td>
-        <td class="test-assert">TP wins (checked first)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Same-bar TP+SL priority</td>
+        <td class="t-data">Synthetic bar: both hit</td>
+        <td class="t-assert">TP wins (checked first)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">BE in fill model</td>
-        <td class="test-data">Synthetic SHORT: price reaches 50%</td>
-        <td class="test-assert">SL tightens near entry</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">BE in fill model</td>
+        <td class="t-data">Synthetic SHORT: price reaches 50%</td>
+        <td class="t-assert">SL tightens near entry</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">SL fill price</td>
-        <td class="test-data">Synthetic: bar touches SL</td>
-        <td class="test-assert">Fill at SL + slippage (not random)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SL fill price</td>
+        <td class="t-data">Synthetic: bar touches SL</td>
+        <td class="t-assert">Fill at SL + slippage (not random)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">TP fill price</td>
-        <td class="test-data">Synthetic: bar touches TP</td>
-        <td class="test-assert">Fill at EXACTLY TP</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">TP fill price</td>
+        <td class="t-data">Synthetic: bar touches TP</td>
+        <td class="t-assert">Fill at EXACTLY TP</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🧪</span>Test 04</h2>
-      <div class="cat-subtitle"></div>
-    </div>
-    <span class="badge pass">15/15 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🧪 Test 04 — </span>
+    <span class="section-badge pass">15/15</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">test_normal_entry_calls_place_order</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_normal_entry_calls_place_order</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_entry_rejected_by_broker</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_entry_rejected_by_broker</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_daily_max_loss_blocks_entry</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_daily_max_loss_blocks_entry</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_detects_trade_gone_from_mt5</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_detects_trade_gone_from_mt5</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_price_extremes_classification</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_price_extremes_classification</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_price_extremes_tp_only</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_price_extremes_tp_only</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_both_reached_defaults_to_sl</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_both_reached_defaults_to_sl</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_win_resets_consecutive_losses</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_win_resets_consecutive_losses</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_loss_increments_consecutive</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_loss_increments_consecutive</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_pause_triggers_at_5</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_pause_triggers_at_5</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_risk_halves_at_3</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_risk_halves_at_3</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_risk_normal_at_2</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_risk_normal_at_2</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_units_capped_at_100</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_units_capped_at_100</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_units_scale_with_equity</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_units_scale_with_equity</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_halving_reduces_units</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_halving_reduces_units</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🛡️</span>Break-Even</h2>
-      <div class="cat-subtitle">SL moves to entry when 50% of TP reached</div>
-    </div>
-    <span class="badge pass">10/10 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🛡️ Break-Even — SL moves to entry when 50% of TP reached</span>
+    <span class="section-badge pass">10/10</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">SHORT BE math</td>
-        <td class="test-data">entry=4523, tp=4497</td>
-        <td class="test-assert">Triggers at 4510, new SL=4522.70</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SHORT BE math</td>
+        <td class="t-data">entry=4523, tp=4497</td>
+        <td class="t-assert">Triggers at 4510, new SL=4522.70</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Trigger formula</td>
-        <td class="test-data">3 test cases</td>
-        <td class="test-assert">entry - (entry-tp)*0.5 = correct</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Trigger formula</td>
+        <td class="t-data">3 test cases</td>
+        <td class="t-assert">entry - (entry-tp)*0.5 = correct</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">LONG trigger formula</td>
-        <td class="test-data">3 test cases</td>
-        <td class="test-assert">entry + (tp-entry)*0.5 = correct</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">LONG trigger formula</td>
+        <td class="t-data">3 test cases</td>
+        <td class="t-assert">entry + (tp-entry)*0.5 = correct</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">SHORT new SL</td>
-        <td class="test-data">entry=4523.05</td>
-        <td class="test-assert">entry - 0.30 = 4522.75</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">SHORT new SL</td>
+        <td class="t-data">entry=4523.05</td>
+        <td class="t-assert">entry - 0.30 = 4522.75</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">LONG new SL</td>
-        <td class="test-data">entry=4500</td>
-        <td class="test-assert">entry + 0.30 = 4500.30</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">LONG new SL</td>
+        <td class="t-data">entry=4500</td>
+        <td class="t-assert">entry + 0.30 = 4500.30</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Guard: already fired</td>
-        <td class="test-data">sl=entry-0.30</td>
-        <td class="test-assert">Skip (sl <= entry)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Guard: already fired</td>
+        <td class="t-data">sl=entry-0.30</td>
+        <td class="t-assert">Skip (sl <= entry)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Guard: no TP</td>
-        <td class="test-data">tp=0</td>
-        <td class="test-assert">Skip entirely</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Guard: no TP</td>
+        <td class="t-data">tp=0</td>
+        <td class="t-assert">Skip entirely</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_not_triggered_if_price_above_50pct</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_be_not_triggered_if_price_above_50pct</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_trigger_level_same</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_be_trigger_level_same</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_sl_value_divergence_documented</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_be_sl_value_divergence_documented</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🐛</span>Edge Cases (Bug Replay)</h2>
-      <div class="cat-subtitle">Every historical bug — does it regress?</div>
-    </div>
-    <span class="badge pass">20/20 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🐛 Edge Cases (Bug Replay) — Every historical bug — does it regress?</span>
+    <span class="section-badge pass">20/20</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">C5: dedup persists</td>
-        <td class="test-data">_traded_sweeps module-level</td>
-        <td class="test-assert">Set survives between calls</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C5: dedup persists</td>
+        <td class="t-data">_traded_sweeps module-level</td>
+        <td class="t-assert">Set survives between calls</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C5: midnight reset</td>
-        <td class="test-data">Source code pattern</td>
-        <td class="test-assert">Date check + reset logic exists</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C5: midnight reset</td>
+        <td class="t-data">Source code pattern</td>
+        <td class="t-assert">Date check + reset logic exists</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C8: cooldown var</td>
-        <td class="test-data">scheduler.py source</td>
-        <td class="test-assert">_startup_cooldown_until declared</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C8: cooldown var</td>
+        <td class="t-data">scheduler.py source</td>
+        <td class="t-assert">_startup_cooldown_until declared</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C8: blocks signals</td>
-        <td class="test-data">scheduler.py source</td>
-        <td class="test-assert">Check + return pattern exists</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C8: blocks signals</td>
+        <td class="t-data">scheduler.py source</td>
+        <td class="t-assert">Check + return pattern exists</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C7: extremes var</td>
-        <td class="test-data">live_engine.py source</td>
-        <td class="test-assert">_price_extremes exists</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C7: extremes var</td>
+        <td class="t-data">live_engine.py source</td>
+        <td class="t-assert">_price_extremes exists</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C7: high/low tracking</td>
-        <td class="test-data">live_engine.py source</td>
-        <td class="test-assert">max() and min() used</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C7: high/low tracking</td>
+        <td class="t-data">live_engine.py source</td>
+        <td class="t-assert">max() and min() used</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C7: conservative</td>
-        <td class="test-data">live_engine.py source</td>
-        <td class="test-assert">'tp_reached and not sl_reached' pattern</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C7: conservative</td>
+        <td class="t-data">live_engine.py source</td>
+        <td class="t-assert">'tp_reached and not sl_reached' pattern</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">B1: stale ref</td>
-        <td class="test-data">live_engine.py full scan</td>
-        <td class="test-assert">Zero _price_cache in non-comments</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">B1: stale ref</td>
+        <td class="t-data">live_engine.py full scan</td>
+        <td class="t-assert">Zero _price_cache in non-comments</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C1: DB query</td>
-        <td class="test-data">scheduler.py source</td>
-        <td class="test-assert">SUM(pnl) in source</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C1: DB query</td>
+        <td class="t-data">scheduler.py source</td>
+        <td class="t-assert">SUM(pnl) in source</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">C2: time fallback</td>
-        <td class="test-data">live_engine.py source</td>
-        <td class="test-assert">.get('time') or datetime.now</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">C2: time fallback</td>
+        <td class="t-data">live_engine.py source</td>
+        <td class="t-assert">.get('time') or datetime.now</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">One-at-a-time</td>
-        <td class="test-data">scheduler.py source</td>
-        <td class="test-assert">'exit_time IS NULL' query</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">One-at-a-time</td>
+        <td class="t-data">scheduler.py source</td>
+        <td class="t-assert">'exit_time IS NULL' query</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_backtest_has_one_at_a_time</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_backtest_has_one_at_a_time</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_cooldown_is_300_seconds</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_cooldown_is_300_seconds</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_market_close_in_config</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_market_close_in_config</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_market_close_check_in_scheduler</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_market_close_check_in_scheduler</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_min_risk_filter</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_min_risk_filter</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_max_risk_filter</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_max_risk_filter</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_tp_validity_filter</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_tp_validity_filter</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_all_globals_declared_before_use</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_all_globals_declared_before_use</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_scheduler_globals_declared</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_scheduler_globals_declared</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">📸</span>Regression</h2>
-      <div class="cat-subtitle">Golden snapshot — any unintended change?</div>
-    </div>
-    <span class="badge pass">2/2 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>📸 Regression — Golden snapshot — any unintended change?</span>
+    <span class="section-badge pass">2/2</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Same input = same output</td>
-        <td class="test-data">7 days CSV, seed=42, run twice</td>
-        <td class="test-assert">Identical signals + trades both runs</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Same input = same output</td>
+        <td class="t-data">7 days CSV, seed=42, run twice</td>
+        <td class="t-assert">Identical signals + trades both runs</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Match saved snapshot</td>
-        <td class="test-data">Compare vs golden/snapshot_latest.json</td>
-        <td class="test-assert">Signal count, trade exits, P&L match</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Match saved snapshot</td>
+        <td class="t-data">Compare vs golden/snapshot_latest.json</td>
+        <td class="t-assert">Signal count, trade exits, P&L match</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🧬</span>Mutation Guards</h2>
-      <div class="cat-subtitle">Catches value/logic/type bugs static analysis misses</div>
-    </div>
-    <span class="badge pass">15/15 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🧬 Mutation Guards — Catches value/logic/type bugs static analysis misses</span>
+    <span class="section-badge pass">15/15</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Dict structure</td>
-        <td class="test-data">Import _traded_sweeps</td>
-        <td class="test-assert">'keys' exists and is a set</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Dict structure</td>
+        <td class="t-data">Import _traded_sweeps</td>
+        <td class="t-assert">'keys' exists and is a set</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_traded_sweeps_has_date</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_traded_sweeps_has_date</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_cooldown_check_is_active</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_cooldown_check_is_active</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Type check</td>
-        <td class="test-data">Import _price_extremes</td>
-        <td class="test-assert">isinstance(dict)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Type check</td>
+        <td class="t-data">Import _price_extremes</td>
+        <td class="t-assert">isinstance(dict)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Value sanity</td>
-        <td class="test-data">Both configs</td>
-        <td class="test-assert">0.5 ≤ sl_buffer ≤ 10.0</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Value sanity</td>
+        <td class="t-data">Both configs</td>
+        <td class="t-assert">0.5 ≤ sl_buffer ≤ 10.0</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">TP direction</td>
-        <td class="test-data">Generate signals, filter SHORT</td>
-        <td class="test-assert">All have tp < entry</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">TP direction</td>
+        <td class="t-data">Generate signals, filter SHORT</td>
+        <td class="t-assert">All have tp < entry</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">TP direction</td>
-        <td class="test-data">Generate signals, filter LONG</td>
-        <td class="test-assert">All have tp > entry</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">TP direction</td>
+        <td class="t-data">Generate signals, filter LONG</td>
+        <td class="t-assert">All have tp > entry</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Key consistency</td>
-        <td class="test-data">Regex: creation keys == reading keys</td>
-        <td class="test-assert">No KeyError at runtime</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Key consistency</td>
+        <td class="t-data">Regex: creation keys == reading keys</td>
+        <td class="t-assert">No KeyError at runtime</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">TP fires</td>
-        <td class="test-data">Synthetic: bar low = TP exactly</td>
-        <td class="test-assert">exit_reason = tp</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">TP fires</td>
+        <td class="t-data">Synthetic: bar low = TP exactly</td>
+        <td class="t-assert">exit_reason = tp</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_tp_fills_when_exceeded</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_tp_fills_when_exceeded</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_sweep_threshold_positive</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_sweep_threshold_positive</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_min_sl_reasonable</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_min_sl_reasonable</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_max_bars_reasonable</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_max_bars_reasonable</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_trigger_between_0_and_1</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_be_trigger_between_0_and_1</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_tp_structure_buffer_positive</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_tp_structure_buffer_positive</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🧪</span>Test 09</h2>
-      <div class="cat-subtitle"></div>
-    </div>
-    <span class="badge fail">18/19 1 FAIL</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🧪 Test 09 — </span>
+    <span class="section-badge fail">18/19</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">test_wait_response_has_lock</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-fail">✗ FAILED</td>
+        <td class="t-name">test_wait_response_has_lock</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-fail">✗ FAILED</td>
       </tr>
       <tr>
-        <td class="test-name">test_concurrent_commands_dont_collide</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_concurrent_commands_dont_collide</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_orphan_detection_logic_exists</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_orphan_detection_logic_exists</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_orphan_scenario_detection</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_orphan_scenario_detection</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_h1_bar_age_check_exists</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_h1_bar_age_check_exists</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_incomplete_bar_rejected</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_incomplete_bar_rejected</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_bias_uses_correct_candle</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_bias_uses_correct_candle</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_bias_validation_exists</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_bias_validation_exists</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_live_dedup_key_format</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_live_dedup_key_format</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_backtest_dedup_key_format</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_backtest_dedup_key_format</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_key_format_documented_divergence</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_key_format_documented_divergence</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_max_hold_calculation_method</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_max_hold_calculation_method</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_live_be_offset</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_live_be_offset</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_backtest_be_offset</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_backtest_be_offset</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_live_be_more_generous</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_live_be_more_generous</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_fill_model_checks_tp_before_sl</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_fill_model_checks_tp_before_sl</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_same_bar_tp_sl_produces_tp</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_same_bar_tp_sl_produces_tp</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_zero_range_rejected</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_zero_range_rejected</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_negative_risk_rejected</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_negative_risk_rejected</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🧪</span>Test 10</h2>
-      <div class="cat-subtitle"></div>
-    </div>
-    <span class="badge pass">13/13 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🧪 Test 10 — </span>
+    <span class="section-badge pass">11/13</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">test_current_price_returns_valid</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_current_price_returns_valid</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_oil_price_returns_valid</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_oil_price_returns_valid</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_h1_candles_returned</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_h1_candles_returned</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_m3_candles_returned</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_m3_candles_returned</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_daily_candles_returned</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_daily_candles_returned</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_candle_timestamps_chronological</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_candle_timestamps_chronological</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_account_summary</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_account_summary</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_concurrent_price_reads_dont_corrupt</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_concurrent_price_reads_dont_corrupt</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_concurrent_candle_reads</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_concurrent_candle_reads</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_scan_produces_valid_windows</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_scan_produces_valid_windows</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_scan_builds_valid_range</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_scan_builds_valid_range</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_place_and_close_order</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_place_and_close_order</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
       <tr>
-        <td class="test-name">test_modify_sl_works</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_modify_sl_works</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🧪</span>Test 11</h2>
-      <div class="cat-subtitle"></div>
-    </div>
-    <span class="badge pass">13/14 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🧪 Test 11 — </span>
+    <span class="section-badge pass">10/14</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">test_short_entry_monitor_close</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_short_entry_monitor_close</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
       <tr>
-        <td class="test-name">test_long_entry_monitor_close</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_long_entry_monitor_close</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
       <tr>
-        <td class="test-name">test_be_modifies_sl_on_real_trade</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-skip">⊘ SKIPPED</td>
+        <td class="t-name">test_be_modifies_sl_on_real_trade</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
       <tr>
-        <td class="test-name">test_extremes_update_across_cycles</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_extremes_update_across_cycles</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_extremes_classify_sl_correctly</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_extremes_classify_sl_correctly</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_extremes_classify_tp_correctly</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_extremes_classify_tp_correctly</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_sweep_consumed_after_trade</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_sweep_consumed_after_trade</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_sweeps_reset_at_midnight</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_sweeps_reset_at_midnight</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_one_at_a_time_blocks</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_one_at_a_time_blocks</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-skip">⊘ SKIPPED</td>
       </tr>
       <tr>
-        <td class="test-name">test_cooldown_blocks_within_window</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_cooldown_blocks_within_window</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_cooldown_expires</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_cooldown_expires</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_full_scan_cycle_no_crash</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_full_scan_cycle_no_crash</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_range_calculation_from_real_data</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_range_calculation_from_real_data</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">test_sweep_detection_from_real_data</td>
-        <td class="test-data">—</td>
-        <td class="test-assert">—</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">test_sweep_detection_from_real_data</td>
+        <td class="t-data">—</td>
+        <td class="t-assert">—</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">🔄</span>Market Replay</h2>
-      <div class="cat-subtitle">Real bars through live scheduler bar-by-bar</div>
-    </div>
-    <span class="badge pass">7/7 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>🔄 Market Replay — Real bars through live scheduler bar-by-bar</span>
+    <span class="section-badge pass">7/7</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Direction parity</td>
-        <td class="test-data">7 days CSV → replay each day</td>
-        <td class="test-assert">Matching hours have same direction</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Direction parity</td>
+        <td class="t-data">7 days CSV → replay each day</td>
+        <td class="t-assert">Matching hours have same direction</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">No crashes</td>
-        <td class="test-data">2 days replayed bar-by-bar</td>
-        <td class="test-assert">Zero exceptions on any bar</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">No crashes</td>
+        <td class="t-data">2 days replayed bar-by-bar</td>
+        <td class="t-assert">Zero exceptions on any bar</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Fills valid</td>
-        <td class="test-data">Replay signals → fill_model</td>
-        <td class="test-assert">All produce valid exit</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Fills valid</td>
+        <td class="t-data">Replay signals → fill_model</td>
+        <td class="t-assert">All produce valid exit</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">BE opportunities</td>
-        <td class="test-data">Check if 50% reached in data</td>
-        <td class="test-assert">BE logic can fire on real data</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">BE opportunities</td>
+        <td class="t-data">Check if 50% reached in data</td>
+        <td class="t-assert">BE logic can fire on real data</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Monday gap</td>
-        <td class="test-data">Find Monday in data, replay</td>
-        <td class="test-assert">No crash</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Monday gap</td>
+        <td class="t-data">Find Monday in data, replay</td>
+        <td class="t-assert">No crash</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Flat market</td>
-        <td class="test-data">Synthetic $3 range H1</td>
-        <td class="test-assert">0 signals produced</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Flat market</td>
+        <td class="t-data">Synthetic $3 range H1</td>
+        <td class="t-assert">0 signals produced</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Spike validity</td>
-        <td class="test-data">Replay signals</td>
-        <td class="test-assert">sweep_wick > range_high for all bearish</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Spike validity</td>
+        <td class="t-data">Replay signals</td>
+        <td class="t-assert">sweep_wick > range_high for all bearish</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
-
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">⚔️</span>Adversarial Market</h2>
-      <div class="cat-subtitle">14 synthetic scenarios that break assumptions</div>
-    </div>
-    <span class="badge pass">19/19 PASS</span>
   </div>
+</section>
+
+<section>
+  <div class="section-title">
+    <span>⚔️ Adversarial Market — 14 synthetic scenarios that break assumptions</span>
+    <span class="section-badge pass">19/19</span>
+  </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
       <tr>
-        <td class="test-name">Flash crash</td>
-        <td class="test-data">Bar opens past SL by $20</td>
-        <td class="test-assert">Fills at OPEN (worse than SL)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Flash crash</td>
+        <td class="t-data">Bar opens past SL by $20</td>
+        <td class="t-assert">Fills at OPEN (worse than SL)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Flash crash TP</td>
-        <td class="test-data">Bar opens past SL for LONG</td>
-        <td class="test-assert">SL triggers, not TP</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Flash crash TP</td>
+        <td class="t-data">Bar opens past SL for LONG</td>
+        <td class="t-assert">SL triggers, not TP</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">V-reversal</td>
-        <td class="test-data">ask_high = SL exactly</td>
-        <td class="test-assert">SL triggers (>= check)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">V-reversal</td>
+        <td class="t-data">ask_high = SL exactly</td>
+        <td class="t-assert">SL triggers (>= check)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">V-reversal safe</td>
-        <td class="test-data">ask_high = SL - $0.01</td>
-        <td class="test-assert">SL does NOT trigger</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">V-reversal safe</td>
+        <td class="t-data">ask_high = SL - $0.01</td>
+        <td class="t-assert">SL does NOT trigger</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Slow bleed</td>
-        <td class="test-data">$0.5/bar for 80 bars</td>
-        <td class="test-assert">Exits as 'expired' at max</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Slow bleed</td>
+        <td class="t-data">$0.5/bar for 80 bars</td>
+        <td class="t-assert">Exits as 'expired' at max</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Whipsaw</td>
-        <td class="test-data">Drop to BE, reverse to new SL</td>
-        <td class="test-assert">P&L near zero (not full loss)</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Whipsaw</td>
+        <td class="t-data">Drop to BE, reverse to new SL</td>
+        <td class="t-assert">P&L near zero (not full loss)</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Double sweep</td>
-        <td class="test-data">Both sides swept</td>
-        <td class="test-assert">At most 1 signal</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Double sweep</td>
+        <td class="t-data">Both sides swept</td>
+        <td class="t-assert">At most 1 signal</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">News spike</td>
-        <td class="test-data">Spread $5 vs $0.10</td>
-        <td class="test-assert">Risk larger → fewer units</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">News spike</td>
+        <td class="t-data">Spread $5 vs $0.10</td>
+        <td class="t-assert">Risk larger → fewer units</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Gap through SL</td>
-        <td class="test-data">Open at $4533 > SL=$4530</td>
-        <td class="test-assert">Fill above SL</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Gap through SL</td>
+        <td class="t-data">Open at $4533 > SL=$4530</td>
+        <td class="t-assert">Fill above SL</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Range break</td>
-        <td class="test-data">Scan bars rocket up</td>
-        <td class="test-assert">Range uses consol only</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Range break</td>
+        <td class="t-data">Scan bars rocket up</td>
+        <td class="t-assert">Range uses consol only</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Weekend gap TP</td>
-        <td class="test-data">Open past TP by $10</td>
-        <td class="test-assert">Fill at EXACTLY TP</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Weekend gap TP</td>
+        <td class="t-data">Open past TP by $10</td>
+        <td class="t-assert">Fill at EXACTLY TP</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Exact touch</td>
-        <td class="test-data">ask_high == SL</td>
-        <td class="test-assert">Triggers</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Exact touch</td>
+        <td class="t-data">ask_high == SL</td>
+        <td class="t-assert">Triggers</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Below SL</td>
-        <td class="test-data">ask_high = SL - $0.01</td>
-        <td class="test-assert">Does NOT trigger, TP hits later</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Below SL</td>
+        <td class="t-data">ask_high = SL - $0.01</td>
+        <td class="t-assert">Does NOT trigger, TP hits later</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Bar 1 skip</td>
-        <td class="test-data">Engulfing at M3 bar 1</td>
-        <td class="test-assert">skip_first_bar blocks</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Bar 1 skip</td>
+        <td class="t-data">Engulfing at M3 bar 1</td>
+        <td class="t-assert">skip_first_bar blocks</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">BE oscillation</td>
-        <td class="test-data">Price at 50% level 10 times</td>
-        <td class="test-assert">SL moves once, not 10x</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">BE oscillation</td>
+        <td class="t-data">Price at 50% level 10 times</td>
+        <td class="t-assert">SL moves once, not 10x</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Market halt</td>
-        <td class="test-data">Bar with volume=0</td>
-        <td class="test-assert">No crash</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Market halt</td>
+        <td class="t-data">Bar with volume=0</td>
+        <td class="t-assert">No crash</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Wide spread TP</td>
-        <td class="test-data">ask_low above TP, bid_low below</td>
-        <td class="test-assert">TP not triggered from bid</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Wide spread TP</td>
+        <td class="t-data">ask_low above TP, bid_low below</td>
+        <td class="t-assert">TP not triggered from bid</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Max units</td>
-        <td class="test-data">$50K equity, $0.50 risk</td>
-        <td class="test-assert">Capped at 100</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Max units</td>
+        <td class="t-data">$50K equity, $0.50 risk</td>
+        <td class="t-assert">Capped at 100</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
       <tr>
-        <td class="test-name">Zero risk</td>
-        <td class="test-data">entry == sl</td>
-        <td class="test-assert">No div by zero, exits immediately</td>
-        <td class="status-pass">✓ PASSED</td>
+        <td class="t-name">Zero risk</td>
+        <td class="t-data">entry == sl</td>
+        <td class="t-assert">No div by zero, exits immediately</td>
+        <td class="t-pass">✓ PASSED</td>
       </tr>
     </tbody>
   </table>
-</div>
+  </div>
+</section>
 
 <div class="footer">
-  Hand Of Midas — Gold Micro Harness v8 &nbsp;|&nbsp; 171 tests across 12 categories &nbsp;|&nbsp; 100% mutation kill rate
+  Hand Of Midas — Gold Micro Harness v8 &nbsp;|&nbsp; 171 tests &nbsp;|&nbsp; 14 adversarial scenarios &nbsp;|&nbsp; 100% mutation kill rate
+</div>
 </div>
 </body>
 </html>

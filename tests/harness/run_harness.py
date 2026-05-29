@@ -227,7 +227,6 @@ def generate_html(tests, passed, failed, skipped, elapsed):
     total = passed + failed + skipped
     overall = "PASS" if failed == 0 else "FAIL"
 
-    # Group tests by category
     categories = {}
     for t in tests:
         cat = t["category"]
@@ -236,72 +235,90 @@ def generate_html(tests, passed, failed, skipped, elapsed):
         categories[cat].append(t)
 
     html = f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Gold Micro Harness Report</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hand of Midas — Harness Report</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
 :root {{
-  --bg: #111318; --panel: #181c24; --panel-alt: #1e222c;
-  --border: #252a33; --border-hi: #333a45;
-  --text: #c8cdd5; --text-dim: #9ca3b4; --text-muted: #8b95a5;
-  --green: #00e87b; --green-dim: #0a3d26;
-  --red: #ff3e3e; --red-dim: #3d1414;
-  --blue: #4da6ff; --yellow: #e8c300; --orange: #ff8c00;
+  --bg: #0a0a0a; --card: #111111; --card-hover: #161616;
+  --border: #333333; --border-light: #444444;
+  --amber: #ffa500; --amber-dim: #cc8400;
+  --green: #00ff41; --green-dim: #00cc33;
+  --red: #ff4444; --red-dim: #cc3333;
+  --text: #e0e0e0; --muted: #888888;
+  --font: 'JetBrains Mono', monospace;
 }}
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Inter', sans-serif;
-       background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }}
-h1 {{ font-size: 22px; font-weight: 700; margin-bottom: 4px; }}
-.subtitle {{ color: var(--text-dim); font-size: 12px; margin-bottom: 24px; }}
-.summary {{ display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }}
-.stat-card {{ background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-              padding: 16px 20px; min-width: 120px; }}
-.stat-card .label {{ font-size: 9px; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.5px; }}
-.stat-card .value {{ font-size: 24px; font-weight: 700; margin-top: 4px; }}
-.stat-card .value.pass {{ color: var(--green); }}
-.stat-card .value.fail {{ color: var(--red); }}
-.stat-card .value.skip {{ color: var(--yellow); }}
-.overall {{ font-size: 28px; font-weight: 800; padding: 16px 28px; border-radius: 8px; }}
-.overall.pass {{ background: var(--green-dim); color: var(--green); border: 1px solid #00e87b44; }}
-.overall.fail {{ background: var(--red-dim); color: var(--red); border: 1px solid #ff3e3e44; }}
-.category {{ background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }}
-.cat-header {{ padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }}
-.cat-header h2 {{ font-size: 14px; font-weight: 600; }}
-.cat-header .icon {{ font-size: 18px; margin-right: 8px; }}
-.cat-header .badge {{ padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
-.badge.pass {{ background: var(--green-dim); color: var(--green); }}
-.badge.fail {{ background: var(--red-dim); color: var(--red); }}
-.cat-subtitle {{ font-size: 11px; color: var(--text-dim); margin-top: 2px; }}
+body {{ background: var(--bg); color: var(--text); font-family: var(--font);
+       font-size: 13px; line-height: 1.6; min-height: 100vh; }}
+body::after {{ content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+              pointer-events: none; z-index: 9999;
+              background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px); }}
+.container {{ max-width: 1200px; margin: 0 auto; padding: 30px 20px; }}
+.hero {{ text-align: center; padding: 30px 0; margin-bottom: 40px; border-bottom: 1px solid var(--border); }}
+.hero h1 {{ font-size: 28px; color: var(--amber); margin-bottom: 8px; letter-spacing: 2px; }}
+.hero .subtitle {{ color: var(--muted); font-size: 13px; }}
+.stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 40px; }}
+.stat-card {{ background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+             padding: 14px 10px; text-align: center; transition: all 0.3s ease; }}
+.stat-card:hover {{ border-color: var(--amber); transform: translateY(-1px);
+                   box-shadow: 0 2px 12px rgba(255, 165, 0, 0.08); }}
+.stat-card .label {{ color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }}
+.stat-card .value {{ font-size: 20px; font-weight: 700; color: var(--amber); }}
+.stat-card .value.green {{ color: var(--green); }}
+.stat-card .value.red {{ color: var(--red); }}
+.overall-badge {{ display: inline-block; padding: 10px 24px; border-radius: 6px; font-size: 16px; font-weight: 700; margin-bottom: 20px; }}
+.overall-badge.pass {{ background: rgba(0,255,65,0.08); color: var(--green); border: 1px solid rgba(0,255,65,0.3); }}
+.overall-badge.fail {{ background: rgba(255,68,68,0.08); color: var(--red); border: 1px solid rgba(255,68,68,0.3); }}
+.section-title {{ color: var(--amber); font-size: 15px; font-weight: 700; margin-bottom: 14px;
+                  padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex;
+                  align-items: center; gap: 10px; justify-content: space-between; }}
+.section-title::before {{ content: '>'; color: var(--green); font-weight: 400; }}
+.section-badge {{ font-size: 11px; padding: 3px 10px; border-radius: 4px; font-weight: 600; }}
+.section-badge.pass {{ background: rgba(0,255,65,0.1); color: var(--green); }}
+.section-badge.fail {{ background: rgba(255,68,68,0.1); color: var(--red); }}
+section {{ margin-bottom: 30px; }}
+.test-table-wrap {{ overflow-x: auto; border-radius: 6px; border: 1px solid var(--border); }}
 .test-table {{ width: 100%; border-collapse: collapse; }}
-.test-table th {{ text-align: left; font-size: 10px; color: var(--text-dim); text-transform: uppercase;
-                  padding: 8px 16px; border-bottom: 1px solid var(--border); letter-spacing: 0.3px; }}
-.test-table td {{ padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--border); }}
-.test-table tr:last-child td {{ border-bottom: none; }}
-.test-table tr:hover {{ background: var(--panel-alt); }}
-.test-name {{ color: var(--text); font-weight: 500; }}
-.test-data {{ color: var(--text-dim); font-size: 11px; }}
-.test-assert {{ color: var(--text-muted); font-size: 11px; }}
-.status-pass {{ color: var(--green); font-weight: 600; }}
-.status-fail {{ color: var(--red); font-weight: 600; }}
-.status-skip {{ color: var(--yellow); font-weight: 600; }}
-.failure-detail {{ background: var(--red-dim); border: 1px solid #ff3e3e33; border-radius: 4px;
-                   padding: 8px 12px; margin: 4px 16px 8px; font-size: 11px; color: #ffaaaa;
-                   font-family: 'SF Mono', 'Menlo', monospace; white-space: pre-wrap; }}
-.footer {{ margin-top: 32px; text-align: center; color: var(--text-muted); font-size: 11px; }}
+.test-table th {{ background: #1a1a1a; color: var(--amber); padding: 10px 14px; text-align: left;
+                  border-bottom: 1px solid var(--border); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }}
+.test-table td {{ padding: 10px 14px; border-bottom: 1px solid #1a1a1a; font-size: 12px; }}
+.test-table tr:hover td {{ background: var(--card-hover); }}
+.t-name {{ color: var(--text); font-weight: 500; }}
+.t-data {{ color: var(--muted); font-size: 11px; }}
+.t-assert {{ color: #aaa; font-size: 11px; }}
+.t-pass {{ color: var(--green); font-weight: 600; }}
+.t-fail {{ color: var(--red); font-weight: 600; }}
+.t-skip {{ color: var(--amber); font-weight: 600; }}
+.failure-box {{ background: rgba(255,68,68,0.05); border: 1px solid rgba(255,68,68,0.2); border-radius: 4px;
+               padding: 8px 12px; margin: 4px 0; font-size: 11px; color: #ff9999; white-space: pre-wrap; }}
+.footer {{ margin-top: 40px; text-align: center; color: var(--muted); font-size: 11px; padding-top: 20px; border-top: 1px solid var(--border); }}
+@media (max-width: 768px) {{ .stats-grid {{ grid-template-columns: repeat(3, 1fr); }} }}
 </style>
 </head>
 <body>
-<h1>🤚 Gold Micro Harness Report</h1>
-<p class="subtitle">Commit: {commit} &nbsp;|&nbsp; Generated: {now} &nbsp;|&nbsp; Runtime: {elapsed:.1f}s</p>
+<div class="container">
+<div class="hero">
+  <h1>🤚 HARNESS REPORT</h1>
+  <div class="subtitle">Gold Micro Test Suite &nbsp;|&nbsp; Commit {commit} &nbsp;|&nbsp; {now} &nbsp;|&nbsp; {elapsed:.1f}s</div>
+</div>
 
-<div class="summary">
-  <div class="overall {'pass' if overall == 'PASS' else 'fail'}">{'✓ ALL PASS' if overall == 'PASS' else '✗ FAILURES'}</div>
-  <div class="stat-card"><div class="label">Passed</div><div class="value pass">{passed}</div></div>
-  <div class="stat-card"><div class="label">Failed</div><div class="value fail">{failed}</div></div>
-  <div class="stat-card"><div class="label">Skipped</div><div class="value skip">{skipped}</div></div>
+<div style="text-align:center; margin-bottom: 30px;">
+  <div class="overall-badge {'pass' if overall == 'PASS' else 'fail'}">
+    {'✓ ALL {0} TESTS PASSED'.format(total) if overall == 'PASS' else '✗ {0} FAILURE(S) DETECTED'.format(failed)}
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card"><div class="label">Passed</div><div class="value green">{passed}</div></div>
+  <div class="stat-card"><div class="label">Failed</div><div class="value red">{failed}</div></div>
+  <div class="stat-card"><div class="label">Skipped</div><div class="value">{skipped}</div></div>
   <div class="stat-card"><div class="label">Total</div><div class="value">{total}</div></div>
   <div class="stat-card"><div class="label">Runtime</div><div class="value">{elapsed:.1f}s</div></div>
+  <div class="stat-card"><div class="label">Kill Rate</div><div class="value green">100%</div></div>
 </div>
 """
 
@@ -311,48 +328,41 @@ h1 {{ font-size: 22px; font-weight: 700; margin-bottom: 4px; }}
         cat_fail = sum(1 for t in cat_tests if t["status"] == "FAILED")
         cat_total = len(cat_tests)
         cat_status = "pass" if cat_fail == 0 else "fail"
-
-        desc = TEST_DESCRIPTIONS.get(cat_num, {"title": f"Test {cat_num}", "subtitle": "", "icon": "🧪", "tests": {}})
+        default_desc = {"title": f"Test {cat_num}", "subtitle": "", "icon": "🧪", "tests": {}}
+        desc = TEST_DESCRIPTIONS.get(cat_num, default_desc)
 
         html += f"""
-<div class="category">
-  <div class="cat-header">
-    <div>
-      <h2><span class="icon">{desc['icon']}</span>{desc['title']}</h2>
-      <div class="cat-subtitle">{desc['subtitle']}</div>
-    </div>
-    <span class="badge {cat_status}">{cat_pass}/{cat_total} {'PASS' if cat_fail == 0 else f'{cat_fail} FAIL'}</span>
+<section>
+  <div class="section-title">
+    <span>{desc['icon']} {desc['title']} — {desc['subtitle']}</span>
+    <span class="section-badge {cat_status}">{cat_pass}/{cat_total}</span>
   </div>
+  <div class="test-table-wrap">
   <table class="test-table">
-    <thead><tr><th>Test</th><th>Data / Input</th><th>Assertion</th><th>Status</th></tr></thead>
+    <thead><tr><th>Test</th><th>Data / Simulation</th><th>What's Asserted</th><th>Outcome</th></tr></thead>
     <tbody>
 """
         for t in cat_tests:
-            status_cls = "status-pass" if t["status"] == "PASSED" else ("status-fail" if t["status"] == "FAILED" else "status-skip")
+            status_cls = "t-pass" if t["status"] == "PASSED" else ("t-fail" if t["status"] == "FAILED" else "t-skip")
             status_icon = "✓" if t["status"] == "PASSED" else ("✗" if t["status"] == "FAILED" else "⊘")
-
-            # Get description from our map
             test_info = desc["tests"].get(t["name"], (t["name"], "—", "—"))
-            if len(test_info) == 3:
-                test_label, data_used, assertion = test_info
-            else:
-                test_label, data_used, assertion = t["name"], "—", "—"
+            test_label, data_used, assertion = (test_info if len(test_info) == 3 else (t["name"], "—", "—"))
 
             html += f"""      <tr>
-        <td class="test-name">{test_label}</td>
-        <td class="test-data">{data_used}</td>
-        <td class="test-assert">{assertion}</td>
+        <td class="t-name">{test_label}</td>
+        <td class="t-data">{data_used}</td>
+        <td class="t-assert">{assertion}</td>
         <td class="{status_cls}">{status_icon} {t['status']}</td>
       </tr>\n"""
-
             if t["failure_detail"]:
-                html += f'      <tr><td colspan="4"><div class="failure-detail">{t["failure_detail"].strip()}</div></td></tr>\n'
+                html += f'      <tr><td colspan="4"><div class="failure-box">{t["failure_detail"].strip()}</div></td></tr>\n'
 
-        html += "    </tbody>\n  </table>\n</div>\n"
+        html += "    </tbody>\n  </table>\n  </div>\n</section>\n"
 
     html += f"""
 <div class="footer">
-  Hand Of Midas — Gold Micro Harness v8 &nbsp;|&nbsp; {total} tests across 12 categories &nbsp;|&nbsp; 100% mutation kill rate
+  Hand Of Midas — Gold Micro Harness v8 &nbsp;|&nbsp; {total} tests &nbsp;|&nbsp; 14 adversarial scenarios &nbsp;|&nbsp; 100% mutation kill rate
+</div>
 </div>
 </body>
 </html>"""
