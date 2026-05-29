@@ -9,6 +9,7 @@ import json
 import os
 import time
 import re
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +51,9 @@ def _read_json(filename):
     return None
 
 
+_command_lock = threading.Lock()
+
+
 def _write_command(cmd_string):
     """Write a command file for the EA to execute."""
     cmd_dir = os.path.join(DWX_DIR, "commands")
@@ -79,6 +83,14 @@ def _wait_response(timeout=10):
                     pass
         time.sleep(0.1)
     return None
+
+
+def _send_command(cmd_string, timeout=10):
+    """Thread-safe: write command + wait response atomically.
+    Prevents concurrent commands from reading each other's responses (B4 fix)."""
+    with _command_lock:
+        _write_command(cmd_string)
+        return _wait_response(timeout)
 
 
 def _mt5_symbol(instrument):
@@ -248,9 +260,7 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
     tp_price = tp if tp else 0
 
     cmd = f"OPEN|{symbol}|{order_type}|{lots}|{price}|{sl_price}|{tp_price}|{comment}"
-    _write_command(cmd)
-
-    response = _wait_response(timeout=10)
+    response = _send_command(cmd, timeout=10)
     if not response:
         return {"success": False, "error": "Timeout waiting for EA response"}
 
@@ -273,9 +283,7 @@ def modify_stop_loss(trade_id, new_sl, new_tp=None):
     """Modify the stop loss (and optionally TP) of an existing position."""
     tp_price = new_tp if new_tp else 0
     cmd = f"MODIFY|{trade_id}|{new_sl}|{tp_price}"
-    _write_command(cmd)
-
-    response = _wait_response(timeout=10)
+    response = _send_command(cmd, timeout=10)
     if not response:
         return {"success": False, "error": "Timeout"}
 
@@ -288,9 +296,7 @@ def modify_stop_loss(trade_id, new_sl, new_tp=None):
 def close_trade(trade_id):
     """Close an open position by ticket."""
     cmd = f"CLOSE|{trade_id}"
-    _write_command(cmd)
-
-    response = _wait_response(timeout=10)
+    response = _send_command(cmd, timeout=10)
     if not response:
         return {"success": False, "error": "Timeout"}
 
