@@ -25,7 +25,7 @@ ENGULFING_TOLERANCE = 0.10  # $0.10 for Gold (0.002% of price)
 ALPHA_SWEEP = {
     "asia_min_range": 5.0,
     "sweep_threshold": 2.0,
-    "sl_buffer": 0.30,
+    "sl_buffer": 2.0,
     "min_sl": 5.0,
     "tp_multiplier": 2.0,
     "be_trigger_pct": 0.50,
