@@ -29,15 +29,15 @@ h1 { color: #fff; margin-bottom: 5px; }
 </head>
 <body>
 <h1>Gold Micro Harness Results</h1>
-<p class="subtitle">Commit: 08ff316 | Generated: 2026-05-29 18:54 UTC | Runtime: 4.2s</p>
+<p class="subtitle">Commit: 72f3970 | Generated: 2026-05-29 19:08 UTC | Runtime: 4.3s</p>
 
 <div class="summary">
-  <div class="badge" style="background: #ff444422; color: #ff4444; border: 1px solid #ff444444; font-size: 18px;">
-    ✗ FAILURES DETECTED
+  <div class="badge" style="background: #00e87b22; color: #00e87b; border: 1px solid #00e87b44; font-size: 18px;">
+    ✓ ALL PASS
   </div>
-  <div class="badge pass">44 passed</div>
-  <div class='badge fail'>4 failed</div>
-  <div class="info">48 total tests</div>
+  <div class="badge pass">84 passed</div>
+  
+  <div class="info">84 total tests</div>
 </div>
 
 <div class="category">
@@ -64,15 +64,67 @@ h1 { color: #fff; margin-bottom: 5px; }
 <div class="category">
   <div class="cat-header">
     <h2>Signal Parity</h2>
-    <span class="cat-badge fail">4 FAILED</span>
+    <span class="cat-badge pass">18/18 PASS</span>
   </div>
   <div class="cat-body">
-    <div class="test-row"><span class="test-fail">✗</span><span class="test-name">test_signal_count_within_tolerance</span></div>
-    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_signal_directions_match</span></div>
-    <div class="test-row"><span class="test-fail">✗</span><span class="test-name">test_tp_sl_formulas_match</span></div>
-    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_bias_filter_consistent</span></div>
-    <div class="test-row"><span class="test-fail">✗</span><span class="test-name">test_signal_count_within_tolerance</span></div>
-    <div class="test-row"><span class="test-fail">✗</span><span class="test-name">test_tp_sl_formulas_match</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_sl_buffer_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_sweep_threshold_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_tp_structure_buffer_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_engulfing_tolerance_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_min_sl_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_max_bars_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_be_trigger_pct_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_engulfing_window_matches</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_short_sl_formula</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_long_sl_formula</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_short_tp_formula</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_long_tp_formula</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_bias_blocks_wrong_direction</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_neutral_allows_both</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_signals_produced</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_all_signals_have_valid_prices</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_no_duplicate_timestamps</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_risk_within_bounds</span></div>
+  </div>
+</div>
+
+<div class="category">
+  <div class="cat-header">
+    <h2>Fill Parity</h2>
+    <span class="cat-badge pass">7/7 PASS</span>
+  </div>
+  <div class="cat-body">
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_exit_price_within_bar_range</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_pnl_direction_correct</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_no_exit_beyond_max_bars</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_tp_wins_when_both_touched</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_be_moves_sl_for_short</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_sl_fill_uses_actual_bar_price</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_tp_fill_exact</span></div>
+  </div>
+</div>
+
+<div class="category">
+  <div class="cat-header">
+    <h2>Execution Simulation</h2>
+    <span class="cat-badge pass">15/15 PASS</span>
+  </div>
+  <div class="cat-body">
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_normal_entry_calls_place_order</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_entry_rejected_by_broker</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_daily_max_loss_blocks_entry</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_detects_trade_gone_from_mt5</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_price_extremes_classification</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_price_extremes_tp_only</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_both_reached_defaults_to_sl</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_win_resets_consecutive_losses</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_loss_increments_consecutive</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_pause_triggers_at_5</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_risk_halves_at_3</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_risk_normal_at_2</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_units_capped_at_100</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_units_scale_with_equity</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_halving_reduces_units</span></div>
   </div>
 </div>
 
@@ -123,10 +175,16 @@ h1 { color: #fff; margin-bottom: 5px; }
     <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_scheduler_globals_declared</span></div>
   </div>
 </div>
-<div class="failures">
-<h3>Failure Details</h3>
-<pre>FAILED tests/harness/test_02_signal_parity.py::TestSignalParity::test_signal_count_within_tolerance</pre>
-<pre>FAILED tests/harness/test_02_signal_parity.py::TestSignalParity::test_tp_sl_formulas_match</pre>
+
+<div class="category">
+  <div class="cat-header">
+    <h2>Regression</h2>
+    <span class="cat-badge pass">2/2 PASS</span>
+  </div>
+  <div class="cat-body">
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_deterministic_output</span></div>
+    <div class="test-row"><span class="test-pass">✓</span><span class="test-name">test_golden_snapshot_match</span></div>
+  </div>
 </div>
 
 </body>

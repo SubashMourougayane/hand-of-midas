@@ -1,0 +1,115 @@
+{
+  "signals": [
+    {
+      "ts": "2026-05-20T03:09:00+00:00",
+      "dir": "long",
+      "entry": 4461.13
+    },
+    {
+      "ts": "2026-05-20T14:12:00+00:00",
+      "dir": "long",
+      "entry": 4477.54
+    },
+    {
+      "ts": "2026-05-20T14:12:00+00:00",
+      "dir": "long",
+      "entry": 4477.54
+    },
+    {
+      "ts": "2026-05-21T04:09:00+00:00",
+      "dir": "long",
+      "entry": 4535.34
+    },
+    {
+      "ts": "2026-05-21T05:30:00+00:00",
+      "dir": "long",
+      "entry": 4526.64
+    },
+    {
+      "ts": "2026-05-21T07:18:00+00:00",
+      "dir": "long",
+      "entry": 4521.65
+    }
+  ],
+  "trades": [
+    {
+      "ts": "2026-05-20T03:09:00+00:00",
+      "dir": "long",
+      "entry": 4461.13,
+      "sl": 4451.39,
+      "tp": 4545.52,
+      "exit_reason": "expired",
+      "exit_price": 4478.52,
+      "pnl_per_unit": 17.39,
+      "bars_held": 79
+    },
+    {
+      "ts": "2026-05-20T14:12:00+00:00",
+      "dir": "long",
+      "entry": 4477.54,
+      "sl": 4465.24,
+      "tp": 4499.29,
+      "exit_reason": "tp",
+      "exit_price": 4499.29,
+      "pnl_per_unit": 21.75,
+      "bars_held": 1
+    },
+    {
+      "ts": "2026-05-20T14:12:00+00:00",
+      "dir": "long",
+      "entry": 4477.54,
+      "sl": 4465.24,
+      "tp": 4504.37,
+      "exit_reason": "tp",
+      "exit_price": 4504.37,
+      "pnl_per_unit": 26.83,
+      "bars_held": 3
+    },
+    {
+      "ts": "2026-05-21T04:09:00+00:00",
+      "dir": "long",
+      "entry": 4535.34,
+      "sl": 4525.56,
+      "tp": 4568.93,
+      "exit_reason": "sl",
+      "exit_price": 4525.55,
+      "pnl_per_unit": -9.79,
+      "bars_held": 24
+    },
+    {
+      "ts": "2026-05-21T05:30:00+00:00",
+      "dir": "long",
+      "entry": 4526.64,
+      "sl": 4516.43,
+      "tp": 4568.93,
+      "exit_reason": "sl",
+      "exit_price": 4516.42,
+      "pnl_per_unit": -10.21,
+      "bars_held": 38
+    },
+    {
+      "ts": "2026-05-21T07:18:00+00:00",
+      "dir": "long",
+      "entry": 4521.65,
+      "sl": 4510.06,
+      "tp": 4562.92,
+      "exit_reason": "sl",
+      "exit_price": 4521.7,
+      "pnl_per_unit": 0.05,
+      "bars_held": 62
+    }
+  ],
+  "summary": {
+    "total_signals": 6,
+    "total_trades": 6,
+    "wins": 4,
+    "losses": 2,
+    "total_pnl": 46.02
+  },
+  "config": {
+    "sl_buffer": 2.0,
+    "tp_structure_buffer": 2.0,
+    "sweep_threshold": 2.0,
+    "min_sl": 5.0
+  }
+}

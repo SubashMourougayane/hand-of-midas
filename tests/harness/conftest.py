@@ -190,14 +190,14 @@ def mock_mt5():
         return None
 
     patches = {
-        "place_market_order": patch("backend.execution.mt5_executor.place_market_order", side_effect=mock_place_order),
-        "modify_stop_loss": patch("backend.execution.mt5_executor.modify_stop_loss", side_effect=mock_modify_sl),
-        "close_trade": patch("backend.execution.mt5_executor.close_trade", side_effect=mock_close),
-        "get_current_price": patch("backend.execution.mt5_executor.get_current_price", side_effect=mock_get_price),
-        "get_open_trades": patch("backend.execution.mt5_executor.get_open_trades", side_effect=mock_get_open),
-        "get_candles": patch("backend.execution.mt5_executor.get_candles", side_effect=mock_get_candles),
-        "get_account_summary": patch("backend.execution.mt5_executor.get_account_summary", side_effect=mock_get_account),
-        "get_trade_details": patch("backend.execution.mt5_executor.get_trade_details", side_effect=mock_get_details),
+        "place_market_order": patch("backend.execution.place_market_order", side_effect=mock_place_order),
+        "modify_stop_loss": patch("backend.execution.modify_stop_loss", side_effect=mock_modify_sl),
+        "close_trade": patch("backend.execution.close_trade", side_effect=mock_close),
+        "get_current_price": patch("backend.execution.get_current_price", side_effect=mock_get_price),
+        "get_open_trades": patch("backend.execution.get_open_trades", side_effect=mock_get_open),
+        "get_candles": patch("backend.execution.get_candles", side_effect=mock_get_candles),
+        "get_account_summary": patch("backend.execution.get_account_summary", side_effect=mock_get_account),
+        "get_trade_details": patch("backend.execution.get_trade_details", side_effect=mock_get_details),
     }
 
     started = {k: p.start() for k, p in patches.items()}
