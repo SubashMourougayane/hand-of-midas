@@ -176,19 +176,22 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
     if trades_today >= cfg["max_trades_per_day"]:
         return [] if dry_run else None
 
-    # Daily bias (Variant C)
+    # Daily bias (V2 Recovery: close position in range)
     yesterday = daily_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
-    mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
     mid_high = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
     mid_low = (yesterday["bid_low"] + yesterday["ask_low"]) / 2
     prev_range = mid_high - mid_low
     if prev_range <= 0:
         bias = "neutral"
-    elif abs(mid_close - mid_open) / prev_range < 0.4:
-        bias = "neutral"
     else:
-        bias = "bullish" if mid_close > mid_open else "bearish"
+        close_position = (mid_close - mid_low) / prev_range
+        if close_position >= 0.8:
+            bias = "bullish"
+        elif close_position <= 0.2:
+            bias = "bearish"
+        else:
+            bias = "neutral"
 
     trade_placed_this_cycle = False
     signals_found = []  # For dry_run mode
