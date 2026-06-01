@@ -192,3 +192,37 @@ class TestConfigValueSanity:
         from backend.config import ALPHA_SWEEP
         buf = ALPHA_SWEEP.get("tp_structure_buffer")
         assert buf is not None and buf > 0, f"tp_structure_buffer={buf} — must be positive"
+
+
+class TestV2BiasDeployed:
+    """Verify V2 bias (close position 80/20) is in live code, not V1 (body%)."""
+
+    def test_scheduler_uses_close_position(self):
+        """Micro scheduler must use close_position formula, not body%."""
+        path = os.path.join(PROJECT_ROOT, "backend-micro/scanner/scheduler.py")
+        with open(path) as f:
+            source = f.read()
+        assert "close_position" in source, "V2 bias not deployed — missing 'close_position'"
+        assert "(mid_close - mid_low) / prev_range" in source, "V2 formula missing"
+        assert "0.8" in source, "V2 threshold 0.8 missing"
+        assert "0.2" in source, "V2 threshold 0.2 missing"
+        # V1 should NOT be present
+        assert "abs(mid_close - mid_open) / prev_range < 0.4" not in source, \
+            "V1 body% formula still in code — V2 not deployed!"
+
+    def test_macro_scheduler_uses_close_position(self):
+        """Macro scheduler must also use V2."""
+        path = os.path.join(PROJECT_ROOT, "backend/scanner/scheduler.py")
+        with open(path) as f:
+            source = f.read()
+        assert "close_position" in source, "V2 bias not in Macro scheduler"
+        assert "abs(mid_close - mid_open) / prev_range < 0.4" not in source, \
+            "V1 still in Macro scheduler"
+
+    def test_v2_thresholds_correct(self):
+        """80/20 thresholds: bullish >= 0.8, bearish <= 0.2."""
+        path = os.path.join(PROJECT_ROOT, "backend-micro/scanner/scheduler.py")
+        with open(path) as f:
+            source = f.read()
+        assert "close_position >= 0.8" in source, "Bullish threshold not 0.8"
+        assert "close_position <= 0.2" in source, "Bearish threshold not 0.2"
