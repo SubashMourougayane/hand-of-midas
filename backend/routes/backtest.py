@@ -66,17 +66,32 @@ class BacktestResponse(BaseModel):
 
 
 @router.post("/backtest")
-def api_backtest(req: BacktestRequest) -> BacktestResponse:
-    """Run portfolio backtest and return full results."""
-    t0 = time.time()
+def api_backtest(req: BacktestRequest):
+    """Run portfolio backtest in background thread. Returns 200 immediately.
+    Frontend polls /backtest/latest until results appear."""
+    import threading
 
-    result = run_backtest(
-        strategies=req.strategies,
-        start_date=req.start_date,
-        end_date=req.end_date,
-        capital=req.capital,
-        risk_pct=req.risk_pct,
-    )
+    def _run_bg():
+        try:
+            t0 = time.time()
+            result = run_backtest(
+                strategies=req.strategies,
+                start_date=req.start_date,
+                end_date=req.end_date,
+                capital=req.capital,
+                risk_pct=req.risk_pct,
+            )
+            _process_and_save(req, result, t0)
+        except Exception as e:
+            print(f"Macro backtest error: {e}")
+
+    t = threading.Thread(target=_run_bg, daemon=True)
+    t.start()
+    return {"status": "running", "message": "Backtest started. Poll /backtest/latest for results."}
+
+
+def _process_and_save(req, result, t0):
+    """Process backtest result and save to DB (runs in background thread)."""
 
     # Compute detailed stats
     trades = result.trades
@@ -180,10 +195,9 @@ def api_backtest(req: BacktestRequest) -> BacktestResponse:
     # Persist to DB
     try:
         _save_backtest_to_db(req, stats, trade_responses, equity_curve, duration_ms)
+        print(f"Macro backtest saved: {result.total_trades} trades, PF {result.profit_factor:.2f}")
     except Exception as e:
         print(f"Warning: failed to persist backtest to DB: {e}")
-
-    return response
 
 
 def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):

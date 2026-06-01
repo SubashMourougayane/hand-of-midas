@@ -93,68 +93,64 @@ export async function runBacktest(
   onProgress?: (msg: string) => void,
 ): Promise<BacktestResult> {
   const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
-  // Micro backtest uses SSE — bypass Next.js proxy (30s timeout kills stream)
-  const backtestBase = instrument === "micro" && typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "https://midas.subashtrades.in"
-    : apiBase;
-  const res = await fetch(`${backtestBase}/api/${prefix}/backtest`, {
+  const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
   });
   if (!res.ok) throw new Error(`Backtest failed: ${res.status}`);
 
-  // Micro returns SSE stream, others return JSON directly
-  if (instrument === "micro" && res.headers.get("content-type")?.includes("text/event-stream")) {
+  // Both Macro and Micro now run in background threads.
+  // Try SSE first (Micro), fall back to polling (both).
+  if (res.headers.get("content-type")?.includes("text/event-stream")) {
     const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
-    const decoder = new TextDecoder();
-    let completed = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const payload = JSON.parse(line.slice(6));
-            if (payload.type === "progress" && onProgress) {
-              onProgress(payload.message);
-            } else if (payload.type === "done") {
-              completed = true;
-            } else if (payload.type === "error") {
-              throw new Error(payload.message);
+    if (reader) {
+      const decoder = new TextDecoder();
+      let completed = false;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          for (const line of text.split("\n")) {
+            if (line.startsWith("data: ")) {
+              try {
+                const payload = JSON.parse(line.slice(6));
+                if (payload.type === "progress" && onProgress) onProgress(payload.message);
+                else if (payload.type === "done") completed = true;
+                else if (payload.type === "error") throw new Error(payload.message);
+              } catch (e) {
+                if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
+              }
             }
-          } catch (e) {
-            if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
           }
+          if (completed) break;
         }
+      } catch {
+        // SSE disconnected — fall through to polling
       }
-      if (completed) break;
-    }
-    if (!completed) {
-      // SSE disconnected — poll for completion
-      if (onProgress) onProgress("Stream disconnected, checking results...");
-      for (let i = 0; i < 30; i++) {
-        await new Promise(r => setTimeout(r, 5000));
-        const poll = await getLatestBacktest(apiBase, instrument);
-        if (poll) return poll as unknown as BacktestResult;
+      if (completed) {
+        // Load from DB (retry for save to complete)
+        for (let i = 0; i < 10; i++) {
+          const latest = await getLatestBacktest(apiBase, instrument);
+          if (latest) return latest as unknown as BacktestResult;
+          await new Promise(r => setTimeout(r, 3000));
+          if (onProgress) onProgress("Saving to database...");
+        }
+        throw new Error("Backtest completed but results not found in DB");
       }
-      throw new Error("Backtest timed out");
     }
-    // Load full result from DB (retry a few times for DB save to complete)
-    for (let i = 0; i < 10; i++) {
-      const latest = await getLatestBacktest(apiBase, instrument);
-      if (latest) return latest as unknown as BacktestResult;
-      await new Promise(r => setTimeout(r, 3000));
-      if (onProgress) onProgress("Saving to database...");
-    }
-    throw new Error("Backtest completed but results not found in DB");
   }
 
-  return res.json();
+  // Poll for results (works for both Macro and Micro)
+  if (onProgress) onProgress("Running backtest...");
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    if (onProgress) onProgress(`Running backtest... (${(i + 1) * 5}s elapsed)`);
+    const poll = await getLatestBacktest(apiBase, instrument);
+    if (poll) return poll as unknown as BacktestResult;
+  }
+  throw new Error("Backtest timed out (5 minutes). Check server logs.");
 }
 
 export interface LatestBacktestResponse {
