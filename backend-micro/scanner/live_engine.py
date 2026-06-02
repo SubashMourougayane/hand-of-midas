@@ -158,6 +158,17 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             print(f"  [MICRO] SKIP: SL ${sl_price:.2f} too close to bid ${current_bid:.2f} (need >$1 gap)")
             return None
 
+    # Validate TP is on profitable side (catches stale signals where price moved past TP)
+    if price_now:
+        if direction == "long" and tp_price <= price_now["ask"] + 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="tp_already_passed")
+            print(f"  [MICRO] SKIP: LONG TP ${tp_price:.2f} <= ask ${price_now['ask']:.2f} (price already past TP)")
+            return None
+        if direction == "short" and tp_price >= price_now["bid"] - 1.0:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="tp_already_passed")
+            print(f"  [MICRO] SKIP: SHORT TP ${tp_price:.2f} >= bid ${price_now['bid']:.2f} (price already past TP)")
+            return None
+
     oanda_units = units if direction == "long" else -units
     print(f"  [MICRO] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
 
