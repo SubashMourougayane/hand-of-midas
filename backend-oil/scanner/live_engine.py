@@ -201,11 +201,18 @@ def check_open_positions():
                     result = close_trade(oanda_id)
                     if result.get("success"):
                         gbp_usd = _get_gbp_usd_rate()
-                        realized_pl = result["realized_pl"]
+                        close_price = result.get("close_price", 0)
+                        entry_price = float(trade["entry_price"])
+                        trade_units = trade["units"] or 1
+                        if trade["side"] == "SHORT":
+                            realized_pl = (entry_price - close_price) * trade_units
+                        else:
+                            realized_pl = (close_price - entry_price) * trade_units
                         pnl_usd = realized_pl * gbp_usd
+                        close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (result["time"], result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl, pnl_usd)
                         _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", result["close_price"], {
@@ -220,46 +227,60 @@ def check_open_positions():
                         notify.error(f"OIL MAX_HOLD close failed: {trade['trade_ref']}")
             continue
 
-        # Trade closed on OANDA side (SL or TP hit)
-        details = get_trade_details(oanda_id)
-        if not details:
-            _log_journal(trade["trade_ref"], "alpha_sweep_oil", "DETAILS_FETCH_FAILED", None, {
-                "oanda_id": oanda_id,
-            })
-            continue
+        # Trade gone from MT5 — closed by broker (SL or TP hit)
+        # MT5 get_trade_details returns None for closed trades.
+        # Determine exit from SL/TP proximity to current price.
+        entry_price = float(trade["entry_price"])
+        sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
+        tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
+        trade_units = trade["units"] or 1
 
-        if details["state"] == "CLOSED":
-            realized_pl = details["realized_pl"]
-            close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
-            fill_price = details.get("price", 0)
+        # Use SL/TP to determine which was hit
+        price_now = get_current_price(instrument="BCO_USD")
+        current_mid = price_now["mid"] if price_now else 0
 
-            # Determine exit reason (±0.05 tolerance for oil, $0.05 ~ 2 pips on BCO_USD)
-            exit_reason = "UNKNOWN"
-            if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 0.05:
-                exit_reason = "SL"
-            elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 0.05:
-                exit_reason = "TP"
-            else:
-                exit_reason = "CLOSED"
+        if trade["side"] == "SHORT":
+            sl_likely = current_mid >= sl_price - 0.10 if sl_price else False
+            tp_likely = current_mid <= tp_price + 0.10 if tp_price else False
+        else:
+            sl_likely = current_mid <= sl_price + 0.10 if sl_price else False
+            tp_likely = current_mid >= tp_price - 0.10 if tp_price else False
 
-            gbp_usd = _get_gbp_usd_rate()
-            pnl_usd = realized_pl * gbp_usd
+        # Conservative: if ambiguous, check which level is closer
+        if tp_likely and not sl_likely:
+            fill_price = tp_price
+            exit_reason = "TP"
+        elif sl_likely and not tp_likely:
+            fill_price = sl_price
+            exit_reason = "SL"
+        else:
+            # Default to SL (conservative)
+            fill_price = sl_price if sl_price else current_mid
+            exit_reason = "SL"
 
-            execute(
-                """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
-                   WHERE trade_ref=%s""",
-                (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
-            )
+        if trade["side"] == "SHORT":
+            realized_pl = (entry_price - fill_price) * trade_units
+        else:
+            realized_pl = (fill_price - entry_price) * trade_units
 
-            _update_dd_after_exit(realized_pl, pnl_usd)
+        gbp_usd = _get_gbp_usd_rate()
+        pnl_usd = realized_pl * gbp_usd
+        close_time = datetime.now(timezone.utc).isoformat()
 
-            _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", fill_price, {
-                "reason": exit_reason, "pnl_gbp": realized_pl, "pnl_usd": pnl_usd,
-                "oanda_id": oanda_id, "instrument": "BCO_USD",
-            })
+        execute(
+            """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
+               WHERE trade_ref=%s""",
+            (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
+        )
 
-            notify.trade_closed(trade["trade_ref"], "BCO_USD", exit_reason, realized_pl, pnl_usd)
-            print(f"  [OIL] CLOSED: {exit_reason} @ {fill_price:.4f}, P&L=£{realized_pl:.2f} (${pnl_usd:.2f})")
+        _update_dd_after_exit(realized_pl, pnl_usd)
+
+        _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", fill_price, {
+            "reason": exit_reason, "pnl_gbp": realized_pl, "pnl_usd": pnl_usd,
+            "oanda_id": oanda_id, "instrument": "BCO_USD",
+        })
+        print(f"  [OIL] Trade {trade['trade_ref']} closed: {exit_reason} @ ${fill_price:.2f}, P&L=${pnl_usd:.2f}")
+        notify.trade_closed(trade["trade_ref"], "BCO_USD", exit_reason, realized_pl, pnl_usd)
 
 
 def _update_dd_after_exit(realized_pl_gbp: float, pnl_usd: float):

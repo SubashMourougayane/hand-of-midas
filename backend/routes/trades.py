@@ -91,8 +91,8 @@ def get_trades(
     result: Optional[str] = Query(None),  # 'win' or 'loss'
     limit: int = Query(100, le=500),
 ):
-    """Get closed trades from DB with optional filters."""
-    sql = "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL"
+    """Get closed trades from DB with optional filters. Only returns Macro trades (GD-AL-)."""
+    sql = "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE 'GD-AL-%%'"
     params = []
 
     if strategy:

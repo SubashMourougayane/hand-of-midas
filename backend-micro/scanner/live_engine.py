@@ -263,12 +263,18 @@ def check_open_positions():
                     result = close_trade(oanda_id)
                     if result.get("success"):
                         gbp_usd = _get_gbp_usd_rate()
-                        realized_pl = result["realized_pl"]
+                        close_price = result.get("close_price", 0)
+                        entry_price = float(trade["entry_price"])
+                        trade_units = trade["units"] or 1
+                        if trade["side"] == "SHORT":
+                            realized_pl = (entry_price - close_price) * trade_units
+                        else:
+                            realized_pl = (close_price - entry_price) * trade_units
                         pnl_usd = realized_pl * gbp_usd
                         close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (close_time, result["close_price"], realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl)
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", result["close_price"], {
