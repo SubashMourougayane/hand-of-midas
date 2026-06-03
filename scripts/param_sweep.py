@@ -33,6 +33,13 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "backend"))
 
+# For running the Micro backtest engine (avoids import collision with backend/backtest/engine.py)
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location("micro_engine", os.path.join(PROJECT_ROOT, "backend-micro/backtest/engine.py"))
+_micro_engine = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_micro_engine)
+run_micro_backtest = _micro_engine.run_backtest
+
 import backend.config as cfg_module
 from backend.data.cache import load_candles
 from backend.strategies import micro_alpha_sweep

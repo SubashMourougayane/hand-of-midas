@@ -55,13 +55,15 @@ def run_backtest(
         d = gold_d.index[i].date()
         prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
         if prev_range > 0:
-            body_pct = abs(gold_d["mid_close"].iat[i - 1] - gold_d["mid_open"].iat[i - 1]) / prev_range
+            close_position = (gold_d["mid_close"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]) / prev_range
         else:
-            body_pct = 0
-        if body_pct < 0.4:
+            close_position = 0.5
+        if close_position >= 0.8:
+            daily_bias[d] = "bullish"
+        elif close_position <= 0.2:
+            daily_bias[d] = "bearish"
+        else:
             daily_bias[d] = "neutral"
-        else:
-            daily_bias[d] = "bullish" if gold_d["mid_close"].iat[i - 1] > gold_d["mid_open"].iat[i - 1] else "bearish"
         if not np.isnan(gold_50ma_vals[i]):
             gold_50ma_dict[d] = gold_50ma_vals[i]
         gold_close_dict[d] = gold_d["mid_close"].iat[i]
