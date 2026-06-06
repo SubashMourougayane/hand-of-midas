@@ -172,7 +172,9 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
         f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s",
         (today,), fetch=True
     )
-    trades_today = existing[0]["cnt"] if existing else 0
+    db_trades_today = existing[0]["cnt"] if existing else 0
+    # Use max of DB count and local counter (DB may miss trades if INSERT failed)
+    trades_today = max(db_trades_today, _daily_state["trades"])
     if trades_today >= cfg["max_trades_per_day"]:
         return [] if dry_run else None
 
@@ -281,14 +283,17 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
             if sweep_key in _traded_sweeps["keys"]:
                 continue
 
-            # One-at-a-time: if there are ANY open positions from Micro, don't enter again
-            # until the position is closed (one-at-a-time rule)
+            # One-at-a-time: check BOTH DB and MT5 (DB may miss trades if INSERT failed)
             open_micro = execute(
                 f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
                 fetch=True
             )
             if open_micro and open_micro[0]["cnt"] > 0:
                 continue  # Already have an open Micro position — wait for it to close
+            # Also check MT5 directly — catches orphan positions not in DB
+            mt5_open = get_open_trades()
+            if mt5_open and len(mt5_open) > 0:
+                continue  # MT5 has open position (possibly not in DB)
 
             # Bias filter
             if bias != "neutral":
