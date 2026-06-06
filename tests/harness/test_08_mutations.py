@@ -197,32 +197,33 @@ class TestConfigValueSanity:
 class TestV2BiasDeployed:
     """Verify V2 bias (close position 80/20) is in live code, not V1 (body%)."""
 
-    def test_scheduler_uses_close_position(self):
-        """Micro scheduler must use close_position formula, not body%."""
+    def test_scheduler_uses_combined_bias(self):
+        """Micro scheduler must use Combined V1+V2 bias (Option A)."""
         path = os.path.join(PROJECT_ROOT, "backend-micro/scanner/scheduler.py")
         with open(path) as f:
             source = f.read()
-        assert "close_position" in source, "V2 bias not deployed — missing 'close_position'"
-        assert "(mid_close - mid_low) / prev_range" in source, "V2 formula missing"
-        assert "0.8" in source, "V2 threshold 0.8 missing"
-        assert "0.2" in source, "V2 threshold 0.2 missing"
-        # V1 should NOT be present
-        assert "abs(mid_close - mid_open) / prev_range < 0.4" not in source, \
-            "V1 body% formula still in code — V2 not deployed!"
+        # Must have BOTH V1 and V2 components
+        assert "body_pct" in source, "Combined bias missing V1 body_pct"
+        assert "close_position" in source, "Combined bias missing V2 close_position"
+        assert "v1_bias" in source, "Combined bias missing v1_bias variable"
+        assert "v2_bias" in source, "Combined bias missing v2_bias variable"
+        # Combined logic: either one triggers
+        assert 'v1_bias == "bearish" or v2_bias == "bearish"' in source, \
+            "Combined logic missing: either bearish → bearish"
 
-    def test_macro_scheduler_uses_close_position(self):
-        """Macro scheduler must also use V2."""
+    def test_macro_scheduler_uses_combined_bias(self):
+        """Macro scheduler must also use Combined V1+V2."""
         path = os.path.join(PROJECT_ROOT, "backend/scanner/scheduler.py")
         with open(path) as f:
             source = f.read()
-        assert "close_position" in source, "V2 bias not in Macro scheduler"
-        assert "abs(mid_close - mid_open) / prev_range < 0.4" not in source, \
-            "V1 still in Macro scheduler"
+        assert "v1_bias" in source, "Macro missing combined bias"
+        assert "v2_bias" in source, "Macro missing combined bias"
 
-    def test_v2_thresholds_correct(self):
-        """80/20 thresholds: bullish >= 0.8, bearish <= 0.2."""
+    def test_combined_thresholds_correct(self):
+        """V1: 0.4 body%, V2: 0.8/0.2 close position."""
         path = os.path.join(PROJECT_ROOT, "backend-micro/scanner/scheduler.py")
         with open(path) as f:
             source = f.read()
-        assert "close_position >= 0.8" in source, "Bullish threshold not 0.8"
-        assert "close_position <= 0.2" in source, "Bearish threshold not 0.2"
+        assert "body_pct >= 0.4" in source, "V1 threshold 0.4 missing"
+        assert "close_position >= 0.8" in source, "V2 bullish threshold 0.8 missing"
+        assert "close_position <= 0.2" in source, "V2 bearish threshold 0.2 missing"

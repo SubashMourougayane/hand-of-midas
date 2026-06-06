@@ -144,6 +144,12 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": "units_too_small", "equity": equity_usd, "risk_mult": risk_mult})
         return None
 
+    # Reject if SL is 0 or None (must always have server-side protection)
+    if not sl_price or sl_price <= 0:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_is_zero")
+        print(f"  [MICRO] SKIP: SL is {sl_price} — every trade MUST have SL")
+        return None
+
     # Validate SL distance from current price (broker minimum stop level)
     price_now = get_current_price(instrument="XAU_USD")
     if price_now:

@@ -178,20 +178,33 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
     if trades_today >= cfg["max_trades_per_day"]:
         return [] if dry_run else None
 
-    # Daily bias (V2 Recovery: close position in range)
+    # Daily bias (Combined V1+V2: EITHER body% OR close-position triggers directional)
     yesterday = daily_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
+    mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
     mid_high = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
     mid_low = (yesterday["bid_low"] + yesterday["ask_low"]) / 2
     prev_range = mid_high - mid_low
     if prev_range <= 0:
         bias = "neutral"
     else:
+        # V1: body% > 40% of range = directional
+        body_pct = abs(mid_close - mid_open) / prev_range
+        v1_bias = "neutral"
+        if body_pct >= 0.4:
+            v1_bias = "bullish" if mid_close > mid_open else "bearish"
+        # V2: close in top/bottom 20% of range
         close_position = (mid_close - mid_low) / prev_range
+        v2_bias = "neutral"
         if close_position >= 0.8:
-            bias = "bullish"
+            v2_bias = "bullish"
         elif close_position <= 0.2:
+            v2_bias = "bearish"
+        # Combined: EITHER one says directional → use it
+        if v1_bias == "bearish" or v2_bias == "bearish":
             bias = "bearish"
+        elif v1_bias == "bullish" or v2_bias == "bullish":
+            bias = "bullish"
         else:
             bias = "neutral"
 
