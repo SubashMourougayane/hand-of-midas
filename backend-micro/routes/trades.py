@@ -14,7 +14,7 @@ MICRO_STRATEGIES_FILTER = ["micro_alpha_sweep"]
 @router.get("/trades")
 def get_trades():
     rows = execute(
-        f"SELECT * FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY entry_time DESC LIMIT 100",
+        f"SELECT * FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND (exit_reason IS NULL OR exit_reason != 'ORPHAN_CLEANUP') ORDER BY entry_time DESC LIMIT 100",
         fetch=True
     )
     return [
