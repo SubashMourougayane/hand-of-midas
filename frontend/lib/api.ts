@@ -142,15 +142,15 @@ export async function runBacktest(
     }
   }
 
-  // Poll for results (works for both Macro and Micro)
+  // Poll for results (works for both Macro and Micro — may take 10+ min on VPS)
   if (onProgress) onProgress("Running backtest...");
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 180; i++) {
     await new Promise(r => setTimeout(r, 5000));
-    if (onProgress) onProgress(`Running backtest... (${(i + 1) * 5}s elapsed)`);
+    if (onProgress) onProgress(`Running backtest... (${Math.floor((i + 1) * 5 / 60)}m ${((i + 1) * 5) % 60}s elapsed)`);
     const poll = await getLatestBacktest(apiBase, instrument);
     if (poll) return poll as unknown as BacktestResult;
   }
-  throw new Error("Backtest timed out (5 minutes). Check server logs.");
+  throw new Error("Backtest timed out (15 minutes). Check server logs.");
 }
 
 export interface LatestBacktestResponse {
