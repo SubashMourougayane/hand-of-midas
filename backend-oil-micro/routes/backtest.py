@@ -31,6 +31,8 @@ class BacktestRequest(BaseModel):
 
 
 def _run_backtest_thread(run_id: str, req: BacktestRequest):
+    # Force strategies to Oil Micro only — ignore whatever frontend sends
+    req.strategies = ["micro_alpha_sweep_oil"]
     t0 = time.time()
     _runs[run_id]["progress"].append("Loading Oil data (H1 + M3 + Daily)...")
 
