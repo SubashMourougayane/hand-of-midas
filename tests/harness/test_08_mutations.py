@@ -56,8 +56,11 @@ class TestSLBufferValue:
 
     def test_sl_buffer_range(self):
         from backend.config import ALPHA_SWEEP
-        from config import MICRO_ALPHA_SWEEP
-        for name, cfg in [("ALPHA_SWEEP", ALPHA_SWEEP), ("MICRO_ALPHA_SWEEP", MICRO_ALPHA_SWEEP)]:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("micro_config", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend-micro", "config.py"))
+        micro_cfg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(micro_cfg)
+        for name, cfg in [("ALPHA_SWEEP", ALPHA_SWEEP), ("MICRO_ALPHA_SWEEP", micro_cfg.MICRO_ALPHA_SWEEP)]:
             val = cfg["sl_buffer"]
             assert 0.5 <= val <= 10.0, \
                 f"{name}['sl_buffer'] = {val} — out of valid range [0.5, 10.0]"
