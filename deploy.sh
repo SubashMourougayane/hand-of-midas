@@ -31,6 +31,8 @@ NODE_VERSION="20"
 # Ports
 PORT_GOLD=5053
 PORT_OIL=5054
+PORT_MICRO=5055
+PORT_OIL_MICRO=5056
 PORT_UI=3001
 
 # ─── Colors ───────────────────────────────────────────────────────────────────
@@ -208,6 +210,48 @@ StandardError=append:${APP_DIR}/logs/oil.log
 WantedBy=multi-user.target
 EOF
 
+  # Gold Micro Backend
+  sudo tee /etc/systemd/system/midas-micro.service > /dev/null << EOF
+[Unit]
+Description=Hand Of Midas — Gold Micro Backend (XAU/USD Rolling Windows)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=${APP_DIR}/backend-micro
+EnvironmentFile=${APP_DIR}/.env
+ExecStart=${APP_DIR}/.venv/bin/uvicorn main:app --host 0.0.0.0 --port ${PORT_MICRO}
+Restart=always
+RestartSec=5
+StandardOutput=append:${APP_DIR}/logs/micro.log
+StandardError=append:${APP_DIR}/logs/micro.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Oil Micro Backend
+  sudo tee /etc/systemd/system/midas-oil-micro.service > /dev/null << EOF
+[Unit]
+Description=Hand Of Midas — Oil Micro Backend (BCO/USD Rolling Windows)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=${APP_DIR}/backend-oil-micro
+EnvironmentFile=${APP_DIR}/.env
+ExecStart=${APP_DIR}/.venv/bin/uvicorn main:app --host 0.0.0.0 --port ${PORT_OIL_MICRO}
+Restart=always
+RestartSec=5
+StandardOutput=append:${APP_DIR}/logs/oil-micro.log
+StandardError=append:${APP_DIR}/logs/oil-micro.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
   # Frontend (Next.js production)
   sudo tee /etc/systemd/system/midas-ui.service > /dev/null << EOF
 [Unit]
@@ -228,9 +272,9 @@ WantedBy=multi-user.target
 EOF
 
   sudo systemctl daemon-reload
-  sudo systemctl enable midas-gold midas-oil midas-ui
+  sudo systemctl enable midas-gold midas-oil midas-micro midas-oil-micro midas-ui
 
-  log "Services created: midas-gold, midas-oil, midas-ui"
+  log "Services created: midas-gold, midas-oil, midas-micro, midas-oil-micro, midas-ui"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -277,13 +321,33 @@ server {
         proxy_pass http://127.0.0.1:${PORT_GOLD}/api/health;
     }
 
-    # Oil API
+    # Gold Micro API
+    location /api/micro/ {
+        proxy_pass http://127.0.0.1:${PORT_MICRO}/api/micro/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_read_timeout 300;
+        proxy_buffering off;
+    }
+
+    # Oil Macro API
     location /api/oil/ {
         proxy_pass http://127.0.0.1:${PORT_OIL}/api/oil/;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_read_timeout 300;
+    }
+
+    # Oil Micro API
+    location /api/oil-micro/ {
+        proxy_pass http://127.0.0.1:${PORT_OIL_MICRO}/api/oil-micro/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_read_timeout 300;
+        proxy_buffering off;
     }
 }
 NGINX

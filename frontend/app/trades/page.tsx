@@ -22,7 +22,7 @@ interface BacktestTrade {
 export default function TradesPage() {
   const { apiBase, instrument } = useInstrument();
   const API_BASE = apiBase;
-  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
+  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
   const [tab, setTab] = useState<"live" | "backtest">("backtest");
   const [liveTrades, setLiveTrades] = useState<LiveTrade[]>([]);
   const [btTrades, setBtTrades] = useState<BacktestTrade[]>([]);

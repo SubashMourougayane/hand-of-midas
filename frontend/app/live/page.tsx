@@ -52,7 +52,7 @@ export default function LivePage() {
     setState(null);
     setScan(null);
     sseConnected.current = false;
-    const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : "gold";
+    const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
     // SSE must bypass Next.js proxy (it buffers streaming responses)
     const sseBase = typeof window !== "undefined" && window.location.hostname === "localhost"
       ? "https://midas.subashtrades.in"
@@ -139,9 +139,9 @@ export default function LivePage() {
         {/* System Mode */}
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
 
-        {/* Sweep Proximity (Gold Macro / Oil only — Micro has different scan-status shape) */}
-        {instrument !== "micro" && <SweepProximity scan={scan} />}
-        {instrument === "micro" && scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
+        {/* Sweep Proximity (Gold Macro / Oil Macro only — Micro has different scan-status shape) */}
+        {instrument !== "micro" && instrument !== "oil-micro" && <SweepProximity scan={scan} />}
+        {(instrument === "micro" || instrument === "oil-micro") && scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
 
         {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
 
@@ -150,7 +150,7 @@ export default function LivePage() {
             {/* Price + Account Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">{instrument === "oil" ? "BCO/USD" : "XAU/USD"}</div>
+                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">{instrument === "oil" || instrument === "oil-micro" ? "BCO/USD" : "XAU/USD"}</div>
                 <div className="text-2xl font-bold text-[var(--text)] mt-1">
                   {state.price ? `$${state.price.mid.toFixed(2)}` : "—"}
                 </div>
@@ -237,7 +237,7 @@ export default function LivePage() {
               </h2>
               {(state.recent_signals?.length || 0) === 0 ? (
                 <p className="text-xs text-[var(--text-dim)]">
-                  {instrument === "micro"
+                  {instrument === "micro" || instrument === "oil-micro"
                     ? "No signals yet. Scanning all market hours (rolling 4hr windows)."
                     : "No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan)."}
                 </p>
@@ -382,7 +382,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     color = "#00e87b";
     icon = "📈";
     countdown = "Monitoring every 1 min";
-  } else if (instrument === "micro") {
+  } else if (instrument === "micro" || instrument === "oil-micro") {
     // Micro scans 22:00-21:00 UTC (only 21-22 is closed)
     if (utcTime >= 21 && utcTime < 22) {
       mode = "MARKET CLOSED";
@@ -392,7 +392,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
       countdown = `Opens in ${minsLeft}m`;
     } else {
       mode = "SCANNING";
-      color = "#ff8c00";
+      color = instrument === "oil-micro" ? "#26c6da" : "#ff8c00";
       icon = "🔍";
       countdown = "Rolling windows active (22:00-21:00 UTC)";
     }
@@ -441,10 +441,10 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     { name: "NEW YORK", start: 18.5, end: 24, color: "#ff8c00" },   // 6:30 PM - 3:00 AM IST (wraps)
   ];
 
-  const tradingWindows = instrument === "micro"
+  const tradingWindows = instrument === "micro" || instrument === "oil-micro"
     ? [
-        { name: "Alpha-Sweep", start: 3.5, end: 24, color: "#ff8c00" },  // Micro: 22:00-21:00 UTC = 3:30 AM - 3:00 AM IST (full market)
-        { name: "Alpha-Sweep", start: 0, end: 3, color: "#ff8c00" },     // Micro wraps: midnight - 3:00 AM IST
+        { name: "Alpha-Sweep", start: 3.5, end: 24, color: instrument === "oil-micro" ? "#26c6da" : "#ff8c00" },
+        { name: "Alpha-Sweep", start: 0, end: 3, color: instrument === "oil-micro" ? "#26c6da" : "#ff8c00" },
       ]
     : [
         { name: "Alpha-Sweep", start: 13.5, end: 24, color: "#4fc3f7" }, // Macro: 08:00-20:00 UTC = 1:30 PM - 1:30 AM IST
@@ -900,7 +900,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
           {/* Price in center */}
           <div style={{ position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
             <div style={{ fontSize: "16px", fontWeight: "bold", color: isGaugeStale ? "#9ca3b4" : dotColor }}>${scan.price.toFixed(2)}</div>
-            <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" ? "BCO/USD" : "XAU/USD"}</div>
+            <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" || String(instrument) === "oil-micro" ? "BCO/USD" : "XAU/USD"}</div>
           </div>
 
           {/* Gauge status label */}
@@ -921,7 +921,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
         {/* Stats panel (right side) */}
         <div className="w-full flex-1 grid grid-cols-2 gap-3">
           {(() => {
-            const isOil = String(instrument) === "oil";
+            const isOil = String(instrument) === "oil" || String(instrument) === "oil-micro";
             const dp = isOil ? 2 : 1; // decimal places for distances
             const lp = isOil ? 2 : 0; // decimal places for levels
             return (<>

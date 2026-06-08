@@ -20,6 +20,7 @@ export default function Sidebar() {
   const [goldOpen, setGoldOpen] = useState(true);
   const [microOpen, setMicroOpen] = useState(true);
   const [oilOpen, setOilOpen] = useState(true);
+  const [oilMicroOpen, setOilMicroOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Close sidebar on route change
@@ -101,7 +102,7 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* OilMiner Section */}
+      {/* OilMiner Macro Section */}
       <div className="mb-3">
         <button
           onClick={() => setOilOpen(!oilOpen)}
@@ -109,7 +110,7 @@ export default function Sidebar() {
         >
           {oilOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span>🛢️</span>
-          <span>OILMINER</span>
+          <span>OIL MACRO</span>
         </button>
         {oilOpen && (
           <div className="ml-5 border-l border-[var(--border)] pl-3 mt-1">
@@ -120,6 +121,35 @@ export default function Sidebar() {
                   onClick={() => setInstrument("oil")}
                   className={`flex items-center gap-2.5 px-2 py-2 text-xs transition-colors ${
                     active ? "text-[#4fc3f7] bg-[#4fc3f715]" : "text-[var(--text-dim)] hover:text-[var(--text)]"
+                  }`}>
+                  <item.icon size={14} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* OilMiner Micro Section */}
+      <div className="mb-3">
+        <button
+          onClick={() => setOilMicroOpen(!oilMicroOpen)}
+          className="w-full flex items-center gap-2 px-1 py-2 text-sm font-bold transition-colors text-[#26c6da] hover:text-[#4dd0e1]"
+        >
+          {oilMicroOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <span>⚡</span>
+          <span>OIL MICRO</span>
+        </button>
+        {oilMicroOpen && (
+          <div className="ml-5 border-l border-[var(--border)] pl-3 mt-1">
+            {PAGES.map((item) => {
+              const active = path === item.href && instrument === "oil-micro";
+              return (
+                <Link key={`oil-micro-${item.href}`} href={item.href}
+                  onClick={() => setInstrument("oil-micro")}
+                  className={`flex items-center gap-2.5 px-2 py-2 text-xs transition-colors ${
+                    active ? "text-[#26c6da] bg-[#26c6da15]" : "text-[var(--text-dim)] hover:text-[var(--text)]"
                   }`}>
                   <item.icon size={14} />
                   {item.label}

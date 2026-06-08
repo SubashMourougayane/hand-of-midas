@@ -32,6 +32,9 @@ export default function BacktestPage() {
   useEffect(() => {
     setResult(null);
     setShowTrades(50);
+    setLoading(false);
+    setProgressMsg("");
+    setError("");
     let cancelled = false;
     getLatestBacktest(apiBase, instrument).then((data) => {
       if (cancelled) return;

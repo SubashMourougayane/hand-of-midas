@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
       : "https://midas.subashtrades.in";
     return [
       {
+        source: "/api/oil-micro/:path*",
+        destination: `${process.env.NODE_ENV === "production" ? "http://localhost:5056" : "http://localhost:5056"}/api/oil-micro/:path*`,
+      },
+      {
         source: "/api/oil/:path*",
         destination: `${process.env.NODE_ENV === "production" ? "http://localhost:5054" : "https://midas.subashtrades.in"}/api/oil/:path*`,
       },
