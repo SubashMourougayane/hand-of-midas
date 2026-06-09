@@ -184,7 +184,7 @@ def check_open_positions():
         return
 
     oanda_open = get_open_trades()
-    oanda_open_ids = {t["trade_id"] for t in oanda_open}
+    oanda_open_ids = {t.get("id") or t.get("trade_id") for t in oanda_open}
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
