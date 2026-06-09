@@ -84,6 +84,21 @@
         .nav a { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border-radius: 4px; font-weight: 500; transition: 0.2s; }
         .nav a:hover { color: var(--text); background: #222; }
 
+        /* Hero */
+        .hero { text-align: center; padding: 30px 0 24px; margin-bottom: 30px; border-bottom: 1px solid var(--border); }
+        .hero h1 { font-size: 32px; color: var(--amber); letter-spacing: 2px; margin-bottom: 10px; }
+        .hero-subtitle { color: var(--text); font-size: 16px; margin-bottom: 6px; }
+        .hero-note { color: var(--muted); font-size: 12px; }
+
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 40px; }
+        .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 14px 10px; text-align: center; transition: 0.2s; }
+        .stat-card:hover { border-color: var(--amber); transform: translateY(-1px); box-shadow: 0 2px 12px rgba(255,165,0,0.08); }
+        .stat-card .label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-card .value { font-size: 18px; font-weight: 700; }
+
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+
         /* Footer */
         .footer { text-align: center; margin-top: 60px; padding: 24px; border-top: 1px solid var(--border); }
         .footer p { color: var(--muted); font-size: 12px; }
@@ -92,8 +107,38 @@
 <body>
 <div class="container">
 
-<h1>Strategy Playbook</h1>
-<p class="subtitle">Learn the Liquidity Sweep Reversal strategy — the one pattern behind all 4 systems.</p>
+<header class="hero">
+    <h1>STRATEGY PLAYBOOK</h1>
+    <p class="hero-subtitle">Liquidity Sweep Reversal — The One Pattern Behind All 4 Systems</p>
+    <p class="hero-note">Gold + Brent Oil | Micro + Macro | 80% Win Rate | PF 4.5+</p>
+</header>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">SYSTEMS</div>
+        <div class="value" style="color:var(--amber)">4</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">WIN RATE</div>
+        <div class="value" style="color:var(--green)">80%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">PROFIT FACTOR</div>
+        <div class="value" style="color:var(--green)">4.9</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">LOSING YEARS</div>
+        <div class="value" style="color:var(--green)">0</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">RISK:REWARD</div>
+        <div class="value" style="color:var(--text)">2:1</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">INSTRUMENTS</div>
+        <div class="value" style="color:var(--text)">XAU + BCO</div>
+    </div>
+</div>
 
 <div class="nav">
     <span class="nav-brand">STRATEGY PLAYBOOK</span>
