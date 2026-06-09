@@ -4,53 +4,89 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hand Of Midas — Strategy Playbook</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.7; }
-        .container { max-width: 1100px; margin: 0 auto; padding: 50px 24px; }
-        h1 { color: #e8c300; font-size: 36px; margin-bottom: 8px; font-weight: 700; }
-        h2 { color: #58a6ff; font-size: 26px; margin: 80px 0 24px; border-bottom: 2px solid #21262d; padding-bottom: 12px; }
-        h3 { color: #c9d1d9; font-size: 20px; margin: 40px 0 16px; }
-        .subtitle { color: #8b949e; font-size: 18px; margin-bottom: 50px; line-height: 1.5; }
-        p { color: #c9d1d9; margin: 12px 0; font-size: 16px; line-height: 1.7; }
-        .muted { color: #8b949e; }
-        .highlight { color: #e8c300; font-weight: 600; }
-        .green { color: #3fb950; font-weight: 600; }
-        .red { color: #f85149; font-weight: 600; }
-        .cyan { color: #58a6ff; }
+
+        :root {
+            --bg: #0a0a0a;
+            --card: #111111;
+            --border: #333333;
+            --amber: #ffa500;
+            --green: #00ff41;
+            --red: #ff4444;
+            --text: #e0e0e0;
+            --muted: #888888;
+            --font: 'JetBrains Mono', monospace;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 14px;
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        /* Scanline overlay (matches midas-report) */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 80px 24px 50px; }
+        h1 { color: var(--amber); font-size: 32px; margin-bottom: 8px; font-weight: 700; letter-spacing: -0.5px; }
+        h2 { color: var(--amber); font-size: 22px; margin: 70px 0 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px; letter-spacing: -0.3px; }
+        h3 { color: var(--text); font-size: 18px; margin: 36px 0 14px; }
+        .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 40px; line-height: 1.6; }
+        p { color: var(--text); margin: 10px 0; font-size: 14px; line-height: 1.7; }
+        .muted { color: var(--muted); }
+        .highlight { color: var(--amber); font-weight: 600; }
+        .green { color: var(--green); font-weight: 600; }
+        .red { color: var(--red); font-weight: 600; }
+        .cyan { color: #4fc3f7; }
 
         /* Diagram Container */
-        .diagram { background: #0d1117; border: 2px solid #30363d; border-radius: 12px; padding: 30px 20px; margin: 30px 0; overflow-x: auto; }
+        .diagram { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 24px 16px; margin: 24px 0; overflow-x: auto; }
         .diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
-        .diagram-caption { text-align: center; color: #8b949e; font-size: 14px; margin-top: 12px; }
+        .diagram-caption { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; }
 
         /* Concept Box */
-        .concept { background: #161b22; border-radius: 12px; padding: 28px; margin: 28px 0; border: 1px solid #30363d; }
-        .concept h4 { color: #e8c300; font-size: 18px; margin-bottom: 12px; }
-        .concept p { font-size: 16px; }
+        .concept { background: var(--card); border-radius: 8px; padding: 24px; margin: 24px 0; border: 1px solid var(--border); }
+        .concept h4 { color: var(--amber); font-size: 16px; margin-bottom: 10px; }
+        .concept p { font-size: 14px; }
 
         /* Inline definitions */
-        .define { color: #8b949e; font-style: italic; }
+        .define { color: var(--muted); font-style: italic; }
 
         /* Config Table */
-        table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 15px; }
-        th { background: #161b22; color: #58a6ff; text-align: left; padding: 12px 16px; border: 1px solid #21262d; font-weight: 600; }
-        td { padding: 12px 16px; border: 1px solid #21262d; color: #c9d1d9; }
-        tr:nth-child(even) { background: #161b2280; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
+        th { background: var(--card); color: var(--amber); text-align: left; padding: 10px 14px; border: 1px solid var(--border); font-weight: 600; }
+        td { padding: 10px 14px; border: 1px solid var(--border); color: var(--text); }
+        tr:nth-child(even) { background: #0f0f0f; }
 
         /* Real Example Box */
-        .real-example { background: #0d1117; border: 2px solid #3fb95050; border-radius: 12px; padding: 28px; margin: 28px 0; }
-        .real-example h4 { color: #3fb950; font-size: 16px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .real-example pre { color: #c9d1d9; font-size: 14px; line-height: 2; font-family: 'JetBrains Mono', 'SF Mono', monospace; white-space: pre-wrap; }
+        .real-example { background: var(--card); border: 1px solid #00ff4140; border-radius: 8px; padding: 24px; margin: 24px 0; }
+        .real-example h4 { color: var(--green); font-size: 14px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .real-example pre { color: var(--text); font-size: 13px; line-height: 2; font-family: var(--font); white-space: pre-wrap; }
 
         /* Nav */
-        .nav { position: sticky; top: 0; background: #0d1117ee; backdrop-filter: blur(8px); border-bottom: 1px solid #21262d; padding: 14px 0; z-index: 100; margin-bottom: 40px; }
-        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; margin-right: 24px; font-weight: 500; }
-        .nav a:hover { color: #58a6ff; }
+        .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(10,10,10,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 12px 20px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .nav-brand { color: var(--amber); font-weight: 700; font-size: 16px; margin-right: 16px; }
+        .nav a { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border-radius: 4px; font-weight: 500; transition: 0.2s; }
+        .nav a:hover { color: var(--text); background: #222; }
 
         /* Footer */
-        .footer { text-align: center; margin-top: 80px; padding: 30px; border-top: 1px solid #21262d; }
-        .footer p { color: #8b949e; font-size: 13px; }
+        .footer { text-align: center; margin-top: 60px; padding: 24px; border-top: 1px solid var(--border); }
+        .footer p { color: var(--muted); font-size: 12px; }
     </style>
 </head>
 <body>
@@ -60,11 +96,12 @@
 <p class="subtitle">Learn the Liquidity Sweep Reversal strategy — the one pattern behind all 4 systems.</p>
 
 <div class="nav">
+    <span class="nav-brand">STRATEGY PLAYBOOK</span>
     <a href="#what-is-it">What Is It</a>
-    <a href="#short-trade">Short Trade</a>
-    <a href="#long-trade">Long Trade</a>
-    <a href="#bias-filter">Bias Filter</a>
-    <a href="#flowchart">Decision Flowchart</a>
+    <a href="#short-trade">Short</a>
+    <a href="#long-trade">Long</a>
+    <a href="#bias-filter">Bias</a>
+    <a href="#flowchart">Flowchart</a>
     <a href="#systems">4 Systems</a>
     <a href="#real-trade">Real Trade</a>
 </div>
