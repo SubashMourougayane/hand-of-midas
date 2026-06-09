@@ -103,6 +103,26 @@
         .footer { text-align: center; margin-top: 60px; padding: 24px; border-top: 1px solid var(--border); }
         .footer p { color: var(--muted); font-size: 12px; }
 
+        /* Strategy Lineage Box */
+        .lineage-box {
+            background: linear-gradient(135deg, rgba(255,165,0,0.04), rgba(0,255,65,0.02));
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 28px;
+            margin: 32px 0;
+            transition: all 0.3s ease;
+        }
+        .lineage-box:hover { border-color: var(--amber); box-shadow: 0 2px 16px rgba(255,165,0,0.08); }
+        .lineage-box h4 { color: var(--amber); font-size: 16px; margin-bottom: 8px; letter-spacing: 0.5px; }
+        .lineage-box > p { color: var(--text); font-size: 14px; margin-bottom: 20px; }
+        .lineage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 12px; }
+        .lineage-item { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; padding: 16px; transition: all 0.2s ease; }
+        .lineage-item:hover { border-color: var(--amber); transform: translateY(-2px); }
+        .lineage-name { color: var(--amber); font-size: 14px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .lineage-author { color: var(--muted); font-size: 11px; margin-bottom: 10px; font-style: italic; }
+        .lineage-item p { color: var(--text); font-size: 12px; line-height: 1.6; margin: 0; }
+        @media (max-width: 768px) { .lineage-grid { grid-template-columns: 1fr; } }
+
         /* ═══ ANIMATIONS ═══ */
 
         /* Scroll reveal: elements start invisible/offset, animate in when visible */
@@ -170,8 +190,8 @@
 
 <header class="hero">
     <h1>LIQUIDITY SWEEP REVERSAL</h1>
-    <p class="hero-subtitle">A Mean-Reversion Strategy Based on Stop-Hunt Reversals</p>
-    <p class="hero-note">Works on any liquid instrument with clear consolidation ranges</p>
+    <p class="hero-subtitle">Quantified Turtle Soup &mdash; Stop Hunts Reversed Mechanically</p>
+    <p class="hero-note">Inspired by Connors' Turtle Soup, ICT's Judas Swing, and Wyckoff's Spring</p>
 </header>
 
 <div class="stats-grid">
@@ -224,6 +244,29 @@
 <p><span class="highlight">1. Consolidation</span> <span class="define">(price moving sideways in a range for several hours)</span></p>
 <p><span class="highlight">2. Sweep</span> <span class="define">(price spikes past the range to grab stop losses, then snaps back)</span></p>
 <p><span class="highlight">3. Engulfing</span> <span class="define">(a big reversal candle that completely wraps the previous one — our entry signal)</span></p>
+
+<div class="lineage-box">
+    <h4>Strategy Lineage — Where This Comes From</h4>
+    <p>This pattern has been traded for decades under different names. We didn't invent it — we <strong>quantified</strong> it.</p>
+    <div class="lineage-grid">
+        <div class="lineage-item">
+            <div class="lineage-name">Turtle Soup</div>
+            <div class="lineage-author">Larry Connors, 1990s</div>
+            <p>"When a market breaks a recent high or low, fade it." Connors documented that 70%+ of false breakouts reverse within 4 bars. Our strategy is a quantified Turtle Soup with mechanical confirmation.</p>
+        </div>
+        <div class="lineage-item">
+            <div class="lineage-name">Judas Swing</div>
+            <div class="lineage-author">ICT (Smart Money)</div>
+            <p>The early-session fake move that traps breakout traders before reversing. Same liquidity-grab concept — institutions push price to grab stops, then take it the other way.</p>
+        </div>
+        <div class="lineage-item">
+            <div class="lineage-name">Stop Hunt</div>
+            <div class="lineage-author">Wyckoff, 1930s</div>
+            <p>"Composite Operator" theory: large players probe above resistance / below support to absorb liquidity before reversing. Wyckoff's "Spring" and "Upthrust" patterns are the original stop hunts.</p>
+        </div>
+    </div>
+    <p style="margin-top:18px;color:var(--muted);font-size:13px;">What we add: <strong style="color:var(--amber)">strict mechanical rules</strong> (no discretion), <strong style="color:var(--amber)">engulfing-only confirmation</strong> (no order blocks/FVGs/OTE), and <strong style="color:var(--amber)">automated execution</strong> across multiple instruments.</p>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <h2 id="short-trade">SHORT Trade — Visual Breakdown</h2>
