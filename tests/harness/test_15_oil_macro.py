@@ -509,36 +509,39 @@ class TestOilMacroBreakEven:
 
 
 # ============================================================================
-# TEST CLASS 15e: Bias Filter (V1-Only for Oil Macro)
+# TEST CLASS 15e: Bias Filter (Combined V1+V2 for Oil Macro)
+# Updated 2026-06-09: Oil Macro switched from V1-only to Combined V1+V2.
+# 20yr backtest showed PF 4.98 → 5.58, P&L +$34K, prevents losses like Jun 9.
 # ============================================================================
 
 class TestOilMacroBias:
-    """15e: Oil Macro uses V1-only bias (body% > 40%) — NOT Combined."""
+    """15e: Oil Macro uses Combined V1+V2 bias (matches all 3 other systems)."""
 
-    def test_scheduler_uses_v1_only(self):
-        """Oil Macro scheduler must use V1 only (body_pct), NOT combined V1+V2."""
+    def test_scheduler_uses_combined_v1_v2(self):
+        """Oil Macro scheduler must use Combined V1+V2 bias."""
         path = os.path.join(PROJECT_ROOT, "backend-oil/scanner/scheduler.py")
         with open(path) as f:
             content = f.read()
-        # V1 should be present
-        assert "body_pct" in content or "mid_close - mid_open" in content, \
-            "Oil Macro scheduler missing body_pct calculation"
-        # Combined V2 (close_position) should NOT be present in Oil Macro
-        assert "close_position" not in content, \
-            "Oil Macro scheduler should use V1-only bias, NOT Combined V1+V2 (close_position found)"
-        assert "v2_bias" not in content, \
-            "Oil Macro scheduler should NOT have v2_bias — Combined bias breaks Oil Macro"
+        # V1 (body%) must be present
+        assert "body_pct" in content, "Oil Macro scheduler missing V1 body_pct"
+        # V2 (close_position) must be present
+        assert "close_position" in content, \
+            "Oil Macro scheduler must use Combined V1+V2 (close_position required)"
+        assert "v2_bias" in content, \
+            "Oil Macro scheduler must have v2_bias variable"
+        # Combined logic: EITHER triggers
+        assert 'v1_bias == "bearish" or v2_bias == "bearish"' in content, \
+            "Oil Macro scheduler missing Combined OR logic"
 
-    def test_backtest_uses_v1_only(self):
-        """Oil Macro backtest must also use V1-only bias."""
+    def test_backtest_uses_combined_v1_v2(self):
+        """Oil Macro backtest must also use Combined V1+V2 bias."""
         path = os.path.join(PROJECT_ROOT, "backend-oil/backtest/engine.py")
         with open(path) as f:
             content = f.read()
-        # V1 present
         assert "body_pct" in content, "Backtest missing V1 body_pct"
-        # V2 must NOT be present (Combined breaks Oil Macro)
-        assert "v2_bias" not in content, \
-            "Oil Macro backtest should NOT have v2_bias — Combined bias breaks Oil Macro"
+        assert "close_position" in content, \
+            "Backtest must use Combined V1+V2 (close_position required)"
+        assert "v2_bias" in content, "Backtest missing v2_bias"
 
     def test_bias_threshold_is_0_4(self):
         """V1 bias threshold must be 0.4 (40% body)."""

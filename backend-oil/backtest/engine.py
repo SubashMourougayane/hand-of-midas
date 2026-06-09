@@ -73,19 +73,30 @@ def run_backtest(
     oil_h1 = data["oil_h1"]
     oil_m3 = data["oil_m3"]
 
-    # Daily bias — Variant C: strong body = directional, weak body (< 40% of range) = neutral
+    # Daily bias — Combined V1+V2 (matches live scheduler and other 3 systems)
     daily_bias = {}
     for i in range(1, len(oil_d)):
         d = oil_d.index[i].date()
         prev_range = oil_d["mid_high"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]
-        if prev_range > 0:
-            body_pct = abs(oil_d["mid_close"].iat[i - 1] - oil_d["mid_open"].iat[i - 1]) / prev_range
-        else:
-            body_pct = 0
-        if body_pct < 0.4:
+        if prev_range <= 0:
             daily_bias[d] = "neutral"
+            continue
+        body_pct = abs(oil_d["mid_close"].iat[i - 1] - oil_d["mid_open"].iat[i - 1]) / prev_range
+        close_position = (oil_d["mid_close"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]) / prev_range
+        v1_bias = "neutral"
+        if body_pct >= 0.4:
+            v1_bias = "bullish" if oil_d["mid_close"].iat[i - 1] > oil_d["mid_open"].iat[i - 1] else "bearish"
+        v2_bias = "neutral"
+        if close_position >= 0.8:
+            v2_bias = "bullish"
+        elif close_position <= 0.2:
+            v2_bias = "bearish"
+        if v1_bias == "bearish" or v2_bias == "bearish":
+            daily_bias[d] = "bearish"
+        elif v1_bias == "bullish" or v2_bias == "bullish":
+            daily_bias[d] = "bullish"
         else:
-            daily_bias[d] = "bullish" if oil_d["mid_close"].iat[i - 1] > oil_d["mid_open"].iat[i - 1] else "bearish"
+            daily_bias[d] = "neutral"
 
     # Generate signals
     np.random.seed(seed)
