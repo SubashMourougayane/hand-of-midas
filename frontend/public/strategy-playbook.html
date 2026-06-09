@@ -265,29 +265,41 @@
     <line x1="323" y1="225" x2="323" y2="245" stroke="#f85149" stroke-width="2.5"/>
 
     <!-- ====== PHASE 2: Sweep candle (red, wick shoots far below range) ====== -->
+    <!-- Body y=290-320 (near range low), wick down to y=445 (below SL) -->
     <rect x="385" y="290" width="20" height="30" fill="#f85149" rx="2"/>
     <line x1="395" y1="270" x2="395" y2="290" stroke="#f85149" stroke-width="3"/>
     <line x1="395" y1="320" x2="395" y2="445" stroke="#f85149" stroke-width="3"/>
 
-    <!-- ====== PHASE 3: Engulfing candle (BIG GREEN — reversal) ====== -->
-    <!-- Open at y=360 (below range low), close at y=210 (well into range) -->
-    <rect x="445" y="210" width="24" height="150" fill="#3fb950" rx="3"/>
-    <line x1="457" y1="360" x2="457" y2="370" stroke="#3fb950" stroke-width="3"/>
-    <line x1="457" y1="195" x2="457" y2="210" stroke="#3fb950" stroke-width="3"/>
+    <!-- ====== Small candle before engulfing (this gets "wrapped") ====== -->
+    <!-- Small red body y=310-335 (the engulfing will cover this) -->
+    <rect x="430" y="310" width="14" height="25" fill="#f85149" rx="2"/>
+    <line x1="437" y1="298" x2="437" y2="310" stroke="#f85149" stroke-width="2"/>
+    <line x1="437" y1="335" x2="437" y2="348" stroke="#f85149" stroke-width="2"/>
 
-    <!-- ====== PHASE 4: Result candles (green, rising to TP) ====== -->
-    <rect x="510" y="155" width="16" height="50" fill="#3fb950" rx="2"/>
-    <line x1="518" y1="140" x2="518" y2="155" stroke="#3fb950" stroke-width="2.5"/>
-    <line x1="518" y1="205" x2="518" y2="220" stroke="#3fb950" stroke-width="2.5"/>
+    <!-- ====== PHASE 3: Engulfing candle (BIG GREEN — wraps previous candle) ====== -->
+    <!-- Open at y=350 (below prev candle bottom=335), close at y=290 (above prev candle top=310) -->
+    <!-- This WRAPS the previous red candle = BULLISH ENGULFING -->
+    <!-- Entry is at the CLOSE = y=290 (close to SL at y=430, far from TP at y=100) -->
+    <rect x="460" y="290" width="24" height="70" fill="#3fb950" rx="3"/>
+    <line x1="472" y1="360" x2="472" y2="370" stroke="#3fb950" stroke-width="3"/>
+    <line x1="472" y1="275" x2="472" y2="290" stroke="#3fb950" stroke-width="3"/>
 
-    <rect x="565" y="110" width="16" height="45" fill="#3fb950" rx="2"/>
-    <line x1="573" y1="100" x2="573" y2="110" stroke="#3fb950" stroke-width="2.5"/>
-    <line x1="573" y1="155" x2="573" y2="170" stroke="#3fb950" stroke-width="2.5"/>
+    <!-- ====== PHASE 4: Result candles (green, rising to TP at y=100) ====== -->
+    <rect x="520" y="200" width="16" height="60" fill="#3fb950" rx="2"/>
+    <line x1="528" y1="185" x2="528" y2="200" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="528" y1="260" x2="528" y2="275" stroke="#3fb950" stroke-width="2.5"/>
 
-    <!-- ============ LEVEL LINES ============ -->
-    <line x1="573" y1="100" x2="655" y2="100" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5,4"/>
-    <line x1="469" y1="340" x2="655" y2="340" stroke="#e8c300" stroke-width="1.5" stroke-dasharray="5,4"/>
-    <line x1="395" y1="430" x2="655" y2="430" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <rect x="575" y="120" width="16" height="55" fill="#3fb950" rx="2"/>
+    <line x1="583" y1="100" x2="583" y2="120" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="583" y1="175" x2="583" y2="190" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- ============ LEVEL LINES (correct R:R) ============ -->
+    <!-- TP at y=100 (range high — far from entry = big reward) -->
+    <line x1="575" y1="100" x2="655" y2="100" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <!-- Entry at y=290 (engulfing close = top of green body) -->
+    <line x1="484" y1="290" x2="655" y2="290" stroke="#e8c300" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <!-- SL at y=430 (below sweep wick at y=445 — close to entry = small risk) -->
+    <line x1="395" y1="455" x2="655" y2="455" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,4"/>
 
     <!-- ============ RIGHT-SIDE ANNOTATION COLUMN (x=660+) ============ -->
 
@@ -295,21 +307,21 @@
     <text x="665" y="95" fill="#3fb950" font-size="15" font-weight="bold">TAKE PROFIT</text>
     <text x="665" y="113" fill="#8b949e" font-size="12">(at range high)</text>
 
-    <!-- Reward bar -->
-    <rect x="900" y="100" width="16" height="240" fill="#3fb95040" rx="3"/>
-    <text x="920" y="225" fill="#3fb950" font-size="10">REWARD</text>
-
     <!-- Entry -->
-    <text x="665" y="335" fill="#e8c300" font-size="15" font-weight="bold">ENTRY</text>
-    <text x="665" y="353" fill="#8b949e" font-size="12">(buy at engulfing close)</text>
-
-    <!-- Risk bar -->
-    <rect x="900" y="340" width="16" height="90" fill="#f8514950" rx="3"/>
-    <text x="920" y="390" fill="#f85149" font-size="10">RISK</text>
+    <text x="665" y="285" fill="#e8c300" font-size="15" font-weight="bold">ENTRY</text>
+    <text x="665" y="303" fill="#8b949e" font-size="12">(buy at engulfing close)</text>
 
     <!-- SL -->
-    <text x="665" y="425" fill="#f85149" font-size="15" font-weight="bold">STOP LOSS</text>
-    <text x="665" y="443" fill="#8b949e" font-size="12">(below the sweep wick)</text>
+    <text x="665" y="450" fill="#f85149" font-size="15" font-weight="bold">STOP LOSS</text>
+    <text x="665" y="468" fill="#8b949e" font-size="12">(below the sweep wick)</text>
+
+    <!-- Reward bar: TP(100) to Entry(290) = 190px -->
+    <rect x="900" y="100" width="16" height="190" fill="#3fb95040" rx="3"/>
+    <text x="920" y="200" fill="#3fb950" font-size="10">REWARD</text>
+
+    <!-- Risk bar: Entry(290) to SL(455) = 165px -->
+    <rect x="900" y="290" width="16" height="165" fill="#f8514950" rx="3"/>
+    <text x="920" y="378" fill="#f85149" font-size="10">RISK</text>
 
     <!-- R:R ratio -->
     <text x="920" y="450" fill="#c9d1d9" font-size="12" font-weight="bold">~2:1</text>
