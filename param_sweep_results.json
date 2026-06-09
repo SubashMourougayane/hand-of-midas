@@ -1,0 +1,13 @@
+{
+  "custom": [
+    {
+      "label": "Custom: {\"asia_min_range\": 25}",
+      "signals": 462,
+      "trades": 301,
+      "wr": 65.8,
+      "pf": 3.37,
+      "pnl": 129734.0,
+      "dd": -19.0
+    }
+  ]
+}

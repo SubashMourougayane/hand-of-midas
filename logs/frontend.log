@@ -5,25 +5,10 @@
 ▲ Next.js 16.2.6 (Turbopack)
 - Local:         http://localhost:3001
 - Network:       http://192.168.0.100:3001
-✓ Ready in 266ms
+✓ Ready in 271ms
 
- GET /live 200 in 191ms (next.js: 109ms, application-code: 82ms)
- GET /live 200 in 49ms (next.js: 6ms, application-code: 43ms)
- GET /live 200 in 28ms (next.js: 2ms, application-code: 25ms)
- GET /live 200 in 12ms (next.js: 4ms, application-code: 7ms)
- GET /live 200 in 12ms (next.js: 2ms, application-code: 10ms)
-[browser] Updating a style property during rerender (border) when a conflicting property is set (borderLeft) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values. 
- GET /live 200 in 32ms (next.js: 5ms, application-code: 26ms)
- GET /live 200 in 7ms (next.js: 2ms, application-code: 5ms)
- GET /live 200 in 11ms (next.js: 3ms, application-code: 8ms)
- GET /backtest 200 in 68ms (next.js: 45ms, application-code: 24ms)
- GET /live 200 in 12ms (next.js: 2ms, application-code: 9ms)
- GET /live 200 in 14ms (next.js: 7ms, application-code: 6ms)
- GET /live 200 in 13ms (next.js: 2ms, application-code: 10ms)
- GET /live 200 in 5ms (next.js: 2ms, application-code: 3ms)
- GET /live 200 in 9ms (next.js: 1372µs, application-code: 8ms)
- GET / 200 in 244ms (next.js: 218ms, application-code: 26ms)
- GET /login 200 in 55ms (next.js: 39ms, application-code: 16ms)
+ GET / 200 in 176ms (next.js: 109ms, application-code: 67ms)
+ GET /login 200 in 51ms (next.js: 32ms, application-code: 19ms)
 [browser] Cannot update a component (`Router`) while rendering a different component (`LoginPage`). To locate the bad setState() call inside `LoginPage`, follow the stack trace as described in https://react.dev/link/setstate-in-render 
     at LoginPage (app/login/page.tsx:17:12)
   15 |   // If already logged in, redirect
@@ -33,11 +18,14 @@
   18 |     return null;
   19 |   }
   20 | (app/login/page.tsx:17:12)
- GET /live 200 in 42ms (next.js: 3ms, application-code: 39ms)
- GET /live 200 in 24ms (next.js: 4ms, application-code: 20ms)
- GET /live 200 in 29ms (next.js: 9ms, application-code: 20ms)
- GET /live 200 in 35ms (next.js: 16ms, application-code: 19ms)
- GET /live 200 in 15ms (next.js: 3ms, application-code: 13ms)
- GET /live 200 in 16ms (next.js: 4ms, application-code: 12ms)
- GET /live 200 in 18ms (next.js: 3ms, application-code: 15ms)
+ GET /live 200 in 44ms (next.js: 17ms, application-code: 27ms)
+ GET /live 200 in 15ms (next.js: 1919µs, application-code: 13ms)
+ GET /live 200 in 31ms (next.js: 4ms, application-code: 27ms)
+ GET /live 200 in 26ms (next.js: 13ms, application-code: 13ms)
+ GET /live 200 in 16ms (next.js: 1925µs, application-code: 14ms)
+ GET /login 200 in 39ms (next.js: 10ms, application-code: 30ms)
+ GET /login 200 in 18ms (next.js: 4ms, application-code: 14ms)
+ GET /login 200 in 46ms (next.js: 4ms, application-code: 43ms)
+ GET /live 200 in 71ms (next.js: 8ms, application-code: 63ms)
+ GET /login 200 in 14ms (next.js: 3ms, application-code: 10ms)
 [?25h

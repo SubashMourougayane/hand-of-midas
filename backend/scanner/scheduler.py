@@ -605,9 +605,9 @@ def _persist_m3_candles(candles: list[dict]):
 
 
 def position_monitor_job():
-    """Every 1 min — check if OANDA closed any positions (SL/TP hit).
-    Break-even is handled by the real-time price stream (tick-by-tick), not here."""
+    """Every 1 min — check if OANDA closed any positions (SL/TP hit) + break-even."""
     check_open_positions()
+    check_alpha_sweep_breakeven()
 
 
 def heartbeat_job():
