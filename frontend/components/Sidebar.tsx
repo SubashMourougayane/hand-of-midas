@@ -174,6 +174,11 @@ export default function Sidebar() {
           <FileBarChart size={14} />
           Midas Report
         </a>
+        <a href="/strategy-playbook.html" target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-2.5 px-2 py-2 text-xs transition-colors text-[var(--text-dim)] hover:text-[var(--green)]">
+          <BookOpen size={14} />
+          Strategy Playbook
+        </a>
       </div>
 
       {/* Active + Logout */}
