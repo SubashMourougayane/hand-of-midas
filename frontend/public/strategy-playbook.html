@@ -130,17 +130,24 @@
     <line x1="323" y1="278" x2="323" y2="295" stroke="#3fb950" stroke-width="2.5"/>
 
     <!-- ====== PHASE 2: Sweep candle (green push up, long wick above range) ====== -->
-    <!-- Body y=195-225 (at range high), wick up to y=90 -->
-    <rect x="385" y="195" width="20" height="30" fill="#3fb950" rx="2"/>
-    <line x1="395" y1="90" x2="395" y2="195" stroke="#3fb950" stroke-width="3"/>
-    <line x1="395" y1="225" x2="395" y2="255" stroke="#3fb950" stroke-width="3"/>
+    <!-- Body y=170-200 (near range high), wick up to y=90 -->
+    <rect x="385" y="170" width="20" height="30" fill="#3fb950" rx="2"/>
+    <line x1="395" y1="90" x2="395" y2="170" stroke="#3fb950" stroke-width="3"/>
+    <line x1="395" y1="200" x2="395" y2="230" stroke="#3fb950" stroke-width="3"/>
 
-    <!-- ====== PHASE 3: Engulfing candle (BIG RED — this is the trade signal) ====== -->
-    <!-- For SHORT: open high (y=100), close just below range high (y=200) -->
-    <!-- Entry is at the CLOSE = y=200 (close to SL, far from TP) -->
-    <rect x="445" y="100" width="24" height="100" fill="#f85149" rx="3"/>
-    <line x1="457" y1="88" x2="457" y2="100" stroke="#f85149" stroke-width="3"/>
-    <line x1="457" y1="200" x2="457" y2="220" stroke="#f85149" stroke-width="3"/>
+    <!-- ====== Small candle before engulfing (this gets "wrapped") ====== -->
+    <!-- Small green body y=150-175 (inside the area the engulfing will cover) -->
+    <rect x="430" y="150" width="14" height="25" fill="#3fb950" rx="2"/>
+    <line x1="437" y1="140" x2="437" y2="150" stroke="#3fb950" stroke-width="2"/>
+    <line x1="437" y1="175" x2="437" y2="188" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- ====== PHASE 3: Engulfing candle (BIG RED — wraps the previous candle) ====== -->
+    <!-- Open at y=130 (above prev candle top=150), close at y=200 (below prev candle bottom=175) -->
+    <!-- This WRAPS the previous green candle completely = ENGULFING -->
+    <!-- Entry is at the CLOSE = y=200 (close to SL at y=75, far from TP at y=400) -->
+    <rect x="460" y="130" width="24" height="70" fill="#f85149" rx="3"/>
+    <line x1="472" y1="115" x2="472" y2="130" stroke="#f85149" stroke-width="3"/>
+    <line x1="472" y1="200" x2="472" y2="220" stroke="#f85149" stroke-width="3"/>
 
     <!-- ====== PHASE 4: Result candles (red, dropping toward TP at range low y=400) ====== -->
     <rect x="510" y="240" width="16" height="60" fill="#f85149" rx="2"/>
