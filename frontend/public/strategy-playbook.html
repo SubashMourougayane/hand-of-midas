@@ -136,26 +136,27 @@
     <line x1="395" y1="225" x2="395" y2="255" stroke="#3fb950" stroke-width="3"/>
 
     <!-- ====== PHASE 3: Engulfing candle (BIG RED — this is the trade signal) ====== -->
-    <!-- Open near sweep high (y=130), close below range high (y=280) = ENTRY at close = y=280 -->
-    <rect x="445" y="130" width="24" height="150" fill="#f85149" rx="3"/>
-    <line x1="457" y1="115" x2="457" y2="130" stroke="#f85149" stroke-width="3"/>
-    <line x1="457" y1="280" x2="457" y2="295" stroke="#f85149" stroke-width="3"/>
+    <!-- For SHORT: open high (y=100), close just below range high (y=200) -->
+    <!-- Entry is at the CLOSE = y=200 (close to SL, far from TP) -->
+    <rect x="445" y="100" width="24" height="100" fill="#f85149" rx="3"/>
+    <line x1="457" y1="88" x2="457" y2="100" stroke="#f85149" stroke-width="3"/>
+    <line x1="457" y1="200" x2="457" y2="220" stroke="#f85149" stroke-width="3"/>
 
     <!-- ====== PHASE 4: Result candles (red, dropping toward TP at range low y=400) ====== -->
-    <rect x="510" y="300" width="16" height="50" fill="#f85149" rx="2"/>
-    <line x1="518" y1="288" x2="518" y2="300" stroke="#f85149" stroke-width="2.5"/>
-    <line x1="518" y1="350" x2="518" y2="365" stroke="#f85149" stroke-width="2.5"/>
+    <rect x="510" y="240" width="16" height="60" fill="#f85149" rx="2"/>
+    <line x1="518" y1="225" x2="518" y2="240" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="518" y1="300" x2="518" y2="320" stroke="#f85149" stroke-width="2.5"/>
 
-    <rect x="565" y="365" width="16" height="35" fill="#f85149" rx="2"/>
-    <line x1="573" y1="352" x2="573" y2="365" stroke="#f85149" stroke-width="2.5"/>
+    <rect x="565" y="340" width="16" height="60" fill="#f85149" rx="2"/>
+    <line x1="573" y1="325" x2="573" y2="340" stroke="#f85149" stroke-width="2.5"/>
     <line x1="573" y1="400" x2="573" y2="400" stroke="#f85149" stroke-width="2.5"/>
 
-    <!-- ============ LEVEL LINES (aligned to actual candle positions) ============ -->
+    <!-- ============ LEVEL LINES (correct R:R: small risk, big reward) ============ -->
     <!-- SL at y=75 — just above sweep wick tip (y=90) -->
     <line x1="385" y1="75" x2="655" y2="75" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5,4"/>
-    <!-- Entry at y=280 — at engulfing CLOSE (bottom of red body) -->
-    <line x1="469" y1="280" x2="655" y2="280" stroke="#e8c300" stroke-width="1.5" stroke-dasharray="5,4"/>
-    <!-- TP at y=400 — at range low -->
+    <!-- Entry at y=200 — at engulfing CLOSE (near range high, close to SL) -->
+    <line x1="469" y1="200" x2="655" y2="200" stroke="#e8c300" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <!-- TP at y=400 — at range low (far from entry = big reward) -->
     <line x1="565" y1="400" x2="655" y2="400" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="5,4"/>
 
     <!-- ============ RIGHT-SIDE ANNOTATION COLUMN (x=660+) ============ -->
@@ -165,18 +166,20 @@
     <text x="665" y="88" fill="#8b949e" font-size="12">(above the sweep wick)</text>
 
     <!-- Entry -->
-    <text x="665" y="275" fill="#e8c300" font-size="15" font-weight="bold">ENTRY</text>
-    <text x="665" y="293" fill="#8b949e" font-size="12">(sell at engulfing close)</text>
+    <text x="665" y="195" fill="#e8c300" font-size="15" font-weight="bold">ENTRY</text>
+    <text x="665" y="213" fill="#8b949e" font-size="12">(sell at engulfing close)</text>
 
     <!-- TP -->
     <text x="665" y="395" fill="#3fb950" font-size="15" font-weight="bold">TAKE PROFIT</text>
     <text x="665" y="413" fill="#8b949e" font-size="12">(at range low)</text>
 
-    <!-- Risk/Reward bars (far right, aligned to levels) -->
-    <rect x="900" y="75" width="16" height="205" fill="#f8514930" rx="3"/>
-    <text x="920" y="180" fill="#f85149" font-size="10">RISK</text>
-    <rect x="900" y="280" width="16" height="120" fill="#3fb95040" rx="3"/>
-    <text x="920" y="345" fill="#3fb950" font-size="10">REWARD</text>
+    <!-- Risk/Reward bars (aligned: small risk on top, big reward below) -->
+    <!-- Risk: SL(75) to Entry(200) = 125px -->
+    <rect x="900" y="75" width="16" height="125" fill="#f8514930" rx="3"/>
+    <text x="920" y="142" fill="#f85149" font-size="10">RISK</text>
+    <!-- Reward: Entry(200) to TP(400) = 200px -->
+    <rect x="900" y="200" width="16" height="200" fill="#3fb95040" rx="3"/>
+    <text x="920" y="305" fill="#3fb950" font-size="10">REWARD</text>
     <text x="906" y="425" fill="#c9d1d9" font-size="11" font-weight="bold">~2:1</text>
 
     <!-- ============ STEP LABELS (bottom zone) ============ -->
