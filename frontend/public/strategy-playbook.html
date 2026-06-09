@@ -108,47 +108,46 @@
 <div class="container">
 
 <header class="hero">
-    <h1>STRATEGY PLAYBOOK</h1>
-    <p class="hero-subtitle">Liquidity Sweep Reversal — The One Pattern Behind All 4 Systems</p>
-    <p class="hero-note">Gold + Brent Oil | Micro + Macro | 80% Win Rate | PF 4.5+</p>
+    <h1>LIQUIDITY SWEEP REVERSAL</h1>
+    <p class="hero-subtitle">A Mean-Reversion Strategy Based on Stop-Hunt Reversals</p>
+    <p class="hero-note">Works on any liquid instrument with clear consolidation ranges</p>
 </header>
 
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="label">SYSTEMS</div>
-        <div class="value" style="color:var(--amber)">4</div>
+        <div class="label">STRATEGY TYPE</div>
+        <div class="value" style="color:var(--amber)">Reversal</div>
     </div>
     <div class="stat-card">
-        <div class="label">WIN RATE</div>
-        <div class="value" style="color:var(--green)">80%</div>
+        <div class="label">TIMEFRAME</div>
+        <div class="value" style="color:var(--text)">Intraday</div>
     </div>
     <div class="stat-card">
-        <div class="label">PROFIT FACTOR</div>
-        <div class="value" style="color:var(--green)">4.9</div>
-    </div>
-    <div class="stat-card">
-        <div class="label">LOSING YEARS</div>
-        <div class="value" style="color:var(--green)">0</div>
+        <div class="label">AVG HOLD</div>
+        <div class="value" style="color:var(--text)">2-4 hrs</div>
     </div>
     <div class="stat-card">
         <div class="label">RISK:REWARD</div>
-        <div class="value" style="color:var(--text)">2:1</div>
+        <div class="value" style="color:var(--green)">1:2+</div>
     </div>
     <div class="stat-card">
-        <div class="label">INSTRUMENTS</div>
-        <div class="value" style="color:var(--text)">XAU + BCO</div>
+        <div class="label">WIN RATE</div>
+        <div class="value" style="color:var(--green)">~80%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">EDGE</div>
+        <div class="value" style="color:var(--amber)">Structural</div>
     </div>
 </div>
 
 <div class="nav">
-    <span class="nav-brand">STRATEGY PLAYBOOK</span>
-    <a href="#what-is-it">What Is It</a>
-    <a href="#short-trade">Short</a>
-    <a href="#long-trade">Long</a>
-    <a href="#bias-filter">Bias</a>
-    <a href="#flowchart">Flowchart</a>
-    <a href="#systems">4 Systems</a>
-    <a href="#real-trade">Real Trade</a>
+    <span class="nav-brand">PLAYBOOK</span>
+    <a href="#what-is-it">Concept</a>
+    <a href="#short-trade">Short Setup</a>
+    <a href="#long-trade">Long Setup</a>
+    <a href="#bias-filter">Bias Filter</a>
+    <a href="#flowchart">Decision Tree</a>
+    <a href="#real-trade">Live Example</a>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
@@ -638,96 +637,9 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="systems">The 4 Systems — Same Strategy, Different Settings</h2>
+<h2 id="real-trade">Live Trade Example — June 8, 2026</h2>
 
-<p>All 4 systems use the exact same liquidity sweep reversal strategy. The difference is <strong>how they find the range</strong> and <strong>how long they wait for the setup</strong>.</p>
-
-<div class="concept">
-    <h4>Why 4 systems instead of 1?</h4>
-    <p><span class="green">Micro</span> (rolling windows every 2 hours) catches more frequent, smaller moves throughout the day.</p>
-    <p><span class="cyan">Macro</span> (fixed Asia session as the range) catches the big London/New York opening moves.</p>
-    <p>Running both Gold AND Oil gives uncorrelated trades — when one instrument is quiet, the other often moves.</p>
-</div>
-
-<table>
-    <tr>
-        <th></th>
-        <th style="color:#e8c300;">Gold Micro</th>
-        <th style="color:#e8c300;">Gold Macro</th>
-        <th style="color:#4fc3f7;">Oil Micro</th>
-        <th style="color:#4fc3f7;">Oil Macro</th>
-    </tr>
-    <tr>
-        <td><strong>Instrument</strong></td>
-        <td>XAU/USD (Gold)</td>
-        <td>XAU/USD (Gold)</td>
-        <td>BCO/USD (Brent Oil)</td>
-        <td>BCO/USD (Brent Oil)</td>
-    </tr>
-    <tr>
-        <td><strong>How range forms</strong></td>
-        <td>Rolling 4-hour windows<br/>(new one every 2 hrs)</td>
-        <td>Fixed: Asia session<br/>(00:00 - 08:00 UTC)</td>
-        <td>Rolling 4-hour windows<br/>(new one every 2 hrs)</td>
-        <td>Fixed: Asia session<br/>(00:00 - 08:00 UTC)</td>
-    </tr>
-    <tr>
-        <td><strong>When it scans</strong></td>
-        <td>6 hours after each window</td>
-        <td>London + New York<br/>(08:00 - 20:00 UTC)</td>
-        <td>6 hours after each window</td>
-        <td>London + New York<br/>(08:00 - 20:00 UTC)</td>
-    </tr>
-    <tr>
-        <td><strong>Time for engulfing</strong></td>
-        <td>45 minutes</td>
-        <td>2 hours</td>
-        <td>45 minutes</td>
-        <td>2 hours</td>
-    </tr>
-    <tr>
-        <td><strong>Sweep threshold</strong></td>
-        <td>$2.00</td>
-        <td>$2.00</td>
-        <td>$0.13</td>
-        <td>$0.20</td>
-    </tr>
-    <tr>
-        <td><strong>Bias filter</strong></td>
-        <td>Combined (V1 + V2)</td>
-        <td>Combined (V1 + V2)</td>
-        <td>Combined (V1 + V2)</td>
-        <td>Body size only (V1)</td>
-    </tr>
-    <tr>
-        <td><strong>Trades per year</strong></td>
-        <td>~120</td>
-        <td>~100</td>
-        <td>~200</td>
-        <td>~100</td>
-    </tr>
-    <tr>
-        <td><strong>Win rate</strong></td>
-        <td>~80%</td>
-        <td>~80%</td>
-        <td>~80%</td>
-        <td>~66%</td>
-    </tr>
-    <tr>
-        <td><strong>Profit factor</strong></td>
-        <td>~4.5</td>
-        <td>~4.2</td>
-        <td>~4.9</td>
-        <td>~4.3</td>
-    </tr>
-</table>
-
-<p class="muted" style="margin-top:16px;">Profit factor = total money won / total money lost. Anything above 2.0 is excellent. Above 4.0 is exceptional.</p>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="real-trade">Real Trade Example — Oil, June 8, 2026</h2>
-
-<p>Here is a real trade that happened on the live system, step by step.</p>
+<p>Here is a real trade executed by this strategy on Brent Crude Oil, showing the full setup from consolidation to profit.</p>
 
 <div class="diagram">
 <svg width="960" height="560" viewBox="0 0 960 560">
