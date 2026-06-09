@@ -10,7 +10,7 @@ import os
 import time
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # DWX files directory (MT5 Common Files)
@@ -18,6 +18,30 @@ DWX_DIR = os.getenv("DWX_DIR", os.path.expanduser(
     "~/Library/Application Support/net.metaquotes.wine.metatrader5/"
     "drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DWX"
 ))
+
+# MT5 server timezone offset from UTC.
+# JustMarkets MT5 servers run on GMT+3 year-round (no DST).
+# Override via env var for other brokers if needed.
+MT5_SERVER_OFFSET_HOURS = int(os.getenv("MT5_SERVER_OFFSET_HOURS", "3"))
+
+
+def _server_to_utc_iso(t):
+    """Convert MT5 server timestamp to real UTC ISO format.
+
+    MT5 EA writes bar timestamps in server local time format like '2026.06.09 11:00:00',
+    which is GMT+3 for JustMarkets. Strategy code expects ISO UTC ('2026-06-09T08:00:00Z').
+
+    This helper subtracts the server offset to produce real UTC timestamps.
+    """
+    if "." not in t:
+        return t  # already in ISO format (e.g., from a different source)
+    try:
+        server_dt = datetime.strptime(t, "%Y.%m.%d %H:%M:%S")
+        utc_dt = server_dt - timedelta(hours=MT5_SERVER_OFFSET_HOURS)
+        return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (ValueError, TypeError):
+        # Fallback: legacy behavior if parsing fails (don't crash on malformed timestamps)
+        return t.replace(".", "-").replace(" ", "T") + "Z"
 
 # Symbol mapping: our internal names → JustMarkets MT5 names
 SYMBOL_MAP = {
@@ -99,9 +123,15 @@ def _mt5_symbol(instrument):
 
 
 def _parse_mt5_time(time_str):
-    """Parse MT5 time string '2026.05.26 11:08:21' to datetime."""
+    """Parse MT5 server-time string '2026.05.26 11:08:21' to real UTC datetime.
+
+    MT5 server is GMT+3 (JustMarkets). This subtracts the offset so the returned
+    datetime is real UTC, matching everything else in the system.
+    """
     try:
-        return datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        server_dt = datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
+        utc_dt = server_dt - timedelta(hours=MT5_SERVER_OFFSET_HOURS)
+        return utc_dt.replace(tzinfo=timezone.utc)
     except:
         return datetime.now(timezone.utc)
 
@@ -213,7 +243,7 @@ def get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA"):
         half_spread = spread_pts * 0.005 if "XAU" in symbol else spread_pts * 0.00005
 
         candles.append({
-            "timestamp": t.replace(".", "-").replace(" ", "T") + "Z" if "." in t else t,
+            "timestamp": _server_to_utc_iso(t),
             "bid_open": o - half_spread,
             "bid_high": h - half_spread,
             "bid_low": l - half_spread,
