@@ -102,6 +102,63 @@
         /* Footer */
         .footer { text-align: center; margin-top: 60px; padding: 24px; border-top: 1px solid var(--border); }
         .footer p { color: var(--muted); font-size: 12px; }
+
+        /* ═══ ANIMATIONS ═══ */
+
+        /* Scroll reveal: elements start invisible/offset, animate in when visible */
+        .reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.6s ease, transform 0.6s ease; }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+
+        /* Staggered children */
+        .reveal-delay-1 { transition-delay: 0.1s; }
+        .reveal-delay-2 { transition-delay: 0.2s; }
+        .reveal-delay-3 { transition-delay: 0.3s; }
+        .reveal-delay-4 { transition-delay: 0.4s; }
+        .reveal-delay-5 { transition-delay: 0.5s; }
+
+        /* SVG draw animation */
+        .diagram svg .draw-line { stroke-dasharray: 1000; stroke-dashoffset: 1000; transition: stroke-dashoffset 1.5s ease; }
+        .diagram.visible svg .draw-line { stroke-dashoffset: 0; }
+
+        /* SVG candle pop-in */
+        .diagram svg .candle-anim { opacity: 0; transform: scaleY(0); transform-origin: bottom; transition: opacity 0.4s ease, transform 0.4s ease; }
+        .diagram.visible svg .candle-anim { opacity: 1; transform: scaleY(1); }
+
+        /* Card hover glow */
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { border-color: var(--amber); transform: translateY(-3px); box-shadow: 0 4px 20px rgba(255,165,0,0.12); }
+
+        .concept { transition: all 0.3s ease; }
+        .concept:hover { border-color: var(--amber); box-shadow: 0 2px 16px rgba(255,165,0,0.06); }
+
+        .diagram { transition: all 0.3s ease; }
+        .diagram:hover { border-color: var(--amber); box-shadow: 0 2px 20px rgba(255,165,0,0.08); }
+
+        .real-example { transition: all 0.3s ease; }
+        .real-example:hover { border-color: var(--green); box-shadow: 0 2px 16px rgba(0,255,65,0.08); }
+
+        /* Nav active highlight */
+        .nav a.active { color: var(--amber); background: rgba(255,165,0,0.1); }
+
+        /* Hero fade-in */
+        .hero { animation: fadeInDown 0.8s ease forwards; }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Stats grid stagger */
+        .stats-grid .stat-card { opacity: 0; animation: popIn 0.5s ease forwards; }
+        .stats-grid .stat-card:nth-child(1) { animation-delay: 0.2s; }
+        .stats-grid .stat-card:nth-child(2) { animation-delay: 0.3s; }
+        .stats-grid .stat-card:nth-child(3) { animation-delay: 0.4s; }
+        .stats-grid .stat-card:nth-child(4) { animation-delay: 0.5s; }
+        .stats-grid .stat-card:nth-child(5) { animation-delay: 0.6s; }
+        .stats-grid .stat-card:nth-child(6) { animation-delay: 0.7s; }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.8) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
     </style>
 </head>
 <body>
@@ -866,5 +923,48 @@ DAY TOTAL: +$1,206.84 from 2 trades, 2 winners</pre>
 </div>
 
 </div>
+
+<script>
+// Scroll reveal
+const revealElements = document.querySelectorAll('.reveal');
+const diagrams = document.querySelectorAll('.diagram');
+const allRevealable = [...revealElements, ...diagrams];
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, { threshold: 0.15 });
+
+allRevealable.forEach(el => observer.observe(el));
+
+// Also observe h2, concept, real-example for reveal
+document.querySelectorAll('h2, .concept, .real-example, p').forEach(el => {
+    el.classList.add('reveal');
+    observer.observe(el);
+});
+
+// Active nav highlight on scroll
+const navLinks = document.querySelectorAll('.nav a');
+const sections = document.querySelectorAll('h2[id]');
+
+window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(section => {
+        const top = section.offsetTop - 100;
+        if (window.scrollY >= top) {
+            current = section.getAttribute('id');
+        }
+    });
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+            link.classList.add('active');
+        }
+    });
+});
+</script>
 </body>
 </html>
