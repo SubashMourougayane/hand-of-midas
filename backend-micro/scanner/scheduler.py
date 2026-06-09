@@ -7,7 +7,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.execution import get_candles, get_current_price, get_account_summary
+from backend.execution import get_candles, get_current_price, get_account_summary, get_open_trades
 from backend.db import execute
 import re
 
