@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import time
+from datetime import timedelta
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -105,6 +106,7 @@ def run_backtest(
     equity_history = []
     trades: list[BacktestTrade] = []
     current_year = None
+    position_exit_time = None  # One-at-a-time: when current position exits
 
     for signal in all_signals:
         trade_date = signal.date.date()
@@ -117,8 +119,13 @@ def run_backtest(
             pause_counter = 0
             equity_history = []
             current_year = trade_year
+            position_exit_time = None
 
         if equity < 100:
+            continue
+
+        # One-at-a-time: skip if previous trade hasn't exited yet (matches live)
+        if position_exit_time and signal.date < position_exit_time:
             continue
 
         # DD protection: pause after 5 consecutive losses (skip next 2 signals)
@@ -164,6 +171,9 @@ def run_backtest(
         pnl_dollar = result.pnl_per_unit * units
         equity += pnl_dollar
         equity = max(equity, 0)
+
+        # Track when this position exits (for one-at-a-time rule)
+        position_exit_time = signal.date + timedelta(seconds=result.bars_held * 180)
 
         if pnl_dollar > 0:
             consecutive_losses = 0
