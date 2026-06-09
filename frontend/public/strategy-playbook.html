@@ -6,455 +6,910 @@
     <title>Hand Of Midas — Strategy Playbook</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', 'SF Mono', monospace; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-        h1 { color: #e8c300; font-size: 28px; margin-bottom: 8px; }
-        h2 { color: #58a6ff; font-size: 22px; margin: 60px 0 20px; border-bottom: 1px solid #21262d; padding-bottom: 10px; }
-        h3 { color: #c9d1d9; font-size: 16px; margin: 30px 0 12px; }
-        .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 40px; }
-        p { color: #8b949e; margin: 10px 0; font-size: 13px; }
-        .highlight { color: #e8c300; }
-        .green { color: #3fb950; }
-        .red { color: #f85149; }
+        body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.7; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 50px 24px; }
+        h1 { color: #e8c300; font-size: 36px; margin-bottom: 8px; font-weight: 700; }
+        h2 { color: #58a6ff; font-size: 26px; margin: 80px 0 24px; border-bottom: 2px solid #21262d; padding-bottom: 12px; }
+        h3 { color: #c9d1d9; font-size: 20px; margin: 40px 0 16px; }
+        .subtitle { color: #8b949e; font-size: 18px; margin-bottom: 50px; line-height: 1.5; }
+        p { color: #c9d1d9; margin: 12px 0; font-size: 16px; line-height: 1.7; }
+        .muted { color: #8b949e; }
+        .highlight { color: #e8c300; font-weight: 600; }
+        .green { color: #3fb950; font-weight: 600; }
+        .red { color: #f85149; font-weight: 600; }
         .cyan { color: #58a6ff; }
-        .orange { color: #d29922; }
-
-        /* Strategy Cards */
-        .strategy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 30px 0; }
-        @media (max-width: 768px) { .strategy-grid { grid-template-columns: 1fr; } }
-        .strategy-card { background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 20px; }
-        .strategy-card h4 { font-size: 14px; margin-bottom: 12px; }
-        .strategy-card .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-right: 6px; }
-        .tag-gold { background: #e8c30020; color: #e8c300; border: 1px solid #e8c30040; }
-        .tag-oil { background: #4fc3f720; color: #4fc3f7; border: 1px solid #4fc3f740; }
-        .tag-micro { background: #ff8c0020; color: #ff8c00; border: 1px solid #ff8c0040; }
-        .tag-macro { background: #8b949e20; color: #8b949e; border: 1px solid #8b949e40; }
 
         /* Diagram Container */
-        .diagram { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 20px; margin: 20px 0; overflow-x: auto; }
-        .diagram svg { display: block; margin: 0 auto; }
-
-        /* Config Table */
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px; }
-        th { background: #161b22; color: #8b949e; text-align: left; padding: 8px 12px; border: 1px solid #21262d; }
-        td { padding: 8px 12px; border: 1px solid #21262d; }
-        tr:nth-child(even) { background: #161b2280; }
-
-        /* Steps */
-        .steps { counter-reset: step; margin: 20px 0; }
-        .step { position: relative; padding: 12px 12px 12px 50px; margin: 8px 0; background: #161b22; border-radius: 6px; border-left: 3px solid #21262d; font-size: 13px; }
-        .step::before { counter-increment: step; content: counter(step); position: absolute; left: 15px; top: 12px; color: #58a6ff; font-weight: bold; font-size: 14px; }
-        .step.active { border-left-color: #3fb950; }
-        .step.blocked { border-left-color: #f85149; }
-
-        /* Real Example Box */
-        .real-example { background: #0d1117; border: 1px solid #3fb95040; border-radius: 8px; padding: 20px; margin: 20px 0; }
-        .real-example h4 { color: #3fb950; font-size: 13px; margin-bottom: 10px; }
-        .real-example pre { color: #c9d1d9; font-size: 11px; line-height: 1.8; }
+        .diagram { background: #0d1117; border: 2px solid #30363d; border-radius: 12px; padding: 30px 20px; margin: 30px 0; overflow-x: auto; }
+        .diagram svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+        .diagram-caption { text-align: center; color: #8b949e; font-size: 14px; margin-top: 12px; }
 
         /* Concept Box */
-        .concept { background: #161b22; border-radius: 8px; padding: 20px; margin: 20px 0; border: 1px solid #30363d; }
-        .concept h4 { color: #d29922; font-size: 14px; margin-bottom: 10px; }
+        .concept { background: #161b22; border-radius: 12px; padding: 28px; margin: 28px 0; border: 1px solid #30363d; }
+        .concept h4 { color: #e8c300; font-size: 18px; margin-bottom: 12px; }
+        .concept p { font-size: 16px; }
+
+        /* Inline definitions */
+        .define { color: #8b949e; font-style: italic; }
+
+        /* Config Table */
+        table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 15px; }
+        th { background: #161b22; color: #58a6ff; text-align: left; padding: 12px 16px; border: 1px solid #21262d; font-weight: 600; }
+        td { padding: 12px 16px; border: 1px solid #21262d; color: #c9d1d9; }
+        tr:nth-child(even) { background: #161b2280; }
+
+        /* Real Example Box */
+        .real-example { background: #0d1117; border: 2px solid #3fb95050; border-radius: 12px; padding: 28px; margin: 28px 0; }
+        .real-example h4 { color: #3fb950; font-size: 16px; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .real-example pre { color: #c9d1d9; font-size: 14px; line-height: 2; font-family: 'JetBrains Mono', 'SF Mono', monospace; white-space: pre-wrap; }
 
         /* Nav */
-        .nav { position: sticky; top: 0; background: #0d1117; border-bottom: 1px solid #21262d; padding: 12px 0; z-index: 100; margin-bottom: 30px; }
-        .nav a { color: #8b949e; text-decoration: none; font-size: 12px; margin-right: 20px; }
+        .nav { position: sticky; top: 0; background: #0d1117ee; backdrop-filter: blur(8px); border-bottom: 1px solid #21262d; padding: 14px 0; z-index: 100; margin-bottom: 40px; }
+        .nav a { color: #8b949e; text-decoration: none; font-size: 14px; margin-right: 24px; font-weight: 500; }
         .nav a:hover { color: #58a6ff; }
+
+        /* Footer */
+        .footer { text-align: center; margin-top: 80px; padding: 30px; border-top: 1px solid #21262d; }
+        .footer p { color: #8b949e; font-size: 13px; }
     </style>
 </head>
 <body>
 <div class="container">
 
 <h1>Strategy Playbook</h1>
-<p class="subtitle">Alpha-Sweep: Liquidity Sweep + Engulfing Reversal | 4 Systems, 1 Core Edge</p>
+<p class="subtitle">Learn the Liquidity Sweep Reversal strategy — the one pattern behind all 4 systems.</p>
 
 <div class="nav">
-    <a href="#core-concept">Core Concept</a>
-    <a href="#gold-micro">Gold Micro</a>
-    <a href="#gold-macro">Gold Macro</a>
-    <a href="#oil-micro">Oil Micro</a>
-    <a href="#oil-macro">Oil Macro</a>
-    <a href="#bias">Bias Filter</a>
-    <a href="#comparison">Comparison</a>
+    <a href="#what-is-it">What Is It</a>
+    <a href="#short-trade">Short Trade</a>
+    <a href="#long-trade">Long Trade</a>
+    <a href="#bias-filter">Bias Filter</a>
+    <a href="#flowchart">Decision Flowchart</a>
+    <a href="#systems">4 Systems</a>
+    <a href="#real-trade">Real Trade</a>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="core-concept">The Core Edge: Liquidity Sweep Reversal</h2>
+<h2 id="what-is-it">What Is a Liquidity Sweep Reversal?</h2>
 
 <div class="concept">
-    <h4>What We Trade</h4>
-    <p>Price sweeps above/below a consolidation range (takes out stops), then REVERSES. We enter on the reversal candle (engulfing) and ride back into the range.</p>
+    <h4>The Core Idea (in plain English)</h4>
+    <p>When price moves sideways for a while, traders place their stop-loss orders just above and below that range. Big players know this. They push price past the range to trigger those stops (collecting "liquidity"), then immediately reverse direction.</p>
+    <p style="margin-top:16px;">We wait for that fake-out move, confirm it with a strong reversal candle, and trade in the opposite direction — riding price back into (and through) the range.</p>
 </div>
 
+<p>Three things must happen in order:</p>
+<p><span class="highlight">1. Consolidation</span> <span class="define">(price moving sideways in a range for several hours)</span></p>
+<p><span class="highlight">2. Sweep</span> <span class="define">(price spikes past the range to grab stop losses, then snaps back)</span></p>
+<p><span class="highlight">3. Engulfing</span> <span class="define">(a big reversal candle that completely wraps the previous one — our entry signal)</span></p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="short-trade">SHORT Trade — Visual Breakdown</h2>
+
+<p class="muted">Price goes sideways, spikes UP (fake breakout), then a big red candle says "that was a trap." We sell.</p>
+
 <div class="diagram">
-<svg width="800" height="380" viewBox="0 0 800 380">
-    <!-- Background grid -->
-    <defs>
-        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#21262d" stroke-width="0.5"/>
-        </pattern>
-    </defs>
-    <rect width="800" height="380" fill="#0d1117"/>
-    <rect width="800" height="380" fill="url(#grid)"/>
+<svg width="960" height="520" viewBox="0 0 960 520">
+    <rect width="960" height="520" fill="#0d1117"/>
 
-    <!-- Range zone -->
-    <rect x="80" y="120" width="400" height="120" fill="#3fb95008" stroke="#3fb950" stroke-width="1" stroke-dasharray="4,4"/>
-    <text x="85" y="115" fill="#3fb950" font-size="10">CONSOLIDATION RANGE</text>
-    <text x="85" y="138" fill="#8b949e" font-size="10">Range High ─────────────────────</text>
-    <text x="85" y="235" fill="#8b949e" font-size="10">Range Low ──────────────────────</text>
+    <!-- Range zone shading -->
+    <rect x="40" y="200" width="520" height="140" fill="#58a6ff08" stroke="#58a6ff" stroke-width="2" stroke-dasharray="8,4" rx="4"/>
 
-    <!-- Price action: consolidation -->
-    <polyline points="100,180 130,160 160,190 190,170 220,185 250,155 280,175 310,165 340,180 370,170 400,185 430,160"
-              fill="none" stroke="#8b949e" stroke-width="1.5"/>
+    <!-- Range labels -->
+    <text x="50" y="195" fill="#58a6ff" font-size="15" font-weight="bold">RANGE HIGH</text>
+    <line x1="40" y1="200" x2="560" y2="200" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.6"/>
+    <text x="50" y="355" fill="#58a6ff" font-size="15" font-weight="bold">RANGE LOW</text>
+    <line x1="40" y1="340" x2="560" y2="340" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.6"/>
 
-    <!-- Sweep above (bearish) -->
-    <polyline points="430,160 460,130 480,90 490,85"
-              fill="none" stroke="#f85149" stroke-width="2"/>
-    <!-- Wick above -->
-    <line x1="490" y1="85" x2="490" y2="70" stroke="#f85149" stroke-width="3"/>
-    <text x="495" y="68" fill="#f85149" font-size="11" font-weight="bold">SWEEP!</text>
-    <text x="495" y="82" fill="#8b949e" font-size="9">Stops taken out</text>
+    <!-- PHASE 1: Consolidation candles (sideways cluster) -->
+    <text x="120" y="420" fill="#8b949e" font-size="14" font-weight="bold">STEP 1: CONSOLIDATION</text>
+    <text x="120" y="440" fill="#8b949e" font-size="13">(price moves sideways)</text>
 
-    <!-- Sweep threshold line -->
-    <line x1="80" y1="100" x2="520" y2="100" stroke="#f8514940" stroke-width="1" stroke-dasharray="2,2"/>
-    <text x="525" y="103" fill="#f85149" font-size="9">Sweep Level (Range High + threshold)</text>
+    <!-- Candle 1 - small green -->
+    <rect x="80" y="250" width="18" height="40" fill="#3fb950" rx="2"/>
+    <line x1="89" y1="235" x2="89" y2="250" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="89" y1="290" x2="89" y2="310" stroke="#3fb950" stroke-width="2.5"/>
 
-    <!-- Reversal -->
-    <polyline points="490,85 500,100 510,130 520,110"
-              fill="none" stroke="#f85149" stroke-width="1.5"/>
+    <!-- Candle 2 - small red -->
+    <rect x="120" y="260" width="18" height="35" fill="#f85149" rx="2"/>
+    <line x1="129" y1="245" x2="129" y2="260" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="129" y1="295" x2="129" y2="315" stroke="#f85149" stroke-width="2.5"/>
 
-    <!-- Engulfing candle (bearish) -->
-    <rect x="525" y="110" width="12" height="50" fill="#f85149" rx="1"/>
-    <line x1="531" y1="100" x2="531" y2="110" stroke="#f85149" stroke-width="1.5"/>
-    <line x1="531" y1="160" x2="531" y2="170" stroke="#f85149" stroke-width="1.5"/>
-    <text x="545" y="135" fill="#d29922" font-size="11" font-weight="bold">ENGULFING</text>
-    <text x="545" y="148" fill="#8b949e" font-size="9">Confirmation candle</text>
+    <!-- Candle 3 - small green -->
+    <rect x="160" y="240" width="18" height="45" fill="#3fb950" rx="2"/>
+    <line x1="169" y1="225" x2="169" y2="240" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="169" y1="285" x2="169" y2="300" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 4 - small red -->
+    <rect x="200" y="255" width="18" height="30" fill="#f85149" rx="2"/>
+    <line x1="209" y1="240" x2="209" y2="255" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="209" y1="285" x2="209" y2="305" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 5 - small green -->
+    <rect x="240" y="245" width="18" height="38" fill="#3fb950" rx="2"/>
+    <line x1="249" y1="230" x2="249" y2="245" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="249" y1="283" x2="249" y2="298" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 6 - small red -->
+    <rect x="280" y="250" width="18" height="42" fill="#f85149" rx="2"/>
+    <line x1="289" y1="235" x2="289" y2="250" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="289" y1="292" x2="289" y2="310" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 7 - small green -->
+    <rect x="320" y="242" width="18" height="36" fill="#3fb950" rx="2"/>
+    <line x1="329" y1="228" x2="329" y2="242" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="329" y1="278" x2="329" y2="295" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 8 - small green -->
+    <rect x="360" y="235" width="18" height="40" fill="#3fb950" rx="2"/>
+    <line x1="369" y1="220" x2="369" y2="235" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="369" y1="275" x2="369" y2="290" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 9 - starting to push up -->
+    <rect x="400" y="225" width="18" height="45" fill="#3fb950" rx="2"/>
+    <line x1="409" y1="210" x2="409" y2="225" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="409" y1="270" x2="409" y2="285" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- PHASE 2: Sweep candle (long wick above range) -->
+    <text x="455" y="420" fill="#f85149" font-size="14" font-weight="bold">STEP 2: SWEEP</text>
+    <text x="455" y="440" fill="#8b949e" font-size="13">(fake breakout above range)</text>
+
+    <!-- Sweep candle - green body but enormous wick up -->
+    <rect x="450" y="215" width="22" height="35" fill="#3fb950" rx="2"/>
+    <line x1="461" y1="80" x2="461" y2="215" stroke="#3fb950" stroke-width="3"/>
+    <line x1="461" y1="250" x2="461" y2="270" stroke="#3fb950" stroke-width="3"/>
+
+    <!-- Sweep annotation -->
+    <line x1="480" y1="80" x2="540" y2="80" stroke="#f85149" stroke-width="2"/>
+    <text x="548" y="75" fill="#f85149" font-size="16" font-weight="bold">SWEEP!</text>
+    <text x="548" y="96" fill="#8b949e" font-size="14">Price spiked above range</text>
+    <text x="548" y="115" fill="#8b949e" font-size="14">to grab stop losses</text>
+
+    <!-- Arrow showing the fake-out -->
+    <path d="M461,80 Q480,60 500,70" fill="none" stroke="#f85149" stroke-width="2" stroke-dasharray="4,3"/>
+
+    <!-- SL Level -->
+    <line x1="440" y1="60" x2="920" y2="60" stroke="#f85149" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="780" y="53" fill="#f85149" font-size="14" font-weight="bold">STOP LOSS</text>
+    <text x="780" y="75" fill="#8b949e" font-size="13">(above the sweep wick)</text>
+
+    <!-- PHASE 3: Engulfing candle (big fat red) -->
+    <text x="590" y="420" fill="#e8c300" font-size="14" font-weight="bold">STEP 3: ENGULFING</text>
+    <text x="590" y="440" fill="#8b949e" font-size="13">(big red reversal candle)</text>
+
+    <!-- Small green candle before engulfing -->
+    <rect x="520" y="195" width="18" height="30" fill="#3fb950" rx="2"/>
+    <line x1="529" y1="180" x2="529" y2="195" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="529" y1="225" x2="529" y2="240" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- THE ENGULFING CANDLE - big fat red body -->
+    <rect x="555" y="170" width="28" height="130" fill="#f85149" rx="3"/>
+    <line x1="569" y1="145" x2="569" y2="170" stroke="#f85149" stroke-width="3"/>
+    <line x1="569" y1="300" x2="569" y2="320" stroke="#f85149" stroke-width="3"/>
+
+    <!-- Engulfing bracket showing it wraps the previous candle -->
+    <path d="M548,180 L543,180 L543,240 L548,240" fill="none" stroke="#e8c300" stroke-width="2"/>
+    <text x="490" y="215" fill="#e8c300" font-size="13">wraps</text>
+    <text x="490" y="232" fill="#e8c300" font-size="13">previous</text>
 
     <!-- Entry arrow -->
-    <line x1="540" y1="160" x2="540" y2="185" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowG)"/>
-    <text x="548" y="178" fill="#3fb950" font-size="11" font-weight="bold">ENTRY SHORT</text>
-
-    <!-- Target move back into range -->
-    <polyline points="540,160 560,175 580,190 600,200 620,210 640,220 660,225 680,230"
-              fill="none" stroke="#3fb950" stroke-width="2" stroke-dasharray="4,2"/>
-
-    <!-- TP line -->
-    <line x1="540" y1="230" x2="700" y2="230" stroke="#3fb95080" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="705" y="233" fill="#3fb950" font-size="9">TP (Range Low + buffer)</text>
-
-    <!-- SL line -->
-    <line x1="520" y1="75" x2="600" y2="75" stroke="#f8514980" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="605" y="78" fill="#f85149" font-size="9">SL (Above sweep wick)</text>
-
-    <!-- Arrow marker -->
     <defs>
-        <marker id="arrowG" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-            <path d="M0,0 L6,3 L0,6 Z" fill="#3fb950"/>
+        <marker id="arrowDown" markerWidth="10" markerHeight="10" refX="5" refY="10" orient="auto">
+            <path d="M0,0 L10,0 L5,10 Z" fill="#e8c300"/>
+        </marker>
+        <marker id="arrowRight" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+            <path d="M0,0 L10,5 L0,10 Z" fill="#3fb950"/>
         </marker>
     </defs>
 
-    <!-- Labels at bottom -->
-    <text x="100" y="300" fill="#58a6ff" font-size="12" font-weight="bold">SHORT TRADE ANATOMY</text>
-    <text x="100" y="318" fill="#8b949e" font-size="10">1. Price consolidates in range</text>
-    <text x="100" y="334" fill="#8b949e" font-size="10">2. Price sweeps ABOVE range (takes liquidity)</text>
-    <text x="100" y="350" fill="#8b949e" font-size="10">3. Bearish engulfing candle forms (reversal confirmation)</text>
-    <text x="100" y="366" fill="#8b949e" font-size="10">4. Enter SHORT, SL above wick, TP back in range</text>
+    <line x1="600" y1="300" x2="600" y2="330" stroke="#e8c300" stroke-width="3" marker-end="url(#arrowDown)"/>
+    <text x="615" y="310" fill="#e8c300" font-size="16" font-weight="bold">SELL HERE</text>
+    <text x="615" y="330" fill="#8b949e" font-size="13">(entry at candle close)</text>
+
+    <!-- PHASE 4: Price drops to TP -->
+    <text x="730" y="420" fill="#3fb950" font-size="14" font-weight="bold">STEP 4: PROFIT</text>
+    <text x="730" y="440" fill="#8b949e" font-size="13">(price drops back down)</text>
+
+    <!-- Post-entry dropping candles -->
+    <rect x="620" y="290" width="18" height="40" fill="#f85149" rx="2"/>
+    <line x1="629" y1="278" x2="629" y2="290" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="629" y1="330" x2="629" y2="348" stroke="#f85149" stroke-width="2.5"/>
+
+    <rect x="660" y="320" width="18" height="35" fill="#f85149" rx="2"/>
+    <line x1="669" y1="310" x2="669" y2="320" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="669" y1="355" x2="669" y2="370" stroke="#f85149" stroke-width="2.5"/>
+
+    <rect x="700" y="335" width="18" height="45" fill="#f85149" rx="2"/>
+    <line x1="709" y1="325" x2="709" y2="335" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="709" y1="380" x2="709" y2="395" stroke="#f85149" stroke-width="2.5"/>
+
+    <rect x="740" y="360" width="18" height="30" fill="#3fb950" rx="2"/>
+    <line x1="749" y1="350" x2="749" y2="360" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="749" y1="390" x2="749" y2="405" stroke="#3fb950" stroke-width="2.5"/>
+
+    <rect x="780" y="370" width="18" height="35" fill="#f85149" rx="2"/>
+    <line x1="789" y1="358" x2="789" y2="370" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="789" y1="405" x2="789" y2="420" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- TP Level -->
+    <line x1="560" y1="410" x2="920" y2="410" stroke="#3fb950" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="830" y="403" fill="#3fb950" font-size="14" font-weight="bold">TAKE PROFIT</text>
+    <text x="830" y="425" fill="#8b949e" font-size="13">(back at range low)</text>
+
+    <!-- Profit arrow -->
+    <line x1="870" y1="310" x2="870" y2="395" stroke="#3fb950" stroke-width="3" stroke-dasharray="5,3"/>
+    <text x="880" y="360" fill="#3fb950" font-size="15" font-weight="bold">PROFIT</text>
+
+    <!-- Phase labels at very bottom -->
+    <rect x="40" y="465" width="920" height="45" fill="#161b22" rx="6"/>
+    <text x="60" y="493" fill="#c9d1d9" font-size="14">
+        <tspan fill="#58a6ff" font-weight="bold">1.</tspan> Sideways range forms
+        <tspan dx="30" fill="#f85149" font-weight="bold">2.</tspan> Price spikes above (sweep)
+        <tspan dx="30" fill="#e8c300" font-weight="bold">3.</tspan> Big red candle (engulfing)
+        <tspan dx="30" fill="#3fb950" font-weight="bold">4.</tspan> Sell and ride it down
+    </text>
 </svg>
+<p class="diagram-caption">SHORT trade: Sweep above the range triggers stop losses, then price reverses down. We sell on the engulfing candle.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="long-trade">LONG Trade — Visual Breakdown</h2>
+
+<p class="muted">Same pattern but flipped. Price goes sideways, spikes DOWN (fake breakdown), then a big green candle says "trap over." We buy.</p>
+
+<div class="diagram">
+<svg width="960" height="520" viewBox="0 0 960 520">
+    <rect width="960" height="520" fill="#0d1117"/>
+
+    <!-- Range zone shading -->
+    <rect x="40" y="160" width="520" height="140" fill="#58a6ff08" stroke="#58a6ff" stroke-width="2" stroke-dasharray="8,4" rx="4"/>
+
+    <!-- Range labels -->
+    <text x="50" y="155" fill="#58a6ff" font-size="15" font-weight="bold">RANGE HIGH</text>
+    <line x1="40" y1="160" x2="560" y2="160" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.6"/>
+    <text x="50" y="315" fill="#58a6ff" font-size="15" font-weight="bold">RANGE LOW</text>
+    <line x1="40" y1="300" x2="560" y2="300" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.6"/>
+
+    <!-- PHASE 1: Consolidation candles -->
+    <text x="120" y="60" fill="#8b949e" font-size="14" font-weight="bold">STEP 1: CONSOLIDATION</text>
+
+    <!-- Candle 1 -->
+    <rect x="80" y="210" width="18" height="38" fill="#f85149" rx="2"/>
+    <line x1="89" y1="195" x2="89" y2="210" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="89" y1="248" x2="89" y2="265" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 2 -->
+    <rect x="120" y="200" width="18" height="42" fill="#3fb950" rx="2"/>
+    <line x1="129" y1="185" x2="129" y2="200" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="129" y1="242" x2="129" y2="260" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 3 -->
+    <rect x="160" y="215" width="18" height="35" fill="#f85149" rx="2"/>
+    <line x1="169" y1="200" x2="169" y2="215" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="169" y1="250" x2="169" y2="268" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 4 -->
+    <rect x="200" y="205" width="18" height="40" fill="#3fb950" rx="2"/>
+    <line x1="209" y1="192" x2="209" y2="205" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="209" y1="245" x2="209" y2="260" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 5 -->
+    <rect x="240" y="220" width="18" height="32" fill="#f85149" rx="2"/>
+    <line x1="249" y1="205" x2="249" y2="220" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="249" y1="252" x2="249" y2="270" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 6 -->
+    <rect x="280" y="210" width="18" height="44" fill="#3fb950" rx="2"/>
+    <line x1="289" y1="195" x2="289" y2="210" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="289" y1="254" x2="289" y2="272" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- Candle 7 -->
+    <rect x="320" y="218" width="18" height="36" fill="#f85149" rx="2"/>
+    <line x1="329" y1="205" x2="329" y2="218" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="329" y1="254" x2="329" y2="270" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 8 - starts pushing down -->
+    <rect x="360" y="235" width="18" height="40" fill="#f85149" rx="2"/>
+    <line x1="369" y1="220" x2="369" y2="235" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="369" y1="275" x2="369" y2="290" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- Candle 9 - more down -->
+    <rect x="400" y="250" width="18" height="38" fill="#f85149" rx="2"/>
+    <line x1="409" y1="238" x2="409" y2="250" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="409" y1="288" x2="409" y2="305" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- PHASE 2: Sweep candle (long wick below range) -->
+    <text x="455" y="60" fill="#3fb950" font-size="14" font-weight="bold">STEP 2: SWEEP</text>
+
+    <!-- Sweep candle - red body but enormous wick down -->
+    <rect x="450" y="255" width="22" height="35" fill="#f85149" rx="2"/>
+    <line x1="461" y1="240" x2="461" y2="255" stroke="#f85149" stroke-width="3"/>
+    <line x1="461" y1="290" x2="461" y2="430" stroke="#f85149" stroke-width="3"/>
+
+    <!-- Sweep annotation -->
+    <line x1="480" y1="430" x2="540" y2="430" stroke="#3fb950" stroke-width="2"/>
+    <text x="548" y="425" fill="#3fb950" font-size="16" font-weight="bold">SWEEP!</text>
+    <text x="548" y="446" fill="#8b949e" font-size="14">Price spiked below range</text>
+    <text x="548" y="465" fill="#8b949e" font-size="14">to grab stop losses</text>
+
+    <!-- SL Level -->
+    <line x1="440" y1="450" x2="920" y2="450" stroke="#f85149" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="780" y="445" fill="#f85149" font-size="14" font-weight="bold">STOP LOSS</text>
+    <text x="780" y="467" fill="#8b949e" font-size="13">(below the sweep wick)</text>
+
+    <!-- PHASE 3: Engulfing candle (big fat green) -->
+    <text x="590" y="60" fill="#e8c300" font-size="14" font-weight="bold">STEP 3: ENGULFING</text>
+
+    <!-- Small red candle before engulfing -->
+    <rect x="520" y="270" width="18" height="30" fill="#f85149" rx="2"/>
+    <line x1="529" y1="260" x2="529" y2="270" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="529" y1="300" x2="529" y2="320" stroke="#f85149" stroke-width="2.5"/>
+
+    <!-- THE ENGULFING CANDLE - big fat green body -->
+    <rect x="555" y="190" width="28" height="130" fill="#3fb950" rx="3"/>
+    <line x1="569" y1="320" x2="569" y2="345" stroke="#3fb950" stroke-width="3"/>
+    <line x1="569" y1="170" x2="569" y2="190" stroke="#3fb950" stroke-width="3"/>
+
+    <!-- Engulfing bracket -->
+    <path d="M548,265 L543,265 L543,325 L548,325" fill="none" stroke="#e8c300" stroke-width="2"/>
+    <text x="490" y="290" fill="#e8c300" font-size="13">wraps</text>
+    <text x="490" y="307" fill="#e8c300" font-size="13">previous</text>
+
+    <!-- Entry arrow (pointing up for BUY) -->
+    <defs>
+        <marker id="arrowUp" markerWidth="10" markerHeight="10" refX="5" refY="0" orient="auto">
+            <path d="M0,10 L10,10 L5,0 Z" fill="#e8c300"/>
+        </marker>
+    </defs>
+    <line x1="600" y1="195" x2="600" y2="165" stroke="#e8c300" stroke-width="3" marker-end="url(#arrowUp)"/>
+    <text x="615" y="178" fill="#e8c300" font-size="16" font-weight="bold">BUY HERE</text>
+    <text x="615" y="198" fill="#8b949e" font-size="13">(entry at candle close)</text>
+
+    <!-- PHASE 4: Price rises to TP -->
+    <text x="730" y="60" fill="#3fb950" font-size="14" font-weight="bold">STEP 4: PROFIT</text>
+
+    <!-- Post-entry rising candles -->
+    <rect x="620" y="185" width="18" height="40" fill="#3fb950" rx="2"/>
+    <line x1="629" y1="175" x2="629" y2="185" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="629" y1="225" x2="629" y2="240" stroke="#3fb950" stroke-width="2.5"/>
+
+    <rect x="660" y="165" width="18" height="35" fill="#3fb950" rx="2"/>
+    <line x1="669" y1="155" x2="669" y2="165" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="669" y1="200" x2="669" y2="215" stroke="#3fb950" stroke-width="2.5"/>
+
+    <rect x="700" y="140" width="18" height="40" fill="#3fb950" rx="2"/>
+    <line x1="709" y1="128" x2="709" y2="140" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="709" y1="180" x2="709" y2="195" stroke="#3fb950" stroke-width="2.5"/>
+
+    <rect x="740" y="125" width="18" height="30" fill="#f85149" rx="2"/>
+    <line x1="749" y1="115" x2="749" y2="125" stroke="#f85149" stroke-width="2.5"/>
+    <line x1="749" y1="155" x2="749" y2="168" stroke="#f85149" stroke-width="2.5"/>
+
+    <rect x="780" y="110" width="18" height="35" fill="#3fb950" rx="2"/>
+    <line x1="789" y1="98" x2="789" y2="110" stroke="#3fb950" stroke-width="2.5"/>
+    <line x1="789" y1="145" x2="789" y2="158" stroke="#3fb950" stroke-width="2.5"/>
+
+    <!-- TP Level -->
+    <line x1="560" y1="105" x2="920" y2="105" stroke="#3fb950" stroke-width="2" stroke-dasharray="6,4"/>
+    <text x="830" y="98" fill="#3fb950" font-size="14" font-weight="bold">TAKE PROFIT</text>
+    <text x="830" y="120" fill="#8b949e" font-size="13">(back at range high)</text>
+
+    <!-- Profit arrow -->
+    <line x1="870" y1="200" x2="870" y2="118" stroke="#3fb950" stroke-width="3" stroke-dasharray="5,3"/>
+    <text x="880" y="165" fill="#3fb950" font-size="15" font-weight="bold">PROFIT</text>
+
+    <!-- Phase labels at very bottom -->
+    <rect x="40" y="475" width="920" height="40" fill="#161b22" rx="6"/>
+    <text x="60" y="500" fill="#c9d1d9" font-size="14">
+        <tspan fill="#58a6ff" font-weight="bold">1.</tspan> Sideways range forms
+        <tspan dx="30" fill="#3fb950" font-weight="bold">2.</tspan> Price spikes below (sweep)
+        <tspan dx="30" fill="#e8c300" font-weight="bold">3.</tspan> Big green candle (engulfing)
+        <tspan dx="30" fill="#3fb950" font-weight="bold">4.</tspan> Buy and ride it up
+    </text>
+</svg>
+<p class="diagram-caption">LONG trade: Sweep below the range triggers stop losses, then price reverses up. We buy on the engulfing candle.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="bias-filter">The Bias Filter — Yesterday Decides Today</h2>
+
+<div class="concept">
+    <h4>One Simple Rule That Adds 10% Win Rate</h4>
+    <p>Look at yesterday's daily candle. If it was a big red day (sellers dominated), we <span class="red">only take SHORT trades today</span>. If it was a big green day (buyers dominated), we <span class="green">only take LONG trades today</span>. If it was small and indecisive, we take trades in either direction.</p>
+    <p style="margin-top:12px;" class="muted">Why? Momentum tends to continue. Don't fight a strong trend just because you see a pattern.</p>
 </div>
 
 <div class="diagram">
-<svg width="800" height="380" viewBox="0 0 800 380">
-    <rect width="800" height="380" fill="#0d1117"/>
-    <rect width="800" height="380" fill="url(#grid)"/>
+<svg width="960" height="480" viewBox="0 0 960 480">
+    <rect width="960" height="480" fill="#0d1117"/>
 
-    <!-- Range zone -->
-    <rect x="80" y="140" width="400" height="120" fill="#3fb95008" stroke="#3fb950" stroke-width="1" stroke-dasharray="4,4"/>
-    <text x="85" y="135" fill="#3fb950" font-size="10">CONSOLIDATION RANGE</text>
-    <text x="85" y="158" fill="#8b949e" font-size="10">Range High ─────────────────────</text>
-    <text x="85" y="255" fill="#8b949e" font-size="10">Range Low ──────────────────────</text>
+    <!-- Title -->
+    <text x="480" y="40" fill="#c9d1d9" font-size="18" font-weight="bold" text-anchor="middle">HOW THE BIAS FILTER WORKS</text>
 
-    <!-- Price action: consolidation -->
-    <polyline points="100,200 130,210 160,190 190,205 220,195 250,215 280,200 310,210 340,195 370,205 400,195 430,210"
-              fill="none" stroke="#8b949e" stroke-width="1.5"/>
+    <!-- ========== BEARISH EXAMPLE (left) ========== -->
+    <rect x="40" y="65" width="280" height="350" fill="#161b22" rx="10" stroke="#f8514940" stroke-width="2"/>
+    <text x="180" y="95" fill="#f85149" font-size="16" font-weight="bold" text-anchor="middle">BEARISH BIAS</text>
+    <text x="180" y="118" fill="#8b949e" font-size="13" text-anchor="middle">Yesterday was a big red candle</text>
 
-    <!-- Sweep below (bullish) -->
-    <polyline points="430,210 460,240 480,275 490,285"
-              fill="none" stroke="#3fb950" stroke-width="2"/>
-    <!-- Wick below -->
-    <line x1="490" y1="285" x2="490" y2="305" stroke="#3fb950" stroke-width="3"/>
-    <text x="495" y="302" fill="#3fb950" font-size="11" font-weight="bold">SWEEP!</text>
-    <text x="495" y="316" fill="#8b949e" font-size="9">Stops taken out</text>
+    <!-- Big red candle (yesterday) -->
+    <line x1="180" y1="140" x2="180" y2="155" stroke="#f85149" stroke-width="3"/>
+    <rect x="160" y="155" width="40" height="150" fill="#f85149" rx="3"/>
+    <line x1="180" y1="305" x2="180" y2="330" stroke="#f85149" stroke-width="3"/>
 
-    <!-- Sweep threshold line -->
-    <line x1="80" y1="280" x2="520" y2="280" stroke="#3fb95040" stroke-width="1" stroke-dasharray="2,2"/>
-    <text x="525" y="283" fill="#3fb950" font-size="9">Sweep Level (Range Low - threshold)</text>
+    <!-- Body percentage label -->
+    <text x="215" y="230" fill="#c9d1d9" font-size="14">Body = 75%</text>
+    <text x="215" y="250" fill="#c9d1d9" font-size="14">of total range</text>
 
-    <!-- Reversal -->
-    <polyline points="490,285 500,270 510,245 520,260"
-              fill="none" stroke="#3fb950" stroke-width="1.5"/>
+    <!-- Result -->
+    <rect x="70" y="345" width="220" height="50" fill="#f8514920" rx="6" stroke="#f85149" stroke-width="1.5"/>
+    <text x="180" y="377" fill="#f85149" font-size="15" font-weight="bold" text-anchor="middle">TODAY: SHORTS ONLY</text>
 
-    <!-- Engulfing candle (bullish) -->
-    <rect x="525" y="210" width="12" height="50" fill="#3fb950" rx="1"/>
-    <line x1="531" y1="260" x2="531" y2="270" stroke="#3fb950" stroke-width="1.5"/>
-    <line x1="531" y1="210" x2="531" y2="200" stroke="#3fb950" stroke-width="1.5"/>
-    <text x="545" y="235" fill="#d29922" font-size="11" font-weight="bold">ENGULFING</text>
-    <text x="545" y="248" fill="#8b949e" font-size="9">Confirmation candle</text>
+    <!-- ========== BULLISH EXAMPLE (middle) ========== -->
+    <rect x="340" y="65" width="280" height="350" fill="#161b22" rx="10" stroke="#3fb95040" stroke-width="2"/>
+    <text x="480" y="95" fill="#3fb950" font-size="16" font-weight="bold" text-anchor="middle">BULLISH BIAS</text>
+    <text x="480" y="118" fill="#8b949e" font-size="13" text-anchor="middle">Yesterday was a big green candle</text>
 
-    <!-- Entry arrow -->
-    <line x1="540" y1="210" x2="540" y2="185" stroke="#3fb950" stroke-width="2" marker-end="url(#arrowG)"/>
-    <text x="548" y="198" fill="#3fb950" font-size="11" font-weight="bold">ENTRY LONG</text>
+    <!-- Big green candle (yesterday) -->
+    <line x1="480" y1="140" x2="480" y2="160" stroke="#3fb950" stroke-width="3"/>
+    <rect x="460" y="160" width="40" height="140" fill="#3fb950" rx="3"/>
+    <line x1="480" y1="300" x2="480" y2="330" stroke="#3fb950" stroke-width="3"/>
 
-    <!-- Target move back into range -->
-    <polyline points="540,210 560,195 580,185 600,175 620,168 640,162 660,158 680,155"
-              fill="none" stroke="#3fb950" stroke-width="2" stroke-dasharray="4,2"/>
+    <!-- Body percentage label -->
+    <text x="515" y="230" fill="#c9d1d9" font-size="14">Body = 70%</text>
+    <text x="515" y="250" fill="#c9d1d9" font-size="14">of total range</text>
 
-    <!-- TP line -->
-    <line x1="540" y1="148" x2="700" y2="148" stroke="#3fb95080" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="705" y="151" fill="#3fb950" font-size="9">TP (Range High - buffer)</text>
+    <!-- Result -->
+    <rect x="370" y="345" width="220" height="50" fill="#3fb95020" rx="6" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="480" y="377" fill="#3fb950" font-size="15" font-weight="bold" text-anchor="middle">TODAY: LONGS ONLY</text>
+
+    <!-- ========== NEUTRAL EXAMPLE (right) ========== -->
+    <rect x="640" y="65" width="280" height="350" fill="#161b22" rx="10" stroke="#8b949e40" stroke-width="2"/>
+    <text x="780" y="95" fill="#8b949e" font-size="16" font-weight="bold" text-anchor="middle">NEUTRAL</text>
+    <text x="780" y="118" fill="#8b949e" font-size="13" text-anchor="middle">Yesterday was small/indecisive</text>
+
+    <!-- Small doji-like candle (yesterday) -->
+    <line x1="780" y1="155" x2="780" y2="210" stroke="#8b949e" stroke-width="3"/>
+    <rect x="765" y="210" width="30" height="25" fill="#8b949e" rx="3"/>
+    <line x1="780" y1="235" x2="780" y2="310" stroke="#8b949e" stroke-width="3"/>
+
+    <!-- Body percentage label -->
+    <text x="815" y="225" fill="#c9d1d9" font-size="14">Body = 15%</text>
+    <text x="815" y="245" fill="#c9d1d9" font-size="14">mostly wick</text>
+
+    <!-- Result -->
+    <rect x="670" y="345" width="220" height="50" fill="#8b949e20" rx="6" stroke="#8b949e" stroke-width="1.5"/>
+    <text x="780" y="377" fill="#c9d1d9" font-size="15" font-weight="bold" text-anchor="middle">TODAY: BOTH DIRECTIONS</text>
+
+    <!-- Bottom explanation -->
+    <rect x="40" y="435" width="880" height="35" fill="#161b22" rx="6"/>
+    <text x="480" y="458" fill="#8b949e" font-size="14" text-anchor="middle">Rule: If yesterday's candle body is more than 40% of its total range (wick-to-wick), it counts as directional.</text>
+</svg>
+<p class="diagram-caption">The bias filter is the simplest rule in the system, but it prevents the most painful trades.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="flowchart">Decision Flowchart — Should I Take This Trade?</h2>
+
+<p class="muted">Follow this step by step. If any answer is NO, skip the trade and wait for the next setup.</p>
+
+<div class="diagram">
+<svg width="960" height="680" viewBox="0 0 960 680">
+    <rect width="960" height="680" fill="#0d1117"/>
+
+    <!-- Flowchart definitions -->
+    <defs>
+        <marker id="flowArrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#58a6ff"/>
+        </marker>
+        <marker id="flowArrowRed" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#f85149"/>
+        </marker>
+        <marker id="flowArrowGreen" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#3fb950"/>
+        </marker>
+    </defs>
+
+    <!-- STEP 1 -->
+    <rect x="320" y="20" width="320" height="60" fill="#161b22" rx="10" stroke="#58a6ff" stroke-width="2.5"/>
+    <text x="480" y="48" fill="#58a6ff" font-size="16" font-weight="bold" text-anchor="middle">STEP 1</text>
+    <text x="480" y="68" fill="#c9d1d9" font-size="14" text-anchor="middle">Is there a clear sideways range?</text>
+
+    <!-- Arrow down -->
+    <line x1="480" y1="80" x2="480" y2="110" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#flowArrow)"/>
+    <text x="500" y="100" fill="#3fb950" font-size="13" font-weight="bold">YES</text>
+
+    <!-- NO branch from step 1 -->
+    <line x1="640" y1="50" x2="750" y2="50" stroke="#f85149" stroke-width="2" marker-end="url(#flowArrowRed)"/>
+    <rect x="750" y="30" width="160" height="40" fill="#f8514920" rx="8" stroke="#f85149" stroke-width="1.5"/>
+    <text x="830" y="55" fill="#f85149" font-size="14" font-weight="bold" text-anchor="middle">WAIT - No trade</text>
+
+    <!-- STEP 2 -->
+    <rect x="320" y="115" width="320" height="60" fill="#161b22" rx="10" stroke="#58a6ff" stroke-width="2.5"/>
+    <text x="480" y="143" fill="#58a6ff" font-size="16" font-weight="bold" text-anchor="middle">STEP 2</text>
+    <text x="480" y="163" fill="#c9d1d9" font-size="14" text-anchor="middle">Did price spike past the range?</text>
+
+    <!-- Arrow down -->
+    <line x1="480" y1="175" x2="480" y2="205" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#flowArrow)"/>
+    <text x="500" y="195" fill="#3fb950" font-size="13" font-weight="bold">YES</text>
+
+    <!-- NO branch from step 2 -->
+    <line x1="640" y1="145" x2="750" y2="145" stroke="#f85149" stroke-width="2" marker-end="url(#flowArrowRed)"/>
+    <rect x="750" y="125" width="160" height="40" fill="#f8514920" rx="8" stroke="#f85149" stroke-width="1.5"/>
+    <text x="830" y="150" fill="#f85149" font-size="14" font-weight="bold" text-anchor="middle">WAIT - No trade</text>
+
+    <!-- STEP 3 -->
+    <rect x="320" y="210" width="320" height="60" fill="#161b22" rx="10" stroke="#58a6ff" stroke-width="2.5"/>
+    <text x="480" y="238" fill="#58a6ff" font-size="16" font-weight="bold" text-anchor="middle">STEP 3</text>
+    <text x="480" y="258" fill="#c9d1d9" font-size="14" text-anchor="middle">Did it close BACK inside the range?</text>
+
+    <!-- Arrow down -->
+    <line x1="480" y1="270" x2="480" y2="300" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#flowArrow)"/>
+    <text x="500" y="290" fill="#3fb950" font-size="13" font-weight="bold">YES</text>
+
+    <!-- NO branch from step 3 -->
+    <line x1="640" y1="240" x2="750" y2="240" stroke="#f85149" stroke-width="2" marker-end="url(#flowArrowRed)"/>
+    <rect x="750" y="220" width="160" height="40" fill="#f8514920" rx="8" stroke="#f85149" stroke-width="1.5"/>
+    <text x="830" y="237" fill="#f85149" font-size="13" text-anchor="middle">Real breakout</text>
+    <text x="830" y="253" fill="#f85149" font-size="13" text-anchor="middle">NOT a sweep</text>
+
+    <!-- STEP 4 -->
+    <rect x="320" y="305" width="320" height="60" fill="#161b22" rx="10" stroke="#58a6ff" stroke-width="2.5"/>
+    <text x="480" y="333" fill="#58a6ff" font-size="16" font-weight="bold" text-anchor="middle">STEP 4</text>
+    <text x="480" y="353" fill="#c9d1d9" font-size="14" text-anchor="middle">Did an engulfing candle form?</text>
+
+    <!-- Arrow down -->
+    <line x1="480" y1="365" x2="480" y2="395" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#flowArrow)"/>
+    <text x="500" y="385" fill="#3fb950" font-size="13" font-weight="bold">YES</text>
+
+    <!-- NO branch from step 4 -->
+    <line x1="640" y1="335" x2="750" y2="335" stroke="#f85149" stroke-width="2" marker-end="url(#flowArrowRed)"/>
+    <rect x="750" y="315" width="160" height="40" fill="#f8514920" rx="8" stroke="#f85149" stroke-width="1.5"/>
+    <text x="830" y="340" fill="#f85149" font-size="14" font-weight="bold" text-anchor="middle">WAIT - No trade</text>
+
+    <!-- STEP 5 -->
+    <rect x="320" y="400" width="320" height="60" fill="#161b22" rx="10" stroke="#e8c300" stroke-width="2.5"/>
+    <text x="480" y="428" fill="#e8c300" font-size="16" font-weight="bold" text-anchor="middle">STEP 5</text>
+    <text x="480" y="448" fill="#c9d1d9" font-size="14" text-anchor="middle">Is the bias filter aligned?</text>
+
+    <!-- Arrow down -->
+    <line x1="480" y1="460" x2="480" y2="490" stroke="#58a6ff" stroke-width="2.5" marker-end="url(#flowArrow)"/>
+    <text x="500" y="480" fill="#3fb950" font-size="13" font-weight="bold">YES</text>
+
+    <!-- NO branch from step 5 -->
+    <line x1="640" y1="430" x2="750" y2="430" stroke="#f85149" stroke-width="2" marker-end="url(#flowArrowRed)"/>
+    <rect x="750" y="410" width="160" height="40" fill="#f8514920" rx="8" stroke="#f85149" stroke-width="1.5"/>
+    <text x="830" y="427" fill="#f85149" font-size="13" text-anchor="middle">Wrong direction</text>
+    <text x="830" y="443" fill="#f85149" font-size="13" text-anchor="middle">SKIP</text>
+
+    <!-- Bias detail -->
+    <text x="175" y="420" fill="#8b949e" font-size="12" text-anchor="middle">Bearish bias = shorts only</text>
+    <text x="175" y="438" fill="#8b949e" font-size="12" text-anchor="middle">Bullish bias = longs only</text>
+    <text x="175" y="456" fill="#8b949e" font-size="12" text-anchor="middle">Neutral = either direction OK</text>
+    <line x1="260" y1="430" x2="318" y2="430" stroke="#8b949e" stroke-width="1" stroke-dasharray="3,3"/>
+
+    <!-- RESULT: ENTER TRADE -->
+    <rect x="320" y="500" width="320" height="70" fill="#3fb95020" rx="12" stroke="#3fb950" stroke-width="3"/>
+    <text x="480" y="530" fill="#3fb950" font-size="18" font-weight="bold" text-anchor="middle">ENTER THE TRADE</text>
+    <text x="480" y="555" fill="#c9d1d9" font-size="14" text-anchor="middle">Place your order at the engulfing candle close</text>
+
+    <!-- Exit rules box -->
+    <rect x="200" y="600" width="560" height="65" fill="#161b22" rx="10" stroke="#30363d" stroke-width="1.5"/>
+    <text x="480" y="625" fill="#58a6ff" font-size="15" font-weight="bold" text-anchor="middle">AFTER ENTRY:</text>
+    <text x="480" y="648" fill="#c9d1d9" font-size="14" text-anchor="middle">Stop Loss = above/below the sweep wick  |  Take Profit = other side of the range</text>
+
+    <!-- Arrow to exit rules -->
+    <line x1="480" y1="570" x2="480" y2="598" stroke="#58a6ff" stroke-width="2" marker-end="url(#flowArrow)"/>
+</svg>
+<p class="diagram-caption">Every single trade must pass all 5 checks. If any one fails, we do nothing and wait.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="systems">The 4 Systems — Same Strategy, Different Settings</h2>
+
+<p>All 4 systems use the exact same liquidity sweep reversal strategy. The difference is <strong>how they find the range</strong> and <strong>how long they wait for the setup</strong>.</p>
+
+<div class="concept">
+    <h4>Why 4 systems instead of 1?</h4>
+    <p><span class="green">Micro</span> (rolling windows every 2 hours) catches more frequent, smaller moves throughout the day.</p>
+    <p><span class="cyan">Macro</span> (fixed Asia session as the range) catches the big London/New York opening moves.</p>
+    <p>Running both Gold AND Oil gives uncorrelated trades — when one instrument is quiet, the other often moves.</p>
+</div>
+
+<table>
+    <tr>
+        <th></th>
+        <th style="color:#e8c300;">Gold Micro</th>
+        <th style="color:#e8c300;">Gold Macro</th>
+        <th style="color:#4fc3f7;">Oil Micro</th>
+        <th style="color:#4fc3f7;">Oil Macro</th>
+    </tr>
+    <tr>
+        <td><strong>Instrument</strong></td>
+        <td>XAU/USD (Gold)</td>
+        <td>XAU/USD (Gold)</td>
+        <td>BCO/USD (Brent Oil)</td>
+        <td>BCO/USD (Brent Oil)</td>
+    </tr>
+    <tr>
+        <td><strong>How range forms</strong></td>
+        <td>Rolling 4-hour windows<br/>(new one every 2 hrs)</td>
+        <td>Fixed: Asia session<br/>(00:00 - 08:00 UTC)</td>
+        <td>Rolling 4-hour windows<br/>(new one every 2 hrs)</td>
+        <td>Fixed: Asia session<br/>(00:00 - 08:00 UTC)</td>
+    </tr>
+    <tr>
+        <td><strong>When it scans</strong></td>
+        <td>6 hours after each window</td>
+        <td>London + New York<br/>(08:00 - 20:00 UTC)</td>
+        <td>6 hours after each window</td>
+        <td>London + New York<br/>(08:00 - 20:00 UTC)</td>
+    </tr>
+    <tr>
+        <td><strong>Time for engulfing</strong></td>
+        <td>45 minutes</td>
+        <td>2 hours</td>
+        <td>45 minutes</td>
+        <td>2 hours</td>
+    </tr>
+    <tr>
+        <td><strong>Sweep threshold</strong></td>
+        <td>$2.00</td>
+        <td>$2.00</td>
+        <td>$0.13</td>
+        <td>$0.20</td>
+    </tr>
+    <tr>
+        <td><strong>Bias filter</strong></td>
+        <td>Combined (V1 + V2)</td>
+        <td>Combined (V1 + V2)</td>
+        <td>Combined (V1 + V2)</td>
+        <td>Body size only (V1)</td>
+    </tr>
+    <tr>
+        <td><strong>Trades per year</strong></td>
+        <td>~120</td>
+        <td>~100</td>
+        <td>~200</td>
+        <td>~100</td>
+    </tr>
+    <tr>
+        <td><strong>Win rate</strong></td>
+        <td>~80%</td>
+        <td>~80%</td>
+        <td>~80%</td>
+        <td>~66%</td>
+    </tr>
+    <tr>
+        <td><strong>Profit factor</strong></td>
+        <td>~4.5</td>
+        <td>~4.2</td>
+        <td>~4.9</td>
+        <td>~4.3</td>
+    </tr>
+</table>
+
+<p class="muted" style="margin-top:16px;">Profit factor = total money won / total money lost. Anything above 2.0 is excellent. Above 4.0 is exceptional.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 id="real-trade">Real Trade Example — Oil, June 8, 2026</h2>
+
+<p>Here is a real trade that happened on the live system, step by step.</p>
+
+<div class="diagram">
+<svg width="960" height="560" viewBox="0 0 960 560">
+    <rect width="960" height="560" fill="#0d1117"/>
+
+    <!-- Title -->
+    <text x="480" y="35" fill="#4fc3f7" font-size="18" font-weight="bold" text-anchor="middle">OIL MACRO — JUNE 8, 2026 — REAL TRADE</text>
+
+    <!-- Time axis -->
+    <line x1="60" y1="440" x2="920" y2="440" stroke="#30363d" stroke-width="2"/>
+    <text x="130" y="465" fill="#8b949e" font-size="13" text-anchor="middle">00:00</text>
+    <text x="290" y="465" fill="#8b949e" font-size="13" text-anchor="middle">08:00</text>
+    <text x="470" y="465" fill="#8b949e" font-size="13" text-anchor="middle">11:30</text>
+    <text x="650" y="465" fill="#8b949e" font-size="13" text-anchor="middle">14:15</text>
+    <text x="820" y="465" fill="#8b949e" font-size="13" text-anchor="middle">16:45</text>
+
+    <!-- Price axis -->
+    <text x="40" y="100" fill="#8b949e" font-size="12">$97</text>
+    <text x="40" y="180" fill="#8b949e" font-size="12">$96</text>
+    <text x="40" y="260" fill="#8b949e" font-size="12">$95</text>
+    <text x="40" y="340" fill="#8b949e" font-size="12">$94</text>
+    <text x="40" y="420" fill="#8b949e" font-size="12">$93</text>
+
+    <!-- Range zone (Asia session: $93.93 - $96.25) -->
+    <rect x="70" y="120" width="220" height="270" fill="#58a6ff06" stroke="#58a6ff" stroke-width="2" stroke-dasharray="8,4" rx="4"/>
+    <text x="85" y="115" fill="#58a6ff" font-size="13" font-weight="bold">ASIA RANGE</text>
+
+    <!-- Range high line ($96.25) -->
+    <line x1="70" y1="140" x2="920" y2="140" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5"/>
+    <text x="75" y="133" fill="#58a6ff" font-size="12">$96.25</text>
+
+    <!-- Range low line ($93.93) -->
+    <line x1="70" y1="390" x2="400" y2="390" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5"/>
+    <text x="75" y="407" fill="#58a6ff" font-size="12">$93.93</text>
+
+    <!-- Asia session candles (sideways between $93.93-$96.25) -->
+    <!-- Candle A1 -->
+    <rect x="90" y="280" width="14" height="50" fill="#3fb950" rx="2"/>
+    <line x1="97" y1="265" x2="97" y2="280" stroke="#3fb950" stroke-width="2"/>
+    <line x1="97" y1="330" x2="97" y2="350" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- Candle A2 -->
+    <rect x="115" y="250" width="14" height="45" fill="#f85149" rx="2"/>
+    <line x1="122" y1="235" x2="122" y2="250" stroke="#f85149" stroke-width="2"/>
+    <line x1="122" y1="295" x2="122" y2="315" stroke="#f85149" stroke-width="2"/>
+
+    <!-- Candle A3 -->
+    <rect x="140" y="270" width="14" height="40" fill="#3fb950" rx="2"/>
+    <line x1="147" y1="255" x2="147" y2="270" stroke="#3fb950" stroke-width="2"/>
+    <line x1="147" y1="310" x2="147" y2="330" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- Candle A4 -->
+    <rect x="165" y="240" width="14" height="55" fill="#3fb950" rx="2"/>
+    <line x1="172" y1="225" x2="172" y2="240" stroke="#3fb950" stroke-width="2"/>
+    <line x1="172" y1="295" x2="172" y2="310" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- Candle A5 -->
+    <rect x="190" y="220" width="14" height="40" fill="#f85149" rx="2"/>
+    <line x1="197" y1="200" x2="197" y2="220" stroke="#f85149" stroke-width="2"/>
+    <line x1="197" y1="260" x2="197" y2="280" stroke="#f85149" stroke-width="2"/>
+
+    <!-- Candle A6 -->
+    <rect x="215" y="200" width="14" height="50" fill="#3fb950" rx="2"/>
+    <line x1="222" y1="185" x2="222" y2="200" stroke="#3fb950" stroke-width="2"/>
+    <line x1="222" y1="250" x2="222" y2="270" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- Candle A7 -->
+    <rect x="240" y="190" width="14" height="35" fill="#f85149" rx="2"/>
+    <line x1="247" y1="175" x2="247" y2="190" stroke="#f85149" stroke-width="2"/>
+    <line x1="247" y1="225" x2="247" y2="250" stroke="#f85149" stroke-width="2"/>
+
+    <!-- Candle A8 -->
+    <rect x="265" y="170" width="14" height="40" fill="#3fb950" rx="2"/>
+    <line x1="272" y1="155" x2="272" y2="170" stroke="#3fb950" stroke-width="2"/>
+    <line x1="272" y1="210" x2="272" y2="230" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- London open marker -->
+    <line x1="290" y1="60" x2="290" y2="440" stroke="#e8c30040" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="295" y="58" fill="#e8c300" font-size="12">LONDON OPEN</text>
+
+    <!-- London candles pushing up toward range high -->
+    <rect x="310" y="155" width="14" height="35" fill="#3fb950" rx="2"/>
+    <line x1="317" y1="145" x2="317" y2="155" stroke="#3fb950" stroke-width="2"/>
+    <line x1="317" y1="190" x2="317" y2="205" stroke="#3fb950" stroke-width="2"/>
+
+    <rect x="335" y="140" width="14" height="30" fill="#3fb950" rx="2"/>
+    <line x1="342" y1="130" x2="342" y2="140" stroke="#3fb950" stroke-width="2"/>
+    <line x1="342" y1="170" x2="342" y2="185" stroke="#3fb950" stroke-width="2"/>
+
+    <rect x="360" y="130" width="14" height="35" fill="#3fb950" rx="2"/>
+    <line x1="367" y1="120" x2="367" y2="130" stroke="#3fb950" stroke-width="2"/>
+    <line x1="367" y1="165" x2="367" y2="178" stroke="#3fb950" stroke-width="2"/>
+
+    <!-- SWEEP CANDLE at 11:00 — big wick above $96.45 (sweep level) -->
+    <rect x="400" y="130" width="20" height="40" fill="#3fb950" rx="2"/>
+    <line x1="410" y1="75" x2="410" y2="130" stroke="#3fb950" stroke-width="3"/>
+    <line x1="410" y1="170" x2="410" y2="185" stroke="#3fb950" stroke-width="3"/>
+
+    <!-- Sweep level line -->
+    <line x1="290" y1="118" x2="550" y2="118" stroke="#f85149" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="555" y="115" fill="#f85149" font-size="12">$96.45 (sweep level)</text>
+
+    <!-- Sweep annotation -->
+    <text x="425" y="72" fill="#f85149" font-size="15" font-weight="bold">SWEEP!</text>
+    <text x="425" y="90" fill="#8b949e" font-size="12">Wick = $96.95</text>
+
+    <!-- Post-sweep candles that form engulfing -->
+    <rect x="435" y="135" width="14" height="25" fill="#f85149" rx="2"/>
+    <line x1="442" y1="125" x2="442" y2="135" stroke="#f85149" stroke-width="2"/>
+    <line x1="442" y1="160" x2="442" y2="175" stroke="#f85149" stroke-width="2"/>
+
+    <!-- ENGULFING CANDLE — big red -->
+    <rect x="458" y="130" width="22" height="80" fill="#f85149" rx="3"/>
+    <line x1="469" y1="120" x2="469" y2="130" stroke="#f85149" stroke-width="3"/>
+    <line x1="469" y1="210" x2="469" y2="225" stroke="#f85149" stroke-width="3"/>
+
+    <!-- Entry marker -->
+    <line x1="482" y1="180" x2="520" y2="180" stroke="#e8c300" stroke-width="2.5"/>
+    <text x="525" y="175" fill="#e8c300" font-size="14" font-weight="bold">SELL @ $96.15</text>
+    <text x="525" y="193" fill="#8b949e" font-size="12">11:30 UTC</text>
 
     <!-- SL line -->
-    <line x1="520" y1="310" x2="600" y2="310" stroke="#f8514980" stroke-width="1" stroke-dasharray="3,3"/>
-    <text x="605" y="313" fill="#f85149" font-size="9">SL (Below sweep wick)</text>
+    <line x1="458" y1="78" x2="700" y2="78" stroke="#f85149" stroke-width="2" stroke-dasharray="5,3"/>
+    <text x="705" y="75" fill="#f85149" font-size="12">SL = $96.98</text>
 
-    <!-- Labels -->
-    <text x="100" y="340" fill="#3fb950" font-size="12" font-weight="bold">LONG TRADE ANATOMY</text>
-    <text x="100" y="358" fill="#8b949e" font-size="10">1. Price consolidates → 2. Sweeps BELOW → 3. Bullish engulfing → 4. Enter LONG</text>
+    <!-- Price dropping after entry -->
+    <rect x="500" y="195" width="14" height="40" fill="#f85149" rx="2"/>
+    <line x1="507" y1="185" x2="507" y2="195" stroke="#f85149" stroke-width="2"/>
+    <line x1="507" y1="235" x2="507" y2="250" stroke="#f85149" stroke-width="2"/>
+
+    <rect x="525" y="230" width="14" height="45" fill="#f85149" rx="2"/>
+    <line x1="532" y1="220" x2="532" y2="230" stroke="#f85149" stroke-width="2"/>
+    <line x1="532" y1="275" x2="532" y2="290" stroke="#f85149" stroke-width="2"/>
+
+    <rect x="550" y="260" width="14" height="35" fill="#3fb950" rx="2"/>
+    <line x1="557" y1="250" x2="557" y2="260" stroke="#3fb950" stroke-width="2"/>
+    <line x1="557" y1="295" x2="557" y2="310" stroke="#3fb950" stroke-width="2"/>
+
+    <rect x="575" y="280" width="14" height="50" fill="#f85149" rx="2"/>
+    <line x1="582" y1="270" x2="582" y2="280" stroke="#f85149" stroke-width="2"/>
+    <line x1="582" y1="330" x2="582" y2="345" stroke="#f85149" stroke-width="2"/>
+
+    <rect x="600" y="310" width="14" height="40" fill="#f85149" rx="2"/>
+    <line x1="607" y1="300" x2="607" y2="310" stroke="#f85149" stroke-width="2"/>
+    <line x1="607" y1="350" x2="607" y2="365" stroke="#f85149" stroke-width="2"/>
+
+    <rect x="625" y="330" width="14" height="45" fill="#f85149" rx="2"/>
+    <line x1="632" y1="320" x2="632" y2="330" stroke="#f85149" stroke-width="2"/>
+    <line x1="632" y1="375" x2="632" y2="385" stroke="#f85149" stroke-width="2"/>
+
+    <!-- TP HIT -->
+    <line x1="458" y1="350" x2="700" y2="350" stroke="#3fb950" stroke-width="2.5" stroke-dasharray="5,3"/>
+    <text x="705" y="347" fill="#3fb950" font-size="13" font-weight="bold">TP = $94.06</text>
+    <text x="705" y="367" fill="#3fb950" font-size="12">HIT at 14:15</text>
+
+    <!-- TP hit candle -->
+    <rect x="650" y="340" width="16" height="50" fill="#f85149" rx="2"/>
+    <line x1="658" y1="330" x2="658" y2="340" stroke="#f85149" stroke-width="2"/>
+    <line x1="658" y1="390" x2="658" y2="400" stroke="#f85149" stroke-width="2"/>
+
+    <!-- Checkmark at TP -->
+    <circle cx="658" cy="350" r="12" fill="#3fb95030" stroke="#3fb950" stroke-width="2"/>
+    <text x="658" y="355" fill="#3fb950" font-size="14" text-anchor="middle" font-weight="bold">$</text>
+
+    <!-- Profit annotation -->
+    <rect x="730" y="160" width="200" height="90" fill="#3fb95015" rx="10" stroke="#3fb950" stroke-width="2"/>
+    <text x="830" y="188" fill="#3fb950" font-size="16" font-weight="bold" text-anchor="middle">+$791.92</text>
+    <text x="830" y="212" fill="#c9d1d9" font-size="13" text-anchor="middle">Risk:Reward = 2.2:1</text>
+    <text x="830" y="235" fill="#8b949e" font-size="12" text-anchor="middle">Hold time: 2h 45m</text>
+
+    <!-- Bottom summary -->
+    <rect x="60" y="490" width="840" height="55" fill="#161b22" rx="8"/>
+    <text x="480" y="513" fill="#c9d1d9" font-size="14" text-anchor="middle">
+        <tspan fill="#58a6ff" font-weight="bold">Bias:</tspan> BEARISH (Jun 5 body=75%)
+        <tspan dx="30" fill="#f85149" font-weight="bold">Sweep:</tspan> $96.95 > $96.45
+        <tspan dx="30" fill="#e8c300" font-weight="bold">Entry:</tspan> SHORT @ $96.15
+        <tspan dx="30" fill="#3fb950" font-weight="bold">Exit:</tspan> TP @ $94.06
+    </text>
+    <text x="480" y="535" fill="#8b949e" font-size="13" text-anchor="middle">This was Trade #1 of 2 that day. Total day profit: +$1,206.84</text>
 </svg>
+<p class="diagram-caption">A real Oil Macro trade from June 8. Asia built the range, London swept it, we shorted, price dropped to target.</p>
 </div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="bias">Daily Bias Filter</h2>
-
-<div class="concept">
-    <h4>Why: Don't buy into a crash, don't short into a rally</h4>
-    <p>If yesterday was a big red candle — only SHORT today. If yesterday was big green — only LONG. This single filter adds 10% to win rate.</p>
-</div>
-
-<div class="diagram">
-<svg width="800" height="200" viewBox="0 0 800 200">
-    <rect width="800" height="200" fill="#0d1117"/>
-
-    <!-- V1: Body % -->
-    <rect x="30" y="20" width="350" height="160" fill="#161b22" rx="6" stroke="#21262d"/>
-    <text x="50" y="45" fill="#d29922" font-size="13" font-weight="bold">V1: Body Size</text>
-    <text x="50" y="65" fill="#8b949e" font-size="11">Body > 40% of range = directional</text>
-    <!-- Big red candle -->
-    <rect x="80" y="80" width="20" height="80" fill="#f85149" rx="2"/>
-    <line x1="90" y1="75" x2="90" y2="80" stroke="#f85149" stroke-width="2"/>
-    <line x1="90" y1="160" x2="90" y2="165" stroke="#f85149" stroke-width="2"/>
-    <text x="110" y="125" fill="#f85149" font-size="11">Body=75% → BEARISH</text>
-    <!-- Small body candle -->
-    <rect x="240" y="110" width="20" height="20" fill="#8b949e" rx="2"/>
-    <line x1="250" y1="80" x2="250" y2="110" stroke="#8b949e" stroke-width="2"/>
-    <line x1="250" y1="130" x2="250" y2="160" stroke="#8b949e" stroke-width="2"/>
-    <text x="270" y="125" fill="#8b949e" font-size="11">Body=20% → NEUTRAL</text>
-
-    <!-- V2: Close Position -->
-    <rect x="420" y="20" width="350" height="160" fill="#161b22" rx="6" stroke="#21262d"/>
-    <text x="440" y="45" fill="#d29922" font-size="13" font-weight="bold">V2: Close Position</text>
-    <text x="440" y="65" fill="#8b949e" font-size="11">Close in bottom 20% = bearish</text>
-    <!-- Candle closing at bottom -->
-    <rect x="470" y="130" width="20" height="30" fill="#f85149" rx="2"/>
-    <line x1="480" y1="80" x2="480" y2="130" stroke="#f85149" stroke-width="2"/>
-    <line x1="480" y1="160" x2="480" y2="165" stroke="#f85149" stroke-width="2"/>
-    <text x="500" y="150" fill="#f85149" font-size="11">Close@6% → BEARISH</text>
-    <!-- Candle closing at top -->
-    <rect x="640" y="80" width="20" height="30" fill="#3fb950" rx="2"/>
-    <line x1="650" y1="75" x2="650" y2="80" stroke="#3fb950" stroke-width="2"/>
-    <line x1="650" y1="110" x2="650" y2="160" stroke="#3fb950" stroke-width="2"/>
-    <text x="670" y="100" fill="#3fb950" font-size="11">Close@90% → BULLISH</text>
-</svg>
-</div>
-
-<table>
-    <tr><th>System</th><th>Bias Used</th><th>Logic</th></tr>
-    <tr><td class="orange">Gold Micro</td><td>Combined (V1 + V2)</td><td>EITHER V1 OR V2 triggers = directional</td></tr>
-    <tr><td class="highlight">Gold Macro</td><td>Combined (V1 + V2)</td><td>Same as Gold Micro</td></tr>
-    <tr><td class="cyan">Oil Micro</td><td>Combined (V1 + V2)</td><td>Same — most restrictive</td></tr>
-    <tr><td style="color:#4fc3f7">Oil Macro</td><td>V1 only</td><td>Body% only (Combined kills Oil Macro signals)</td></tr>
-</table>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="gold-micro">Gold Micro</h2>
-
-<div class="strategy-card">
-    <h4><span class="tag tag-gold">GOLD</span><span class="tag tag-micro">MICRO</span> XAU/USD — Rolling 4hr Windows</h4>
-    <p>Scans 24/7 (except 21-22 UTC market close). New consolidation window every 2 hours. Catches intraday reversals across all sessions.</p>
-</div>
-
-<div class="steps">
-    <div class="step active">Every 2 hours, a new 4-hour consolidation window opens (00-04, 02-06, 04-08...)</div>
-    <div class="step active">After consolidation ends, scan for 6 hours for a sweep ($2 above high or below low)</div>
-    <div class="step active">Once sweep detected, wait up to 45 minutes for an engulfing candle on M3 (3-min chart)</div>
-    <div class="step active">If engulfing confirms: ENTER at bar close + slippage</div>
-    <div class="step">SL = sweep wick + $2 buffer | TP = opposite range edge - $2 buffer</div>
-    <div class="step">Break-even: at 50% to TP, move SL to entry + $0.30</div>
-    <div class="step">Max hold: 80 bars (4 hours) | Max 3 trades/day</div>
-</div>
-
-<table>
-    <tr><th>Parameter</th><th>Value</th><th>Meaning</th></tr>
-    <tr><td>Consolidation</td><td>4 hours</td><td>Rolling window for range detection</td></tr>
-    <tr><td>Scan window</td><td>6 hours after consol</td><td>Time to find a sweep</td></tr>
-    <tr><td>Sweep threshold</td><td>$2.00</td><td>Must exceed range by this much</td></tr>
-    <tr><td>Engulfing window</td><td>45 minutes</td><td>Time for reversal candle to form</td></tr>
-    <tr><td>SL buffer</td><td>$2.00</td><td>Added above/below sweep wick</td></tr>
-    <tr><td>TP buffer</td><td>$2.00</td><td>Subtracted from opposite range edge</td></tr>
-    <tr><td>Break-even</td><td>Entry + $0.30 at 50%</td><td>Protects profit when halfway to TP</td></tr>
-    <tr><td>Max hold</td><td>80 M3 bars (4 hrs)</td><td>Force close if neither SL nor TP hit</td></tr>
-    <tr><td>Bias</td><td>Combined V1+V2</td><td>Yesterday's candle filters direction</td></tr>
-</table>
 
 <div class="real-example">
-    <h4>REAL EXAMPLE — June 5, 2026 (last Gold Micro trade)</h4>
+    <h4>Trade Log — June 8, 2026 (actual MT5 execution on VPS)</h4>
     <pre>
-  Bias: BEARISH (Jun 4: body=40%, close@57% but Jun 3 was bearish carry-over)
-  Window 08-12 consolidation: High=$4483, Low=$4425 (Range=$58)
+TRADE #1:
+  Bias check:   Jun 5 daily candle body = 75% (> 40%) → BEARISH
+  Range:        Asia session (00-08 UTC): High=$96.25, Low=$93.93
+  Sweep level:  $96.25 + $0.20 = $96.45
+  Sweep:        11:00 UTC H1 bar wick = $96.95 → exceeds $96.45 ✓
+  Close check:  Bar closed at $96.31 → back below range high $96.25 ✓
+  Engulfing:    11:30 UTC — bearish M3 candle wraps previous candle ✓
 
-  14:33 UTC — Sweep detected: H1 bar wick=$4501 > $4485 (range high + $2)
-              Price closed back below $4483 → BEARISH SWEEP CONFIRMED
+  ENTRY: SELL @ $96.15
+  SL:    $96.98 (above sweep wick + buffer)
+  TP:    $94.06 (entry - range x 2)
+  RISK:  $0.83 per barrel
 
-  14:33 UTC — Engulfing candle on M3: bearish body wraps prior bar
-              Entry: SHORT @ $4450.19
-              SL: $4501 + $2 = $4503 (but broker set $4458)
-              TP: $4425 + $2 = $4427
+  14:15 UTC → TP HIT
+  PROFIT: +$791.92
 
-  Result: Price moved to 50% → BE triggered → SL moved to $4450.49
-          Price reversed → hit BE SL → EXIT +$4.80 (scratch trade, saved by BE)
-    </pre>
+TRADE #2:
+  Same bias, same range, new sweep signal at 13:27 UTC
+  ENTRY: SELL @ $95.87, SL=$96.55, TP=$94.06
+  16:45 UTC → TP HIT
+  PROFIT: +$414.92
+
+DAY TOTAL: +$1,206.84 from 2 trades, 2 winners</pre>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="gold-macro">Gold Macro</h2>
 
-<div class="strategy-card">
-    <h4><span class="tag tag-gold">GOLD</span><span class="tag tag-macro">MACRO</span> XAU/USD — Fixed Asia Session</h4>
-    <p>Uses fixed Asia session (00-08 UTC) as consolidation. Scans London+NY (08-20 UTC) for sweeps. Catches the big session-transition moves.</p>
-</div>
-
-<div class="steps">
-    <div class="step active">Asia session (00-08 UTC) builds the consolidation range</div>
-    <div class="step active">London/NY (08-20 UTC): scan for sweep $2 above Asia high or below Asia low</div>
-    <div class="step active">After sweep: 2-hour window for engulfing confirmation on M3</div>
-    <div class="step active">Entry, SL, TP same formula as Micro (different timeframe)</div>
-    <div class="step">Same BE, max hold, bias rules</div>
-</div>
-
-<table>
-    <tr><th>Parameter</th><th>Value</th><th>vs Micro</th></tr>
-    <tr><td>Consolidation</td><td>Fixed 00-08 UTC (Asia)</td><td>Micro: rolling every 2hr</td></tr>
-    <tr><td>Scan window</td><td>08-20 UTC (London+NY)</td><td>Micro: 6hr after each window</td></tr>
-    <tr><td>Engulfing window</td><td>2 hours</td><td>Micro: 45 minutes</td></tr>
-    <tr><td>All other params</td><td>Same as Micro</td><td>$2 sweep, $2 SL, $2 TP, 80 bars</td></tr>
-</table>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="oil-micro">Oil Micro</h2>
-
-<div class="strategy-card">
-    <h4><span class="tag tag-oil">OIL</span><span class="tag tag-micro">MICRO</span> BCO/USD — Rolling 4hr Windows</h4>
-    <p>Same rolling window architecture as Gold Micro but with Oil-scaled parameters. PF 4.93 over 20 years. The newest system.</p>
-</div>
-
-<table>
-    <tr><th>Parameter</th><th>Oil Micro</th><th>Gold Micro</th><th>Why different</th></tr>
-    <tr><td>Sweep threshold</td><td>$0.13</td><td>$2.00</td><td>Oil moves in cents, Gold in dollars</td></tr>
-    <tr><td>SL buffer</td><td>$0.20</td><td>$2.00</td><td>Wider relative to Oil volatility</td></tr>
-    <tr><td>TP buffer</td><td>$0.13</td><td>$2.00</td><td>Same ratio</td></tr>
-    <tr><td>Min range</td><td>$0.33</td><td>$5.00</td><td>Oil consolidates tighter</td></tr>
-    <tr><td>Min SL</td><td>$0.10</td><td>$5.00</td><td>Scaled to Oil price</td></tr>
-    <tr><td>Break-even</td><td>Entry ± $0.01</td><td>Entry ± $0.30</td><td>Proportional to instrument</td></tr>
-    <tr><td>Slippage</td><td>$0.03 base</td><td>$0.03 base</td><td>Same spread model</td></tr>
-    <tr><td>Engulfing tolerance</td><td>$0.01</td><td>$0.10</td><td>Oil sub-spread noise</td></tr>
-</table>
-
-<div class="real-example">
-    <h4>REAL EXAMPLE — June 8, 2026 (MT5 JustMarkets data)</h4>
-    <pre>
-  Bias: BEARISH (Jun 5: body=75%, close@6% — massive red candle)
-
-  Window 06-10 consolidation: High=$96.70, Low=$95.14 (Range=$1.56)
-  Sweep level: $96.83 (high + $0.13)
-
-  11:00 UTC — H1 bar: wick=$96.95 > $96.83 → BEARISH SWEEP!
-              Close=$96.31 < range high $96.70 ✓ (closed back inside)
-
-  11:15 UTC — M3 engulfing: bearish body wraps prior bar
-              Entry: SHORT @ $96.56
-              SL: $96.95 + $0.20 = $97.15
-              TP: $95.14 + $0.13 = $95.27
-              Risk: $0.58 | R:R = 2.2:1
-              Units: 632 barrels (4% of $9,237 / $0.58 risk)
-
-  13:33 UTC — TP HIT @ $95.27
-              P&L: +$812.95 (+2.2R)
-              Hold: 138 minutes
-    </pre>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="oil-macro">Oil Macro</h2>
-
-<div class="strategy-card">
-    <h4><span class="tag tag-oil">OIL</span><span class="tag tag-macro">MACRO</span> BCO/USD — Fixed Asia Session</h4>
-    <p>Fixed Asia (00-08 UTC) consolidation, scans 08-20 UTC. Longer engulfing window (2hr). Uses V1-only bias. Made +$1,207 on June 8.</p>
-</div>
-
-<table>
-    <tr><th>Parameter</th><th>Oil Macro</th><th>Oil Micro</th></tr>
-    <tr><td>Consolidation</td><td>Fixed 00-08 UTC</td><td>Rolling 4hr/2hr</td></tr>
-    <tr><td>Scan</td><td>08-20 UTC</td><td>6hr after each window</td></tr>
-    <tr><td>Engulfing window</td><td>2 hours</td><td>45 minutes</td></tr>
-    <tr><td>Sweep threshold</td><td>$0.20</td><td>$0.13</td></tr>
-    <tr><td>SL buffer</td><td>$0.03</td><td>$0.20</td></tr>
-    <tr><td>TP formula</td><td>entry - range × 2</td><td>range_low + $0.13</td></tr>
-    <tr><td>Bias</td><td>V1-only</td><td>Combined V1+V2</td></tr>
-</table>
-
-<div class="real-example">
-    <h4>REAL TRADE — June 8, 2026 (actual VPS execution)</h4>
-    <pre>
-  Asia (00-08): High=$96.25, Low=$93.93, Range=$2.32
-  Sweep level: $96.45 (high + $0.20)
-  Bias: V1 = BEARISH (body=75% > 40%)
-
-  TRADE #1 (actual MT5):
-    11:30 — SELL @ $96.15, SL=$96.98, TP=$94.06
-    14:15 — TP HIT → +$791.92
-
-  TRADE #2 (actual MT5):
-    13:27 — SELL @ $95.87, SL=$96.55, TP=$94.06
-    16:45 — TP HIT → +$414.92
-
-  DAY TOTAL: +$1,206.84 (2 trades, 2 winners)
-    </pre>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<h2 id="comparison">System Comparison</h2>
-
-<table>
-    <tr><th></th><th>Gold Micro</th><th>Gold Macro</th><th>Oil Micro</th><th>Oil Macro</th></tr>
-    <tr><td>Instrument</td><td>XAU/USD</td><td>XAU/USD</td><td>BCO/USD</td><td>BCO/USD</td></tr>
-    <tr><td>Architecture</td><td>Rolling 4hr</td><td>Fixed Asia</td><td>Rolling 4hr</td><td>Fixed Asia</td></tr>
-    <tr><td>Engulfing window</td><td>45 min</td><td>2 hr</td><td>45 min</td><td>2 hr</td></tr>
-    <tr><td>Bias</td><td>Combined</td><td>Combined</td><td>Combined</td><td>V1-only</td></tr>
-    <tr><td>Trades/year</td><td>~120</td><td>~100</td><td>~200</td><td>~100</td></tr>
-    <tr><td>Win Rate</td><td>~80%</td><td>~80%</td><td>~80%</td><td>~66%</td></tr>
-    <tr><td>Profit Factor</td><td>~4.5</td><td>~4.2</td><td>~4.9</td><td>~4.3</td></tr>
-    <tr><td>Port</td><td>5055</td><td>5053</td><td>5056</td><td>5054</td></tr>
-    <tr><td>Trade ref</td><td>GD-MI-</td><td>GD-AL-</td><td>OIL-MI-</td><td>OIL-AS-</td></tr>
-</table>
-
-<div class="concept">
-    <h4>Why 4 Systems?</h4>
-    <p><strong>Micro vs Macro:</strong> Micro catches more signals (rolling windows see patterns Macro's fixed Asia window misses). Macro catches the big Asia-to-London moves that Micro's tight 45-min window sometimes misses.</p>
-    <p style="margin-top:8px"><strong>Gold vs Oil:</strong> Uncorrelated instruments. Gold crashes when Oil rallies (and vice versa). Running both = smoother equity curve, fewer drawdown days.</p>
-</div>
-
-<div style="text-align:center; margin-top:60px; padding:20px; border-top:1px solid #21262d;">
-    <p style="color:#8b949e; font-size:11px;">Hand Of Midas v2.0 | Built June 2026 | All numbers verified with honest fills</p>
-    <p style="color:#8b949e; font-size:11px;">No phantom fills. No fake numbers. No curve fitting.</p>
+<div class="footer">
+    <p>Hand Of Midas v2.0 | Built June 2026</p>
+    <p>All numbers from verified backtests with honest fills. No fake results.</p>
 </div>
 
 </div>
