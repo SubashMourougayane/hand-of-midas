@@ -12,15 +12,26 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from scanner.scheduler import start_scheduler, stop_scheduler
-    from scanner.price_stream import start_stream, stop_stream
+
+    EXECUTOR = os.getenv("EXECUTOR", "oanda")
 
     print("Starting Micro Alpha-Sweep scheduler...")
     start_scheduler()
-    start_stream()
+
+    stop_stream = None
+    if EXECUTOR != "mt5":
+        from scanner.price_stream import start_stream, stop_stream as _stop_stream
+        stop_stream = _stop_stream
+        print("Starting Micro OANDA price stream...")
+        start_stream()
+    else:
+        print("MT5 mode — OANDA price stream disabled (DWX provides prices)")
+
     print("GoldDigger Micro ready.")
     yield
     print("Shutting down Micro...")
-    stop_stream()
+    if stop_stream is not None:
+        stop_stream()
     stop_scheduler()
 
 
