@@ -25,6 +25,12 @@ from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, slippage
 
+# Per-trade EXIT_AMBIGUOUS streak counter. Cleared on success or close-resolution.
+# A few cycles is normal (DWX file race during close). Sustained = DWX EA broken;
+# fire a Telegram alert at threshold so a stuck Macro trade can't go unnoticed.
+_exit_ambiguous_streak: dict = {}
+_EXIT_AMBIGUOUS_ALERT_CYCLES = 5
+
 
 def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: float,
                 taken: bool, skip_reason: str = "", trade_ref: str = ""):
@@ -161,13 +167,30 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
 
-    _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
+    # Wrap _log_signal — if it raises (numpy serialization etc.), order is
+    # already on broker and we must not crash before journaling/notify.
+    try:
+        _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
+    except Exception as e:
+        print(f"  [OIL] _log_signal FAILED: {e}")
 
-    execute(
-        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
-           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
-        (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 1000.0, units, oanda_trade_id)
-    )
+    # Wrap the gd_trades INSERT. If it fails (rare — UniqueViolation against
+    # the partial unique index if reconciler raced ahead, or DB outage), the
+    # broker order is already live. Journal a DB_INSERT_FAILED event so the
+    # daily recon flags it; the orphan reconciler will adopt the position
+    # within 60s using the broker_id it can read from open_orders.json.
+    try:
+        execute(
+            """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+               VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)""",
+            (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 1000.0, units, oanda_trade_id)
+        )
+    except Exception as e:
+        print(f"  [OIL] DB INSERT FAILED (trade is open on broker!): {e}")
+        try:
+            _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
+        except Exception:
+            pass
 
     _log_journal_safe(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "instrument": "BCO_USD", "units": units, "sl": sl_price, "tp": tp_price,
@@ -255,21 +278,36 @@ def check_open_positions():
             # entry yet. Two possibilities:
             #   1. Real close, EA hasn't flushed closed_orders.json yet (race)
             #   2. open_orders.json was momentarily incomplete (DWX file race)
-            # Either way, do NOT guess. Skip and retry next cycle.
+            # Either way, do NOT guess. Skip and retry next cycle. Use
+            # _log_journal_safe: we're in a failure-recovery code path.
+            streak = _exit_ambiguous_streak.get(oanda_id, 0) + 1
+            _exit_ambiguous_streak[oanda_id] = streak
             print(f"  [OIL] Position {oanda_id} not in open_orders, no closed_orders entry yet — "
-                  f"skipping; will retry next cycle (race or pending close)")
-            _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_AMBIGUOUS", None, {
+                  f"skipping; will retry next cycle (race or pending close, streak={streak})")
+            _log_journal_safe(trade["trade_ref"], "alpha_sweep_oil", "EXIT_AMBIGUOUS", None, {
                 "oanda_id": oanda_id,
                 "reason": "no_open_no_closed_record",
+                "streak": streak,
             })
+            if streak == _EXIT_AMBIGUOUS_ALERT_CYCLES:
+                try:
+                    notify.error(
+                        f"[OIL] {trade['trade_ref']} stuck in EXIT_AMBIGUOUS for "
+                        f"{streak} cycles. DWX EA may not be writing closed_orders.json. "
+                        f"Investigate."
+                    )
+                except Exception:
+                    pass
             continue
 
         if details.get("state") != "CLOSED":
             # Position is actually still open per get_trade_details — DWX
             # open_orders.json was stale when we read it. Skip and retry.
+            _exit_ambiguous_streak.pop(oanda_id, None)
             continue
 
-        # AUTHORITATIVE: real broker fill data
+        # AUTHORITATIVE: real broker fill data — clear ambiguous streak.
+        _exit_ambiguous_streak.pop(oanda_id, None)
         fill_price = float(details.get("close_price", 0))
         realized_pl = float(details["realized_pl"])
         close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())

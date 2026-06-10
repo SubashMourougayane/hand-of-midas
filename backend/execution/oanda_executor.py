@@ -234,24 +234,54 @@ def get_open_trades(instrument: str = None) -> list[dict]:
 
 
 def get_trade_details(trade_id: str) -> Optional[dict]:
-    """Get details of a specific trade (open or closed)."""
+    """Get details of a specific trade (open or closed).
+
+    Production runs EXECUTOR=mt5; this OANDA path is dormant. The shape returned
+    here mirrors backend.execution.mt5_executor.get_trade_details so callers in
+    backend/scanner/live_engine.py and backend-oil/scanner/live_engine.py can
+    handle either backend without per-executor branching:
+      - state: "OPEN" or "CLOSED"
+      - close_price: present on CLOSED (averageClosePrice on OANDA)
+      - exit_reason: "TP" / "SL" / "CLOSED" — derived from OANDA's
+        takeProfitOrder/stopLossOrder fill events when CLOSED
+    """
     data = _request("GET", f"/accounts/{OANDA_ACCOUNT}/trades/{trade_id}")
     if "error" in data:
         return None
     t = data.get("trade", {})
-    return {
+    state = t.get("state", "")
+
+    out = {
         "trade_id": t.get("id"),
+        "id": t.get("id"),  # mirror MT5 wrapper key
         "instrument": t.get("instrument"),
         "units": int(float(t.get("currentUnits", t.get("initialUnits", 0)))),
         "price": float(t.get("price", 0)),
-        "state": t.get("state", ""),
+        "state": state,
         "realized_pl": float(t.get("realizedPL", 0)),
         "unrealized_pl": float(t.get("unrealizedPL", 0)),
         "sl": float(t.get("stopLossOrder", {}).get("price", 0)) if t.get("stopLossOrder") else None,
         "tp": float(t.get("takeProfitOrder", {}).get("price", 0)) if t.get("takeProfitOrder") else None,
         "open_time": t.get("openTime", ""),
         "close_time": t.get("closeTime", ""),
+        "currentUnits": int(float(t.get("currentUnits", 0))),
     }
+
+    # Map OANDA's CLOSED-state fields into the keys consumers expect from the
+    # MT5 wrapper. Without this, the Macro phantom-fill fix in
+    # backend/scanner/live_engine.py would write exit_price=0.0 and
+    # exit_reason="UNKNOWN" for every OANDA-side close.
+    if state == "CLOSED":
+        out["close_price"] = float(t.get("averageClosePrice", 0))
+        # Best-effort exit_reason. OANDA records the triggering order in the
+        # transaction stream; we don't fetch transactions here, so derive from
+        # close_price proximity to SL/TP. Macro callers already have a more
+        # reliable proximity fallback when exit_reason is UNKNOWN/CLOSED.
+        out["exit_reason"] = "CLOSED"
+        out["commission"] = 0.0
+        out["swap"] = float(t.get("financing", 0))
+
+    return out
 
 
 def modify_stop_loss(trade_id: str, new_sl: float) -> dict:

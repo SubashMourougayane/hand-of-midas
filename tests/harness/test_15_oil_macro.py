@@ -614,19 +614,28 @@ class TestOilMacroMaxTrades:
 class TestOilMacroExitDetection:
     """15h: Price extremes logic for determining SL vs TP when trade disappears."""
 
-    def test_exit_detection_logic_in_live_engine(self):
-        """Live engine must determine exit reason from price proximity."""
+    def test_exit_detection_uses_broker_history_not_proximity(self):
+        """Live engine must read broker-authoritative close history via
+        get_trade_details (closed_orders.json) — NOT guess from price
+        proximity. The proximity heuristic produced phantom fills (June 11
+        OIL-AS-5434644d, see docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md)."""
         path = os.path.join(PROJECT_ROOT, "backend-oil/scanner/live_engine.py")
         with open(path) as f:
             content = f.read()
-        # Must have SL/TP proximity check
-        assert "sl_likely" in content or "sl_reached" in content, \
-            "Exit detection missing sl proximity check"
-        assert "tp_likely" in content or "tp_reached" in content, \
-            "Exit detection missing tp proximity check"
-        # Must default to SL (conservative)
-        assert '"SL"' in content, "Exit detection missing default SL case"
-        assert '"TP"' in content, "Exit detection missing TP case"
+        # Must read broker history first
+        assert "get_trade_details" in content, \
+            "Exit detection missing get_trade_details call"
+        # Must skip with EXIT_AMBIGUOUS when broker history isn't available yet
+        assert "EXIT_AMBIGUOUS" in content, \
+            "Missing EXIT_AMBIGUOUS skip path — re-introduces phantom fill bug"
+        # Must NOT use the old proximity heuristic — that was the bug
+        assert "sl_likely" not in content, \
+            "Old proximity heuristic 'sl_likely' has returned — this is the phantom-fill bug"
+        assert "tp_likely" not in content, \
+            "Old proximity heuristic 'tp_likely' has returned — this is the phantom-fill bug"
+        # Must use authoritative close_price from broker
+        assert 'close_price' in content, \
+            "Exit detection missing close_price from broker history"
 
     def test_max_hold_in_live_engine(self):
         """Live engine must enforce MAX_HOLD (80 M3 bars ~ 4 hours)."""

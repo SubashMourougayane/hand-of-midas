@@ -82,9 +82,16 @@ def orphan_adopted(trade_ref: str, broker_id: str, instrument: str, side: str,
 
 
 def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: int,
-                db_insert_failed: int, journal_errors: int, net_pnl: float):
-    """Daily reconciliation summary at 00:00 UTC. Numbers >0 for orphans/errors
-    are red flags requiring investigation."""
+                db_insert_failed: int, journal_errors: int, net_pnl: float,
+                exit_ambiguous: int = 0):
+    """Daily reconciliation summary at 00:00 UTC. Numbers >0 for orphans/errors/
+    exit_ambiguous are red flags requiring investigation.
+
+    exit_ambiguous: count of EXIT_AMBIGUOUS events. The Macro phantom-fill fix
+    logs one whenever a position vanishes from open_orders.json without a
+    matching closed_orders.json entry. Brief race = expected (small numbers).
+    Sustained = DWX EA broken; investigate.
+    """
     flags = []
     if orphans_adopted > 0:
         flags.append(f"⚠️ {orphans_adopted} orphans")
@@ -92,6 +99,8 @@ def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: 
         flags.append(f"⚠️ {db_insert_failed} DB INSERT fails")
     if journal_errors > 0:
         flags.append(f"⚠️ {journal_errors} journal errors")
+    if exit_ambiguous > 0:
+        flags.append(f"⚠️ {exit_ambiguous} exit-ambiguous")
     flag_str = " | ".join(flags) if flags else "✅ clean"
 
     send(

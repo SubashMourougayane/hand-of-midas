@@ -17,6 +17,12 @@ from backend.config import EXECUTOR, STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, MEAN
 from backend.db import execute, insert_returning, get_conn, safe_json_dumps
 from backend import notify
 
+# Per-trade EXIT_AMBIGUOUS streak counter. Cleared on success or close-resolution.
+# A few cycles is normal (DWX file race during close). Sustained = DWX EA broken;
+# fire a Telegram alert at threshold so a stuck Macro trade can't go unnoticed.
+_exit_ambiguous_streak: dict = {}
+_EXIT_AMBIGUOUS_ALERT_CYCLES = 5
+
 
 def _get_gbp_usd_rate():
     """Get GBP/USD rate. MT5 account is USD so returns 1.0. OANDA account is GBP."""
@@ -240,9 +246,14 @@ def check_open_positions():
     Monitor open positions — check if OANDA closed them (SL/TP hit).
     Update DB for any closed trades.
     """
-    # Get trades we think are open
+    # Get trades we think are open. Filter to this system's strategy
+    # (alpha_sweep) so Gold Macro doesn't try to manage Oil Macro / Gold
+    # Micro / Oil Micro positions, which would corrupt the wrong DD row
+    # and fire wrong-instrument Telegrams. trade_ref prefix isn't enough
+    # because Gold Micro also uses GD- (GD-MI-).
     open_db_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL",
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL "
+        "AND oanda_trade_id IS NOT NULL AND strategy = 'alpha_sweep'",
         fetch=True
     )
 
@@ -307,17 +318,33 @@ def check_open_positions():
         if not details:
             # No closed_orders entry yet (race) OR open_orders briefly excluded
             # the position (DWX file race). Skip — next cycle will resolve it.
-            _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+            # Use _log_journal_safe: we're in a failure-recovery code path and
+            # a journal-write failure must not propagate.
+            streak = _exit_ambiguous_streak.get(oanda_id, 0) + 1
+            _exit_ambiguous_streak[oanda_id] = streak
+            _log_journal_safe(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                 "oanda_id": oanda_id,
                 "reason": "no_open_no_closed_record",
+                "streak": streak,
             })
+            if streak == _EXIT_AMBIGUOUS_ALERT_CYCLES:
+                try:
+                    notify.error(
+                        f"[GOLD] {trade['trade_ref']} stuck in EXIT_AMBIGUOUS for "
+                        f"{streak} cycles. DWX EA may not be writing closed_orders.json. "
+                        f"Investigate."
+                    )
+                except Exception:
+                    pass
             continue
 
         if details["state"] != "CLOSED":
             # Still actually open per details — open_orders was stale. Skip.
+            _exit_ambiguous_streak.pop(oanda_id, None)
             continue
 
         # AUTHORITATIVE close path: closed_orders.json provided real broker fill data.
+        _exit_ambiguous_streak.pop(oanda_id, None)
         realized_pl = details["realized_pl"]
         close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
 

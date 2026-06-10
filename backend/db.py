@@ -202,5 +202,6 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
         "orphans_adopted": count_event("ORPHAN_ADOPTED"),
         "db_insert_failed": count_event("DB_INSERT_FAILED"),
         "journal_errors": count_event("ORPHAN_ADOPT_FAILED") + count_event("EXECUTE_SIGNAL_RAISED"),
+        "exit_ambiguous": count_event("EXIT_AMBIGUOUS"),
         "net_pnl": pnl,
     }
