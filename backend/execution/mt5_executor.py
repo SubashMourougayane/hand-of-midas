@@ -339,20 +339,52 @@ def close_trade(trade_id):
 
 
 def get_trade_details(trade_id):
-    """Get details of a specific trade. Checks open_orders.json."""
-    data = _read_json("open_orders.json")
-    if not data or str(trade_id) not in data:
-        return None
+    """Get details of a specific trade. Checks open_orders.json first; if the
+    trade is no longer open, falls back to closed_orders.json (written by the
+    DWX EA's OnTradeTransaction handler with the AUTHORITATIVE close price/
+    reason from MT5's history).
 
-    pos = data[str(trade_id)]
-    return {
-        "id": str(trade_id),
-        "state": "OPEN",
-        "instrument": SYMBOL_MAP_REVERSE.get(pos["symbol"], pos["symbol"]),
-        "price": pos["open_price"],
-        "realizedPL": "0",
-        "currentUnits": pos["volume"] if pos["type"] == "BUY" else -pos["volume"],
-    }
+    Returns None if trade ID isn't found in either file. Callers handling None
+    should NOT use heuristics to guess the close — see
+    docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md for why that broke June 10.
+    """
+    # First: check if it's still open
+    data = _read_json("open_orders.json")
+    if data and str(trade_id) in data:
+        pos = data[str(trade_id)]
+        return {
+            "id": str(trade_id),
+            "state": "OPEN",
+            "instrument": SYMBOL_MAP_REVERSE.get(pos["symbol"], pos["symbol"]),
+            "price": pos["open_price"],
+            "realizedPL": "0",
+            "currentUnits": pos["volume"] if pos["type"] == "BUY" else -pos["volume"],
+        }
+
+    # Fall back: check closed_orders.json for the authoritative close record
+    closed = _read_json("closed_orders.json")
+    if closed:
+        # closed_orders.json is a JSON array; find by ticket
+        for entry in closed:
+            if str(entry.get("ticket")) == str(trade_id):
+                return {
+                    "id": str(trade_id),
+                    "state": "CLOSED",
+                    "instrument": SYMBOL_MAP_REVERSE.get(entry["symbol"], entry["symbol"]),
+                    "price": entry["open_price"],
+                    "close_price": entry["close_price"],
+                    "close_time": entry["close_time"].replace(".", "-").replace(" ", "T") + "Z" if "." in entry["close_time"] else entry["close_time"],
+                    # realized_pl is gross (broker profit only — does NOT include commission/swap)
+                    # Caller can subtract commission separately via the field below if needed.
+                    "realized_pl": float(entry.get("profit", 0)),
+                    "commission": float(entry.get("commission", 0)),
+                    "swap": float(entry.get("swap", 0)),
+                    # deal_reason: 'TP' / 'SL' / 'CLIENT' / 'SO' / 'EXPERT' / 'UNKNOWN'
+                    "exit_reason": entry.get("deal_reason", "UNKNOWN"),
+                    "currentUnits": entry["volume"] if entry["type"] == "BUY" else -entry["volume"],
+                }
+
+    return None
 
 
 # =============================================================================

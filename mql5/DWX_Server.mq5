@@ -530,4 +530,182 @@ void OnTick()
 {
     // Timer handles everything
 }
+
+//+------------------------------------------------------------------+
+//| OnTradeTransaction — capture closed positions and append to      |
+//| closed_orders.json so Python has the AUTHORITATIVE fill price    |
+//| and reason. Replaces the heuristic in check_open_positions()     |
+//| that misattributed BE-then-TP exits as SL+\$9 instead of TP+\$910. |
+//|                                                                   |
+//| File format: JSON array, each entry one closed position:         |
+//|   {                                                               |
+//|     "ticket":"2032606267",                                        |
+//|     "symbol":"XAUUSD.ecn",                                        |
+//|     "type":"SELL",                                                |
+//|     "volume":0.30,                                                |
+//|     "open_price":4204.66, "open_time":"2026.06.10 10:00:01",      |
+//|     "close_price":4174.30, "close_time":"2026.06.10 11:04:00",    |
+//|     "profit":910.80, "swap":0.00, "commission":-2.40,             |
+//|     "magic":200000, "comment":"micro_alpha_sweep|GD-MI-cce2a254", |
+//|     "deal_reason":"DEAL_REASON_TP"                                |
+//|   }                                                               |
+//|                                                                   |
+//| Trimmed to last 200 entries to avoid unbounded growth.            |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(
+    const MqlTradeTransaction& trans,
+    const MqlTradeRequest& request,
+    const MqlTradeResult& result)
+{
+    // We only care about completed deals that close a position
+    if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
+    if(trans.deal == 0) return;
+
+    // Select the deal so we can read its details
+    if(!HistoryDealSelect(trans.deal)) return;
+
+    // Only deals that EXIT a position (entry deals don't matter — those are tracked
+    // via WriteOpenOrders). Exit deals have entry == DEAL_ENTRY_OUT or DEAL_ENTRY_INOUT.
+    long entry = HistoryDealGetInteger(trans.deal, DEAL_ENTRY);
+    if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_INOUT) return;
+
+    // Filter to OUR magic only — don't log other EAs' trades
+    long magic = HistoryDealGetInteger(trans.deal, DEAL_MAGIC);
+    if(magic != InpMagic) return;
+
+    // Pull all the fields we need
+    ulong  positionId  = HistoryDealGetInteger(trans.deal, DEAL_POSITION_ID);
+    string symbol      = HistoryDealGetString(trans.deal, DEAL_SYMBOL);
+    long   dealType    = HistoryDealGetInteger(trans.deal, DEAL_TYPE);
+    double volume      = HistoryDealGetDouble(trans.deal, DEAL_VOLUME);
+    double closePrice  = HistoryDealGetDouble(trans.deal, DEAL_PRICE);
+    datetime closeTime = (datetime)HistoryDealGetInteger(trans.deal, DEAL_TIME);
+    double profit      = HistoryDealGetDouble(trans.deal, DEAL_PROFIT);
+    double swap        = HistoryDealGetDouble(trans.deal, DEAL_SWAP);
+    double commission  = HistoryDealGetDouble(trans.deal, DEAL_COMMISSION);
+    long   reason      = HistoryDealGetInteger(trans.deal, DEAL_REASON);
+    string comment     = HistoryDealGetString(trans.deal, DEAL_COMMENT);
+
+    // Resolve open price/time from the position's entry deal (find by position_id)
+    double openPrice = 0;
+    datetime openTime = 0;
+    string openComment = "";
+    if(HistorySelectByPosition(positionId))
+    {
+        int dealsTotal = HistoryDealsTotal();
+        for(int i = 0; i < dealsTotal; i++)
+        {
+            ulong t = HistoryDealGetTicket(i);
+            if(t == 0) continue;
+            long e = HistoryDealGetInteger(t, DEAL_ENTRY);
+            if(e == DEAL_ENTRY_IN)
+            {
+                openPrice = HistoryDealGetDouble(t, DEAL_PRICE);
+                openTime  = (datetime)HistoryDealGetInteger(t, DEAL_TIME);
+                openComment = HistoryDealGetString(t, DEAL_COMMENT);
+                break;
+            }
+        }
+    }
+
+    // The DEAL_REASON code maps to our exit_reason
+    string reasonStr = "UNKNOWN";
+    if(reason == DEAL_REASON_SL)        reasonStr = "SL";
+    else if(reason == DEAL_REASON_TP)   reasonStr = "TP";
+    else if(reason == DEAL_REASON_SO)   reasonStr = "SO";        // stop-out (margin call)
+    else if(reason == DEAL_REASON_CLIENT) reasonStr = "CLIENT";  // manual close
+    else if(reason == DEAL_REASON_EXPERT) reasonStr = "EXPERT";  // closed via API (CLOSE cmd from us)
+
+    // Side BEFORE close = opposite of the deal type that's closing it.
+    // DEAL_TYPE_SELL closes a BUY position; DEAL_TYPE_BUY closes a SELL position.
+    string positionSide = (dealType == DEAL_TYPE_SELL) ? "BUY" : "SELL";
+
+    string entry_json = StringFormat(
+        "{\"ticket\":\"%d\",\"symbol\":\"%s\",\"type\":\"%s\",\"volume\":%.2f,"
+        "\"open_price\":%.5f,\"open_time\":\"%s\","
+        "\"close_price\":%.5f,\"close_time\":\"%s\","
+        "\"profit\":%.2f,\"swap\":%.2f,\"commission\":%.2f,"
+        "\"magic\":%d,\"comment\":\"%s\",\"deal_reason\":\"%s\"}",
+        positionId,
+        symbol,
+        positionSide,
+        volume,
+        openPrice, TimeToString(openTime, TIME_DATE|TIME_SECONDS),
+        closePrice, TimeToString(closeTime, TIME_DATE|TIME_SECONDS),
+        profit, swap, commission,
+        magic,
+        openComment,
+        reasonStr
+    );
+
+    AppendClosedOrder(entry_json);
+    Print("[DWX] CLOSED: pos=", positionId, " ", positionSide, " ", symbol,
+          " @ ", closePrice, " profit=", profit, " reason=", reasonStr);
+}
+
+//+------------------------------------------------------------------+
+//| Append a closed-order entry to closed_orders.json                |
+//| Reads the existing file, parses minimally to count entries,      |
+//| trims to last 200 keep + this new one, writes back.              |
+//+------------------------------------------------------------------+
+void AppendClosedOrder(string entry_json)
+{
+    string path = g_folder + "/closed_orders.json";
+    string existing = ReadFile(path);
+
+    // Build new array. Keep last 199 + new = 200 max.
+    string newJson;
+    if(StringLen(existing) < 5)  // empty or barely-existent file
+    {
+        newJson = "[" + entry_json + "]";
+    }
+    else
+    {
+        // Strip leading "[" and trailing "]"
+        string trimmed = existing;
+        StringTrimLeft(trimmed);
+        StringTrimRight(trimmed);
+        if(StringGetCharacter(trimmed, 0) == '[')
+            trimmed = StringSubstr(trimmed, 1);
+        int lastBracket = StringLen(trimmed) - 1;
+        if(lastBracket >= 0 && StringGetCharacter(trimmed, lastBracket) == ']')
+            trimmed = StringSubstr(trimmed, 0, lastBracket);
+        StringTrimLeft(trimmed);
+        StringTrimRight(trimmed);
+
+        // Trim to last 199 entries by counting top-level "}{" boundaries.
+        // Cheap approach: if the array has > 199 entries, drop oldest.
+        // We approximate "entry count" by counting "{\"ticket\"" occurrences.
+        int count = 0;
+        int searchPos = 0;
+        while(true)
+        {
+            int found = StringFind(trimmed, "{\"ticket\"", searchPos);
+            if(found < 0) break;
+            count++;
+            searchPos = found + 1;
+        }
+        // Drop oldest entries until count < 200
+        while(count >= 200)
+        {
+            int firstStart = StringFind(trimmed, "{\"ticket\"", 0);
+            int secondStart = StringFind(trimmed, "{\"ticket\"", firstStart + 1);
+            if(secondStart < 0) break;
+            trimmed = StringSubstr(trimmed, secondStart);
+            // Strip leading "," if present after the trim
+            StringTrimLeft(trimmed);
+            if(StringGetCharacter(trimmed, 0) == ',')
+                trimmed = StringSubstr(trimmed, 1);
+            StringTrimLeft(trimmed);
+            count--;
+        }
+
+        if(StringLen(trimmed) > 0)
+            newJson = "[" + trimmed + "," + entry_json + "]";
+        else
+            newJson = "[" + entry_json + "]";
+    }
+
+    WriteFile(path, newJson);
+}
 //+------------------------------------------------------------------+

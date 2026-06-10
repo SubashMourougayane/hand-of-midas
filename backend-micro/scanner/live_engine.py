@@ -306,64 +306,98 @@ def check_open_positions():
                         })
             continue
 
-        # Trade not in MT5 open positions — it was closed (SL/TP hit or manual)
+        # Trade not in MT5 open positions — it was closed (SL/TP hit or manual).
+        # PREFERRED PATH: get_trade_details() reads closed_orders.json (written by
+        # DWX EA's OnTradeTransaction handler with the AUTHORITATIVE broker fill
+        # price + reason). The old heuristic-on-extremes fallback is kept ONLY for
+        # the case where the closed-orders file is missing or the trade isn't in
+        # it yet (race condition). See docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md.
         details = get_trade_details(oanda_id)
+        exit_reason = None  # set explicitly below in each branch
 
-        if details and details["state"] == "CLOSED":
+        if details and details.get("state") == "CLOSED":
+            # AUTHORITATIVE: real broker fill data
             _price_extremes.pop(oanda_id, None)
-            realized_pl = details["realized_pl"]
+            realized_pl = float(details["realized_pl"])
             close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
-            fill_price = details.get("price", 0)
+            fill_price = float(details.get("close_price", 0))
+            exit_reason = details.get("exit_reason", "CLOSED")
+            print(f"  [MICRO] Position {oanda_id} CLOSED via broker history — "
+                  f"reason={exit_reason} fill={fill_price:.2f} pnl=${realized_pl:.2f}")
         elif not details:
-            # Position gone from open_orders.json — closed by broker (SL/TP).
+            # Fallback: position gone from open_orders.json AND not yet in
+            # closed_orders.json. Use price-extreme heuristic but flag the
+            # ambiguity. This path produced wrong P&L on June 10 — see bug doc.
             sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
             tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
             entry_price = float(trade["entry_price"])
             units = trade["units"] or 1
-
             extremes = _price_extremes.pop(oanda_id, None)
 
-            # Determine exit using price extremes observed during the trade's life.
-            # For SHORT: SL is above entry, TP is below entry.
-            #   If highest price seen >= SL → SL was definitely hit at some point.
-            #   If lowest price seen <= TP → TP was definitely hit at some point.
-            #   If BOTH → ambiguous (default SL — conservative).
-            #   If NEITHER → impossible (trade closed somehow) → default SL.
-            # This eliminates the C7 failure mode because we track the ACTUAL
-            # high/low during the trade, not a single snapshot after exit.
             if trade["side"] == "SHORT":
                 sl_reached = extremes and extremes["high"] >= sl_price if sl_price else False
                 tp_reached = extremes and extremes["low"] <= tp_price if tp_price else False
-
                 if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (entry_price - tp_price) * units
-                else:
-                    # SL reached, or BOTH reached (ambiguous), or NEITHER (no data) → SL
+                    exit_reason = "TP"
+                elif sl_reached and not tp_reached:
                     fill_price = sl_price
                     realized_pl = (entry_price - sl_price) * units
+                    exit_reason = "SL"
+                else:
+                    # AMBIGUOUS (both or neither). Don't guess — flag and skip.
+                    # Next monitor cycle will retry; closed_orders.json should
+                    # populate within ~1 second of the broker close.
+                    print(f"  [MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
+                          f"(both={sl_reached and tp_reached}, neither={not sl_reached and not tp_reached}). "
+                          f"Skipping — will retry next cycle when closed_orders.json populates.")
+                    _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+                        "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
+                        "extremes": extremes,
+                    })
+                    # Put extremes BACK so we can retry next cycle
+                    if extremes:
+                        _price_extremes[oanda_id] = extremes
+                    continue
             else:
                 sl_reached = extremes and extremes["low"] <= sl_price if sl_price else False
                 tp_reached = extremes and extremes["high"] >= tp_price if tp_price else False
-
                 if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (tp_price - entry_price) * units
-                else:
+                    exit_reason = "TP"
+                elif sl_reached and not tp_reached:
                     fill_price = sl_price
                     realized_pl = (sl_price - entry_price) * units
+                    exit_reason = "SL"
+                else:
+                    print(f"  [MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
+                          f"(both={sl_reached and tp_reached}, neither={not sl_reached and not tp_reached}). "
+                          f"Skipping — will retry next cycle when closed_orders.json populates.")
+                    _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+                        "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
+                        "extremes": extremes,
+                    })
+                    if extremes:
+                        _price_extremes[oanda_id] = extremes
+                    continue
 
             close_time = datetime.now(timezone.utc).isoformat()
             ext_str = f"high={extremes['high']:.2f}, low={extremes['low']:.2f}" if extremes else "no data"
-            print(f"  [MICRO] Position {oanda_id} gone — exit from extremes ({ext_str}, SL={sl_price:.2f}, TP={tp_price:.2f})")
+            print(f"  [MICRO] Position {oanda_id} closed (heuristic, no closed_orders entry yet) — "
+                  f"reason={exit_reason} fill={fill_price:.2f} extremes=({ext_str})")
         else:
             continue  # Still open somehow
 
-        exit_reason = "CLOSED"
-        if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 2:
-            exit_reason = "SL"
-        elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
-            exit_reason = "TP"
+        # If exit_reason wasn't explicitly set (fallback shouldn't reach here, but defense):
+        if exit_reason is None or exit_reason == "CLOSED":
+            if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 2:
+                exit_reason = "SL"
+            elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
+                exit_reason = "TP"
+            else:
+                exit_reason = exit_reason or "CLOSED"
 
         gbp_usd = _get_gbp_usd_rate()
         pnl_usd = realized_pl * gbp_usd

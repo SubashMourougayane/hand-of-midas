@@ -289,54 +289,90 @@ def check_open_positions():
                         })
             continue
 
-        # Trade not in OANDA open positions — closed (SL/TP hit)
+        # Trade not in OANDA open positions — closed (SL/TP hit).
+        # PREFERRED PATH: get_trade_details() reads closed_orders.json (written by
+        # DWX EA's OnTradeTransaction handler with the AUTHORITATIVE broker fill
+        # price + reason). The old heuristic-on-extremes fallback is kept ONLY for
+        # the case where the closed-orders file is missing or the trade isn't in
+        # it yet (race condition). See docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md.
         details = get_trade_details(oanda_id)
+        exit_reason = None
 
-        if details and details["state"] == "CLOSED":
+        if details and details.get("state") == "CLOSED":
+            # AUTHORITATIVE
             _price_extremes.pop(oanda_id, None)
-            realized_pl = details["realized_pl"]
+            realized_pl = float(details["realized_pl"])
             close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
-            fill_price = details.get("price", 0)
+            fill_price = float(details.get("close_price", 0))
+            exit_reason = details.get("exit_reason", "CLOSED")
+            print(f"  [OIL-MICRO] Position {oanda_id} CLOSED via broker history — "
+                  f"reason={exit_reason} fill={fill_price:.4f} pnl=${realized_pl:.2f}")
         elif not details:
+            # Fallback heuristic. Skip (and retry next cycle) if ambiguous.
             sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
             tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
             entry_price = float(trade["entry_price"])
             units = trade["units"] or 1
-
             extremes = _price_extremes.pop(oanda_id, None)
 
             if trade["side"] == "SHORT":
                 sl_reached = extremes and extremes["high"] >= sl_price if sl_price else False
                 tp_reached = extremes and extremes["low"] <= tp_price if tp_price else False
-
                 if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (entry_price - tp_price) * units
-                else:
+                    exit_reason = "TP"
+                elif sl_reached and not tp_reached:
                     fill_price = sl_price
                     realized_pl = (entry_price - sl_price) * units
+                    exit_reason = "SL"
+                else:
+                    print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
+                          f"(both/neither). Skipping — retry next cycle.")
+                    _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+                        "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
+                        "extremes": extremes,
+                    })
+                    if extremes:
+                        _price_extremes[oanda_id] = extremes
+                    continue
             else:
                 sl_reached = extremes and extremes["low"] <= sl_price if sl_price else False
                 tp_reached = extremes and extremes["high"] >= tp_price if tp_price else False
-
                 if tp_reached and not sl_reached:
                     fill_price = tp_price
                     realized_pl = (tp_price - entry_price) * units
-                else:
+                    exit_reason = "TP"
+                elif sl_reached and not tp_reached:
                     fill_price = sl_price
                     realized_pl = (sl_price - entry_price) * units
+                    exit_reason = "SL"
+                else:
+                    print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
+                          f"(both/neither). Skipping — retry next cycle.")
+                    _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+                        "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
+                        "extremes": extremes,
+                    })
+                    if extremes:
+                        _price_extremes[oanda_id] = extremes
+                    continue
 
             close_time = datetime.now(timezone.utc).isoformat()
             ext_str = f"high={extremes['high']:.4f}, low={extremes['low']:.4f}" if extremes else "no data"
-            print(f"  [OIL-MICRO] Position {oanda_id} gone — exit from extremes ({ext_str})")
+            print(f"  [OIL-MICRO] Position {oanda_id} closed (heuristic, no closed_orders entry yet) — "
+                  f"reason={exit_reason} fill={fill_price:.4f}")
         else:
             continue
 
-        exit_reason = "CLOSED"
-        if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 0.10:
-            exit_reason = "SL"
-        elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 0.10:
-            exit_reason = "TP"
+        # Defense-in-depth — set exit_reason from price proximity if not already set
+        if exit_reason is None or exit_reason == "CLOSED":
+            if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 0.10:
+                exit_reason = "SL"
+            elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 0.10:
+                exit_reason = "TP"
+            else:
+                exit_reason = exit_reason or "CLOSED"
 
         gbp_usd = _get_gbp_usd_rate()
         pnl_usd = realized_pl * gbp_usd
