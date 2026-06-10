@@ -239,45 +239,51 @@ def check_open_positions():
                         notify.error(f"OIL MAX_HOLD close failed: {trade['trade_ref']}")
             continue
 
-        # Trade gone from MT5 — closed by broker (SL or TP hit)
-        # MT5 get_trade_details returns None for closed trades.
-        # Determine exit from SL/TP proximity to current price.
-        entry_price = float(trade["entry_price"])
-        sl_price = float(trade["sl_price"]) if trade["sl_price"] else 0
-        tp_price = float(trade["tp_price"]) if trade["tp_price"] else 0
-        trade_units = trade["units"] or 1
+        # Trade not in MT5 open positions — could be closed (SL/TP/manual) OR
+        # a transient DWX file race where open_orders.json briefly excluded it.
+        # PREFERRED PATH: get_trade_details() reads closed_orders.json (written
+        # by DWX EA's OnTradeTransaction handler with the AUTHORITATIVE broker
+        # fill price + reason). If the close-record isn't there, we DO NOT
+        # guess from price proximity — that's the phantom-fill bug class
+        # (see docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md). We skip and retry next
+        # cycle. closed_orders.json populates within ~1s of a real broker
+        # close; the only legitimate way to wait this out is to retry.
+        details = get_trade_details(oanda_id)
 
-        # Use SL/TP to determine which was hit
-        price_now = get_current_price(instrument="BCO_USD")
-        current_mid = price_now["mid"] if price_now else 0
+        if not details:
+            # Position vanished from open_orders.json but no closed_orders.json
+            # entry yet. Two possibilities:
+            #   1. Real close, EA hasn't flushed closed_orders.json yet (race)
+            #   2. open_orders.json was momentarily incomplete (DWX file race)
+            # Either way, do NOT guess. Skip and retry next cycle.
+            print(f"  [OIL] Position {oanda_id} not in open_orders, no closed_orders entry yet — "
+                  f"skipping; will retry next cycle (race or pending close)")
+            _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_AMBIGUOUS", None, {
+                "oanda_id": oanda_id,
+                "reason": "no_open_no_closed_record",
+            })
+            continue
 
-        if trade["side"] == "SHORT":
-            sl_likely = current_mid >= sl_price - 0.10 if sl_price else False
-            tp_likely = current_mid <= tp_price + 0.10 if tp_price else False
-        else:
-            sl_likely = current_mid <= sl_price + 0.10 if sl_price else False
-            tp_likely = current_mid >= tp_price - 0.10 if tp_price else False
+        if details.get("state") != "CLOSED":
+            # Position is actually still open per get_trade_details — DWX
+            # open_orders.json was stale when we read it. Skip and retry.
+            continue
 
-        # Conservative: if ambiguous, check which level is closer
-        if tp_likely and not sl_likely:
-            fill_price = tp_price
-            exit_reason = "TP"
-        elif sl_likely and not tp_likely:
-            fill_price = sl_price
-            exit_reason = "SL"
-        else:
-            # Default to SL (conservative)
-            fill_price = sl_price if sl_price else current_mid
-            exit_reason = "SL"
+        # AUTHORITATIVE: real broker fill data
+        fill_price = float(details.get("close_price", 0))
+        realized_pl = float(details["realized_pl"])
+        close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
+        exit_reason = details.get("exit_reason", "CLOSED")
 
-        if trade["side"] == "SHORT":
-            realized_pl = (entry_price - fill_price) * trade_units
-        else:
-            realized_pl = (fill_price - entry_price) * trade_units
+        # Defensive fallback for older closed_orders entries that didn't carry deal_reason
+        if exit_reason in ("UNKNOWN", "CLOSED", None) and trade["sl_price"]:
+            if abs(fill_price - float(trade["sl_price"])) < 2:
+                exit_reason = "SL"
+            elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
+                exit_reason = "TP"
 
         gbp_usd = _get_gbp_usd_rate()
         pnl_usd = realized_pl * gbp_usd
-        close_time = datetime.now(timezone.utc).isoformat()
 
         execute(
             """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s

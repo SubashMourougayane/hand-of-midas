@@ -298,16 +298,37 @@ def check_open_positions():
             continue
 
         # Trade closed on OANDA side (SL or TP hit)
-        # get_trade_details imported at top of module
+        # get_trade_details reads closed_orders.json (DWX EA OnTradeTransaction
+        # writes the AUTHORITATIVE close_price + deal_reason). If details is
+        # None, do NOT guess — skip and retry next cycle so closed_orders.json
+        # has time to populate. See docs/BUG_PHANTOM_FILL_BE_AMBIGUITY.md.
         details = get_trade_details(oanda_id)
 
-        if details and details["state"] == "CLOSED":
-            realized_pl = details["realized_pl"]
-            close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
+        if not details:
+            # No closed_orders entry yet (race) OR open_orders briefly excluded
+            # the position (DWX file race). Skip — next cycle will resolve it.
+            _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
+                "oanda_id": oanda_id,
+                "reason": "no_open_no_closed_record",
+            })
+            continue
 
-            # Determine exit reason
-            exit_reason = "UNKNOWN"
-            fill_price = details.get("price", 0)
+        if details["state"] != "CLOSED":
+            # Still actually open per details — open_orders was stale. Skip.
+            continue
+
+        # AUTHORITATIVE close path: closed_orders.json provided real broker fill data.
+        realized_pl = details["realized_pl"]
+        close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
+
+        # Use AUTHORITATIVE close_price from broker history, not "price"
+        # (which is the open_price in the closed_orders.json shape).
+        fill_price = float(details.get("close_price", 0))
+
+        # Prefer broker's deal_reason; fall back to SL/TP proximity for
+        # entries written before the OnTradeTransaction handler shipped.
+        exit_reason = details.get("exit_reason") or "UNKNOWN"
+        if exit_reason in ("UNKNOWN", "CLOSED", None):
             if trade["sl_price"] and abs(fill_price - float(trade["sl_price"])) < 2:
                 exit_reason = "SL"
             elif trade["tp_price"] and abs(fill_price - float(trade["tp_price"])) < 2:
@@ -315,40 +336,40 @@ def check_open_positions():
             else:
                 exit_reason = "CLOSED"
 
-            # Update DB — OANDA returns P&L in account currency (GBP)
-            # _get_gbp_usd_rate defined at top of module
-            gbp_usd = _get_gbp_usd_rate()
-            pnl_usd = realized_pl * gbp_usd
+        # Update DB — OANDA returns P&L in account currency (GBP)
+        # _get_gbp_usd_rate defined at top of module
+        gbp_usd = _get_gbp_usd_rate()
+        pnl_usd = realized_pl * gbp_usd
 
-            execute(
-                """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
-                   WHERE trade_ref=%s""",
-                (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
-            )
+        execute(
+            """UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s
+               WHERE trade_ref=%s""",
+            (close_time, fill_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
+        )
 
-            # Update DD state (use USD P&L for equity tracking)
-            dd_state = _get_dd_state()
-            new_pause = dd_state["pause_counter"]
-            if realized_pl > 0:
-                new_consecutive = 0
-            else:
-                new_consecutive = dd_state["consecutive_losses"] + 1
-                if new_consecutive >= 5:
-                    new_pause = 2
+        # Update DD state (use USD P&L for equity tracking)
+        dd_state = _get_dd_state()
+        new_pause = dd_state["pause_counter"]
+        if realized_pl > 0:
+            new_consecutive = 0
+        else:
+            new_consecutive = dd_state["consecutive_losses"] + 1
+            if new_consecutive >= 5:
+                new_pause = 2
 
-            # _get_gbp_usd_rate defined at top of module
-            gbp_usd_rate = _get_gbp_usd_rate()
-            pnl_usd_for_equity = realized_pl * gbp_usd_rate
-            new_equity = float(dd_state["equity"]) + pnl_usd_for_equity
-            new_peak = max(float(dd_state["peak_equity"]), new_equity)
-            _update_dd_state(new_consecutive, new_pause, new_equity, new_peak)
+        # _get_gbp_usd_rate defined at top of module
+        gbp_usd_rate = _get_gbp_usd_rate()
+        pnl_usd_for_equity = realized_pl * gbp_usd_rate
+        new_equity = float(dd_state["equity"]) + pnl_usd_for_equity
+        new_peak = max(float(dd_state["peak_equity"]), new_equity)
+        _update_dd_state(new_consecutive, new_pause, new_equity, new_peak)
 
-            _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
-                "reason": exit_reason, "pnl": realized_pl, "oanda_id": oanda_id,
-            })
+        _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
+            "reason": exit_reason, "pnl": realized_pl, "oanda_id": oanda_id,
+        })
 
-            notify.trade_closed(trade["trade_ref"], "XAU_USD", exit_reason, realized_pl, pnl_usd)
-            print(f"  [{trade['strategy']}] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${realized_pl:.2f}")
+        notify.trade_closed(trade["trade_ref"], "XAU_USD", exit_reason, realized_pl, pnl_usd)
+        print(f"  [{trade['strategy']}] CLOSED: {exit_reason} @ {fill_price:.2f}, P&L=${realized_pl:.2f}")
 
 
 def check_alpha_sweep_breakeven():
