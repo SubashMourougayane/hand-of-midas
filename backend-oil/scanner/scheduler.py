@@ -17,7 +17,7 @@ def _parse_ts(ts_str: str) -> datetime:
     return datetime.fromisoformat(cleaned)
 
 from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE
-from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _log_journal, _log_journal_safe
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -42,13 +42,20 @@ def london_session_job():
 
 
 def position_monitor_job():
-    """Every 1 min — check Oil positions for SL/TP closures + max hold + break-even."""
+    """Every 1 min — Oil positions: SL/TP closures + max hold + break-even +
+    reconcile orphan broker positions (production safety net)."""
     try:
         check_open_positions()
         check_alpha_sweep_breakeven()
     except Exception as e:
         print(f"  [OIL] Position monitor error: {e}")
-        _log_journal("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+        _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+
+    try:
+        reconcile_orphans()
+    except Exception as e:
+        print(f"  [OIL] Orphan reconciler error: {e}")
+        _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "reconcile_orphans"})
 
 
 def _run_alpha_sweep():
@@ -259,11 +266,26 @@ def _run_alpha_sweep():
                 _traded_sweeps_oil["keys"].add(sweep_key)
 
 
+def daily_recon_job():
+    """Send daily reconciliation report at 00:05 UTC for yesterday."""
+    from backend.db import daily_recon_stats
+    from backend import notify
+    from datetime import timedelta
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    try:
+        stats = daily_recon_stats("OIL-AS-%", "alpha_sweep_oil", yesterday)
+        notify.daily_recon("Oil Macro", str(yesterday), **stats)
+    except Exception as e:
+        print(f"  [OIL] daily_recon_job error: {e}")
+        _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "daily_recon"})
+
+
 def start_scheduler():
     scheduler.add_job(london_session_job, "cron", minute="*/3", hour="8-19", id="oil_alpha_sweep_poll")
     scheduler.add_job(position_monitor_job, "cron", minute="*", id="oil_position_monitor")
+    scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="oil_daily_recon")
     scheduler.start()
-    print("Oil scheduler started: Alpha-Sweep poll (08:00-20:00 UTC, London+NY) + Position monitor (every 1 min)")
+    print("Oil scheduler started: Alpha-Sweep poll (08-20 UTC) + Position monitor + orphan reconciler (1min) + Daily recon (00:05 UTC)")
 
 
 def stop_scheduler():

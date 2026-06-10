@@ -12,7 +12,7 @@ from backend.db import execute
 import re
 
 from config import MICRO_ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE, DD_PROTECTION, TRADE_REF_PREFIX
-from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal, _log_journal_safe
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _log_journal, _log_journal_safe
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -108,13 +108,23 @@ def micro_sweep_job():
 
 
 def position_monitor_job():
-    """Every 1 min — check positions for SL/TP closures + max hold + break-even."""
+    """Every 1 min — check positions for SL/TP closures + max hold + break-even +
+    reconcile any orphan broker positions not in DB (production safety net for
+    the orphan-trade cascade pattern)."""
     try:
         check_open_positions()
         check_alpha_sweep_breakeven()
     except Exception as e:
         print(f"  [OIL-MICRO] Position monitor error: {e}")
-        _log_journal("SYSTEM", "micro_alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+        _log_journal_safe("SYSTEM", "micro_alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+
+    # Orphan reconciliation runs in its own try/except so a check_open_positions
+    # failure doesn't skip the safety net, and vice versa.
+    try:
+        reconcile_orphans()
+    except Exception as e:
+        print(f"  [OIL-MICRO] Orphan reconciler error: {e}")
+        _log_journal_safe("SYSTEM", "micro_alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "reconcile_orphans"})
 
 
 def _run_micro_sweep(now: datetime, active_windows: list):
@@ -430,12 +440,27 @@ def _restore_traded_sweeps_on_startup():
         print(f"  [OIL-MICRO STARTUP] No signals today — clean start")
 
 
+def daily_recon_job():
+    """Send daily reconciliation report at 00:00 UTC. Reports yesterday's stats."""
+    from backend.db import daily_recon_stats
+    from backend import notify
+    from datetime import timedelta
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    try:
+        stats = daily_recon_stats("OIL-MI-%", "micro_alpha_sweep_oil", yesterday)
+        notify.daily_recon("Oil Micro", str(yesterday), **stats)
+    except Exception as e:
+        print(f"  [OIL-MICRO] daily_recon_job error: {e}")
+        _log_journal_safe("SYSTEM", "micro_alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "daily_recon"})
+
+
 def start_scheduler():
     _restore_traded_sweeps_on_startup()
     scheduler.add_job(micro_sweep_job, "cron", minute="*/3", id="oil_micro_sweep_poll")
     scheduler.add_job(position_monitor_job, "cron", minute="*", id="oil_micro_position_monitor")
+    scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="oil_micro_daily_recon")
     scheduler.start()
-    print("Oil Micro scheduler started: Rolling window sweep poll (every 3 min) + Position monitor (every 1 min)")
+    print("Oil Micro scheduler started: Rolling window sweep poll (3min) + Position monitor + orphan reconciler (1min) + Daily recon (00:05 UTC)")
 
 
 def stop_scheduler():

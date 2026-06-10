@@ -153,3 +153,44 @@ def safe_json_dumps(ctx):
     except (TypeError, ValueError) as e:
         # Last-resort fallback so journal write never crashes the caller
         return json.dumps({"_serialize_error": str(e), "_repr": repr(ctx)[:500]})
+
+
+# =============================================================================
+# Daily reconciliation report builder
+# =============================================================================
+
+def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date):
+    """Build daily reconciliation stats for a single system.
+
+    trade_ref_pattern: SQL LIKE pattern (e.g., 'OIL-MI-%')
+    strategy_pattern: SQL = match (e.g., 'micro_alpha_sweep_oil')
+    target_date: date object — typically yesterday
+
+    Returns dict with: total_trades, orphans_adopted, db_insert_failed,
+    journal_errors, net_pnl. Used by the 00:00 UTC daily recon notify call.
+    """
+    rows = execute(
+        """SELECT COUNT(*)::int AS cnt, COALESCE(SUM(pnl_usd), 0)::float AS pnl
+           FROM gd_trades
+           WHERE trade_ref LIKE %s AND entry_time::date = %s""",
+        (trade_ref_pattern, target_date), fetch=True
+    )
+    total = rows[0]["cnt"] if rows else 0
+    pnl = float(rows[0]["pnl"] or 0) if rows else 0.0
+
+    def count_event(event_type):
+        r = execute(
+            """SELECT COUNT(*)::int AS cnt FROM gd_journal
+               WHERE strategy = %s AND event_type = %s
+               AND timestamp::date = %s""",
+            (strategy_pattern, event_type, target_date), fetch=True
+        )
+        return r[0]["cnt"] if r else 0
+
+    return {
+        "total_trades": total,
+        "orphans_adopted": count_event("ORPHAN_ADOPTED"),
+        "db_insert_failed": count_event("DB_INSERT_FAILED"),
+        "journal_errors": count_event("ORPHAN_ADOPT_FAILED") + count_event("EXECUTE_SIGNAL_RAISED"),
+        "net_pnl": pnl,
+    }

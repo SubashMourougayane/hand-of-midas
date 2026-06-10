@@ -372,3 +372,69 @@ def check_alpha_sweep_breakeven():
                     _log_journal(trade["trade_ref"], "alpha_sweep_oil", "BREAK_EVEN_FAILED", None, {
                         "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"),
                     })
+
+
+def reconcile_orphans():
+    """Adopt any broker positions that don't have a matching DB row.
+    Production safety net for Oil Macro. See backend-oil-micro for full docs."""
+    try:
+        broker_open = get_open_trades(instrument="BCO_USD") or []
+    except Exception as e:
+        print(f"  [OIL] reconcile_orphans: get_open_trades failed: {e}")
+        return
+
+    if not broker_open:
+        return
+
+    db_open_rows = execute(
+        "SELECT oanda_trade_id FROM gd_trades "
+        "WHERE exit_time IS NULL AND trade_ref LIKE 'OIL-AS-%' "
+        "AND oanda_trade_id IS NOT NULL",
+        fetch=True
+    )
+    db_open_ids = {str(r["oanda_trade_id"]) for r in (db_open_rows or [])}
+
+    for pos in broker_open:
+        broker_id = str(pos.get("id") or pos.get("trade_id") or "")
+        if not broker_id or broker_id in db_open_ids:
+            continue
+
+        units_signed = pos.get("currentUnits", 0)
+        units = abs(int(units_signed))
+        side = "LONG" if units_signed > 0 else "SHORT"
+        entry_price = float(pos.get("price", 0))
+        sl = float(pos.get("sl") or 0)
+        tp = float(pos.get("tp") or 0)
+        lot_size = units / 1000.0  # oil: 1 lot = 1000 barrels
+
+        trade_ref = f"OIL-AS-orphan-{broker_id[-8:]}"
+
+        try:
+            execute(
+                """INSERT INTO gd_trades (
+                       trade_ref, strategy, side, entry_time, entry_price,
+                       sl_price, tp_price, lot_size, units, mode, oanda_trade_id
+                   )
+                   VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)
+                   ON CONFLICT (oanda_trade_id) DO NOTHING""",
+                (trade_ref, "alpha_sweep_oil", side, entry_price,
+                 sl, tp, lot_size, units, broker_id)
+            )
+        except Exception as e:
+            print(f"  [OIL] reconcile_orphans: INSERT failed for {broker_id}: {e}")
+            _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ORPHAN_ADOPT_FAILED",
+                              entry_price, {"broker_id": broker_id, "error": str(e)})
+            continue
+
+        _log_journal_safe(trade_ref, "alpha_sweep_oil", "ORPHAN_ADOPTED",
+                          entry_price, {
+                              "broker_id": broker_id, "side": side, "units": units,
+                              "sl": sl, "tp": tp, "reason": "broker_position_not_in_db",
+                          })
+
+        try:
+            notify.orphan_adopted(trade_ref, broker_id, "BCO_USD", side, units, entry_price, sl, tp)
+        except Exception as e:
+            print(f"  [OIL] reconcile_orphans: notify failed: {e}")
+
+        print(f"  [OIL] ORPHAN ADOPTED: {trade_ref} (broker {broker_id}) — investigate logs")

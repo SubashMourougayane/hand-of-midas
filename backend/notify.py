@@ -64,3 +64,39 @@ def break_even(trade_ref: str, instrument: str, new_sl: float):
 
 def error(message: str):
     send(f"⚠️ <b>ERROR</b>\n{message}")
+
+
+def orphan_adopted(trade_ref: str, broker_id: str, instrument: str, side: str,
+                   units: int, entry_price: float, sl: float, tp: float):
+    """Alert when the orphan reconciler adopts an untracked broker position.
+    Indicates a bug somewhere upstream — investigate logs immediately."""
+    fmt = ".2f" if "XAU" in instrument else ".4f"
+    send(
+        f"🚨 <b>ORPHAN ADOPTED</b>\n"
+        f"Broker had position not in DB!\n"
+        f"{trade_ref} (broker_id={broker_id})\n"
+        f"{instrument} {side} {units} units @ ${entry_price:{fmt}}\n"
+        f"SL: ${sl:{fmt}} | TP: ${tp:{fmt}}\n"
+        f"Investigate logs — execute_signal likely raised before persistence."
+    )
+
+
+def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: int,
+                db_insert_failed: int, journal_errors: int, net_pnl: float):
+    """Daily reconciliation summary at 00:00 UTC. Numbers >0 for orphans/errors
+    are red flags requiring investigation."""
+    flags = []
+    if orphans_adopted > 0:
+        flags.append(f"⚠️ {orphans_adopted} orphans")
+    if db_insert_failed > 0:
+        flags.append(f"⚠️ {db_insert_failed} DB INSERT fails")
+    if journal_errors > 0:
+        flags.append(f"⚠️ {journal_errors} journal errors")
+    flag_str = " | ".join(flags) if flags else "✅ clean"
+
+    send(
+        f"📊 <b>Daily Recon — {system} — {date_str}</b>\n"
+        f"Trades: {total_trades}\n"
+        f"Net P&L: ${net_pnl:+.2f}\n"
+        f"Status: {flag_str}"
+    )

@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.execution import get_candles, get_current_price
-from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _get_dd_state, _log_journal
+from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _get_dd_state, _log_journal, _log_journal_safe
 from backend.db import execute, get_conn
 import re
 
@@ -605,9 +605,20 @@ def _persist_m3_candles(candles: list[dict]):
 
 
 def position_monitor_job():
-    """Every 1 min — check if OANDA closed any positions (SL/TP hit) + break-even."""
-    check_open_positions()
-    check_alpha_sweep_breakeven()
+    """Every 1 min — Gold positions: SL/TP closures + break-even +
+    reconcile orphan broker positions (production safety net)."""
+    try:
+        check_open_positions()
+        check_alpha_sweep_breakeven()
+    except Exception as e:
+        print(f"  [GOLD] Position monitor error: {e}")
+        _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "position_monitor"})
+
+    try:
+        reconcile_orphans()
+    except Exception as e:
+        print(f"  [GOLD] Orphan reconciler error: {e}")
+        _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "reconcile_orphans"})
 
 
 def heartbeat_job():
@@ -677,6 +688,20 @@ def heartbeat_job():
         print(f"  Heartbeat error: {e}")
 
 
+def daily_recon_job():
+    """Send Gold Macro daily reconciliation report at 00:05 UTC for yesterday."""
+    from backend.db import daily_recon_stats
+    from backend import notify
+    from datetime import timedelta
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    try:
+        stats = daily_recon_stats("GD-%", "alpha_sweep", yesterday)
+        notify.daily_recon("Gold Macro", str(yesterday), **stats)
+    except Exception as e:
+        print(f"  [GOLD] daily_recon_job error: {e}")
+        _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "daily_recon"})
+
+
 def start_scheduler():
     """Start all scheduled jobs."""
     # 22:00 UTC daily — Cross-Market + Mean-Rev
@@ -685,18 +710,22 @@ def start_scheduler():
     # Every 3 min during 08:00-20:00 UTC — Alpha-Sweep (London + NY)
     scheduler.add_job(london_session_job, "cron", minute="*/3", hour="8-19", id="alpha_sweep_poll")
 
-    # Every 1 min — position monitoring
+    # Every 1 min — position monitoring + orphan reconciler
     scheduler.add_job(position_monitor_job, "interval", minutes=1, id="position_monitor")
 
     # Hourly heartbeat during scan window
     scheduler.add_job(heartbeat_job, "cron", minute=0, hour="8-19", id="heartbeat")
 
+    # Daily reconciliation report at 00:05 UTC
+    scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="daily_recon")
+
     scheduler.start()
     print("Scheduler started:")
     print("  - Daily close (Cross-Market + Mean-Rev): 22:00 UTC")
     print("  - Alpha-Sweep poll: every 3 min, 08:00-20:00 UTC (London + NY)")
-    print("  - Position monitor: every 1 min")
+    print("  - Position monitor + orphan reconciler: every 1 min")
     print("  - Heartbeat: hourly during scan window")
+    print("  - Daily recon: 00:05 UTC")
 
 
 def stop_scheduler():

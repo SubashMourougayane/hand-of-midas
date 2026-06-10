@@ -81,28 +81,36 @@ The reset script `scripts/reset_oilmicro_clean_slate.sql` is atomic, scoped to O
 Get-Process python, node -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 3
 
-# 2. Pull latest code (Phase 2 hardening must be deployed BEFORE Oil Micro restarts)
+# 2. Pull latest code (Phase 2 + Phase 3 hardening must be deployed BEFORE restart)
 cd C:\hand-of-midas
 git checkout -- logs/*.log
 git pull origin midas-deploy
 
-# 3. (User action) Top up JustMarkets wallet to $10,000 USD via the JM web UI
+# 3. Apply Phase 3 schema migration (creates unique index for orphan reconciler)
+psql golddigger -f scripts\migration_phase3_orphan_safety.sql
 
-# 4. Run the reset SQL
+# 4. (User action) Top up JustMarkets wallet to $10,000 USD via the JM web UI
+
+# 5. Run the reset SQL
 psql golddigger -f scripts\reset_oilmicro_clean_slate.sql
 
-# 5. Verify the verification queries at bottom printed expected results:
+# 6. Verify reset queries at bottom of reset SQL printed expected results:
 #    - oil_micro_trades_remaining = 0
 #    - oil_micro_signals_remaining = 0
 #    - dd_state id=4 shows equity=10000, peak_equity=10000, consecutive_losses=0
 #    - Other systems' trades_count UNCHANGED
 
-# 6. Restart all services with Phase 2 hardening active
+# 7. (Recompile DWX EA on MT5)
+#    Open MetaEditor, open mql5/DWX_Server.mq5, hit F7 (Compile), reattach EA.
+#    Without this, the comment-preservation fix isn't active.
+
+# 8. Restart all services
 .\scripts\start-win.bat
 
-# 7. Watch the startup logs — you should see:
+# 9. Watch the startup logs — should see:
 #    "MT5 mode — OANDA price stream disabled (DWX provides prices)"
-#    on Oil Macro, Gold Micro, AND Oil Micro startup
+#    "scheduler started: ... Position monitor + orphan reconciler ... Daily recon (00:05 UTC)"
+#    on Oil Macro, Gold Micro, AND Oil Micro
 ```
 
 The forensic record of the 7 orphan trades is preserved in:
@@ -476,13 +484,13 @@ If the scheduler hasn't successfully completed a cycle in 10 minutes (last_succe
 
 ## Summary by Priority
 
-| Phase | What | Status | Time | Risk if Skipped |
-|---|---|---|---|---|
-| **1** | Clean slate reset: wipe Oil Micro state + top up wallet to $10K | ⏳ Tonight (15 min) | 15 min | Pollutes equity tracking with manual-close rows |
-| **2.0** | Disable OANDA stream on 3 MT5 systems | ✅ Done (commit `e71b53f`) | 15 min | Journal flooding, broken stream-BE on 3 systems |
-| **2** | safe_json_dumps + _log_journal_safe + sweep blacklist ordering + DWX comment fix | ✅ Done (commit `5a30a45`) + 21 regression tests | 2 hr | Same orphan-cascade bug recurs |
-| **3** | Orphan reconciler + Telegram error alerts + daily recon | ⏳ This week | 4 hr | Future orphans undetected for hours |
-| **4** | Health checks, idempotency, logging, auto-recovery, MT5-tick BE | ⏳ Next sprint | 1-2 days | Operational blindspots; BE precision suboptimal |
+| Phase | What | Status |
+|---|---|---|
+| **1** | Clean slate reset: wipe Oil Micro state + top up wallet to $10K | ⏳ Tonight (15 min) |
+| **2.0** | Disable OANDA stream on 3 MT5 systems | ✅ Done (commit `e71b53f`) |
+| **2** | safe_json_dumps + _log_journal_safe + sweep blacklist ordering + DWX comment fix | ✅ Done (commits `5a30a45` + `b0ad56e`) + 21 regression tests |
+| **3** | Orphan reconciler + Telegram error alerts + daily recon | ✅ Done (commit pending) + 29 regression tests |
+| **4** | Health checks, idempotency, logging, auto-recovery, MT5-tick BE | ⏳ Next sprint |
 
 ---
 
