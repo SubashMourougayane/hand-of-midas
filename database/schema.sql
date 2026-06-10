@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS gd_backtest_trades (
     date DATE NOT NULL,
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
-    strategy VARCHAR(20) NOT NULL,
+    strategy VARCHAR(50) NOT NULL,
     direction VARCHAR(5) NOT NULL,
     entry DECIMAL(10,2) NOT NULL,
     sl DECIMAL(10,2) NOT NULL,
@@ -71,7 +71,7 @@ CREATE INDEX idx_gd_bt_equity_run ON gd_backtest_equity(run_id);
 CREATE TABLE IF NOT EXISTS gd_trades (
     id SERIAL PRIMARY KEY,
     trade_ref VARCHAR(50) UNIQUE NOT NULL,
-    strategy VARCHAR(20) NOT NULL,
+    strategy VARCHAR(50) NOT NULL,
     side VARCHAR(5) NOT NULL,
     entry_time TIMESTAMPTZ NOT NULL,
     exit_time TIMESTAMPTZ,
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS gd_trades (
 CREATE TABLE IF NOT EXISTS gd_signals (
     id SERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT NOW(),
-    strategy VARCHAR(20) NOT NULL,
+    strategy VARCHAR(50) NOT NULL,
     direction VARCHAR(5) NOT NULL,
     entry_price DECIMAL(10,4),
     sl_price DECIMAL(10,4),
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS gd_journal (
     id SERIAL PRIMARY KEY,
     timestamp TIMESTAMPTZ DEFAULT NOW(),
     trade_ref VARCHAR(50),
-    strategy VARCHAR(20),
+    strategy VARCHAR(50),
     event_type VARCHAR(30) NOT NULL,
     price DECIMAL(10,4),
     context JSONB

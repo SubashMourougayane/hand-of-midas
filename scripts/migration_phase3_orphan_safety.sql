@@ -10,6 +10,17 @@
 
 BEGIN;
 
+-- 0) Widen strategy columns from VARCHAR(20) to VARCHAR(50)
+-- Why: Oil Micro uses strategy name 'micro_alpha_sweep_oil' (21 chars)
+-- which silently overflows VARCHAR(20). This was the actual root cause of
+-- the June 10 orphan-trade bug — every Oil Micro signal silently failed
+-- on every DB INSERT (gd_trades, gd_signals, gd_journal) because the
+-- strategy string didn't fit. Widening fixes all 3 tables at once.
+-- Idempotent: ALTER TYPE to a wider VARCHAR is a no-op when already wide.
+ALTER TABLE gd_trades   ALTER COLUMN strategy TYPE VARCHAR(50);
+ALTER TABLE gd_signals  ALTER COLUMN strategy TYPE VARCHAR(50);
+ALTER TABLE gd_journal  ALTER COLUMN strategy TYPE VARCHAR(50);
+
 -- 1) Unique partial index on oanda_trade_id
 -- Why partial: oanda_trade_id can be NULL during the brief window between
 -- order placement and trade_id assignment, and historical/test rows may
