@@ -28,10 +28,14 @@ CREATE INDEX IF NOT EXISTS gd_trades_open_by_ref
   WHERE exit_time IS NULL;
 
 -- 3) Index for daily reconciliation report
--- The 00:00 UTC daily recon scans yesterday's trades; partial index on
--- entry_time::date keeps it fast.
-CREATE INDEX IF NOT EXISTS gd_trades_entry_date
-  ON gd_trades((entry_time::date));
+-- The 00:00 UTC daily recon scans yesterday's trades. We index entry_time
+-- directly (Postgres uses the index for range queries on ::date casts).
+-- Note: we previously tried (entry_time::date) but Postgres rejects it as
+-- "functions in index expression must be marked IMMUTABLE" because the
+-- TIMESTAMPTZ → DATE cast depends on session timezone. Indexing entry_time
+-- itself works for the daily recon's BETWEEN/range queries.
+CREATE INDEX IF NOT EXISTS gd_trades_entry_time
+  ON gd_trades(entry_time);
 
 -- 4) Index for journal queries by event_type (used in daily recon)
 CREATE INDEX IF NOT EXISTS gd_journal_event_type_ts

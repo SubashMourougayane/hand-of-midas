@@ -168,12 +168,22 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
 
     Returns dict with: total_trades, orphans_adopted, db_insert_failed,
     journal_errors, net_pnl. Used by the 00:00 UTC daily recon notify call.
+
+    Uses BETWEEN range queries (not ::date) so the gd_trades_entry_time and
+    gd_journal_event_type_ts indexes get used. Postgres rejects index
+    expressions on (entry_time::date) because the cast depends on session
+    timezone (not IMMUTABLE).
     """
+    from datetime import datetime, time, timedelta, timezone as _tz
+    day_start = datetime.combine(target_date, time.min, tzinfo=_tz.utc)
+    day_end = day_start + timedelta(days=1)
+
     rows = execute(
         """SELECT COUNT(*)::int AS cnt, COALESCE(SUM(pnl_usd), 0)::float AS pnl
            FROM gd_trades
-           WHERE trade_ref LIKE %s AND entry_time::date = %s""",
-        (trade_ref_pattern, target_date), fetch=True
+           WHERE trade_ref LIKE %s
+             AND entry_time >= %s AND entry_time < %s""",
+        (trade_ref_pattern, day_start, day_end), fetch=True
     )
     total = rows[0]["cnt"] if rows else 0
     pnl = float(rows[0]["pnl"] or 0) if rows else 0.0
@@ -182,8 +192,8 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
         r = execute(
             """SELECT COUNT(*)::int AS cnt FROM gd_journal
                WHERE strategy = %s AND event_type = %s
-               AND timestamp::date = %s""",
-            (strategy_pattern, event_type, target_date), fetch=True
+                 AND timestamp >= %s AND timestamp < %s""",
+            (strategy_pattern, event_type, day_start, day_end), fetch=True
         )
         return r[0]["cnt"] if r else 0
 
