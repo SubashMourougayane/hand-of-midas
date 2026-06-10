@@ -500,10 +500,11 @@ def reconcile_orphans():
     if not broker_open:
         return
 
+    # Look up ANY system's open positions — see backend-oil-micro for full
+    # rationale. June 11: cross-system pollution caused Telegram spam.
     db_open_rows = execute(
-        f"SELECT oanda_trade_id FROM gd_trades "
-        f"WHERE exit_time IS NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' "
-        f"AND oanda_trade_id IS NOT NULL",
+        "SELECT oanda_trade_id FROM gd_trades "
+        "WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL",
         fetch=True
     )
     db_open_ids = {str(r["oanda_trade_id"]) for r in (db_open_rows or [])}
@@ -524,20 +525,25 @@ def reconcile_orphans():
         trade_ref = f"{TRADE_REF_PREFIX}orphan-{broker_id[-8:]}"
 
         try:
-            execute(
+            inserted = execute(
                 """INSERT INTO gd_trades (
                        trade_ref, strategy, side, entry_time, entry_price,
                        sl_price, tp_price, lot_size, units, mode, oanda_trade_id
                    )
                    VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)
-                   ON CONFLICT (oanda_trade_id) WHERE oanda_trade_id IS NOT NULL DO NOTHING""",
+                   ON CONFLICT (oanda_trade_id) WHERE oanda_trade_id IS NOT NULL DO NOTHING
+                   RETURNING id""",
                 (trade_ref, "micro_alpha_sweep", side, entry_price,
-                 sl, tp, lot_size, units, broker_id)
+                 sl, tp, lot_size, units, broker_id),
+                fetch=True
             )
         except Exception as e:
             print(f"  [MICRO] reconcile_orphans: INSERT failed for {broker_id}: {e}")
             _log_journal_safe("SYSTEM", "micro_alpha_sweep", "ORPHAN_ADOPT_FAILED",
                               entry_price, {"broker_id": broker_id, "error": str(e)})
+            continue
+
+        if not inserted:
             continue
 
         _log_journal_safe(trade_ref, "micro_alpha_sweep", "ORPHAN_ADOPTED",
