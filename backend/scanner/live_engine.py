@@ -453,7 +453,7 @@ def reconcile_orphans():
                        sl_price, tp_price, lot_size, units, mode, oanda_trade_id
                    )
                    VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)
-                   ON CONFLICT (oanda_trade_id) DO NOTHING""",
+                   ON CONFLICT (oanda_trade_id) WHERE oanda_trade_id IS NOT NULL DO NOTHING""",
                 (trade_ref, "alpha_sweep", side, entry_price,
                  sl, tp, lot_size, units, broker_id)
             )
