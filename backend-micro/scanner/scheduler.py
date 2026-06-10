@@ -12,7 +12,7 @@ from backend.db import execute
 import re
 
 from config import MICRO_ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE, DD_PROTECTION, TRADE_REF_PREFIX
-from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, _log_journal, _log_journal_safe
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -393,24 +393,39 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                     trades_today += 1
                     trade_placed_this_cycle = True
                 else:
-                    trade_ref = execute_signal(
-                        strategy="micro_alpha_sweep",
-                        direction=direction,
-                        entry_price=entry,
-                        sl_price=sl,
-                        tp_price=tp,
-                        context={
-                            "range_high": range_high, "range_low": range_low,
-                            "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
-                            "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
-                        },
-                        daily_pnl=_daily_state["pnl"],
-                    )
+                    # CRITICAL: Add sweep to blacklist BEFORE placing the order.
+                    # If execute_signal raises mid-flight, the next 3-min cron
+                    # must NOT retry the same sweep. Pre-marking it breaks the
+                    # orphan-trade cascade pattern (see
+                    # docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md).
                     _traded_sweeps["keys"].add(sweep_key)
-                    if trade_ref:
-                        trades_today += 1
-                        _daily_state["trades"] += 1
-                        trade_placed_this_cycle = True
+                    _daily_state["trades"] += 1  # Optimistic — rolled back if signal skipped
+
+                    try:
+                        trade_ref = execute_signal(
+                            strategy="micro_alpha_sweep",
+                            direction=direction,
+                            entry_price=entry,
+                            sl_price=sl,
+                            tp_price=tp,
+                            context={
+                                "range_high": range_high, "range_low": range_low,
+                                "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
+                                "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                            },
+                            daily_pnl=_daily_state["pnl"],
+                        )
+                        if trade_ref:
+                            trades_today += 1
+                            trade_placed_this_cycle = True
+                        else:
+                            # Signal skipped (DD, sl_too_close, etc.) — roll back optimistic counter
+                            _daily_state["trades"] = max(0, _daily_state["trades"] - 1)
+                    except Exception as e:
+                        # Sweep stays blacklisted, counter stays incremented (conservative)
+                        print(f"  [MICRO] execute_signal raised: {e}")
+                        _log_journal_safe("SYSTEM", "micro_alpha_sweep", "EXECUTE_SIGNAL_RAISED",
+                                          entry, {"error": str(e), "sweep_key": sweep_key, "direction": direction})
                 break  # One engulfing per sweep
 
             # No engulfing found — only consume sweep if engulfing window has expired.

@@ -1,5 +1,8 @@
 """Database connection and helpers for GoldDigger."""
 import os
+import json
+import decimal
+from datetime import datetime, date
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from backend.config import DB_URL
@@ -84,3 +87,69 @@ def insert_returning(sql: str, params=None):
         raise e
     finally:
         conn.close()
+
+
+# =============================================================================
+# JSON serialization helpers
+# =============================================================================
+# Why these exist: psycopg2 returns Decimal for NUMERIC columns and numpy floats
+# leak in from strategy code. json.dumps() crashes silently on both. When that
+# happened inside _log_journal in execute_signal, the exception propagated up
+# through unprotected callers, skipping Telegram + skipping the sweep blacklist
+# update — causing the orphan-trade cascade on June 10 (see
+# docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md).
+# =============================================================================
+
+def safe_json_value(v):
+    """Convert a single value to a JSON-serializable form.
+
+    Handles: None, str, bool, int, float, Decimal, datetime, date,
+    numpy scalars (any platform/version), lists, dicts. Anything else
+    falls through to str() so we never crash the journal write.
+    """
+    if v is None:
+        return None
+    if isinstance(v, bool):  # bool BEFORE int (bool is subclass of int)
+        return v
+    if isinstance(v, (str, int, float)):
+        # Catch numpy scalars that subclass int/float — coerce to native
+        # so json.dumps works regardless of numpy version
+        if type(v) is int or type(v) is float or type(v) is str:
+            return v
+        # numpy.float64 / numpy.int64 etc — force native type
+        if isinstance(v, float):
+            return float(v)
+        if isinstance(v, int):
+            return int(v)
+        return v
+    if isinstance(v, decimal.Decimal):
+        return float(v)
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    # numpy scalars (legacy path for older numpy versions)
+    if hasattr(v, "item") and callable(getattr(v, "item")):
+        try:
+            extracted = v.item()
+            # extracted should now be a native Python type
+            if isinstance(extracted, (str, int, float, bool)) and type(extracted) in (str, int, float, bool):
+                return extracted
+            return float(extracted) if isinstance(extracted, (int, float)) else str(extracted)
+        except (TypeError, ValueError):
+            pass
+    if isinstance(v, (list, tuple)):
+        return [safe_json_value(x) for x in v]
+    if isinstance(v, dict):
+        return {str(k): safe_json_value(x) for k, x in v.items()}
+    # Fallback: stringify anything else (e.g., custom objects)
+    return str(v)
+
+
+def safe_json_dumps(ctx):
+    """Serialize a dict to JSON safely. Returns None if input is None/empty."""
+    if not ctx:
+        return None
+    try:
+        return json.dumps(safe_json_value(ctx))
+    except (TypeError, ValueError) as e:
+        # Last-resort fallback so journal write never crashes the caller
+        return json.dumps({"_serialize_error": str(e), "_repr": repr(ctx)[:500]})

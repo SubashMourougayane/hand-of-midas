@@ -16,7 +16,7 @@ from backend.execution import (
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details,
 )
-from backend.db import execute
+from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
 
@@ -38,10 +38,22 @@ def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: floa
 
 
 def _log_journal(trade_ref: str, strategy: str, event_type: str, price: float = None, context: dict = None):
+    """Insert a journal event. Context is sanitized for numpy/Decimal/datetime
+    so json.dumps can never crash on unexpected types (root cause of June 10
+    orphan-trade bug — see docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md)."""
     execute(
         "INSERT INTO gd_journal (trade_ref, strategy, event_type, price, context) VALUES (%s, %s, %s, %s, %s)",
-        (trade_ref, strategy, event_type, price, json.dumps(context) if context else None)
+        (trade_ref, strategy, event_type, price, safe_json_dumps(context))
     )
+
+
+def _log_journal_safe(trade_ref: str, strategy: str, event_type: str, price: float = None, context: dict = None):
+    """Best-effort journal write — NEVER raises. Use in critical paths
+    where a journal failure must not skip Telegram or trade tracking."""
+    try:
+        _log_journal(trade_ref, strategy, event_type, price, context)
+    except Exception as e:
+        print(f"  [OIL-MICRO] _log_journal {event_type} swallowed exception: {e}")
 
 
 def _get_dd_state() -> dict:
@@ -199,13 +211,16 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         except:
             pass
 
-    _log_journal(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
+    _log_journal_safe(trade_ref, strategy, "ENTRY_FILLED", fill_price, {
         "instrument": "BCO_USD", "units": units, "sl": sl_price, "tp": tp_price,
         "oanda_id": oanda_trade_id, "risk_mult": risk_mult, "risk_pct": risk_pct,
         "equity_usd": equity_usd,
     })
 
-    notify.trade_filled(trade_ref, "BCO_USD", direction, fill_price, units, sl_price, tp_price)
+    try:
+        notify.trade_filled(trade_ref, "BCO_USD", direction, fill_price, units, sl_price, tp_price)
+    except Exception as e:
+        print(f"  [OIL-MICRO] notify.trade_filled swallowed exception: {e}")
     print(f"  [OIL-MICRO] FILLED: {direction.upper()} {units} barrels @ {fill_price:.4f}, trade_id={oanda_trade_id}")
     return trade_ref
 
