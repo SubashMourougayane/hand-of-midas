@@ -331,6 +331,12 @@ def fmt_ts(dt: datetime, tz_name: str = "UTC"):
 def render_markdown(trade: dict, journal: list, m3_window: list, peers: list,
                     excursions: dict, tp_after_exit, fifty_pct_bar, fifty_pct_level: float,
                     system_label: str, instrument: str) -> str:
+    """Renders the canonical postmortem format. Both deterministic FACTS sections
+    (filled here) and JUDGMENT placeholders (filled later by the trade-postmortem
+    skill) are emitted, so the output structure is identical for every trade.
+
+    The skill replaces sections marked '<!-- skill: ... -->' rather than appending.
+    """
     tr = trade["trade_ref"]
     side = trade["side"]
     units = trade.get("units") or 0
@@ -347,17 +353,28 @@ def render_markdown(trade: dict, journal: list, m3_window: list, peers: list,
     fmt_price = lambda p: f"${p:.2f}" if is_xau else f"${p:.4f}"
 
     lines = []
+    # ── Header ──────────────────────────────────────────────────────────────
     lines.append(f"# Postmortem — {tr}")
     lines.append("")
-    lines.append(f"**System**: {system_label}")
-    lines.append(f"**Instrument**: {instrument}")
-    lines.append(f"**Strategy**: {trade.get('strategy', '?')}")
-    lines.append(f"**Side**: {side} {units} units")
-    lines.append(f"**Entry**: {fmt_price(entry)}  |  **SL**: {fmt_price(sl) if sl else '—'}  |  **TP**: {fmt_price(tp) if tp else '—'}")
+    lines.append("> **Verdict:** <!-- skill: verdict -->_pending skill analysis_<!-- /skill: verdict -->")
+    lines.append("> ")
+    lines.append("> **TL;DR:** <!-- skill: tldr -->_pending skill analysis_<!-- /skill: tldr -->")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
+    # ── Trade card ──────────────────────────────────────────────────────────
+    lines.append("## Trade card")
+    lines.append("")
+    lines.append(f"- **System:** {system_label}")
+    lines.append(f"- **Instrument:** {instrument}")
+    lines.append(f"- **Strategy:** {trade.get('strategy', '?')}")
+    lines.append(f"- **Side:** {side} {units} units")
+    lines.append(f"- **Entry:** {fmt_price(entry)} · **SL:** {fmt_price(sl) if sl else '—'} · **TP:** {fmt_price(tp) if tp else '—'}")
     if exit_price is not None:
-        lines.append(f"**Exit**: {fmt_price(exit_price)}  |  **Exit reason**: {trade.get('exit_reason', '?')}  |  **P&L (DB)**: ${pnl_usd:+.2f}")
+        lines.append(f"- **Exit:** {fmt_price(exit_price)} · **Exit reason:** {trade.get('exit_reason', '?')} · **P&L (DB):** ${pnl_usd:+.2f}")
     if entry_t and exit_t:
-        lines.append(f"**Duration**: {exit_t - entry_t}")
+        lines.append(f"- **Duration:** {exit_t - entry_t}")
     lines.append("")
 
     # Risk math — use ORIGINAL SL (from entry) for R:R to reflect what the
@@ -557,7 +574,54 @@ def render_markdown(trade: dict, journal: list, m3_window: list, peers: list,
 
     lines.append("---")
     lines.append("")
-    lines.append("_This file is the deterministic facts layer. The trade-postmortem skill appends judgment + analysis below this line._")
+    lines.append("# Judgment & deep analysis")
+    lines.append("")
+    lines.append("_The sections below are placeholders. The `trade-postmortem` skill replaces each `<!-- skill: ... -->` block with its analysis. Sections above this line are deterministic and must not be modified by the skill._")
+    lines.append("")
+
+    # 1. Strategy alignment
+    lines.append("## 1. Strategy alignment")
+    lines.append("")
+    lines.append("<!-- skill: strategy_alignment -->")
+    lines.append("_pending skill analysis — was the entry signal what the strategy is supposed to do? Asia consolidation real or trending? Sweep + engulfing + bias all aligned? R:R reasonable for this strategy (typically 1.5–3)? Entry timing within intended scan window?_")
+    lines.append("<!-- /skill: strategy_alignment -->")
+    lines.append("")
+
+    # 2. Bug-smell scan (judgment layer — beyond the deterministic checklist above)
+    lines.append("## 2. Bug-smell scan (judgment)")
+    lines.append("")
+    lines.append("<!-- skill: bug_smell -->")
+    lines.append("_pending skill analysis — DB ↔ broker P&L (compare to wallet if user mentioned it), Telegram delivery, stale state across systems, schema overflow indicators, OnTradeTransaction firing. Flag anything the deterministic checklist couldn't see._")
+    lines.append("<!-- /skill: bug_smell -->")
+    lines.append("")
+
+    # 3. Pattern interpretation
+    lines.append("## 3. Pattern interpretation")
+    lines.append("")
+    lines.append("<!-- skill: pattern -->")
+    lines.append("_pending skill analysis — interpret the recent-peers table above. Outlier or typical setup? Streak context? Cluster of failures? Net P&L direction? Don't restate the table — extract meaning._")
+    lines.append("<!-- /skill: pattern -->")
+    lines.append("")
+
+    # 4. Counterfactual narrative
+    lines.append("## 4. Counterfactual narrative")
+    lines.append("")
+    lines.append("<!-- skill: counterfactual -->")
+    lines.append("_pending skill analysis — narrative on the counterfactual table above. What trade-off did the strategy make? Was BE timing optimal (too early / too late / right)? If MAE never threatened SL, is SL too wide? What's the implied edge interpretation?_")
+    lines.append("<!-- /skill: counterfactual -->")
+    lines.append("")
+
+    # 5. Recommendations
+    lines.append("## 5. Recommendations")
+    lines.append("")
+    lines.append("<!-- skill: recommendations -->")
+    lines.append("_pending skill analysis — 1–3 concrete next steps. Is this normal/concerning/bug? What to verify on broker side? What to fix in code (file + line)? What to track for future trades?_")
+    lines.append("<!-- /skill: recommendations -->")
+    lines.append("")
+
+    lines.append("---")
+    lines.append("")
+    lines.append(f"_Generated by `scripts/postmortem.py` against `{API_BASE}` + local DWX. The trade-postmortem skill fills the placeholders above._")
     lines.append("")
 
     return "\n".join(lines)

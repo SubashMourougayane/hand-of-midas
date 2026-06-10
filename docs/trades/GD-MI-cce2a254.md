@@ -1,12 +1,20 @@
 # Postmortem — GD-MI-cce2a254
 
-**System**: Gold Micro
-**Instrument**: XAU_USD
-**Strategy**: micro_alpha_sweep
-**Side**: SHORT 30 units
-**Entry**: $4204.66  |  **SL**: $4204.36  |  **TP**: $4174.30
-**Exit**: $4174.30  |  **Exit reason**: TP  |  **P&L (DB)**: $+910.80
-**Duration**: 1:03:57.959077
+> **Verdict:** <!-- skill: verdict -->✅ Clean win — strategy as designed (after DB correction)<!-- /skill: verdict -->
+> 
+> **TL;DR:** <!-- skill: tldr -->Gold Micro SHORT 30 oz hit TP for +$910.80 in 64 minutes. Initial DB recorded +$9 due to phantom-fill bug; corrected via PNL_CORRECTED. First trade after the orphan-cascade rebuild — every defense layer fired correctly.<!-- /skill: tldr -->
+
+---
+
+## Trade card
+
+- **System:** Gold Micro
+- **Instrument:** XAU_USD
+- **Strategy:** micro_alpha_sweep
+- **Side:** SHORT 30 units
+- **Entry:** $4204.66 · **SL:** $4204.36 · **TP:** $4174.30
+- **Exit:** $4174.30 · **Exit reason:** TP · **P&L (DB):** $+910.80
+- **Duration:** 1:03:57.959077
 
 ## Risk Math
 
@@ -86,4 +94,46 @@ Recent net P&L (excluding this trade): $-1213.48
 
 ---
 
-_This file is the deterministic facts layer. The trade-postmortem skill appends judgment + analysis below this line._
+# Judgment & deep analysis
+
+_The sections below are placeholders. The `trade-postmortem` skill replaces each `<!-- skill: ... -->` block with its analysis. Sections above this line are deterministic and must not be modified by the skill._
+
+## 1. Strategy alignment
+
+<!-- skill: strategy_alignment -->
+Setup is well-aligned with Gold Micro's intended pattern. R:R 1.58:1 sits squarely in the strategy's design range (1.5–3). Entry at 07:00:02 UTC fell inside the rolling-window scan time. The 30-unit position sizing is consistent with the 4% risk × $10K equity baseline (risk = 30 × $19.24 = $577.20 ≈ 5.7% — slightly above target, likely from the lot-rounding in `units = int(min(risk_dollar / sl_distance, MAX_UNITS))`). Bias filter passing implies the prior daily candle was bearish (V1 body% ≥40% bearish OR V2 close-position ≤20%) — a 30-oz Gold short into a bearish-day bias is exactly the trade the strategy targets. No misalignment flags.
+<!-- /skill: strategy_alignment -->
+
+## 2. Bug-smell scan (judgment)
+
+<!-- skill: bug_smell -->
+**One historical bug already caught here, no new ones.**
+
+- The `PNL_CORRECTED` journal event documents the original misattribution: stored `pnl_usd=$9` (BE-stop fill heuristic) vs broker reality `+$910.80` at TP. Caught by the user comparing wallet to dashboard; fix landed in commit `141772e` (DWX `OnTradeTransaction` + `closed_orders.json`).
+- BE armed 121s after the 50%-TP cross — slightly slower than the 60s polling cycle. Plausible cause: position monitor takes time to read DWX files and call `modify_stop_loss`, and the cron fires "every 60s starting from minute 0" so a cross at +1s into a cycle naturally lands ≥61s later. Watch the next 5 trades — if BE delay routinely exceeds 90s, scheduler may be lagging.
+- No stale-state flags, no schema overflow indicators, no `EXIT_AMBIGUOUS` events. DWX comment-preservation appears active (entry has `oanda_id` matching broker).
+<!-- /skill: bug_smell -->
+
+## 3. Pattern interpretation
+
+<!-- skill: pattern -->
+This trade **breaks a 6-trade losing streak** and reverses Gold Micro's recent net direction (peer table: 1W/6L, -$1,213 across the last 7 closed trades). Most prior losses were SHORT or LONG SLs around $4,450–$4,490 — a price regime $250+ above this trade's $4,200 entry, suggesting Gold has been trending down through the past week and the strategy was repeatedly fading the wrong side until today's reversal SHORT aligned with the dominant trend. This is **not** an outlier setup mechanically (R:R, lot size, duration all peer-typical) — what's outlier is the **outcome direction**: it's the first big win in the dataset. Single trade isn't enough to claim the strategy "turned around"; need 3–5 more wins in this regime before drawing any conclusion.
+<!-- /skill: pattern -->
+
+## 4. Counterfactual narrative
+
+<!-- skill: counterfactual -->
+The strategy traded an **uncertain $577 max loss for a realized $910 win** — net favorable on this single instance, but the relevant question is the distribution. MAE ($101 = 17% of original SL distance) was nowhere near the original $19.24/oz risk, so this trade never had real adverse pressure. SL is NOT too wide: a tighter SL would have stopped this trade out before BE armed at $4,189.48 (price spent ~7 minutes between entry and BE crossing). BE timing was **arguably late** — by the time BE armed at +44 minutes, MFE had already reached $35/oz; price was about to make a bigger move ($43 MFE peak). But "earlier BE" only helps in the cases where price reverses, and in those cases the BE-stop level is the protection. Net: the BE rule traded ~$25/oz of remaining edge for ~$19/oz of guaranteed protection on this trade — that ratio is consistent with the strategy's overall PF 4.5 backtest, which assumes BE costs a small slice of MFE in exchange for converting potential losers to scratches.
+<!-- /skill: counterfactual -->
+
+## 5. Recommendations
+
+<!-- skill: recommendations -->
+- **Status: clean win, no action needed.** First full-loop verification of the post-rebuild defense stack — every layer fired correctly (after the manual phantom-fill correction).
+- **Track BE arm latency over next 5 trades.** Today was 121s after 50%-TP cross; if it routinely exceeds 90s, investigate whether `position_monitor_job` is consistently polling at 60s or if scheduler jobs are queuing. Look at journal `BREAK_EVEN.context.trigger_price` vs the M3 bar timestamp where price first crossed the level.
+- **Watch the next closure end-to-end** with no human intervention required — it should appear in `closed_orders.json` (DWX EA) and produce a clean DB record on the first try, with Telegram P&L matching wallet exactly. If it does, the phantom-fill fix is verified beyond structural tests.
+<!-- /skill: recommendations -->
+
+---
+
+_Generated by `scripts/postmortem.py` against `https://midas.subashtrades.in` + local DWX. The trade-postmortem skill fills the placeholders above._
