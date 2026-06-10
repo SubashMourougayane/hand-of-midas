@@ -63,9 +63,13 @@ def get_state():
             "skip_reason": s["skip_reason"],
         })
 
-    # Open trades from DB
+    # Open trades from DB. Filter by strategy IN (Gold Macro strategies) so
+    # Gold Macro's state response doesn't include Oil / Gold Micro trades.
+    # trade_ref prefix is insufficient because Gold Micro also uses 'GD-'.
     open_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NULL ORDER BY entry_time DESC",
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL "
+        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "ORDER BY entry_time DESC",
         fetch=True
     )
     db_positions = []
@@ -81,9 +85,11 @@ def get_state():
             "entry_time": t["entry_time"].isoformat() if t["entry_time"] else None,
         })
 
-    # Recent closed trades (last 5)
+    # Recent closed trades (last 5) — same Gold Macro filter
     recent_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 5",
+        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL "
+        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "ORDER BY exit_time DESC LIMIT 5",
         fetch=True
     )
     recent = []

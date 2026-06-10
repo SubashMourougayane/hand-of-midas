@@ -13,7 +13,13 @@ def get_events(
     strategy: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
 ):
-    """Get journal events with optional filters."""
+    """Get journal events with optional filters.
+
+    Default-scope to Gold Macro strategies so the Gold Macro UI doesn't see
+    cross-system events. Caller can override by passing a specific trade_ref
+    or strategy. (Gold Micro also uses 'GD-' trade_ref prefix, so we filter
+    by strategy column instead.)
+    """
     sql = "SELECT * FROM gd_journal WHERE 1=1"
     params = []
 
@@ -26,6 +32,9 @@ def get_events(
     if strategy:
         sql += " AND strategy = %s"
         params.append(strategy)
+    elif not trade_ref:
+        # No trade-specific or strategy-specific filter — scope to Gold Macro.
+        sql += " AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market')"
 
     sql += " ORDER BY timestamp DESC LIMIT %s"
     params.append(limit)

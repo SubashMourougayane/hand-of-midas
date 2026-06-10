@@ -179,7 +179,14 @@ def _build_state():
             "skip_reason": s["skip_reason"],
         })
 
-    open_trades = execute("SELECT * FROM gd_trades WHERE exit_time IS NULL ORDER BY entry_time DESC", fetch=True)
+    # Filter to Gold Macro strategies (Gold Micro also uses 'GD-' prefix, so
+    # trade_ref filter is insufficient — strategy IN is the safe filter).
+    open_trades = execute(
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL "
+        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "ORDER BY entry_time DESC",
+        fetch=True
+    )
     db_positions = []
     for t in (open_trades or []):
         db_positions.append({
@@ -194,7 +201,10 @@ def _build_state():
         })
 
     recent_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 5", fetch=True
+        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL "
+        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "ORDER BY exit_time DESC LIMIT 5",
+        fetch=True
     )
     recent = []
     for t in (recent_trades or []):
