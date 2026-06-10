@@ -11,11 +11,35 @@
 
 The 4 orphan BRENT SHORTs were **closed manually** by the user, locking in **+$600 realized profit**. Reasoning: the TP was unrealistically far ($88.99 vs price ~$91.30), reversal risk was real, and we couldn't track the positions through our system anyway. **This was the right call — turning unmanaged exposure into realized gain.**
 
-Implications for this plan:
-- Phase 1.1 (don't close) is moot — already closed.
-- Phase 1.2 (backfill DB) is now **a recovery operation** not a tracking-restoration. We need to insert the trades AS CLOSED so the equity/DD state, daily P&L, and trade history reflect reality. The strategy "sees" 4 trades that happened, all closed at the manual close prices.
-- Phase 1.3 (`max_trades_per_day` guard) — backfilled rows will now have `entry_time::date = today`, so the daily counter check will see 4 trades and **block any further Oil Micro entries today**, which is what we want anyway given the system was misbehaving.
-- Phases 2-4 are unchanged. The bug class still exists; closing today's orphans manually is a one-time triage, not a fix.
+### A 5TH ORPHAN APPEARED (~07:03 server / 04:03 UTC / 09:33 IST)
+
+After the user closed the 4 trades, **another orphan trade was placed** by Oil Micro:
+- Order ID: `2031871738`
+- BRENT SHORT 1.01 lot (~65% larger than earlier orphans)
+- Entry $91.20, SL $91.78, TP $90.67 (R:R 0.91 — different setup, different consolidation)
+- DB has 0 entries for it. No Telegram. **Same failure mode as the earlier 4.**
+
+This proves the bug is **not a one-time stuck signal in a loop** — it's a **consistent failure** in the Oil Micro `execute_signal` path. Every Oil Micro signal that places an order fails to write to DB and fails to send Telegram. The strategy is generating fresh signals correctly; the persistence layer is broken.
+
+### TWO ADDITIONAL DISCOVERIES (Same Investigation)
+
+**Discovery 1: 3 of 4 systems are still hitting OANDA price stream despite being on MT5**
+
+Only Gold Macro's `main.py` checks `if EXECUTOR != "mt5"` before starting `start_stream()`. Oil Macro, Gold Micro, and Oil Micro **always start the OANDA stream** regardless of EXECUTOR setting. With empty `OANDA_TOKEN` (env var unset on the VPS since we migrated to MT5), the stream throws `Illegal header value b'Bearer '` and reconnects every 3 seconds.
+
+Evidence: `gd_journal` for Oil Macro and Gold Macro both contain ONLY `STREAM_DISCONNECTED` events for the past hour — flooding at ~20-30 events/minute per system.
+
+**Discovery 2: BE detection on Oil Macro / Gold Micro / Oil Micro is BROKEN (silently)**
+
+The price-stream `_on_tick()` function is the BE trigger for these systems (see `backend-oil-micro/scanner/price_stream.py:30-82`). With OANDA stream constantly disconnected, **no ticks ever reach `_on_tick()`** → **BE never fires from the stream path**. They have to rely on the cron-based `position_monitor_job` which runs every 60 seconds — slower, less precise, and we just saw it has its own issues.
+
+This is why Gold Micro's June 10 trade hit SL with no BE protection earlier — even though we "fixed" the missing `check_alpha_sweep_breakeven()` call, the stream-based real-time BE detection was already dead because of this OANDA misconfig.
+
+### Implications for the Plan
+
+- Phase 1: Now needs to backfill **5 trades** (4 closed + 1 currently open) plus the 5th's eventual exit when user closes it.
+- Phase 2: Must include **disabling OANDA stream startup** in the 3 systems that don't check EXECUTOR. This is a 5-line change but stops the journal flooding and CPU thrash immediately.
+- Phase 3: The orphan reconciler becomes even more critical — it's the **only** safety net catching these failures right now since logging/Telegram are broken.
 
 ---
 
@@ -45,9 +69,17 @@ The 4 trades are already closed manually. Phase 1 is now about reconciling the D
 
 ### 1.1 Pull Exact Close Details from MT5
 
-Before writing the backfill SQL, fetch the **actual** close price and close time for each of the 4 orders from MT5 history (don't guess, don't approximate). These should be visible in JustMarkets web → History tab, or in the local MT5 terminal History.
+Before writing the backfill SQL, fetch the **actual** close price and close time for each of the orphan orders from MT5 history (don't guess, don't approximate). These should be visible in JustMarkets web → History tab, or in the local MT5 terminal History.
 
-For each order ID (2031303852, 2031324884, 2031450502, 2031569381), capture:
+**5 orders to backfill** (4 closed manually + 1 still open at time of writing):
+
+Closed:
+- 2031303852, 2031324884, 2031450502, 2031569381 (the original 4)
+
+Currently open (close it manually first, then backfill as closed):
+- **2031871738** — BRENT SHORT 1.01 lot @ $91.20, opened 04:03 UTC, currently underwater ~$150
+
+For each, capture:
 - `close_time` (server time → convert to UTC)
 - `close_price`
 - `realized_pnl` (Trade P&L, before swap/commission)
@@ -92,7 +124,14 @@ VALUES
    '<close_time_utc_4>',     <close_price_4>,
    92.55, 88.99,
    0.62, 620, 'live', '2031569381',
-   <pnl_usd_4>, <pnl_usd_4>, 'MANUAL_CLOSE');
+   <pnl_usd_4>, <pnl_usd_4>, 'MANUAL_CLOSE'),
+  -- 5th orphan, larger position, different setup
+  ('OIL-MI-rec-871738', 'micro_alpha_sweep_oil', 'SHORT',
+   '2026-06-10 04:03:00+00', 91.20,
+   '<close_time_utc_5>',     <close_price_5>,
+   91.78, 90.67,
+   1.01, 1010, 'live', '2031871738',
+   <pnl_usd_5>, <pnl_usd_5>, 'MANUAL_CLOSE');
 ```
 
 `exit_reason='MANUAL_CLOSE'` is a new value — it tells the system "this didn't hit SL or TP, a human intervened." Useful for filtering later (e.g., when measuring strategy P&L, you might want to exclude manual closes since they don't reflect strategy edge).
@@ -165,6 +204,58 @@ Restart so the in-memory `_daily_state["trades"]` syncs with the new DB count. A
 ## Phase 2 — Code Fixes (Next Deploy, Before Tomorrow's Scan Window)
 
 These are the minimal code changes to stop this exact failure mode.
+
+### 2.0 Disable OANDA Price Stream on MT5 Systems (NEW — DO FIRST)
+
+**Why first:** The constant reconnect loop is corrupting our investigation of the orphan bug (journal floods drown out real events) and likely contributing to DB latency that's making the `execute_signal` path unstable.
+
+**Files to fix:** `backend-oil/main.py`, `backend-micro/main.py`, `backend-oil-micro/main.py`
+
+Apply the same pattern Gold Macro already uses (`backend/main.py:32-37`):
+
+```python
+# BEFORE — always starts OANDA stream
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from scanner.scheduler import start_scheduler, stop_scheduler
+    from scanner.price_stream import start_stream, stop_stream
+
+    print("Starting Oil Micro Alpha-Sweep scheduler...")
+    start_scheduler()
+    start_stream()                                          # ← ALWAYS RUNS
+    print("OilMiner Micro ready.")
+    yield
+    print("Shutting down OilMiner Micro...")
+    stop_stream()
+    stop_scheduler()
+
+# AFTER — only starts stream if running on OANDA executor
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from scanner.scheduler import start_scheduler, stop_scheduler
+    from config import EXECUTOR
+
+    print("Starting Oil Micro Alpha-Sweep scheduler...")
+    start_scheduler()
+    if EXECUTOR != "mt5":
+        from scanner.price_stream import start_stream, stop_stream
+        print("Starting OANDA price stream...")
+        start_stream()
+    else:
+        print("MT5 mode — OANDA price stream disabled (DWX provides prices)")
+    print("OilMiner Micro ready.")
+    yield
+    print("Shutting down OilMiner Micro...")
+    if EXECUTOR != "mt5":
+        stop_stream()
+    stop_scheduler()
+```
+
+**Apply to all 3 files:** `backend-oil/main.py`, `backend-micro/main.py`, `backend-oil-micro/main.py`.
+
+**Followup needed (Phase 3):** Add an MT5-tick-based BE detector to replace the OANDA stream's BE function. The current state is that BE on these 3 systems falls back to the 60-sec cron `check_alpha_sweep_breakeven()` — which works but is slower/less precise than tick-level. For now, that's acceptable; the stream BE was effectively already dead.
+
+**Time:** 15 min (3 files, identical pattern, plus restart).
 
 ### 2.1 Wrap All `_log_journal` Calls in Try/Except
 
@@ -461,10 +552,11 @@ If the scheduler hasn't successfully completed a cycle in 10 minutes (last_succe
 
 | Phase | What | When | Time | Risk if Skipped |
 |---|---|---|---|---|
-| **1** | Backfill 4 closed trades (with real PnL) + DD state + restart | Tonight | 20 min | Equity tracking off, DD state wrong, audit trail gap |
+| **1** | Backfill 5 closed trades (with real PnL) + DD state + restart | Tonight | 25 min | Equity tracking off, DD state wrong, audit trail gap |
+| **2.0** | **Disable OANDA stream on 3 MT5 systems** (NEW) | Before next scan | 15 min | Journal flooding continues, BE on 3 systems remains broken |
 | **2** | Wrap journal calls, fix sweep ordering, sanitize JSON, fix DWX | Before tomorrow's scan | 2 hr | Same bug recurs on next anomaly |
 | **3** | Orphan reconciler + Telegram error alerts + daily recon | This week | 4 hr | Future orphans go undetected for hours |
-| **4** | Health checks, idempotency, logging, auto-recovery | Next sprint | 1-2 days | Operational blindspots remain |
+| **4** | Health checks, idempotency, logging, auto-recovery, MT5-tick BE | Next sprint | 1-2 days | Operational blindspots remain; BE precision suboptimal |
 
 ---
 
@@ -478,6 +570,8 @@ These belong in the "What NOT To Do" section of project memory:
 - **JSON serialization in `json.dumps()` is a hidden landmine.** numpy floats, Decimal, datetime, custom objects all crash silently. Always pass through a sanitizer before any context dict goes to JSON.
 - **`max_trades_per_day = max(db_count, local_counter)` is fragile.** Both can be 0 if INSERTs fail. A more correct guard is `db_count + len(unprocessed_orders_this_session)` — but the simpler fix is to make INSERTs robust (Phases 2-3).
 - **The DWX EA's `StringSplit(cmd, '|', parts)` consumes ALL `|` separators** — which means any `|` in the comment field gets eaten. Either re-join `parts[7..n-1]` or pick a delimiter that won't appear in our comments.
+- **Migrations between brokers must update EVERY service uniformly.** When we migrated from OANDA to JustMarkets MT5, only `backend/main.py` (Gold Macro) got the `if EXECUTOR != "mt5"` guard around the price stream startup. The other 3 services (Oil Macro, Gold Micro, Oil Micro) silently kept hitting OANDA endpoints with no token, flooding journals and burning CPU for weeks. **Migration checklist:** any "broker integration" change must include a grep for ALL services using the old broker's symbols/endpoints/tokens, not just the system you're focused on.
+- **A shared infrastructure failure (OANDA stream loop) can mask a different bug.** The journal flooding from STREAM_DISCONNECTED events drowned out the search for ENTRY_FILLED events in our orphan investigation. Always **filter journal queries by event_type** when investigating, never trust a `LIMIT 200` view of mixed events.
 
 ---
 
