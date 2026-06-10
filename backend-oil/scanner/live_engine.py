@@ -444,8 +444,16 @@ def reconcile_orphans():
         if not broker_id or broker_id in db_open_ids:
             continue
 
+        # Skip harness-placed test trades (case-insensitive 'harness' prefix).
+        comment = (pos.get("comment") or "")
+        if comment.lower().startswith("harness"):
+            continue
+
         units_signed = pos.get("currentUnits", 0)
-        units = abs(int(units_signed))
+        units = abs(int(round(units_signed)))
+        if units < 1:
+            # Sub-lot position — likely harness/test trade. Skip; never adopt.
+            continue
         side = "LONG" if units_signed > 0 else "SHORT"
         entry_price = float(pos.get("price", 0))
         sl = float(pos.get("sl") or 0)

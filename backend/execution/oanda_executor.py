@@ -229,6 +229,9 @@ def get_open_trades(instrument: str = None) -> list[dict]:
             "sl": float(t.get("stopLossOrder", {}).get("price", 0)) if t.get("stopLossOrder") else None,
             "tp": float(t.get("takeProfitOrder", {}).get("price", 0)) if t.get("takeProfitOrder") else None,
             "open_time": t.get("openTime", ""),
+            # Mirror MT5 wrapper's `comment` exposure so reconcilers can
+            # filter out HARNESS_* trades regardless of executor.
+            "comment": t.get("clientExtensions", {}).get("comment", ""),
         })
     return result
 

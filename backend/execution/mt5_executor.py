@@ -209,6 +209,9 @@ def get_open_trades(instrument=None):
             "tp": pos["tp"] if pos["tp"] > 0 else None,
             "openTime": pos.get("open_time", ""),
             "side": "BUY" if pos["type"] == "BUY" else "SELL",
+            # Expose comment so callers (e.g. orphan reconciler) can ignore
+            # harness/test trades placed with HARNESS_* prefixed comments.
+            "comment": pos.get("comment", ""),
         })
 
     return trades

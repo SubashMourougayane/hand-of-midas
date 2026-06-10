@@ -499,9 +499,24 @@ def reconcile_orphans():
         if not broker_id or broker_id in db_open_ids:
             continue
 
+        # Skip harness-placed test trades. The shared JustMarkets demo
+        # account is also used by tests/harness/, which prefix their
+        # `comment` with 'harness' so live reconcilers can ignore them.
+        # Match case-insensitively so harness_test, HARNESS_xxx, etc.
+        # all skip without coordination.
+        comment = (pos.get("comment") or "")
+        if comment.lower().startswith("harness"):
+            continue
+
         # ORPHAN — adopt it
         units_signed = pos.get("currentUnits", 0)
-        units = abs(int(units_signed))
+        units = abs(int(round(units_signed)))
+        if units < 1:
+            # Sub-lot position (units rounded to 0). Almost always a stale
+            # harness/test trade or partial-close artifact — not our trade
+            # to manage. Adopting with units=0 produces a ghost row that
+            # can never be reconciled or P&L-accounted.
+            continue
         side = "LONG" if units_signed > 0 else "SHORT"
         entry_price = float(pos.get("price", 0))
         sl = float(pos.get("sl") or 0)
