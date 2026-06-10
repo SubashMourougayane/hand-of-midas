@@ -7,6 +7,18 @@
 
 ---
 
+## Status Update (post-decision)
+
+The 4 orphan BRENT SHORTs were **closed manually** by the user, locking in **+$600 realized profit**. Reasoning: the TP was unrealistically far ($88.99 vs price ~$91.30), reversal risk was real, and we couldn't track the positions through our system anyway. **This was the right call — turning unmanaged exposure into realized gain.**
+
+Implications for this plan:
+- Phase 1.1 (don't close) is moot — already closed.
+- Phase 1.2 (backfill DB) is now **a recovery operation** not a tracking-restoration. We need to insert the trades AS CLOSED so the equity/DD state, daily P&L, and trade history reflect reality. The strategy "sees" 4 trades that happened, all closed at the manual close prices.
+- Phase 1.3 (`max_trades_per_day` guard) — backfilled rows will now have `entry_time::date = today`, so the daily counter check will see 4 trades and **block any further Oil Micro entries today**, which is what we want anyway given the system was misbehaving.
+- Phases 2-4 are unchanged. The bug class still exists; closing today's orphans manually is a one-time triage, not a fix.
+
+---
+
 ## Mental Model: Why Orphans Happen
 
 This isn't one bug — it's a **failure cascade** with 4 distinct stages:
@@ -27,29 +39,126 @@ LOOP: Until either the sweep window expires or service crashes hard
 
 ---
 
-## Phase 1 — Immediate (Tonight, While 4 Trades Are Still Open)
+## Phase 1 — Immediate Recovery (Tonight)
 
-### 1.1 Don't Close the Trades Manually
+The 4 trades are already closed manually. Phase 1 is now about reconciling the DB to reality and stopping any further damage tonight.
 
-The 4 BRENT SHORTs have correct SL ($92.55) and TP ($88.99) on the broker side. The broker WILL execute them. Closing them now means giving up potential +$580 profit just to clean up DB state — that's panic, not engineering.
+### 1.1 Pull Exact Close Details from MT5
 
-### 1.2 Backfill the DB So Position Monitor Adopts Them
+Before writing the backfill SQL, fetch the **actual** close price and close time for each of the 4 orders from MT5 history (don't guess, don't approximate). These should be visible in JustMarkets web → History tab, or in the local MT5 terminal History.
 
-Run the SQL below on the VPS Postgres. This makes the position monitor see them as normal trades. When they hit TP or SL on the broker side, `check_open_positions()` will detect the closure and update the DB rows correctly.
+For each order ID (2031303852, 2031324884, 2031450502, 2031569381), capture:
+- `close_time` (server time → convert to UTC)
+- `close_price`
+- `realized_pnl` (Trade P&L, before swap/commission)
+- `realized_pnl_after_costs` (Net P&L)
+
+Replace the placeholder values in the SQL below with these real numbers. **No phantom fills, no fake numbers.**
+
+### 1.2 Backfill DB With Trades AS CLOSED
+
+This SQL inserts the 4 trades complete with exit data. The position monitor will not try to manage them (because `exit_time IS NOT NULL` filters them out). The strategy's recent-trades query, daily P&L sum, and DD state recovery will all see them.
 
 ```sql
-INSERT INTO gd_trades (trade_ref, strategy, side, entry_time, entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id) VALUES
-('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'SHORT', '2026-06-10 01:03:00+00', 91.45, 92.55, 88.99, 0.62, 620, 'live', '2031303852'),
-('OIL-MI-rec-324884', 'micro_alpha_sweep_oil', 'SHORT', '2026-06-10 01:06:00+00', 91.48, 92.55, 88.99, 0.61, 610, 'live', '2031324884'),
-('OIL-MI-rec-450502', 'micro_alpha_sweep_oil', 'SHORT', '2026-06-10 01:45:00+00', 91.53, 92.55, 88.99, 0.61, 610, 'live', '2031450502'),
-('OIL-MI-rec-569381', 'micro_alpha_sweep_oil', 'SHORT', '2026-06-10 02:27:00+00', 91.35, 92.55, 88.99, 0.62, 620, 'live', '2031569381');
+-- Replace ?? with actual values from MT5 history
+INSERT INTO gd_trades
+  (trade_ref, strategy, side,
+   entry_time, entry_price,
+   exit_time, exit_price,
+   sl_price, tp_price,
+   lot_size, units, mode, oanda_trade_id,
+   pnl_usd, pnl_gbp, exit_reason)
+VALUES
+  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'SHORT',
+   '2026-06-10 01:03:00+00', 91.45,
+   '<close_time_utc_1>',     <close_price_1>,
+   92.55, 88.99,
+   0.62, 620, 'live', '2031303852',
+   <pnl_usd_1>, <pnl_usd_1>, 'MANUAL_CLOSE'),
+  ('OIL-MI-rec-324884', 'micro_alpha_sweep_oil', 'SHORT',
+   '2026-06-10 01:06:00+00', 91.48,
+   '<close_time_utc_2>',     <close_price_2>,
+   92.55, 88.99,
+   0.61, 610, 'live', '2031324884',
+   <pnl_usd_2>, <pnl_usd_2>, 'MANUAL_CLOSE'),
+  ('OIL-MI-rec-450502', 'micro_alpha_sweep_oil', 'SHORT',
+   '2026-06-10 01:45:00+00', 91.53,
+   '<close_time_utc_3>',     <close_price_3>,
+   92.55, 88.99,
+   0.61, 610, 'live', '2031450502',
+   <pnl_usd_3>, <pnl_usd_3>, 'MANUAL_CLOSE'),
+  ('OIL-MI-rec-569381', 'micro_alpha_sweep_oil', 'SHORT',
+   '2026-06-10 02:27:00+00', 91.35,
+   '<close_time_utc_4>',     <close_price_4>,
+   92.55, 88.99,
+   0.62, 620, 'live', '2031569381',
+   <pnl_usd_4>, <pnl_usd_4>, 'MANUAL_CLOSE');
 ```
 
-### 1.3 Increment `_daily_state["trades"]` to Prevent More Entries Tonight
+`exit_reason='MANUAL_CLOSE'` is a new value — it tells the system "this didn't hit SL or TP, a human intervened." Useful for filtering later (e.g., when measuring strategy P&L, you might want to exclude manual closes since they don't reflect strategy edge).
 
-Restart Oil Micro service so its in-memory state matches reality. After restart, the cron sees `db_trades_today=4` from the backfilled rows → `max(4, 0)=4 >= max_trades_per_day=3` → **no more entries today**. This is automatic — no code change needed.
+### 1.3 Update DD State With the Realized P&L
 
-**Time:** 10 minutes total (SQL + service restart).
+DD state (gd_dd_state row id=4 for Oil Micro) tracks consecutive losses, equity, peak equity. The 4 closed trades changed equity by approximately **+$600** (realized profit). Update DD state to reflect this:
+
+```sql
+UPDATE gd_dd_state
+SET
+  consecutive_losses = 0,                                   -- 4 wins in a row reset the counter
+  pause_counter = 0,
+  equity = equity + <total_realized_usd>,                   -- e.g., equity + 600.00
+  peak_equity = GREATEST(peak_equity, equity + <total_realized_usd>),
+  updated_at = NOW()
+WHERE id = 4;
+```
+
+Run this AFTER the trade backfill so it reflects the same reality.
+
+### 1.4 Backfill the Journal With ENTRY/EXIT Events
+
+Optional but recommended for audit trail. The journal is the system's history-of-record:
+
+```sql
+INSERT INTO gd_journal (trade_ref, strategy, event_type, price, context, timestamp)
+VALUES
+  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'ENTRY_FILLED_RECOVERED', 91.45,
+   '{"recovered": true, "reason": "orphan_backfill", "broker_id": "2031303852"}'::jsonb,
+   '2026-06-10 01:03:00+00'),
+  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'EXIT_MANUAL', <close_price_1>,
+   '{"recovered": true, "reason": "user_closed_due_to_orphan", "pnl_usd": <pnl_usd_1>}'::jsonb,
+   '<close_time_utc_1>');
+-- ... repeat for the other 3 trades
+```
+
+### 1.5 Verify Post-Backfill State
+
+After running the SQL, verify with these checks (each should return the expected count):
+
+```sql
+-- Should return 4 rows
+SELECT trade_ref, side, entry_time, exit_time, pnl_usd, exit_reason
+FROM gd_trades
+WHERE trade_ref LIKE 'OIL-MI-rec-%'
+ORDER BY entry_time;
+
+-- Should return ~$600 (sum of realized P&L)
+SELECT SUM(pnl_usd) FROM gd_trades WHERE trade_ref LIKE 'OIL-MI-rec-%';
+
+-- Should reflect updated equity
+SELECT equity, peak_equity, consecutive_losses FROM gd_dd_state WHERE id = 4;
+
+-- Should still be 0 (we don't want any open Oil Micro positions)
+SELECT COUNT(*) FROM gd_trades WHERE trade_ref LIKE 'OIL-MI-%' AND exit_time IS NULL;
+```
+
+### 1.6 Restart Oil Micro Service
+
+Restart so the in-memory `_daily_state["trades"]` syncs with the new DB count. After restart:
+- Daily count = 4 (from backfilled rows with today's date)
+- `max_trades_per_day = 3` → guard fires → no more Oil Micro entries today
+- Tomorrow at 00:00 UTC, daily state resets and the system runs clean
+
+**Total time:** 20 minutes (5 min to pull MT5 history + 10 min to write/run SQL + 5 min restart/verify).
 
 ---
 
@@ -352,7 +461,7 @@ If the scheduler hasn't successfully completed a cycle in 10 minutes (last_succe
 
 | Phase | What | When | Time | Risk if Skipped |
 |---|---|---|---|---|
-| **1** | Backfill 4 orphan trades + restart Oil Micro | Tonight | 10 min | Position monitor doesn't track exits, BE doesn't fire |
+| **1** | Backfill 4 closed trades (with real PnL) + DD state + restart | Tonight | 20 min | Equity tracking off, DD state wrong, audit trail gap |
 | **2** | Wrap journal calls, fix sweep ordering, sanitize JSON, fix DWX | Before tomorrow's scan | 2 hr | Same bug recurs on next anomaly |
 | **3** | Orphan reconciler + Telegram error alerts + daily recon | This week | 4 hr | Future orphans go undetected for hours |
 | **4** | Health checks, idempotency, logging, auto-recovery | Next sprint | 1-2 days | Operational blindspots remain |
@@ -374,7 +483,8 @@ These belong in the "What NOT To Do" section of project memory:
 
 ## What I'm NOT Recommending (and Why)
 
-- ❌ **Manually closing the 4 trades.** Throwing away $600 profit to clean up a tracking issue is wrong economics. The broker SL/TP works; we just need to track them.
-- ❌ **Disabling Oil Micro pending fix.** The bug is now understood and the immediate trades are profitable. Better to deploy the fix in Phase 2 than to leave money on the table.
+- ✅ ~~Manually closing the 4 trades.~~ — User did this and it was the right call given the unrealistic TP and untrackable orphan state. **Updated**: Phase 1 is now backfill-as-closed instead of backfill-as-open.
+- ❌ **Disabling Oil Micro pending fix.** The bug is now understood and the realized profit confirms the entry signals had directional edge. Better to deploy Phase 2 than to leave the system off.
 - ❌ **Rewriting the entire signal pipeline.** The architecture is fine — the failure is one missing try/except and one out-of-order operation. Rewrite when there's a strategic reason, not when patching bugs.
 - ❌ **Adding more retries inside `execute_signal`.** That just increases the number of duplicate orders if the underlying issue is broker-side. The right answer is making the cross-cycle state robust (Phase 2.2 + Phase 3.1).
+- ❌ **Skipping the audit-trail backfill (Phase 1.4).** It's tempting to just leave the DB empty since the trades closed manually. Don't — the journal is your forensic record for next time something goes weird. A 4-trade gap with no entries makes future debugging much harder.
