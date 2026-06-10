@@ -7,17 +7,23 @@
 
 ---
 
-## Status Update (post-decision)
+## Status Update (FINAL — 2026-06-10 evening)
 
-The 4 orphan BRENT SHORTs were **closed manually** by the user, locking in **+$600 realized profit**. Reasoning: the TP was unrealistically far ($88.99 vs price ~$91.30), reversal risk was real, and we couldn't track the positions through our system anyway. **This was the right call — turning unmanaged exposure into realized gain.**
+The bug fired **7 times total** before user closed Oil Micro. Realized P&L from the 7 orphans: **+$345.86 net** (5 wins, 2 losses, +$605 in the first batch of luck-on-direction, then -$259 in the second batch as the market caught up).
+
+**Decision: clean slate reset, not backfill.** The user is topping up the JustMarkets wallet to **$10,000 USD** for a fresh baseline. This is better than backfilling because:
+- Backtest assumptions hold (no `MANUAL_CLOSE` rows polluting equity curves)
+- Equity reference is a known $10K instead of a derived value
+- Forensic record lives in docs/ (where it belongs), not in production DB
+- Confidence the bug is fixed because there's nothing to compare against
+
+The reset SQL (`scripts/reset_oilmicro_clean_slate.sql`) wipes Oil Micro state ONLY — Gold Macro, Gold Micro, Oil Macro are preserved.
+
+### A 5TH–7TH ORPHAN APPEARED (post-close cascade)
 
 ### A 5TH ORPHAN APPEARED (~07:03 server / 04:03 UTC / 09:33 IST)
 
-After the user closed the 4 trades, **another orphan trade was placed** by Oil Micro:
-- Order ID: `2031871738`
-- BRENT SHORT 1.01 lot (~65% larger than earlier orphans)
-- Entry $91.20, SL $91.78, TP $90.67 (R:R 0.91 — different setup, different consolidation)
-- DB has 0 entries for it. No Telegram. **Same failure mode as the earlier 4.**
+After the user closed the 4 trades, **another orphan was placed** (#5: 2031871738, then #6: 2031942681 right after, then #7: 2031975446). Every cycle that detected a sweep silently produced an orphan.
 
 This proves the bug is **not a one-time stuck signal in a loop** — it's a **consistent failure** in the Oil Micro `execute_signal` path. Every Oil Micro signal that places an order fails to write to DB and fails to send Telegram. The strategy is generating fresh signals correctly; the persistence layer is broken.
 
@@ -63,141 +69,61 @@ LOOP: Until either the sweep window expires or service crashes hard
 
 ---
 
-## Phase 1 — Immediate Recovery (Tonight)
+## Phase 1 — Clean Slate Reset (Tonight)
 
-The 4 trades are already closed manually. Phase 1 is now about reconciling the DB to reality and stopping any further damage tonight.
+The 7 orphans are all closed manually. Phase 1 is now a **clean reset to a known-good state**, not a backfill. Backfilling would inject `MANUAL_CLOSE` rows that pollute the strategy's equity curve and DD-state assumptions; resetting to $10K matches a real wallet top-up.
 
-### 1.1 Pull Exact Close Details from MT5
+The reset script `scripts/reset_oilmicro_clean_slate.sql` is atomic, scoped to Oil Micro only, and includes verification queries. It MUST run AFTER stopping all 4 services AND AFTER the JM wallet is topped up.
 
-Before writing the backfill SQL, fetch the **actual** close price and close time for each of the orphan orders from MT5 history (don't guess, don't approximate). These should be visible in JustMarkets web → History tab, or in the local MT5 terminal History.
+**Run sequence on VPS:**
+```powershell
+# 1. Stop all services
+Get-Process python, node -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep 3
 
-**5 orders to backfill** (4 closed manually + 1 still open at time of writing):
+# 2. Pull latest code (Phase 2 hardening must be deployed BEFORE Oil Micro restarts)
+cd C:\hand-of-midas
+git checkout -- logs/*.log
+git pull origin midas-deploy
 
-Closed:
-- 2031303852, 2031324884, 2031450502, 2031569381 (the original 4)
+# 3. (User action) Top up JustMarkets wallet to $10,000 USD via the JM web UI
 
-Currently open (close it manually first, then backfill as closed):
-- **2031871738** — BRENT SHORT 1.01 lot @ $91.20, opened 04:03 UTC, currently underwater ~$150
+# 4. Run the reset SQL
+psql golddigger -f scripts\reset_oilmicro_clean_slate.sql
 
-For each, capture:
-- `close_time` (server time → convert to UTC)
-- `close_price`
-- `realized_pnl` (Trade P&L, before swap/commission)
-- `realized_pnl_after_costs` (Net P&L)
+# 5. Verify the verification queries at bottom printed expected results:
+#    - oil_micro_trades_remaining = 0
+#    - oil_micro_signals_remaining = 0
+#    - dd_state id=4 shows equity=10000, peak_equity=10000, consecutive_losses=0
+#    - Other systems' trades_count UNCHANGED
 
-Replace the placeholder values in the SQL below with these real numbers. **No phantom fills, no fake numbers.**
+# 6. Restart all services with Phase 2 hardening active
+.\scripts\start-win.bat
 
-### 1.2 Backfill DB With Trades AS CLOSED
-
-This SQL inserts the 4 trades complete with exit data. The position monitor will not try to manage them (because `exit_time IS NOT NULL` filters them out). The strategy's recent-trades query, daily P&L sum, and DD state recovery will all see them.
-
-```sql
--- Replace ?? with actual values from MT5 history
-INSERT INTO gd_trades
-  (trade_ref, strategy, side,
-   entry_time, entry_price,
-   exit_time, exit_price,
-   sl_price, tp_price,
-   lot_size, units, mode, oanda_trade_id,
-   pnl_usd, pnl_gbp, exit_reason)
-VALUES
-  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'SHORT',
-   '2026-06-10 01:03:00+00', 91.45,
-   '<close_time_utc_1>',     <close_price_1>,
-   92.55, 88.99,
-   0.62, 620, 'live', '2031303852',
-   <pnl_usd_1>, <pnl_usd_1>, 'MANUAL_CLOSE'),
-  ('OIL-MI-rec-324884', 'micro_alpha_sweep_oil', 'SHORT',
-   '2026-06-10 01:06:00+00', 91.48,
-   '<close_time_utc_2>',     <close_price_2>,
-   92.55, 88.99,
-   0.61, 610, 'live', '2031324884',
-   <pnl_usd_2>, <pnl_usd_2>, 'MANUAL_CLOSE'),
-  ('OIL-MI-rec-450502', 'micro_alpha_sweep_oil', 'SHORT',
-   '2026-06-10 01:45:00+00', 91.53,
-   '<close_time_utc_3>',     <close_price_3>,
-   92.55, 88.99,
-   0.61, 610, 'live', '2031450502',
-   <pnl_usd_3>, <pnl_usd_3>, 'MANUAL_CLOSE'),
-  ('OIL-MI-rec-569381', 'micro_alpha_sweep_oil', 'SHORT',
-   '2026-06-10 02:27:00+00', 91.35,
-   '<close_time_utc_4>',     <close_price_4>,
-   92.55, 88.99,
-   0.62, 620, 'live', '2031569381',
-   <pnl_usd_4>, <pnl_usd_4>, 'MANUAL_CLOSE'),
-  -- 5th orphan, larger position, different setup
-  ('OIL-MI-rec-871738', 'micro_alpha_sweep_oil', 'SHORT',
-   '2026-06-10 04:03:00+00', 91.20,
-   '<close_time_utc_5>',     <close_price_5>,
-   91.78, 90.67,
-   1.01, 1010, 'live', '2031871738',
-   <pnl_usd_5>, <pnl_usd_5>, 'MANUAL_CLOSE');
+# 7. Watch the startup logs — you should see:
+#    "MT5 mode — OANDA price stream disabled (DWX provides prices)"
+#    on Oil Macro, Gold Micro, AND Oil Micro startup
 ```
 
-`exit_reason='MANUAL_CLOSE'` is a new value — it tells the system "this didn't hit SL or TP, a human intervened." Useful for filtering later (e.g., when measuring strategy P&L, you might want to exclude manual closes since they don't reflect strategy edge).
+The forensic record of the 7 orphan trades is preserved in:
+- `docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md` (initial bug story)
+- `docs/PRODUCTION_FIX_PLAN_ORPHAN_TRADES.md` (this doc)
+- `scripts/backfill_orphans_june10.sql` (kept for posterity, NOT TO BE RUN)
 
-### 1.3 Update DD State With the Realized P&L
+Total realized P&L from the 7 orphans (already settled on broker): **+$345.86 net.**
 
-DD state (gd_dd_state row id=4 for Oil Micro) tracks consecutive losses, equity, peak equity. The 4 closed trades changed equity by approximately **+$600** (realized profit). Update DD state to reflect this:
+### Why Backfill Was Rejected
 
-```sql
-UPDATE gd_dd_state
-SET
-  consecutive_losses = 0,                                   -- 4 wins in a row reset the counter
-  pause_counter = 0,
-  equity = equity + <total_realized_usd>,                   -- e.g., equity + 600.00
-  peak_equity = GREATEST(peak_equity, equity + <total_realized_usd>),
-  updated_at = NOW()
-WHERE id = 4;
-```
+An earlier draft of this plan proposed backfilling 7 trades into `gd_trades` with `exit_reason='MANUAL_CLOSE'`. That approach was rejected after the user opted to top up the wallet to a clean $10K instead. Reasons:
 
-Run this AFTER the trade backfill so it reflects the same reality.
+- **Backtest assumptions break.** `exit_reason='MANUAL_CLOSE'` rows aren't strategy-driven exits, so they pollute equity-curve analysis and confuse any future strategy comparison against backtest.
+- **Equity reference is muddier.** Backfilling adds +$345.86 to whatever equity was; resetting to $10K is unambiguous.
+- **Confidence in the fix is harder to establish.** With backfilled rows in place, you can't tell if a future loss is "the bug returning" vs "a normal losing trade." A clean slate gives a sharp before/after.
+- **Forensic record belongs in docs, not in the prod DB.** Production tables should reflect what the strategy did, not what the bug did.
 
-### 1.4 Backfill the Journal With ENTRY/EXIT Events
+The backfill SQL (`scripts/backfill_orphans_june10.sql`) is **kept in the repo for reference but should NOT be run.** Use the reset script instead.
 
-Optional but recommended for audit trail. The journal is the system's history-of-record:
-
-```sql
-INSERT INTO gd_journal (trade_ref, strategy, event_type, price, context, timestamp)
-VALUES
-  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'ENTRY_FILLED_RECOVERED', 91.45,
-   '{"recovered": true, "reason": "orphan_backfill", "broker_id": "2031303852"}'::jsonb,
-   '2026-06-10 01:03:00+00'),
-  ('OIL-MI-rec-303852', 'micro_alpha_sweep_oil', 'EXIT_MANUAL', <close_price_1>,
-   '{"recovered": true, "reason": "user_closed_due_to_orphan", "pnl_usd": <pnl_usd_1>}'::jsonb,
-   '<close_time_utc_1>');
--- ... repeat for the other 3 trades
-```
-
-### 1.5 Verify Post-Backfill State
-
-After running the SQL, verify with these checks (each should return the expected count):
-
-```sql
--- Should return 4 rows
-SELECT trade_ref, side, entry_time, exit_time, pnl_usd, exit_reason
-FROM gd_trades
-WHERE trade_ref LIKE 'OIL-MI-rec-%'
-ORDER BY entry_time;
-
--- Should return ~$600 (sum of realized P&L)
-SELECT SUM(pnl_usd) FROM gd_trades WHERE trade_ref LIKE 'OIL-MI-rec-%';
-
--- Should reflect updated equity
-SELECT equity, peak_equity, consecutive_losses FROM gd_dd_state WHERE id = 4;
-
--- Should still be 0 (we don't want any open Oil Micro positions)
-SELECT COUNT(*) FROM gd_trades WHERE trade_ref LIKE 'OIL-MI-%' AND exit_time IS NULL;
-```
-
-### 1.6 Restart Oil Micro Service
-
-Restart so the in-memory `_daily_state["trades"]` syncs with the new DB count. After restart:
-- Daily count = 4 (from backfilled rows with today's date)
-- `max_trades_per_day = 3` → guard fires → no more Oil Micro entries today
-- Tomorrow at 00:00 UTC, daily state resets and the system runs clean
-
-**Total time:** 20 minutes (5 min to pull MT5 history + 10 min to write/run SQL + 5 min restart/verify).
+**Total time for Phase 1 (reset path):** 15 minutes (top up wallet + run reset SQL + restart services).
 
 ---
 
@@ -550,13 +476,13 @@ If the scheduler hasn't successfully completed a cycle in 10 minutes (last_succe
 
 ## Summary by Priority
 
-| Phase | What | When | Time | Risk if Skipped |
+| Phase | What | Status | Time | Risk if Skipped |
 |---|---|---|---|---|
-| **1** | Backfill 5 closed trades (with real PnL) + DD state + restart | Tonight | 25 min | Equity tracking off, DD state wrong, audit trail gap |
-| **2.0** | **Disable OANDA stream on 3 MT5 systems** (NEW) | Before next scan | 15 min | Journal flooding continues, BE on 3 systems remains broken |
-| **2** | Wrap journal calls, fix sweep ordering, sanitize JSON, fix DWX | Before tomorrow's scan | 2 hr | Same bug recurs on next anomaly |
-| **3** | Orphan reconciler + Telegram error alerts + daily recon | This week | 4 hr | Future orphans go undetected for hours |
-| **4** | Health checks, idempotency, logging, auto-recovery, MT5-tick BE | Next sprint | 1-2 days | Operational blindspots remain; BE precision suboptimal |
+| **1** | Clean slate reset: wipe Oil Micro state + top up wallet to $10K | ⏳ Tonight (15 min) | 15 min | Pollutes equity tracking with manual-close rows |
+| **2.0** | Disable OANDA stream on 3 MT5 systems | ✅ Done (commit `e71b53f`) | 15 min | Journal flooding, broken stream-BE on 3 systems |
+| **2** | safe_json_dumps + _log_journal_safe + sweep blacklist ordering + DWX comment fix | ✅ Done (commit `5a30a45`) + 21 regression tests | 2 hr | Same orphan-cascade bug recurs |
+| **3** | Orphan reconciler + Telegram error alerts + daily recon | ⏳ This week | 4 hr | Future orphans undetected for hours |
+| **4** | Health checks, idempotency, logging, auto-recovery, MT5-tick BE | ⏳ Next sprint | 1-2 days | Operational blindspots; BE precision suboptimal |
 
 ---
 

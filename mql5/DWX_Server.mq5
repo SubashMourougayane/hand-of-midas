@@ -269,13 +269,21 @@ void ProcessCommand(string cmd, string filename)
     if(action == "OPEN" && n >= 7)
     {
         // OPEN|SYMBOL|TYPE|VOLUME|PRICE|SL|TP|COMMENT
+        // The COMMENT field may itself contain '|' (e.g., "strategy|trade_ref"),
+        // and StringSplit eagerly consumed all separators. Re-join parts[7..n-1]
+        // to preserve the full original comment so the broker stores trade_ref.
         string symbol = parts[1];
         string type = parts[2];
         double volume = StringToDouble(parts[3]);
         double price = StringToDouble(parts[4]);
         double sl = StringToDouble(parts[5]);
         double tp = StringToDouble(parts[6]);
-        string comment = (n >= 8) ? parts[7] : "";
+        string comment = "";
+        if(n >= 8)
+        {
+            comment = parts[7];
+            for(int i = 8; i < n; i++) comment = comment + "|" + parts[i];
+        }
 
         ExecuteOpen(symbol, type, volume, price, sl, tp, comment);
     }
