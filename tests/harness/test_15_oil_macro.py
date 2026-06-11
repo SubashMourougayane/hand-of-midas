@@ -606,6 +606,51 @@ class TestOilMacroMaxTrades:
         assert "max_trades_per_day" in content, "Scheduler missing max_trades_per_day reference"
         assert "trades_today >=" in content, "Missing trades_today guard"
 
+    def test_scheduler_has_one_at_a_time_gate(self):
+        """Regression guard for the 2026-06-11 missing-gate bug.
+
+        Oil Macro fired OIL-AS-f5e9710a at 14:45 UTC while OIL-AS-59a94823
+        was already stuck in DB at EXIT_AMBIGUOUS streak 62. Root cause:
+        the scheduler had no DB-level open-position check, only the
+        max_trades_per_day count. So when a previous trade's broker_id
+        wasn't in the OANDA open list (broker had closed it but the DB
+        row was orphan), the system happily fired another trade.
+
+        The fix mirrors Gold Macro line 415-420: query gd_trades for any
+        OIL-AS-% row where exit_time IS NULL, refuse to fire if count>0.
+        This test pins that gate's existence.
+
+        See docs/trades/GD-MI-14e2fed1.md (live-trade analysis section)
+        for the full incident write-up.
+        """
+        path = os.path.join(PROJECT_ROOT, "backend-oil/scanner/scheduler.py")
+        with open(path) as f:
+            content = f.read()
+        # Must query for open OIL-AS-* rows
+        assert "OIL-AS-" in content and "exit_time IS NULL" in content, (
+            "Oil Macro scheduler missing the one-at-a-time DB gate. "
+            "Without it, a stuck/orphan DB row doesn't block new trade firing. "
+            "See docs/trades/GD-MI-14e2fed1.md for the 2026-06-11 incident."
+        )
+
+    def test_scheduler_has_5min_cooldown_gate(self):
+        """Regression guard for the same 2026-06-11 bug class.
+
+        Without a 5-min cooldown, a sweep that was in scan_bars on the
+        last 3-min cron tick can re-fire on the next tick before the
+        previous order has propagated through DB. Gold Macro has this
+        gate at line 401-412; Oil Macro was missing it.
+        """
+        path = os.path.join(PROJECT_ROOT, "backend-oil/scanner/scheduler.py")
+        with open(path) as f:
+            content = f.read()
+        assert "alpha_sweep_oil" in content and "ORDER BY timestamp DESC LIMIT 1" in content, (
+            "Oil Macro scheduler missing 5-min signal cooldown gate. "
+            "Without it, the same sweep can produce two consecutive signals."
+        )
+        # And the 5-min check itself
+        assert "minutes=5" in content, "5-min cooldown timedelta missing"
+
 
 # ============================================================================
 # TEST CLASS 15h: Exit Detection

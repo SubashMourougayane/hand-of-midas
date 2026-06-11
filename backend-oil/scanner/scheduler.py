@@ -108,6 +108,36 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         trades_today = existing[0]["cnt"] if existing else 0
         if trades_today >= cfg["max_trades_per_day"]:
             return None
+
+        # 5-min cooldown after last signal attempt (taken OR failed with
+        # execution error). Mirrors Gold Macro line 401-412.
+        # Without this, a sweep that's still in scan_bars on the next 3-min
+        # cron tick can re-fire even after we just tried to trade it.
+        recent_signal = execute(
+            "SELECT timestamp, taken, skip_reason FROM gd_signals WHERE strategy='alpha_sweep_oil' ORDER BY timestamp DESC LIMIT 1",
+            fetch=True
+        )
+        if recent_signal and recent_signal[0]["timestamp"]:
+            last_signal_time = recent_signal[0]["timestamp"]
+            if last_signal_time.tzinfo is None:
+                last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
+            skip = recent_signal[0].get("skip_reason", "")
+            if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
+                if now < last_signal_time + timedelta(minutes=5):
+                    return None  # Cooldown
+
+        # One position at a time (skip if open Oil Macro trade exists in DB).
+        # Mirrors Gold Macro line 415-420. THIS IS THE MISSING GATE that
+        # let OIL-AS-f5e9710a fire on 2026-06-11 14:45 UTC while
+        # OIL-AS-59a94823 was still stuck in the DB at EXIT_AMBIGUOUS
+        # streak 62. The check uses trade_ref prefix (not strategy alone)
+        # so it catches orphan rows from the reconciler too.
+        open_oil_macro = execute(
+            "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'OIL-AS-%%'",
+            fetch=True
+        )
+        if open_oil_macro and open_oil_macro[0]["cnt"] > 0:
+            return None
     else:
         trades_today = 0
 
