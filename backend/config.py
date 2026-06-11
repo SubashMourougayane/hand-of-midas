@@ -79,9 +79,13 @@ RISK_PCT = 3.0  # fallback if strategy not in map
 MAX_UNITS = 100
 YEARLY_CAPITAL = 5000.0
 
-# Slippage Model
+# Slippage Model — Deterministic (Filter #11, 2026-06-12).
+# Was: 0.03 + bar_range * 0.003 + np.random.uniform(0, 0.02)
+# The unseeded uniform(0, 0.02) made backtest run-to-run non-deterministic
+# (~0.07pp parity_pct noise; meaningful when comparing PF deltas across
+# filter ships). Replace random term with its expected value (0.01) so the
+# mean slippage distribution is preserved and runs are reproducible.
 def slippage(bar_range: float) -> float:
-    import numpy as np
-    return 0.03 + bar_range * 0.003 + np.random.uniform(0, 0.02)
+    return 0.04 + bar_range * 0.003
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "raw")

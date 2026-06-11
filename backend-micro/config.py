@@ -53,9 +53,9 @@ DD_PROTECTION = {
 }
 
 
+# Slippage Model — Deterministic (Filter #11, 2026-06-12). See backend/config.py.
 def slippage(bar_range: float) -> float:
-    import numpy as np
-    return 0.03 + bar_range * 0.003 + np.random.uniform(0, 0.02)
+    return 0.04 + bar_range * 0.003
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "raw")
