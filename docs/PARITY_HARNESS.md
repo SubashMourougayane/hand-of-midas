@@ -153,6 +153,53 @@ This is the first measured baseline. Future runs should be compared against it.
 
 ---
 
+## v1.1 baseline (post Phase-0, commit `a5dc3e1` — 2026-06-12)
+
+After shipping Filter #17 (Oil Macro live `risk<0.01` → `risk<0.3` to match backtest). Adversarial canaries also passed.
+
+### Canary results (validating the harness itself)
+
+| Canary | Setup | Expected | Observed | Status |
+|---|---|---|---|---|
+| **1** PARITY_DAYS sensitivity | 7d vs 30d, gold_micro | Different parity, different signal counts | 60.0% (BT=5, Live=15) vs 59.5% (BT=24, Live=47) | ✅ Pass |
+| **2A** Live-only drift, modest | sweep_threshold 2.0 → 3.0 in `backend-micro/config.py` only | Parity drops | 60.0% (unchanged — perturbation insufficient) | ⚠️ Insensitive |
+| **2B** Live-only drift, aggressive | sweep_threshold 2.0 → 50.0 in `backend-micro/config.py` only | Parity drops to catastrophic | 60.0% → 20.0%, Live signals 15 → 0 | ✅ Pass |
+| **2C** Revert | Restore sweep_threshold = 2.0 | Parity recovers to 60.0% | 60.0% (recovered) | ✅ Pass |
+
+**Canary 2A finding:** All 15 live sweeps had ≥$3 wick extension on the Gold Micro 7d window, so 2.0 → 3.0 didn't filter any. Future drift checks should use perturbations large enough to reach the data distribution.
+
+### Filter #17 effect (oil_macro)
+
+| Window | Pre-fix (`risk<0.01`) | Post-fix (`risk<0.3`) | Δ |
+|---|---|---|---|
+| 7-day | 57.4% (BT=1, Live=6, in_both=1) | 59.0% (BT=1, Live=5, in_both=1) | +1.6pp, Live -1 |
+| 30-day | 64.0% (BT=13, Live=24, in_both=7) | 64.6% (BT=13, Live=23, in_both=7) | +0.6pp, Live -1 |
+
+Direction agreement remained 100% on overlaps both pre and post. The fix removes a trade class that was live-only (10c-30c risk Oil trades) — backtest never simulated those.
+
+### Full v1.1 baseline (7-day, all systems, post Filter #17)
+
+| System | parity_pct | BT | Live | in_both | agree | disagree | Δ vs v1 |
+|---|---|---|---|---|---|---|---|
+| Gold Micro | 60.0% | 5 | 15 | 3 | 3 | 0 | unchanged |
+| Oil Micro | 77.0% | 11 | 11 | 6 | 6 | 0 | unchanged |
+| Gold Macro | 59.9% | 1 | 5 | 1 | 1 | 0 | unchanged |
+| Oil Macro | **59.0%** | 1 | 5 | 1 | 1 | 0 | **+1.6pp (Filter #17)** |
+
+All systems: 100% direction agreement on overlaps. Build status: passing (with parity-below-85% warnings on all 4 systems — expected, see headline finding above).
+
+### Filter #11 status: deferred
+
+Empirical run-to-run noise on gold_micro was measured at three back-to-back runs:
+```
+parity=0.599078  avg_delta=0.0092
+parity=0.599364  avg_delta=0.0064
+parity=0.599710  avg_delta=0.0029
+```
+~0.07pp noise — invisible at 1-decimal display. The "1-3pp noise" claim from `PARITY_HARNESS_EXPLAINED.md` was overstated. Filter #11 (deterministic slippage) is no longer Phase-0 critical; it moves to Phase 1 where backtest PF comparisons will need higher precision.
+
+---
+
 ## What this harness does NOT measure
 
 - **P&L parity.** Slippage, latency, broker rejection, broker-side SL/TP execution differences remain. See `LIVE_VS_BACKTEST_PARITY.md` Gaps 4-8.
