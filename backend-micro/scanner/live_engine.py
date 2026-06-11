@@ -147,7 +147,15 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         return None
 
     risk_dollar = equity_usd * (risk_pct / 100) * risk_mult
-    units = int(min(risk_dollar / sl_distance, MAX_UNITS))
+    units_raw = risk_dollar / sl_distance
+    units_capped = min(units_raw, MAX_UNITS)
+    units = int(units_capped)
+    # DIAG (2026-06-12): GD-MI-09314bdd showed units=38 when formula yields 15.
+    # Log every input so next trade pinpoints the discrepancy. NO behavior change.
+    print(f"  [MICRO][SIZE-DIAG] entry={entry_price:.4f} sl={sl_price:.4f} sl_dist={sl_distance:.4f} "
+          f"equity={equity_usd:.2f} risk_pct={risk_pct} risk_mult={risk_mult} "
+          f"risk_dollar={risk_dollar:.2f} MAX_UNITS={MAX_UNITS} "
+          f"units_raw={units_raw:.4f} units_capped={units_capped:.4f} units_final={units}")
 
     if units < 1:
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="units_too_small")
@@ -230,6 +238,12 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         "instrument": "XAU_USD", "units": units, "sl": sl_price, "tp": tp_price,
         "oanda_id": oanda_trade_id, "risk_mult": risk_mult, "risk_pct": risk_pct,
         "equity_usd": equity_usd,
+        # DIAG fields (2026-06-12 over-sizing investigation)
+        "size_diag": {
+            "entry_calc": entry_price, "sl_calc": sl_price, "sl_distance": sl_distance,
+            "risk_dollar": risk_dollar, "max_units_cap": MAX_UNITS,
+            "units_raw": units_raw, "units_capped": units_capped, "units_final": units,
+        },
     })
 
     try:
