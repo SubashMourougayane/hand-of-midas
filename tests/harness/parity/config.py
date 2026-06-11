@@ -51,7 +51,26 @@ SYSTEMS: dict[str, SystemConfig] = {
         config_module_path="config",
         strategy_config_key="MICRO_ALPHA_SWEEP",
     ),
-    # Phase 3 — oil_micro
+    "oil_micro": SystemConfig(
+        key="oil_micro",
+        label="Oil Micro",
+        instrument="BCO_USD",
+        h1_csv="BCO_USD_H1.csv",
+        m3_csv="BCO_USD_M3.csv",
+        daily_csv="BCO_USD_D.csv",
+        sweep_threshold=0.13,       # MICRO_ALPHA_SWEEP["sweep_threshold"] for oil
+        # Live + backtest both live under backend-oil-micro/. Unlike Gold Micro
+        # which uses the shared backend/strategies/ module, Oil Micro has its
+        # OWN backtest engine that reads MICRO_ALPHA_SWEEP from the oil-side
+        # config file. The runner resolves both with backend-oil-micro on
+        # sys.path[0].
+        live_module_path="scanner.scheduler",
+        live_core_fn_name="_run_micro_sweep_core",
+        backtest_module_path="backtest.engine",   # backend-oil-micro/backtest/engine.py
+        backtest_fn_name="generate_signals",
+        config_module_path="config",
+        strategy_config_key="MICRO_ALPHA_SWEEP",
+    ),
     # Phase 4 — gold_macro, oil_macro
 }
 

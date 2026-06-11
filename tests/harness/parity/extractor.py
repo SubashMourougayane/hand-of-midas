@@ -65,13 +65,31 @@ def extract_backtest_signals(
 ) -> list[SignalRecord]:
     """Run BT signal-gen and convert its Signal dataclass list to SignalRecords.
 
-    The backtest function signature (verified in
-    backend/strategies/micro_alpha_sweep.py:42) is:
+    Two backtest module shapes exist in this repo:
+
+    1. Shared backend/strategies/micro_alpha_sweep.py — used by Gold Micro.
+       Reads ALPHA_SWEEP from backend/config.py (gold-tuned values).
+
+    2. Per-system backend-<X>/backtest/engine.py — used by Oil Micro
+       (and Macro systems too in Phase 4). Reads MICRO_ALPHA_SWEEP /
+       ALPHA_SWEEP from backend-<X>/config.py (system-tuned values).
+
+    To resolve the second shape, we must put the system's directory on
+    sys.path BEFORE importing — otherwise `from config import ...` inside
+    the engine resolves to the wrong system. _import_live_module_with_path
+    handles the same problem for the live side; we reuse it here.
+
+    Signature (both shapes):
         generate_signals(h1_df, m3_df, daily_bias) -> list[Signal]
 
     Signal dataclass (backend/strategies/base.py):
         date, entry, sl, tp, direction, risk, strategy, max_bars, timeframe, metadata
     """
+    # System-local backtest engines need their parent dir on sys.path so
+    # `from config import ...` resolves to the right system's config.
+    # Shared modules (backend.strategies.*) are unaffected by this.
+    if not backtest_module_path.startswith("backend."):
+        _import_live_module_with_path(system_key, backtest_module_path)
     module = importlib.import_module(backtest_module_path)
     fn = getattr(module, backtest_fn_name)
     raw_signals = fn(h1_df, m3_df, daily_bias)

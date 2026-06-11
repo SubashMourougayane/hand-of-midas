@@ -31,14 +31,53 @@ def _ensure_paths():
 
 
 def _load_data(cfg: SystemConfig):
-    """Load H1, M3, D CSVs via the same backend.data.cache.load_candles
-    helper used by the existing harness fixtures."""
+    """Load H1, M3, D CSVs.
+
+    Two CSV column shapes exist in this repo:
+
+    1. Bid/ask shape: bid_open, bid_high, ..., ask_close. Used by gold files.
+       backend.data.cache.load_candles() handles this and synthesizes mid_*.
+
+    2. Plain OHLC shape: open, high, low, close, volume. Used by some oil
+       files (BCO_USD_D.csv has this shape). backend.data.cache.load_candles
+       leaves the DataFrame WITHOUT mid_* columns in this case, which the
+       per-system backtest engines then fail on with KeyError 'mid_high'.
+
+    We use load_candles() for shape (1) and post-process to add mid_*
+    columns for shape (2). This keeps us out of production-code edits.
+    """
     _ensure_paths()
     from backend.data.cache import load_candles
-    h1_df = load_candles(cfg.h1_csv)
-    m3_df = load_candles(cfg.m3_csv)
-    d_df = load_candles(cfg.daily_csv)
+    h1_df = _ensure_mid_columns(load_candles(cfg.h1_csv))
+    m3_df = _ensure_mid_columns(load_candles(cfg.m3_csv))
+    d_df = _ensure_mid_columns(load_candles(cfg.daily_csv))
     return h1_df, m3_df, d_df
+
+
+def _ensure_mid_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add mid_* and bid_*/ask_* columns when the CSV had only plain OHLC.
+
+    Mirrors the fallback in backend-oil-micro/backtest/engine.py:_load_candles
+    so a plain-OHLC daily file like BCO_USD_D.csv works with strategy code
+    that expects mid_high / mid_low / mid_close / mid_open and the bid/ask
+    pair columns.
+    """
+    if "mid_open" in df.columns:
+        return df
+    if "open" not in df.columns:
+        # Unrecognized shape; let downstream raise its own error.
+        return df
+    df = df.copy()
+    df["mid_open"] = df["open"]
+    df["mid_high"] = df["high"]
+    df["mid_low"] = df["low"]
+    df["mid_close"] = df["close"]
+    # The strategy code also peeks at bid_*/ask_* directly when computing
+    # entry slippage. Synthesize them at zero spread.
+    for side in ("bid", "ask"):
+        for px in ("open", "high", "low", "close"):
+            df[f"{side}_{px}"] = df[px]
+    return df
 
 
 def _build_daily_bias(d_df: pd.DataFrame) -> dict:
