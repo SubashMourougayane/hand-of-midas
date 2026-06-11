@@ -6,6 +6,76 @@ For the candidate catalog see [EDGE_FILTERS.md](EDGE_FILTERS.md). For the 6-step
 
 ---
 
+## Drift bug #6 fix — daily_bias keying off-by-one (all 4 systems)
+
+**Status:** ✅ Shipped (commit `80ba0d3`, 2026-06-12).
+
+**Type:** Critical drift bug (live↔backtest). NOT an edge filter — fixing this UNCOVERED that the strategies are weaker than previously believed.
+
+### What changed
+
+Every backtest engine and the parity harness keyed `daily_bias` with `oil_d.index[i].date()`, but OANDA daily bars use dailyAlignment=21: a bar timestamped `T 21:00` represents the `(T → T+1)` trading session, so its `.date()` is one day BEFORE the session it represents. Two compounding errors:
+
+1. **Off-by-one:** BT's "yesterday" (`oil_d[i-1]`) actually represented the trade-date's OWN session.
+2. **Missing days:** trade-dates that didn't appear as a daily-bar `.date()` (e.g., **all Fridays** — `Friday 21:00` starts the weekend, no bar emitted) silently skipped because `daily_bias.get(date, 'none')` returned `'none'` which the strategy treated as a directional bias nothing matches → 18% of recent days emitted ZERO BT signals.
+
+Fix:
+```python
+# Before:
+d = oil_d.index[i].date()           # bar.date() — wrong by 1 day, also misses Fridays
+# After:
+d = (oil_d.index[i] + pd.Timedelta(days=1)).date()  # = trade_date for which oil_d[i-1] is true yesterday
+```
+
+Files (5 total):
+- `backend/backtest/engine.py:101`
+- `backend/backtest/engine.py` (Gold Macro full portfolio)
+- `backend-oil/backtest/engine.py:79`
+- `backend-micro/backtest/engine.py:55`
+- `backend-oil-micro/backtest/engine.py:347`
+- `tests/harness/parity/runner.py:_build_daily_bias`
+
+### 21-year backtest impact
+
+| System | Pre-fix Trades | Pre-fix WR | Pre-fix PF | Pre-fix Net | Pre-fix DD | Post-fix Trades | Post-fix WR | Post-fix PF | Post-fix Net | Post-fix DD |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Gold Macro | 1,752 | 71.5% | 4.33 | $520,356 | -13.4% | 2,242 | 65.4% | **2.56** | $346,863 | -25.5% |
+| Gold Micro | 1,511 | 77.2% | 4.29 | $385,995 | -12.5% | 1,855 | 68.2% | **2.42** | $239,898 | -21.9% |
+| Oil Macro | 1,291 | 69.6% | 5.58 | $1,828,136 | -23.2% | 1,605 | 54.2% | **2.64** | $625,996 | -36.9% |
+| Oil Micro | 4,150 | 80.0% | 4.93 | $4,598,912 | -18.2% | 4,425 | 69.9% | **2.69** | $2,010,717 | -20.6% |
+| **Totals** | **8,704** | — | — | **$7,333,399** | — | **10,127** | — | — | **$3,223,474** | — |
+
+**The buggy backtest reported numbers ~2.3× too rosy across all 4 systems.** Real PF range 2.42–2.69 (was 4.29–5.58); real WR 54–70% (was 70–80%); real max DD up to -37% (was -23%).
+
+### Parity harness improvement (7-day window)
+
+| System | Pre-fix parity | Post-fix parity | Δ |
+|---|---|---|---|
+| Gold Micro | 60.0% | **79.9%** | +19.9pp |
+| Oil Micro | 77.0% | **86.1%** | +9.1pp |
+| Gold Macro | 59.9% | **79.9%** | +20.0pp |
+| Oil Macro | 57.4% | **74.2%** | +16.8pp |
+
+All 4 systems retained 100% direction agreement on overlaps. **Oil Micro now clears the 85% warning threshold.**
+
+### Caveats
+
+- The post-fix backtest is the AUTHORITATIVE baseline. All previous PF/WR/P&L claims (CLAUDE.md table, conversation references, prior planning docs) were inflated by the bug.
+- Even the post-fix numbers may overstate edge slightly (slippage is unseeded; see Filter #11). But they're in the right ballpark.
+- The remaining live↔BT parity gap (~15-25%) is largely STRUCTURAL (live polls every M3, BT walks H1) — not strategy-logic drift.
+
+### Verdict
+
+✅ **Keep.** Closes drift bug #6. The new baseline is materially weaker than what was previously believed, but it's the TRUE baseline. Future EDGE_FILTERS measurements ride on top of these post-fix numbers.
+
+### Lessons captured
+
+1. **Trust verifies — for backtests too.** "PF 5.58" was treated as a known fact for weeks. It was wrong by ~2x. Question authoritative numbers when they look unusually clean (54-80% WR, PF 4-6 across all 4 systems was suspicious in retrospect).
+2. **Parity harness was right.** It flagged 17 live-only Oil Macro signals over 30 days; investigating those signals (instead of dismissing them as "harness artifact") surfaced this bug. **Always investigate parity gaps; never assume they're noise.**
+3. **OANDA timestamp conventions matter.** Live and BT both pass through OANDA data, but they consume it differently. Live uses `daily_candles[-2]` (positional, robust to date-keying issues); BT used `daily_bias[trade_date]` (keyed, brittle to convention). Live was right by accident.
+
+---
+
 ## Filter #17 — Oil Macro live `risk<0.01` → `risk<0.3` (rejected — was not a bug)
 
 **Status:** ❌ REVERTED. Originally shipped commit `a5dc3e1` (2026-06-12 morning). Reverted commit `5b1252d` (2026-06-12 afternoon, same day).
