@@ -9,6 +9,14 @@ echo.
 
 cd /d C:\hand-of-midas
 
+REM Force UTF-8 for Python stdout/stderr so print() with arrows (→), em-dashes (—),
+REM and emoji don't crash on Windows' default cp1252 charmap codec.
+REM This avoids the June 10 09:44 IST 'charmap codec can't encode character' bug
+REM in Gold Micro position_monitor without churning 70+ source lines.
+REM PYTHONUTF8 enables UTF-8 mode (Python 3.7+); PYTHONIOENCODING is the belt-and-suspenders.
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
+
 REM Kill any existing processes on our ports
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5053" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5054" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
