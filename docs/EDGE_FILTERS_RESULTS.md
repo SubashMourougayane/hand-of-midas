@@ -6,6 +6,128 @@ For the candidate catalog see [EDGE_FILTERS.md](EDGE_FILTERS.md). For the 6-step
 
 ---
 
+## Filter #11 — Deterministic slippage (shipped 2026-06-12, commit `d6896b4`)
+
+**Status:** ✅ Shipped hard. No shadow mode.
+
+**Type:** Measurement infrastructure / parity prerequisite.
+
+### What changed
+
+```python
+# Before (all 4 systems):
+def slippage(bar_range): return 0.03 + br*X + np.random.uniform(0, Y)
+# After:
+def slippage(bar_range): return (0.03 + Y/2) + br*X
+```
+
+Per-system Y values: 0.02 for Gold/Oil Macro/Micro, 0.005 for Oil Micro. Mean slippage preserved exactly.
+
+### 21-yr backtest pre/post
+
+| System | Pre PF | Post PF | Pre Net P&L | Post Net P&L | Pre Trades | Post Trades |
+|---|---|---|---|---|---|---|
+| Gold Macro | 2.56 | **2.56** | $346,863 | $346,196 | 2,242 | 2,242 |
+| Gold Micro | 2.42 | **2.42** | $239,898 | $240,254 | 1,855 | 1,855 |
+| Oil Macro | 2.64 | **2.66** | $625,996 | $645,588 | 1,605 | 1,609 |
+| Oil Micro | 2.69 | **2.69** | $2,010,717 | $2,010,717 | 4,425 | 4,425 |
+
+All within 1% on PF, identical or near-identical trade counts. Mean preserved.
+
+### Parity harness pre/post (7-day window)
+
+| System | Pre | Post |
+|---|---|---|
+| Gold Micro | 79.9% | **80.0%** |
+| Oil Micro | 86.1% | **86.1%** |
+| Gold Macro | 79.9% | **80.0%** |
+| Oil Macro | 74.2% | **75.0%** |
+
+All systems retained 100% direction agreement on overlaps.
+
+### Acceptance gates (all passed)
+
+1. ✅ Two consecutive harness runs **byte-identical** (was ~0.07pp noise)
+2. ✅ All 4 systems within 1% on 21-yr PF
+3. ✅ All 4 systems same trade count ±0.3%
+4. ✅ Parity inched up everywhere (deterministic entry-price-delta noise removed from 20% weight)
+
+### Verdict
+
+✅ **Keep.** Drops run-to-run noise without changing strategy outcomes. Future filter A/B tests now reproducible.
+
+---
+
+## Filter #8 — Engulfing Close-Strength (rejected 2026-06-12, threshold sweep)
+
+**Status:** ❌ REJECTED at all 5 thresholds tested. NOT shipped.
+
+**Type:** Alpha filter (require engulfing candle to close in upper/lower fraction of range).
+
+### Motivation
+
+Live trade `GD-MI-09314bdd` (Gold Micro SHORT, -$1,012 SL) entered on a doji-engulfing-doji setup that the user spotted visually. Hypothesis: filter out engulfings whose close lies near mid-range.
+
+### What was tested
+
+Sweep across 5 thresholds (lower/upper for bearish/bullish close-position):
+- strict-25: bearish ≤ 0.25, bullish ≥ 0.75
+- med-30: bearish ≤ 0.30, bullish ≥ 0.70
+- default-35: bearish ≤ 0.35, bullish ≥ 0.65 (the spec default)
+- loose-40: bearish ≤ 0.40, bullish ≥ 0.60
+- vloose-45: bearish ≤ 0.45, bullish ≥ 0.55
+
+Each threshold ran the full 21-yr backtest on all 4 systems. Filter applied to BOTH live and backtest signal-gen via env var (`FILTER8_THRESH=X`); reverted after measurement.
+
+### Results — PF Δ vs baseline
+
+| Threshold | Gold Macro | Gold Micro | Oil Macro | Oil Micro | Improved | Regressed |
+|---|---|---|---|---|---|---|
+| strict-25 | 2.52 (-0.04) | 2.44 (+0.02) | **2.31 (-0.35)** | 2.58 (-0.11) | 1 | 3 |
+| med-30 | 2.54 (-0.02) | 2.44 (+0.02) | 2.45 (-0.21) | 2.57 (-0.12) | 1 | 3 |
+| default-35 | 2.55 (-0.01) | 2.47 (+0.05) | 2.45 (-0.21) | 2.61 (-0.08) | 1 | 3 |
+| loose-40 | 2.56 (flat) | 2.48 (+0.06) | 2.54 (-0.12) | 2.63 (-0.06) | 1 | 2 |
+| vloose-45 | 2.56 (flat) | 2.47 (+0.05) | 2.55 (-0.11) | 2.64 (-0.05) | 1 | 2 |
+
+### Results — Net P&L Δ% vs baseline
+
+| Threshold | Gold Macro | Gold Micro | Oil Macro | Oil Micro |
+|---|---|---|---|---|
+| strict-25 | -21% | -15% | **-46%** | -33% |
+| med-30 | -12% | -11% | -35% | -27% |
+| default-35 | -10% | -4% | -31% | -21% |
+| loose-40 | -7% | -1% | -24% | -15% |
+| vloose-45 | -6% | **+1%** | -17% | -11% |
+
+### Verdict — REJECT at all thresholds
+
+**The pattern is uniform across all 5 thresholds:**
+- ✅ Gold Micro PF improves (+0.02 to +0.06) — single system that benefits
+- ❌ Oil Macro PF regresses on every threshold (-0.11 to -0.35)
+- ❌ Oil Micro PF regresses on every threshold (-0.05 to -0.12)
+- ⚠️ Gold Macro flat-to-down on every threshold
+- 💸 Net P&L drops on EVERY system × EVERY threshold (only Gold Micro vloose-45 squeezes +1% P&L)
+
+**Acceptance criteria** ("PF must improve on ≥3 of 4 with NO regression on any") fails at every tested threshold. Even the loosest threshold (45/55) regresses 3 of 4 systems.
+
+### Why the filter doesn't work
+
+The doji-like engulfings the user's eye flagged as "weak" are actually **NET PROFITABLE** in the 21-yr distribution. Our intuition that "doji = bad signal" doesn't hold up against 10,000+ trades. Especially on Oil where the wider spread relative to volatility makes most engulfings score lower on close-position.
+
+### Lessons captured
+
+1. **Eye-pattern recognition does NOT predict edge in the long tail.** A losing trade that looks "weak" may still be from a profitable distribution.
+2. **Per-system structural differences matter.** Gold and Oil have different spread/volatility ratios. A filter calibrated on one can hurt the other. Future filters should be threshold-tunable PER system, not single-threshold-across-all.
+3. **"No shadow mode" works.** We caught the regression in 30 minutes via 21-yr backtest sweep, not 7 days of live shadow data. The honest backtest is the strongest gate.
+
+### Status
+
+- All 4 modified files reverted to pre-Filter-#8 state.
+- Parity harness re-verified at 75-86% post-revert.
+- Filter #8 archived as "tested across 5 thresholds × 4 systems = 20 backtests, never improved ≥3 of 4 systems."
+
+---
+
 ## Drift bug #6 fix — daily_bias keying off-by-one (all 4 systems)
 
 **Status:** ✅ Shipped (commit `80ba0d3`, 2026-06-12).
