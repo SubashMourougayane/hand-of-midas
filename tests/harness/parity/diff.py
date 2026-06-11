@@ -138,25 +138,68 @@ def diff_signals(
     return diffs
 
 
+# Phase 5 diagnosis hint constants. Tunable per-system; defaults are
+# generic and can be overridden by passing thresholds to diff_signals
+# in the future (Phase 6+). Today the parity score uses sweep_threshold
+# from the SystemConfig for normalization, so $1 entry-drift threshold
+# below is a coarse fallback that triggers only on clearly-bad mismatches.
+ENTRY_DELTA_HINT_THRESHOLD = 1.0   # USD/oz price drift to call out
+TIMESTAMP_DELTA_HINT_THRESHOLD = 180   # seconds; matches M3 bar size
+
+
 def _initial_diagnosis_hint(
     bt: SignalRecord | None,
     live: SignalRecord | None,
     entry_delta: float | None,
     ts_delta_secs: int | None,
 ) -> str:
-    """Phase-1 placeholder hint generator. Phase 5 will expand this."""
-    if bt is None and live is not None:
-        if live.skip_reason:
-            return f"live_only_with_skip_reason:{live.skip_reason[:50]}"
-        return "live_only_signal_not_in_backtest"
-    if bt is not None and live is None:
-        return "backtest_only_signal_not_in_live"
+    """Phase 5 hint heuristics (in priority order — first match wins).
+
+    The five canonical hint shapes (reflected in
+    docs/PARITY_HARNESS_PLAN.md) are:
+
+      1. live_skipped_with_reason_X_backtest_did_not
+         → Live has a skip_reason but BT took the signal. Indicates a
+           live-only filter or guard fired.
+
+      2. entry_price_delta_exceeds_X_dollars
+         → Both took the signal but entry prices diverge by >$X.
+           Usually slippage/fill-model mismatch.
+
+      3. timestamp_delta_more_than_3min
+         → Both took the signal but on different M3 bars (>180s).
+           Live's polling cadence vs BT's bar-walking creates this.
+
+      4. direction_flipped
+         → Same minute bucket but opposite directions. Strategy LOGIC
+           drift — most serious type of mismatch. Catastrophic gate
+           covers >5 of these in one window.
+
+      5. live_signaled_outside_backtest_window
+         → BT didn't emit anything for this minute bucket but Live did.
+           Most common drift type — captured by the existing
+           live_only_* hints below.
+
+    `agreement` is reserved for the clean case where everything matches.
+    """
+    # ----- both sides present -----
     if bt is not None and live is not None:
         if bt.direction != live.direction:
             return f"direction_flipped:bt={bt.direction},live={live.direction}"
-        if entry_delta is not None and abs(entry_delta) > 1.0:
-            return f"entry_price_delta:{entry_delta:+.2f}"
-        if ts_delta_secs is not None and abs(ts_delta_secs) > 180:
-            return f"timestamp_delta_secs:{ts_delta_secs:+d}"
+        if entry_delta is not None and abs(entry_delta) > ENTRY_DELTA_HINT_THRESHOLD:
+            return f"entry_price_delta_exceeds_{ENTRY_DELTA_HINT_THRESHOLD:.0f}_dollars:{entry_delta:+.2f}"
+        if ts_delta_secs is not None and abs(ts_delta_secs) > TIMESTAMP_DELTA_HINT_THRESHOLD:
+            return f"timestamp_delta_more_than_{TIMESTAMP_DELTA_HINT_THRESHOLD}_secs:{ts_delta_secs:+d}"
         return "agreement"
+
+    # ----- only one side -----
+    if bt is None and live is not None:
+        if live.skip_reason:
+            return f"live_skipped_with_reason_backtest_did_not:{live.skip_reason[:60]}"
+        return "live_signaled_outside_backtest_window"
+    if bt is not None and live is None:
+        if bt.skip_reason:
+            return f"backtest_skipped_with_reason_live_did_not:{bt.skip_reason[:60]}"
+        return "backtest_signaled_outside_live_window"
+
     return "no_records"

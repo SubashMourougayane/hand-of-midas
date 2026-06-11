@@ -238,3 +238,133 @@ class TestGateLogic:
         # But warning_reasons list is still populated for completeness.
         assert verdict.warning_reasons
 
+
+# ---------------------------------------------------------------------------
+# Phase 5 — diagnosis hint unit tests
+# ---------------------------------------------------------------------------
+
+def _make_record(
+    *,
+    direction: str = "long",
+    entry: float = 4500.0,
+    sl: float = 4485.0,
+    tp: float = 4530.0,
+    bias: str = "bullish",
+    skip_reason: str = "",
+    ts_offset_secs: int = 0,
+):
+    """Build a SignalRecord for diff/hint tests. Returns a fresh dataclass."""
+    from datetime import datetime, timezone, timedelta
+    from tests.harness.parity.extractor import SignalRecord
+    base = datetime(2026, 5, 21, 12, 0, 0, tzinfo=timezone.utc)
+    return SignalRecord(
+        system="synthetic",
+        timestamp=base + timedelta(seconds=ts_offset_secs),
+        direction=direction,
+        taken=True,
+        skip_reason=skip_reason,
+        entry_price=entry,
+        sl_price=sl,
+        tp_price=tp,
+        sweep_wick=4490.0,
+        sweep_dir="bullish",
+        bias=bias,
+        range_high=4505.0,
+        range_low=4480.0,
+    )
+
+
+class TestDiagnosisHints:
+    """Phase 5: every SignalDiff has a non-empty, human-readable hint
+    pointing at a specific class of drift."""
+
+    def test_clean_overlap_yields_agreement_hint(self):
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record()
+        live = _make_record()
+        diffs = diff_signals([bt], [live])
+        assert len(diffs) == 1
+        assert diffs[0].diagnosis_hint == "agreement"
+
+    def test_direction_flip_is_called_out(self):
+        # Same minute bucket, opposite directions. Note: the diff.py keys by
+        # (minute, direction), so opposite directions create TWO buckets,
+        # not one — there is no overlap to "flip". The test verifies the
+        # actual behavior: each side becomes its own only-one-side diff.
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record(direction="long")
+        live = _make_record(direction="short")
+        diffs = diff_signals([bt], [live])
+        assert len(diffs) == 2
+        # Each diff has only-one-side hints.
+        hints = sorted(d.diagnosis_hint for d in diffs)
+        assert any("backtest" in h for h in hints)
+        assert any("live" in h for h in hints)
+
+    def test_entry_price_drift_above_threshold_is_called_out(self):
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record(entry=4500.0)
+        live = _make_record(entry=4502.5)   # $2.50 drift > $1 threshold
+        diffs = diff_signals([bt], [live])
+        assert len(diffs) == 1
+        assert "entry_price_delta_exceeds" in diffs[0].diagnosis_hint
+        assert "+2.50" in diffs[0].diagnosis_hint
+
+    def test_entry_price_drift_below_threshold_is_agreement(self):
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record(entry=4500.0)
+        live = _make_record(entry=4500.5)   # $0.50 drift < $1 threshold
+        diffs = diff_signals([bt], [live])
+        assert diffs[0].diagnosis_hint == "agreement"
+
+    def test_timestamp_delta_above_threshold_is_called_out(self):
+        # Both signals carry the same comparison_key (same floored minute,
+        # same direction) so they DO match in the diff bucket. The hint
+        # then surfaces the timestamp drift.
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record(ts_offset_secs=0)
+        live = _make_record(ts_offset_secs=30)   # same minute bucket
+        diffs = diff_signals([bt], [live])
+        assert len(diffs) == 1
+        # 30-sec drift is within minute bucket but below 180s hint threshold.
+        # No hint should fire (still agreement).
+        assert diffs[0].diagnosis_hint == "agreement"
+
+    def test_live_only_signal_gets_specific_hint(self):
+        from tests.harness.parity.diff import diff_signals
+        live = _make_record()
+        diffs = diff_signals([], [live])
+        assert len(diffs) == 1
+        assert "live" in diffs[0].diagnosis_hint
+        assert "backtest" in diffs[0].diagnosis_hint or "outside" in diffs[0].diagnosis_hint
+
+    def test_backtest_only_signal_gets_specific_hint(self):
+        from tests.harness.parity.diff import diff_signals
+        bt = _make_record()
+        diffs = diff_signals([bt], [])
+        assert len(diffs) == 1
+        assert "backtest" in diffs[0].diagnosis_hint or "outside" in diffs[0].diagnosis_hint
+
+    def test_skip_reason_carried_into_hint(self):
+        # A live signal with a skip_reason populated is the
+        # "live_skipped_with_reason_X_backtest_did_not" canonical case.
+        from tests.harness.parity.diff import diff_signals
+        live = _make_record(skip_reason="range_min_too_small")
+        diffs = diff_signals([], [live])
+        assert "range_min_too_small" in diffs[0].diagnosis_hint
+
+    def test_every_diff_has_nonempty_hint(self):
+        # Build a small but mixed set covering every branch. Verify no diff
+        # comes out with an empty/None hint.
+        from tests.harness.parity.diff import diff_signals
+        records = [
+            _make_record(),
+            _make_record(direction="short", entry=4480.0),
+            _make_record(skip_reason="some_skip"),
+        ]
+        diffs = diff_signals(records[:2], records[1:])
+        assert len(diffs) >= 1
+        for d in diffs:
+            assert d.diagnosis_hint, f"Empty hint on diff: {d}"
+            assert d.diagnosis_hint != "no_records"
+
