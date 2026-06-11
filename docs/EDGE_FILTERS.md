@@ -557,14 +557,15 @@ That way the engulfing has something REAL to reverse, not just any prior bar.
 ### #17 — Oil Macro Live ≠ Backtest Risk Threshold — CRITICAL DRIFT BUG
 
 **Verified directly in code:**
-- `backend-oil/scanner/scheduler.py:285` (live): `if risk < 0.01 or risk > asia_range * 0.8: continue`
-- `backend/strategies/alpha_sweep.py:111` (backtest, used for both Gold + Oil Macro): `if risk < 0.3 or risk > ar * 0.8: continue`
+**❌ REJECTED 2026-06-12.** The audit's claim was wrong. Code state verified:
+- `backend-oil/scanner/scheduler.py:285,299` (Oil live): `risk < 0.01` ← matches Oil backtest
+- `backend-oil/strategies/alpha_sweep.py:121,139` (**Oil backtest**): `risk < 0.01` ← THIS was missed in the audit
+- `backend/strategies/alpha_sweep.py:111,135` (Gold backtest): `risk < 0.3`
+- `backend/scanner/scheduler.py:574,601` (Gold live): `risk < 0.3`
 
-**The live Oil Macro takes trades the backtest never simulated.** A 10c-risk trade (after `min_sl=0.10` floor) passes live but fails backtest's 0.3 floor. This is a 6th confirmed live↔backtest drift bug.
+Oil Macro has its OWN parallel `strategies/alpha_sweep.py` (separate from Gold's). Both Oil sides have always been at 0.01 — they were always in agreement. The audit only checked the Gold backtest copy.
 
-**Fix:** Change live `risk < 0.01` to `risk < 0.3` to match backtest. One-line change.
-
-**Important:** this isn't an "edge filter" in the same sense as #1-#16 — it's a **straight-up parity bug fix**. Should ship BEFORE the parity harness's filter-effect measurements, otherwise the harness's "before/after filter" baselines are themselves drifted.
+**21-year Oil Macro backtest:** `risk<0.01` → PF 5.58, $1,828k net P&L (1,291 trades). `risk<0.3` (Filter #17) → PF 4.47, $1,026k (1,194 trades, -97). The 0.01 floor is the correct Oil calibration. See `docs/EDGE_FILTERS_RESULTS.md` for full pre/post analysis. Reverted in commit `5b1252d`.
 
 ---
 

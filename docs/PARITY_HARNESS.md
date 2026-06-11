@@ -153,9 +153,9 @@ This is the first measured baseline. Future runs should be compared against it.
 
 ---
 
-## v1.1 baseline (post Phase-0, commit `a5dc3e1` — 2026-06-12)
+## Adversarial canary results (2026-06-12, commit `5b1252d` — back at v1 baseline)
 
-After shipping Filter #17 (Oil Macro live `risk<0.01` → `risk<0.3` to match backtest). Adversarial canaries also passed.
+Adversarial canaries passed. Filter #17 was attempted, ran the harness, then 21-year backtest revealed it was wrong; reverted.
 
 ### Canary results (validating the harness itself)
 
@@ -168,25 +168,29 @@ After shipping Filter #17 (Oil Macro live `risk<0.01` → `risk<0.3` to match ba
 
 **Canary 2A finding:** All 15 live sweeps had ≥$3 wick extension on the Gold Micro 7d window, so 2.0 → 3.0 didn't filter any. Future drift checks should use perturbations large enough to reach the data distribution.
 
-### Filter #17 effect (oil_macro)
+### Filter #17 attempt — the harness can be misled
 
-| Window | Pre-fix (`risk<0.01`) | Post-fix (`risk<0.3`) | Δ |
-|---|---|---|---|
-| 7-day | 57.4% (BT=1, Live=6, in_both=1) | 59.0% (BT=1, Live=5, in_both=1) | +1.6pp, Live -1 |
-| 30-day | 64.0% (BT=13, Live=24, in_both=7) | 64.6% (BT=13, Live=23, in_both=7) | +0.6pp, Live -1 |
+What looked like a parity improvement was actually wrong:
 
-Direction agreement remained 100% on overlaps both pre and post. The fix removes a trade class that was live-only (10c-30c risk Oil trades) — backtest never simulated those.
+| Window | Before #17 | After #17 (rejected, then reverted) |
+|---|---|---|
+| 7-day | 57.4% (BT=1, Live=6, in_both=1) | 59.0% (BT=1, Live=5, in_both=1) — **harness reported +1.6pp** |
+| 30-day | 64.0% (BT=13, Live=24, in_both=7) | 64.6% (BT=13, Live=23, in_both=7) — **harness reported +0.6pp** |
 
-### Full v1.1 baseline (7-day, all systems, post Filter #17)
+**The harness reported parity going up. The 21-year backtest later showed it was wrong:** PF dropped 5.58 → 4.47, net P&L lost $801,331 over 20 years. After reverting, parity is back to v1 baseline (oil_macro 57.4%).
 
-| System | parity_pct | BT | Live | in_both | agree | disagree | Δ vs v1 |
-|---|---|---|---|---|---|---|---|
-| Gold Micro | 60.0% | 5 | 15 | 3 | 3 | 0 | unchanged |
-| Oil Micro | 77.0% | 11 | 11 | 6 | 6 | 0 | unchanged |
-| Gold Macro | 59.9% | 1 | 5 | 1 | 1 | 0 | unchanged |
-| Oil Macro | **59.0%** | 1 | 5 | 1 | 1 | 0 | **+1.6pp (Filter #17)** |
+**Lesson:** parity_pct going up does NOT prove a code change is correct. The coverage component (50% weight) goes up mechanically when live becomes more restrictive than backtest, even when the change is wrong. Direction-agreement (100% before and after) was unaffected because both sides still agreed on which trades they DID take. The 21-year backtest is the correctness check — not the harness.
 
-All systems: 100% direction agreement on overlaps. Build status: passing (with parity-below-85% warnings on all 4 systems — expected, see headline finding above).
+### Current baseline = v1 (no shipped changes)
+
+| System | parity_pct | BT | Live | in_both | agree | disagree |
+|---|---|---|---|---|---|---|
+| Gold Micro | 60.0% | 5 | 15 | 3 | 3 | 0 |
+| Oil Micro | 77.0% | 11 | 11 | 6 | 6 | 0 |
+| Gold Macro | 59.9% | 1 | 5 | 1 | 1 | 0 |
+| Oil Macro | 57.4% | 1 | 6 | 1 | 1 | 0 |
+
+All systems: 100% direction agreement on overlaps. No filter has shipped. Build status: passing (with parity-below-85% warnings — expected, see headline finding above).
 
 ### Filter #11 status: deferred
 

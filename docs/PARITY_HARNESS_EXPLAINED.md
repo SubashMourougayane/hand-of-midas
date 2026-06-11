@@ -36,14 +36,15 @@ The harness measures this quantitatively, writes a JSON report, and ships runnin
 
 The entire trading decision is built on backtest numbers. When you cite "PF 3.5, $640k expectancy over 11 years" — that's the BACKTEST claim. **If LIVE is doing something different from BACKTEST, those backtest numbers are lies for predicting your live results.**
 
-In the past 3 weeks, **6 confirmed drift bugs** have hit the system, costing real money:
+In the past 3 weeks, **5 confirmed drift bugs** have hit the system, costing real money:
 
 1. **TDB (Timezone Drift Bug)** — live's `ts.hour` filtered MT5 server hours, backtest used real UTC. 18% live/backtest signal overlap for weeks. ~$1,255 cost over 7 days.
 2. **Oil Macro V1-only bias** — live used V1, backtest used Combined V1+V2.
 3. **Strategy column VARCHAR(20) overflow** — `'micro_alpha_sweep_oil'` (21 chars) silently truncated, every DB INSERT failed for Oil Micro. 7 orphan trades on June 10.
 4. **Phantom-fill BE-ambiguity** — close detected at wrong price; trade GD-MI-cce2a254 reported +$9 vs real +$910.80.
-5. **OnTradeTransaction dual-instance gap** (today, twice — `OIL-AS-5434644d` and `OIL-AS-59a94823`) — DB rows stuck open while broker has closed positions because Mac MT5 EA didn't write `closed_orders.json`.
-6. **Live ≠ Backtest risk threshold (Filter #17)** — Oil Macro live: `risk < 0.01`; Oil Macro backtest: `risk < 0.3`. **Live takes trades the backtest never simulated.**
+5. **OnTradeTransaction dual-instance gap** (twice — `OIL-AS-5434644d` and `OIL-AS-59a94823`) — DB rows stuck open while broker has closed positions because Mac MT5 EA didn't write `closed_orders.json`.
+
+> **Previously listed as #6:** "Oil Macro live `risk < 0.01` vs backtest `risk < 0.3`" — **withdrawn 2026-06-12.** The audit only checked the Gold backtest copy at `backend/strategies/alpha_sweep.py`; it missed that Oil has its OWN parallel module at `backend-oil/strategies/alpha_sweep.py` (line 121,139) which was already at `risk < 0.01`. Oil live and Oil backtest were always in agreement. 21-year backtest confirmed `0.01` is the correct Oil calibration (PF 5.58 vs 4.47 at `0.3`). See `docs/EDGE_FILTERS_RESULTS.md`.
 
 Each is the same class of bug: somebody changed strategy logic on one side and forgot to mirror it on the other. The parity harness exists to catch this class automatically.
 
@@ -147,7 +148,7 @@ Confirms the harness is sensitive to inputs and to drift. ~10 minutes.
 - Adversarial: temporarily revert, confirm parity drops, re-apply.
 - Acceptance: parity harness still passes; oil_macro parity_pct moves measurably toward 100% on the formerly-drifting subset.
 
-This is the **6th confirmed drift bug** of the past 3 weeks. Closing it shrinks the live↔backtest gap before we measure filter effects.
+**[2026-06-12 update: this filter was rejected after 21-year backtest showed PF 5.58 → 4.47, net P&L -$801k. The audit's premise was wrong — see the withdrawn-#6 note above.]**
 
 #### 0.3 Ship Filter #11 (deterministic slippage)
 

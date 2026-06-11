@@ -6,80 +6,70 @@ For the candidate catalog see [EDGE_FILTERS.md](EDGE_FILTERS.md). For the 6-step
 
 ---
 
-## Filter #17 — Oil Macro live `risk<0.01` → `risk<0.3` (Phase 0 drift fix)
+## Filter #17 — Oil Macro live `risk<0.01` → `risk<0.3` (rejected — was not a bug)
 
-**Status:** ✅ Shipped (commit `a5dc3e1`, 2026-06-12). Local-only — not pushed to VPS yet.
+**Status:** ❌ REVERTED. Originally shipped commit `a5dc3e1` (2026-06-12 morning). Reverted commit `5b1252d` (2026-06-12 afternoon, same day).
 
-**Type:** Drift fix, not alpha filter. Live was diverging from backtest's risk floor; this aligns them.
+**Type:** Was claimed as drift fix; turned out to be incorrect strategy change.
 
-### What changed
+### What happened
 
-`backend-oil/scanner/scheduler.py:285,299`:
-```diff
--if risk < 0.01 or risk > asia_range * 0.8:
-+if risk < 0.3  or risk > asia_range * 0.8:
-```
+The audit on 2026-06-11 listed Filter #17 as the **6th confirmed live↔backtest drift bug**, claiming:
+- Oil Macro live: `risk < 0.01`
+- Oil Macro backtest: `risk < 0.3`
+- Therefore live takes trades backtest never simulates → ship the fix
 
-Backtest at `backend/strategies/alpha_sweep.py:111,135` was already `risk<0.3` — the fix brings live into agreement.
+I shipped the fix on that premise. Production-data analysis seemed to support it (8 trades, +$513 saved, PF 0.63→0.78). I committed and updated docs.
 
-### Backtest impact
+**The audit was wrong.** Verified in this session:
 
-**N/A by construction.** The backtest already used `risk<0.3`, so running it before/after the live-side fix produces identical numbers. There is no backtest delta to measure.
+| Path | File | Risk floor (current after revert) |
+|---|---|---|
+| Gold Macro live | `backend/scanner/scheduler.py:574,601` | 0.3 |
+| Gold Macro backtest | `backend/strategies/alpha_sweep.py:111,135` | 0.3 |
+| **Oil Macro live** | `backend-oil/scanner/scheduler.py:285,299` | **0.01** |
+| **Oil Macro backtest** | `backend-oil/strategies/alpha_sweep.py:121,139` | **0.01** |
 
-### Production data measurement (substitute for backtest)
+Oil Macro has its own parallel `strategies/alpha_sweep.py` (separate from Gold's). Both Oil sides have always been at 0.01. The audit checked only the Gold backtest copy at `backend/strategies/alpha_sweep.py:111` and inferred drift that didn't exist. **Oil live and Oil backtest were already in agreement.**
 
-Pulled all `ENTRY_FILLED` and `EXIT_FILLED` events from `/api/oil/journal/events` (alpha_sweep_oil only, deduped by trade_ref) on 2026-06-12. 10 entries, 8 closed:
+### 21-year Oil Macro backtest (2006-01-03 → 2026-05-22, ~2M M3 bars)
 
-| trade_ref | entry | sl | risk | exit | pnl_usd | post-#17? |
-|---|---|---|---|---|---|---|
-| OIL-AS-f5e9710a | 92.95 | 90.96 | 1.99 | (open) | (open) | takes |
-| OIL-AS-59a94823 | 91.51 | 91.08 | 0.43 | (stuck) | (stuck) | takes |
-| OIL-AS-5434644d | 92.14 | 93.15 | 1.01 | SL | -1054.44 | takes |
-| **OIL-AS-f557abc0** | **92.15** | **91.91** | **0.24** | **SL** | **-513.12** | **🚫 BLOCK** |
-| OIL-AS-cbc736f8 | 95.87 | 96.55 | 0.68 | TP | +409.06 | takes |
-| OIL-AS-86b4293c | 96.15 | 96.98 | 0.83 | SL | -312.08 | takes |
-| OIL-AS-e6e64a02 | 95.92 | 95.21 | 0.71 | SL | -338.67 | takes |
-| OIL-AS-7a5c0377 | 95.61 | 95.20 | 0.41 | SL | -375.56 | takes |
-| OIL-AS-fd4282e5 | 96.87 | 97.29 | 0.42 | SL | -223.86 | takes |
-| OIL-AS-8924ef1b | 93.63 | 92.88 | 0.75 | TP | +1377.76 | takes |
+The honest measurement of whether 0.01 or 0.3 is the right threshold for Oil:
 
-**Filter #17 would have skipped 1 of 10 entries** — the one with `risk = 0.24`, just below the 0.30 floor.
-
-### Pre/Post P&L
-
-| Metric | Pre-fix (8 closed trades) | Post-fix (7 closed, skipping f557abc0) | Δ |
+| Metric | risk < 0.01 (current) | risk < 0.3 (Filter #17) | Δ |
 |---|---|---|---|
-| Trades | 8 | 7 | -1 |
-| Wins | 2 | 2 | 0 |
-| Losses | 6 | 5 | -1 |
-| Win rate | 25.0% | 28.6% | +3.6pp |
-| Gross win | $1,786.82 | $1,786.82 | 0 |
-| Gross loss | $2,817.73 | $2,304.61 | -$513.12 |
-| **Profit Factor** | **0.63** | **0.78** | **+0.14** |
-| **Net P&L** | **-$1,030.91** | **-$517.79** | **+$513.12** |
+| Trades | 1,291 | 1,194 | -97 |
+| Wins | 898 | 788 | -110 |
+| Losses | 393 | 406 | +13 |
+| Win rate | 69.6% | 66.0% | **-3.6pp** |
+| **Profit Factor** | **5.58** | **4.47** | **-1.11** |
+| **Net P&L** | **$1,828,136** | **$1,026,805** | **-$801,331 (-44%)** |
+| Max DD | -23.2% | -23.2% | 0 |
+
+**The 0.01 threshold is correct for Oil.** The lower floor is consistent with Oil's lower per-unit volatility (`min_sl=0.10` for Oil vs `5.00` for Gold). 97 small-risk trades over 20 years contribute net very positively. Removing them costs $801k of historical edge.
+
+### Production data measurement (revisited)
+
+Original analysis: 8 closed trades, Filter #17 would have skipped 1 (`OIL-AS-f557abc0` -$513.12), producing PF 0.63 → 0.78.
+
+**This measurement was misleading.** N=8 is way too small to dispute a 1,291-trade backtest signal. The production data we have happened to include one losing 0.24-risk trade; the backtest contains hundreds of profitable small-risk trades that never made it to production. **The correct interpretation:** small N can show *anything*; the 21-year backtest is the authoritative answer.
 
 ### Parity harness impact
 
-| Window | Pre-fix parity | Post-fix parity | Δ |
-|---|---|---|---|
-| 7-day | 57.4% (BT=1, Live=6, in_both=1) | 59.0% (BT=1, Live=5, in_both=1) | +1.6pp, Live -1 |
-| 30-day | 64.0% (BT=13, Live=24, in_both=7) | 64.6% (BT=13, Live=23, in_both=7) | +0.6pp, Live -1 |
+The harness reported parity improved 57.4% → 59.0% (7d) and 64.0% → 64.6% (30d) after Filter #17. **The harness was wrong** because it compared live against the GOLD backtest (`backend.strategies.alpha_sweep`) — but it should have compared against the OIL backtest (`backend-oil/strategies/alpha_sweep`). The harness `oil_macro` system config does point to the right Oil backtest, but the **measurement still went up** because changing live to be MORE restrictive than its real backtest counterpart reduced the "live-only" signal count, which is a bigger weight in the parity_pct formula than entry-price-delta. Coverage improved at the cost of correctness.
 
-Direction agreement remained 100% on overlaps both pre and post.
-
-### Caveats
-
-- **N is small (8 closed trades).** One trade dominates the delta. Statistical significance: low. The direction (positive) is unambiguous; the magnitude is suggestive, not proven.
-- **One-at-a-time gate means we can't claim "the saved capital would have been deployed elsewhere"** — Oil Macro doesn't queue trades, so blocking f557abc0 just keeps the slot empty until the next valid signal.
-- **Backtest delta is zero by construction** because the backtest already enforced `risk<0.3`. We cannot run "backtest with bug" because the bug was live-only. This is what made the bug a parity-violation in the first place.
+This is a **lesson about the parity harness**: parity_pct going up does NOT mean the change is correct. It only means live and backtest agree on more signals. They could be agreeing for the wrong reason (both wrong, or one was correct and the other got artificially constrained).
 
 ### Verdict
 
-✅ **Keep the fix.** Production data shows it would have saved $513 over the past 9 days (1 of 10 entries skipped, that 1 happened to lose by SL). It also closes a documented live↔backtest drift bug, which is its primary purpose. The P&L improvement is a bonus, not the justification.
+❌ **Filter #17 was reverted.** The 0.01 risk floor is the correct Oil Macro calibration. The audit's claim of "6th drift bug" was based on a partial code search — only the Gold backtest copy was checked, missing the Oil-specific copy.
 
-### Next action
+### Lessons captured (will be added to memory)
 
-Push `a5dc3e1` to VPS. Future Oil Macro entries with risk in [0.01, 0.30) will be skipped server-side.
+1. **Every "drift bug" audit must enumerate ALL parallel copies before claiming a mismatch.** This codebase has multiple parallel implementations of strategy logic (Gold backtest, Gold live, Oil backtest, Oil live). A claim of "live ≠ backtest" requires checking the right backtest counterpart, not the most familiar one.
+2. **Production-data sample sizes (N=8) cannot validate or reject decisions that should be tested against 20 years of history.** Small samples can produce arbitrary signs.
+3. **Parity_pct going UP after a code change is NOT proof the change is correct.** Parity is a coverage measurement, not a correctness measurement. A change that reduces live signals will mechanically push parity up if the dominant component is coverage. The 21-year backtest is the correctness check.
+4. **Every filter — even "1-line drift fixes" — must run the full backtest.** I bypassed this for Filter #17 thinking it was tautological. It wasn't. The user's "no fake numbers" principle was correct.
 
 ---
 
@@ -107,16 +97,21 @@ For each filter measured (whether shipped or rejected):
 ### What changed
 (diff or description)
 
-### Backtest impact
+### Production data (if applicable, prior real trades)
+(N trades, P&L delta from real broker outcomes — NEVER as the sole basis for a decision)
+
+### Full historical backtest (REQUIRED for any change to a strategy gate)
 | System | Trades | WR | PF | Net P&L | Max DD | Δ vs baseline |
 |---|---|---|---|---|---|---|
 | (system) | ... | ... | ... | ... | ... | ... |
 
+Run on the full available data span (BCO_USD_M3 = 20+ years for Oil; equivalent for other instruments).
+ALWAYS run before AND after the change. Revert the source file after measurement; commit only when ready.
+
 ### Parity harness impact
 | Window | Pre parity | Post parity | Δ |
 
-### Production data (if applicable)
-(N trades, P&L delta from real broker outcomes)
+Remember: parity_pct going up does NOT prove the change is correct. It's a coverage measurement.
 
 ### Caveats
 (small N, one-at-a-time gate, missing measurement, anything not quantified)
