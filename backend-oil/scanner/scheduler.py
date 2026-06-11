@@ -282,7 +282,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 if risk < cfg["min_sl"]:
                     sl = entry - cfg["min_sl"]
                     risk = cfg["min_sl"]
-                if risk < 0.3 or risk > asia_range * 0.8:
+                if risk < 0.01 or risk > asia_range * 0.8:
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_high - tp_buf
@@ -296,7 +296,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 if risk < cfg["min_sl"]:
                     sl = entry + cfg["min_sl"]
                     risk = cfg["min_sl"]
-                if risk < 0.3 or risk > asia_range * 0.8:
+                if risk < 0.01 or risk > asia_range * 0.8:
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_low + tp_buf
