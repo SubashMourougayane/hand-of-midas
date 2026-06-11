@@ -1,0 +1,161 @@
+"""High-level entry point: run_parity_check(system_key, days=N) → ParityScore.
+
+This module ties the extractor, diff, and score modules together, and
+handles the file I/O for input CSVs.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from datetime import date, timedelta
+
+import pandas as pd
+
+from .config import SYSTEMS, SystemConfig, DEFAULT_DAYS
+from .extractor import extract_backtest_signals, extract_live_signals
+from .diff import diff_signals
+from .score import score_parity, ParityScore
+
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+
+
+def _ensure_paths():
+    """Make sure backend/ is importable. Mirrors test_12_replay.py."""
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
+    backend_dir = os.path.join(PROJECT_ROOT, "backend")
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+
+
+def _load_data(cfg: SystemConfig):
+    """Load H1, M3, D CSVs via the same backend.data.cache.load_candles
+    helper used by the existing harness fixtures."""
+    _ensure_paths()
+    from backend.data.cache import load_candles
+    h1_df = load_candles(cfg.h1_csv)
+    m3_df = load_candles(cfg.m3_csv)
+    d_df = load_candles(cfg.daily_csv)
+    return h1_df, m3_df, d_df
+
+
+def _build_daily_bias(d_df: pd.DataFrame) -> dict:
+    """Reproduce conftest.py:daily_bias fixture. Combined V1+V2 like prod."""
+    bias = {}
+    for i in range(1, len(d_df)):
+        d = d_df.index[i].date()
+        prev_range = d_df["mid_high"].iat[i - 1] - d_df["mid_low"].iat[i - 1]
+        if prev_range <= 0:
+            continue
+        prev_close = d_df["mid_close"].iat[i - 1]
+        prev_open = d_df["mid_open"].iat[i - 1]
+        prev_low = d_df["mid_low"].iat[i - 1]
+        # V1: body% > 40%
+        body_pct = abs(prev_close - prev_open) / prev_range
+        v1 = "neutral"
+        if body_pct >= 0.4:
+            v1 = "bullish" if prev_close > prev_open else "bearish"
+        # V2: close in top/bottom 20%
+        close_pos = (prev_close - prev_low) / prev_range
+        v2 = "neutral"
+        if close_pos >= 0.8:
+            v2 = "bullish"
+        elif close_pos <= 0.2:
+            v2 = "bearish"
+        if v1 == "bearish" or v2 == "bearish":
+            bias[d] = "bearish"
+        elif v1 == "bullish" or v2 == "bullish":
+            bias[d] = "bullish"
+        else:
+            bias[d] = "neutral"
+    return bias
+
+
+def run_parity_check(
+    system_key: str,
+    days: int = DEFAULT_DAYS,
+) -> ParityScore:
+    """Run one full parity comparison for a system, return the ParityScore.
+
+    Steps:
+    1. Load CSV data (H1, M3, D).
+    2. Build daily_bias dict.
+    3. Slice to last `days` days.
+    4. Run BT signal-gen → list[SignalRecord].
+    5. Replay live signal-gen → list[SignalRecord].
+    6. Diff and score.
+
+    The function does not write JSON itself (that's the caller's job, e.g.
+    test_22_parity.py calls score.write_json()).
+    """
+    if system_key not in SYSTEMS:
+        raise ValueError(f"Unknown system_key: {system_key}. Known: {sorted(SYSTEMS)}")
+    cfg = SYSTEMS[system_key]
+
+    h1_full, m3_full, d_full = _load_data(cfg)
+    daily_bias = _build_daily_bias(d_full)
+
+    # Window the data to last `days` days. Use the M3 file's last timestamp
+    # as the reference (it's the freshest source).
+    last_ts = m3_full.index[-1]
+    cutoff = last_ts - pd.Timedelta(days=days)
+    h1_df = h1_full[h1_full.index >= cutoff]
+    m3_df = m3_full[m3_full.index >= cutoff]
+
+    if len(h1_df) < 6 or len(m3_df) < 50:
+        # Insufficient data for meaningful comparison. Return an empty score
+        # with a clear marker rather than raising — the soft gate will treat
+        # this as "warning level" since BT count = Live count = 0.
+        return score_parity(
+            system=system_key,
+            date_range=(cutoff.date(), last_ts.date()),
+            diffs=[],
+            sweep_threshold=cfg.sweep_threshold,
+            data_files=(cfg.h1_csv, cfg.m3_csv, cfg.daily_csv),
+        )
+
+    # 1) Backtest signals: pass the windowed slice so BT only emits signals
+    #    within our parity window. BT walks bars internally; it doesn't need
+    #    extra history beyond what's in the window.
+    bt_records = extract_backtest_signals(
+        system_key=system_key,
+        backtest_module_path=cfg.backtest_module_path,
+        backtest_fn_name=cfg.backtest_fn_name,
+        h1_df=h1_df,
+        m3_df=m3_df,
+        daily_bias=daily_bias,
+    )
+
+    # 2) Live signals. Pass h1/m3 with one-day prefix so first-day lookback
+    #    is realistic (24 h1 bars + 50 m3 bars need history older than the
+    #    earliest evaluated bar). One-day prefix is enough; passing full
+    #    history makes per-bar tail() calls 3x slower without changing
+    #    parity output (verified empirically on May 2026 data).
+    live_lookback_cutoff = cutoff - pd.Timedelta(days=2)
+    h1_for_live = h1_full[h1_full.index >= live_lookback_cutoff]
+    m3_for_live = m3_full[m3_full.index >= live_lookback_cutoff]
+    live_records = extract_live_signals(
+        system_key=system_key,
+        live_module_path=cfg.live_module_path,
+        live_core_fn_name=cfg.live_core_fn_name,
+        h1_df=h1_for_live,
+        m3_df=m3_for_live,
+        d_df=d_full,
+        daily_bias=daily_bias,
+        date_range_start=cutoff.date(),
+        date_range_end=last_ts.date(),
+    )
+
+    # 3) Diff
+    diffs = diff_signals(bt_records, live_records)
+
+    # 4) Score
+    return score_parity(
+        system=system_key,
+        date_range=(cutoff.date(), last_ts.date()),
+        diffs=diffs,
+        sweep_threshold=cfg.sweep_threshold,
+        data_files=(cfg.h1_csv, cfg.m3_csv, cfg.daily_csv),
+    )
