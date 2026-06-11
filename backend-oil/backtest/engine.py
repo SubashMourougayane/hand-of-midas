@@ -76,7 +76,12 @@ def run_backtest(
     # Daily bias — Combined V1+V2 (matches live scheduler and other 3 systems)
     daily_bias = {}
     for i in range(1, len(oil_d)):
-        d = oil_d.index[i].date()
+        # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session, so its
+        # .date() is one day before the session. Trade-date = bar.date() + 1; oil_d[i-1]
+        # represents (trade_date - 1) session = true yesterday's bias. See parity audit
+        # 2026-06-12 (drift bug #6): without the +1, BT used today's session as yesterday
+        # AND silently skipped trade-dates with no matching .date() key.
+        d = (oil_d.index[i] + pd.Timedelta(days=1)).date()
         prev_range = oil_d["mid_high"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]
         if prev_range <= 0:
             daily_bias[d] = "neutral"

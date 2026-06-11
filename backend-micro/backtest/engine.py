@@ -52,7 +52,10 @@ def run_backtest(
     gold_close_dict = {}
 
     for i in range(1, len(gold_d)):
-        d = gold_d.index[i].date()
+        # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session,
+        # so trade-date = bar.date() + 1day; oil_d[i-1] = true yesterday's bar. See parity audit
+        # 2026-06-12 (drift bug #6).
+        d = (gold_d.index[i] + pd.Timedelta(days=1)).date()
         prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
         if prev_range > 0:
             # Combined V1+V2: EITHER body% OR close-position triggers directional

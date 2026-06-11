@@ -98,7 +98,12 @@ def run_backtest(
     gold_close_dict = {}
 
     for i in range(1, len(gold_d)):
-        d = gold_d.index[i].date()
+        # OANDA daily bars use dailyAlignment=21 convention: a bar with timestamp T 21:00
+        # represents the trading session T 21:00 → (T+1) 21:00, so .date() of the timestamp
+        # is one day BEFORE the session it represents. The strategy looks up daily_bias[trade_date]
+        # expecting "yesterday's session bias." Therefore: trade_date = bar_index[i].date() + 1day,
+        # using oil_d[i-1] (which represents (trade_date - 1) session = TRUE yesterday).
+        d = (gold_d.index[i] + pd.Timedelta(days=1)).date()
         prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
         if prev_range > 0:
             # Combined V1+V2 bias: EITHER body% OR close-position triggers directional

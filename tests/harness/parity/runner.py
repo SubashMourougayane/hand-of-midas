@@ -81,10 +81,18 @@ def _ensure_mid_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_daily_bias(d_df: pd.DataFrame) -> dict:
-    """Reproduce conftest.py:daily_bias fixture. Combined V1+V2 like prod."""
+    """Reproduce conftest.py:daily_bias fixture. Combined V1+V2 like prod.
+
+    Note (2026-06-12 drift-bug #6 fix): OANDA dailyAlignment=21 means a bar with
+    timestamp T 21:00 represents the trading session (T 21:00 → (T+1) 21:00), so
+    its `.date()` is one day BEFORE the session it represents. Strategy code looks
+    up `daily_bias[trade_date]` expecting yesterday's bias. Therefore key by
+    `bar.date() + 1day` so that the entry for trade-date D is computed from the
+    bar representing (D-1) session = true yesterday.
+    """
     bias = {}
     for i in range(1, len(d_df)):
-        d = d_df.index[i].date()
+        d = (d_df.index[i] + pd.Timedelta(days=1)).date()
         prev_range = d_df["mid_high"].iat[i - 1] - d_df["mid_low"].iat[i - 1]
         if prev_range <= 0:
             continue

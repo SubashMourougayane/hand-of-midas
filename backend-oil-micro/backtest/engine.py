@@ -344,7 +344,10 @@ def run_backtest(
     # Daily bias — Combined V1+V2
     daily_bias = {}
     for i in range(1, len(oil_d)):
-        d = oil_d.index[i].date()
+        # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session,
+        # so trade-date = bar.date() + 1day; oil_d[i-1] = true yesterday's bar. See parity audit
+        # 2026-06-12 (drift bug #6).
+        d = (oil_d.index[i] + pd.Timedelta(days=1)).date()
         prev_range = oil_d["mid_high"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]
         if prev_range > 0:
             body_pct = abs(oil_d["mid_close"].iat[i - 1] - oil_d["mid_open"].iat[i - 1]) / prev_range
