@@ -59,28 +59,57 @@ def position_monitor_job():
 
 
 def _run_alpha_sweep():
-    """Check for Oil Asia sweep + M3 engulfing. Up to max_trades_per_day."""
+    """Check for Oil Asia sweep + M3 engulfing. Production entry point.
+
+    Thin wrapper: fetches live data + clock, delegates to _run_alpha_sweep_core.
+    The core is testable via tests/harness/parity/ with dry_run=True.
+    """
+    now = datetime.now(timezone.utc)
+    h1_candles = [c for c in get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
+    if len(h1_candles) < 8:
+        return
+    daily_candles = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
+    if len(daily_candles) < 2:
+        return
+    m3_candles = get_candles(instrument="BCO_USD", granularity="M3", count=50, price="BA")
+    return _run_alpha_sweep_core(now, h1_candles, daily_candles, m3_candles)
+
+
+def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
+                          m3_candles: list, dry_run: bool = False):
+    """Core Oil Asia-sweep + M3-engulfing logic — testable with injected data.
+
+    Args:
+        now: timezone-aware datetime to use as "current time".
+        h1_candles: list of H1 candle dicts (bid_*/ask_*) covering today.
+        daily_candles: list of daily candle dicts; daily_candles[-2] = yesterday.
+        m3_candles: list of M3 candle dicts for engulfing detection.
+        dry_run: if True, returns list of signal dicts and SKIPS execute_signal,
+                 _log_journal, DB writes. For harness use.
+
+    Returns:
+        list of signal dicts when dry_run=True, else None.
+    """
     global _traded_sweeps_oil
     cfg = ALPHA_SWEEP
-    today = datetime.now(timezone.utc).date()
-    now = datetime.now(timezone.utc)
+    today = now.date()
 
     if _traded_sweeps_oil["date"] != today:
         _traded_sweeps_oil = {"date": today, "keys": set()}
 
-    # Check how many trades today
-    existing = execute(
-        "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep_oil' AND entry_time::date = %s",
-        (today,), fetch=True
-    )
-    trades_today = existing[0]["cnt"] if existing else 0
-    if trades_today >= cfg["max_trades_per_day"]:
-        return
+    signals_found: list[dict] = []
 
-    # Get H1 bars — only use complete bars
-    h1_candles = [c for c in get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
-    if len(h1_candles) < 8:
-        return
+    if not dry_run:
+        # Check how many trades today
+        existing = execute(
+            "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep_oil' AND entry_time::date = %s",
+            (today,), fetch=True
+        )
+        trades_today = existing[0]["cnt"] if existing else 0
+        if trades_today >= cfg["max_trades_per_day"]:
+            return None
+    else:
+        trades_today = 0
 
     # Asia bars (00:00-08:00 UTC) with mid prices
     asia_bars = []
@@ -93,18 +122,19 @@ def _run_alpha_sweep():
             asia_bars.append(c)
 
     if len(asia_bars) < 3:
-        return
+        return signals_found if dry_run else None
 
     asia_high = max(c["mid_high"] for c in asia_bars)
     asia_low = min(c["mid_low"] for c in asia_bars)
     asia_range = asia_high - asia_low
 
     if asia_range < cfg["asia_min_range"]:
-        _log_journal("SYSTEM", "alpha_sweep_oil", "NO_SIGNAL", None, {
-            "reason": "asia_range_too_small", "asia_range": round(asia_range, 4),
-            "min_required": cfg["asia_min_range"],
-        })
-        return
+        if not dry_run:
+            _log_journal("SYSTEM", "alpha_sweep_oil", "NO_SIGNAL", None, {
+                "reason": "asia_range_too_small", "asia_range": round(asia_range, 4),
+                "min_required": cfg["asia_min_range"],
+            })
+        return signals_found if dry_run else None
 
     # Scan window bars with mid prices
     scan_bars = []
@@ -117,14 +147,13 @@ def _run_alpha_sweep():
             scan_bars.append(c)
 
     if not scan_bars:
-        return
+        return signals_found if dry_run else None
 
     # Daily bias — Combined V1+V2 (matches Gold Macro/Micro and Oil Micro)
     # V1: body% > 40% of range = directional. V2: close in top/bottom 20% = directional.
     # EITHER trigger → directional. Both neutral → neutral.
-    daily_candles = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
     if len(daily_candles) < 2:
-        return
+        return signals_found if dry_run else None
     yesterday = daily_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
     mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
@@ -163,10 +192,9 @@ def _run_alpha_sweep():
             sweeps.append(("bullish", bar["mid_low"], bar["timestamp"]))
 
     if not sweeps:
-        return
+        return signals_found if dry_run else None
 
-    # Get M3 candles
-    m3_candles = get_candles(instrument="BCO_USD", granularity="M3", count=50, price="BA")
+    # M3 candles passed in via parameter (live wrapper fetches; harness injects).
 
     # Process each sweep
     for sweep_dir, sweep_wick, sweep_ts in sweeps:
@@ -246,17 +274,26 @@ def _run_alpha_sweep():
                     continue
                 direction = "short"
 
-            # Execute via live_engine
-            execute_signal(
-                direction=direction,
-                entry_price=entry,
-                sl_price=sl,
-                tp_price=tp,
-                context={
-                    "asia_high": asia_high, "asia_low": asia_low, "asia_range": asia_range,
-                    "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
-                },
-            )
+            if dry_run:
+                signals_found.append({
+                    "time": c["timestamp"], "direction": direction,
+                    "entry": round(entry, 4), "sl": round(sl, 4), "tp": round(tp, 4),
+                    "risk": round(risk, 4), "bias": bias,
+                    "asia_high": asia_high, "asia_low": asia_low,
+                    "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
+                })
+            else:
+                # Execute via live_engine
+                execute_signal(
+                    direction=direction,
+                    entry_price=entry,
+                    sl_price=sl,
+                    tp_price=tp,
+                    context={
+                        "asia_high": asia_high, "asia_low": asia_low, "asia_range": asia_range,
+                        "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                    },
+                )
             _traded_sweeps_oil["keys"].add(sweep_key)
             trades_today += 1
             break  # One engulfing per sweep
@@ -264,6 +301,8 @@ def _run_alpha_sweep():
             # No engulfing found — consume only if window expired
             if now >= window_end:
                 _traded_sweeps_oil["keys"].add(sweep_key)
+
+    return signals_found if dry_run else None
 
 
 def daily_recon_job():

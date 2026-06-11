@@ -31,6 +31,10 @@ class SystemConfig:
     backtest_fn_name: str
     config_module_path: str        # for live config (MICRO_ALPHA_SWEEP, etc.)
     strategy_config_key: str       # the dict to pull (e.g. "MICRO_ALPHA_SWEEP")
+    # Macro vs Micro architecture: Micro uses rolling 4h windows and the
+    # core fn takes `active_windows` as a parameter. Macro uses a single
+    # Asia (00:00-08:00) window and the core fn takes no window arg.
+    architecture: str = "micro"    # "micro" | "macro"
 
 
 # Phase 1: gold_micro only is filled. Other systems are stubs (will skip
@@ -71,7 +75,45 @@ SYSTEMS: dict[str, SystemConfig] = {
         config_module_path="config",
         strategy_config_key="MICRO_ALPHA_SWEEP",
     ),
-    # Phase 4 — gold_macro, oil_macro
+    "gold_macro": SystemConfig(
+        key="gold_macro",
+        label="Gold Macro",
+        instrument="XAU_USD",
+        h1_csv="XAU_USD_H1.csv",
+        m3_csv="XAU_USD_M3.csv",
+        daily_csv="XAU_USD_D.csv",
+        sweep_threshold=2.0,        # ALPHA_SWEEP["sweep_threshold"] for gold
+        # Gold Macro lives under backend/. Backtest is the shared
+        # backend.strategies.alpha_sweep module (Asia-window logic, single
+        # window per day). Live core fn _run_alpha_sweep_core was added in
+        # Phase 4 of the parity harness work (additive dry_run param).
+        live_module_path="scanner.scheduler",   # backend/scanner/scheduler
+        live_core_fn_name="_run_alpha_sweep_core",
+        backtest_module_path="backend.strategies.alpha_sweep",
+        backtest_fn_name="generate_signals",
+        config_module_path="backend.config",
+        strategy_config_key="ALPHA_SWEEP",
+        architecture="macro",
+    ),
+    "oil_macro": SystemConfig(
+        key="oil_macro",
+        label="Oil Macro",
+        instrument="BCO_USD",
+        h1_csv="BCO_USD_H1.csv",
+        m3_csv="BCO_USD_M3.csv",
+        daily_csv="BCO_USD_D.csv",
+        sweep_threshold=0.20,       # ALPHA_SWEEP["sweep_threshold"] for oil
+        live_module_path="scanner.scheduler",   # backend-oil/scanner/scheduler
+        live_core_fn_name="_run_alpha_sweep_core",
+        # Oil Macro has its OWN strategies/alpha_sweep.py (parallel to Gold's).
+        # Both call it `strategies.alpha_sweep.generate_signals` from inside
+        # their backend-X/ root, so we resolve via the system's sys.path.
+        backtest_module_path="strategies.alpha_sweep",
+        backtest_fn_name="generate_signals",
+        config_module_path="config",
+        strategy_config_key="ALPHA_SWEEP",
+        architecture="macro",
+    ),
 }
 
 

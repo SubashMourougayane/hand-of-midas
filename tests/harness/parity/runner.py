@@ -185,6 +185,7 @@ def run_parity_check(
         daily_bias=daily_bias,
         date_range_start=cutoff.date(),
         date_range_end=last_ts.date(),
+        architecture=cfg.architecture,
     )
 
     # 3) Diff

@@ -345,52 +345,82 @@ def london_session_job():
 
 
 def _run_alpha_sweep():
-    """Check for Asia sweep + M3 engulfing setup. Allows up to max_trades_per_day."""
+    """Check for Asia sweep + M3 engulfing setup. Production entry point.
+
+    Thin wrapper around _run_alpha_sweep_core: fetches live data + clock,
+    delegates to the core. The core is independently testable via the
+    parity harness (tests/harness/parity/) by passing dry_run=True with
+    injected data.
+    """
+    now = datetime.now(timezone.utc)
+    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
+    if len(h1_candles) < 8:
+        return
+    daily_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
+    if len(daily_candles) < 2:
+        return
+    m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
+    return _run_alpha_sweep_core(now, h1_candles, daily_candles, m3_candles)
+
+
+def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
+                          m3_candles: list, dry_run: bool = False):
+    """Core Asia-sweep + M3-engulfing logic — testable with injected data.
+
+    Args:
+        now: timezone-aware datetime to use as "current time".
+        h1_candles: list of H1 candle dicts (bid_*/ask_*) covering today.
+        daily_candles: list of daily candle dicts; daily_candles[-2] = yesterday.
+        m3_candles: list of M3 candle dicts for engulfing detection.
+        dry_run: if True, returns list of signal dicts and SKIPS execute_signal,
+                 _persist_m3_candles, DB writes, _log_journal. For harness use.
+
+    Returns:
+        list of signal dicts when dry_run=True, else None.
+    """
     global _traded_sweeps_macro
     cfg = ALPHA_SWEEP
-
-    # Check how many trades today
-    today = datetime.now(timezone.utc).date()
-    now = datetime.now(timezone.utc)
+    today = now.date()
 
     # Reset sweep blacklist at midnight
     if _traded_sweeps_macro["date"] != today:
         _traded_sweeps_macro = {"date": today, "keys": set()}
 
-    existing = execute(
-        "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
-        (today,), fetch=True
-    )
-    trades_today = existing[0]["cnt"] if existing else 0
-    if trades_today >= cfg["max_trades_per_day"]:
-        return
+    signals_found: list[dict] = []  # collected only when dry_run=True
 
-    # 5-min cooldown after last signal attempt (taken OR failed with execution error)
-    recent_signal = execute(
-        "SELECT timestamp, taken, skip_reason FROM gd_signals WHERE strategy='alpha_sweep' ORDER BY timestamp DESC LIMIT 1",
-        fetch=True
-    )
-    if recent_signal and recent_signal[0]["timestamp"]:
-        last_signal_time = recent_signal[0]["timestamp"]
-        if last_signal_time.tzinfo is None:
-            last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
-        skip = recent_signal[0].get("skip_reason", "")
-        if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
-            if now < last_signal_time + timedelta(minutes=5):
-                return  # Cooldown: same signal can't re-fire within 5 min
+    if not dry_run:
+        existing = execute(
+            "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
+            (today,), fetch=True
+        )
+        trades_today = existing[0]["cnt"] if existing else 0
+        if trades_today >= cfg["max_trades_per_day"]:
+            return None
 
-    # One position at a time (skip if open Macro trade exists)
-    open_macro = execute(
-        "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
-        fetch=True
-    )
-    if open_macro and open_macro[0]["cnt"] > 0:
-        return  # Already have an open position
+        # 5-min cooldown after last signal attempt (taken OR failed)
+        recent_signal = execute(
+            "SELECT timestamp, taken, skip_reason FROM gd_signals WHERE strategy='alpha_sweep' ORDER BY timestamp DESC LIMIT 1",
+            fetch=True
+        )
+        if recent_signal and recent_signal[0]["timestamp"]:
+            last_signal_time = recent_signal[0]["timestamp"]
+            if last_signal_time.tzinfo is None:
+                last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
+            skip = recent_signal[0].get("skip_reason", "")
+            if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
+                if now < last_signal_time + timedelta(minutes=5):
+                    return None  # Cooldown
 
-    # Get H1 bars (need up to 20 hours of today's data) — only use complete bars
-    h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
-    if len(h1_candles) < 8:
-        return
+        # One position at a time
+        open_macro = execute(
+            "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
+            fetch=True
+        )
+        if open_macro and open_macro[0]["cnt"] > 0:
+            return None
+    else:
+        # Harness path: counters live in memory only.
+        trades_today = 0
 
     # Identify Asia bars (00:00-08:00 UTC) — use MID prices for parity with backtest
     asia_bars = []
@@ -404,14 +434,14 @@ def _run_alpha_sweep():
             asia_bars.append(c)
 
     if len(asia_bars) < 3:
-        return
+        return signals_found if dry_run else None
 
     asia_high = max(c["mid_high"] for c in asia_bars)
     asia_low = min(c["mid_low"] for c in asia_bars)
     asia_range = asia_high - asia_low
 
     if asia_range < cfg["asia_min_range"]:
-        return
+        return signals_found if dry_run else None
 
     # Check for sweep in scan window bars — use MID prices for parity
     scan_bars = []
@@ -424,13 +454,12 @@ def _run_alpha_sweep():
             scan_bars.append(c)
 
     if not scan_bars:
-        return
+        return signals_found if dry_run else None
 
     # Daily bias filter — Combined V1+V2: EITHER body% OR close-position triggers
-    yesterday_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
-    if len(yesterday_candles) < 2:
-        return
-    yesterday = yesterday_candles[-2]
+    if len(daily_candles) < 2:
+        return signals_found if dry_run else None
+    yesterday = daily_candles[-2]
     mid_close = (yesterday["bid_close"] + yesterday["ask_close"]) / 2
     mid_open = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
     mid_high = (yesterday["bid_high"] + yesterday["ask_high"]) / 2
@@ -469,18 +498,18 @@ def _run_alpha_sweep():
             sweeps.append(("bullish", ml, bar["timestamp"]))
 
     if not sweeps:
-        return
+        return signals_found if dry_run else None
 
-    # Log sweep detection
-    for sd, sw, st in sweeps:
-        _log_journal("SYSTEM", "alpha_sweep", "SWEEP_DETECTED",
-            price=sw, context={"direction": sd, "sweep_wick": sw, "sweep_time": str(st),
-                               "asia_high": asia_high, "asia_low": asia_low, "bias": bias})
-        print(f"  [SWEEP] {sd.upper()} sweep detected @ {sw:.2f} (wick)")
+    # Log sweep detection (skip in dry_run — no DB writes during harness replay)
+    if not dry_run:
+        for sd, sw, st in sweeps:
+            _log_journal("SYSTEM", "alpha_sweep", "SWEEP_DETECTED",
+                price=sw, context={"direction": sd, "sweep_wick": sw, "sweep_time": str(st),
+                                   "asia_high": asia_high, "asia_low": asia_low, "bias": bias})
+            print(f"  [SWEEP] {sd.upper()} sweep detected @ {sw:.2f} (wick)")
 
-    # Get M3 candles for engulfing detection
-    m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
-    _persist_m3_candles(m3_candles)
+        # Persist M3 candles for audit trail (skip in dry_run)
+        _persist_m3_candles(m3_candles)
 
     # Process each sweep until max_trades_per_day reached
     for sweep_dir, sweep_wick, sweep_ts in sweeps:
@@ -549,10 +578,19 @@ def _run_alpha_sweep():
                 if tp - entry < risk * 0.8:
                     continue
 
-                print(f"  Alpha-Sweep SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
-                execute_signal("alpha_sweep", "long", entry, sl, tp, context={
-                    "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
-                })
+                if dry_run:
+                    signals_found.append({
+                        "time": c["timestamp"], "direction": "long",
+                        "entry": round(entry, 2), "sl": round(sl, 2), "tp": round(tp, 2),
+                        "risk": round(risk, 2), "bias": bias,
+                        "asia_high": asia_high, "asia_low": asia_low,
+                        "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
+                    })
+                else:
+                    print(f"  Alpha-Sweep SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
+                    execute_signal("alpha_sweep", "long", entry, sl, tp, context={
+                        "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
+                    })
             else:
                 entry = c["bid_close"] - slippage(br)
                 sl = sweep_wick + cfg["sl_buffer"]
@@ -567,10 +605,19 @@ def _run_alpha_sweep():
                 if entry - tp < risk * 0.8:
                     continue
 
-                print(f"  Alpha-Sweep SIGNAL: SHORT @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
-                execute_signal("alpha_sweep", "short", entry, sl, tp, context={
-                    "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
-                })
+                if dry_run:
+                    signals_found.append({
+                        "time": c["timestamp"], "direction": "short",
+                        "entry": round(entry, 2), "sl": round(sl, 2), "tp": round(tp, 2),
+                        "risk": round(risk, 2), "bias": bias,
+                        "asia_high": asia_high, "asia_low": asia_low,
+                        "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
+                    })
+                else:
+                    print(f"  Alpha-Sweep SIGNAL: SHORT @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
+                    execute_signal("alpha_sweep", "short", entry, sl, tp, context={
+                        "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
+                    })
 
             _traded_sweeps_macro["keys"].add(sweep_key)
             trades_today += 1
@@ -579,10 +626,13 @@ def _run_alpha_sweep():
             # No engulfing found — consume only if window expired
             if now >= window_end:
                 _traded_sweeps_macro["keys"].add(sweep_key)
-            _log_journal("SYSTEM", "alpha_sweep", "NO_ENGULFING",
-                price=sweep_wick, context={"direction": sweep_dir, "sweep_wick": sweep_wick,
-                                           "m3_bars_checked": len(relevant_m3), "bias": bias})
-            print(f"  [SWEEP] {sweep_dir} sweep — no engulfing found ({len(relevant_m3)} M3 bars checked)")
+            if not dry_run:
+                _log_journal("SYSTEM", "alpha_sweep", "NO_ENGULFING",
+                    price=sweep_wick, context={"direction": sweep_dir, "sweep_wick": sweep_wick,
+                                               "m3_bars_checked": len(relevant_m3), "bias": bias})
+                print(f"  [SWEEP] {sweep_dir} sweep — no engulfing found ({len(relevant_m3)} M3 bars checked)")
+
+    return signals_found if dry_run else None
 
 
 def _persist_m3_candles(candles: list[dict]):

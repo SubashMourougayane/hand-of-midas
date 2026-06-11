@@ -224,20 +224,25 @@ def extract_live_signals(
     daily_bias: dict,
     date_range_start,
     date_range_end,
+    architecture: str = "micro",
 ) -> list[SignalRecord]:
     """Replay live signal-gen across [date_range_start, date_range_end].
 
-    Walks each M3 bar and calls live_core_fn(dry_run=True). Returns the
-    flattened list of dry_run signal dicts converted to SignalRecord.
-
-    The replay loop mirrors tests/harness/test_12_replay.py:replay_day()
-    so any drift in this function's behavior would also show up there.
+    Dispatches based on architecture:
+      - "micro": rolling 4h windows; calls core every M3 bar.
+      - "macro": single Asia (00:00-08:00) window; calls core once per hour
+                 during the scan window (08:00-20:00 UTC).
 
     h1_df, m3_df, d_df should be FULL history; date_range bounds limit which
     bars get evaluated. This matches live production where the scheduler
     always has plenty of H1 backfill available — even on the first day of
     the parity window.
     """
+    if architecture == "macro":
+        return _extract_live_signals_macro(
+            system_key, live_module_path, live_core_fn_name,
+            h1_df, m3_df, d_df, daily_bias, date_range_start, date_range_end,
+        )
     sched = _import_live_module_with_path(system_key, live_module_path)
     core_fn = getattr(sched, live_core_fn_name)
 
@@ -378,5 +383,133 @@ def extract_live_signals(
                     bias=sig.get("bias", "neutral"),
                     range_high=float(sig["range_high"]) if sig.get("range_high") is not None else None,
                     range_low=float(sig["range_low"]) if sig.get("range_low") is not None else None,
+                ))
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Macro variant — single Asia window, one core call per hour
+# ---------------------------------------------------------------------------
+
+def _extract_live_signals_macro(
+    system_key: str,
+    live_module_path: str,
+    live_core_fn_name: str,
+    h1_df: pd.DataFrame,
+    m3_df: pd.DataFrame,
+    d_df: pd.DataFrame,
+    daily_bias: dict,
+    date_range_start,
+    date_range_end,
+) -> list[SignalRecord]:
+    """Replay Macro live signal-gen.
+
+    Macro architecture differs from Micro:
+      - Single Asia (00:00-08:00 UTC) range per day, not rolling.
+      - Scan window is fixed (08:00-20:00 UTC) with one daily evaluation
+        cycle, not 10 rolling windows.
+      - The core fn signature is _run_alpha_sweep_core(now, h1_candles,
+        daily_candles, m3_candles, dry_run) — no `active_windows` param.
+
+    To replay, we walk each M3 bar within the daily scan window and call
+    the core fn with `now=bar_ts`. This mirrors how the live scheduler
+    actually invokes _run_alpha_sweep every 3 minutes between 08:00 and
+    20:00 UTC.
+    """
+    sched = _import_live_module_with_path(system_key, live_module_path)
+    core_fn = getattr(sched, live_core_fn_name)
+
+    records: list[SignalRecord] = []
+
+    dates = sorted(set(
+        d.date()
+        for d in m3_df.index
+        if date_range_start <= d.date() <= date_range_end
+    ))
+
+    # Macro module-level state: _traded_sweeps_macro (Gold) or
+    # _traded_sweeps_oil (Oil). Pick whichever the scheduler defines.
+    macro_state_name = "_traded_sweeps_macro" if hasattr(sched, "_traded_sweeps_macro") else "_traded_sweeps_oil"
+
+    for target_date in dates:
+        # Reset module-level sweep blacklist per day (matches scheduler midnight reset)
+        setattr(sched, macro_state_name, {"date": target_date, "keys": set()})
+
+        day_start = pd.Timestamp(target_date, tz="UTC")
+        day_end = day_start + timedelta(days=1)
+        day_m3 = m3_df[(m3_df.index >= day_start) & (m3_df.index < day_end)]
+
+        daily_candles = _build_daily_candle_dicts(d_df, target_date)
+        if len(daily_candles) < 2:
+            continue
+
+        # Macro scan window typically 08:00-20:00 UTC. Iterate every M3 bar
+        # in that window — same cadence as live cron polling.
+        for m3_idx in range(0, len(day_m3)):
+            bar_ts = day_m3.index[m3_idx]
+            now = bar_ts.to_pydatetime() if hasattr(bar_ts, "to_pydatetime") else bar_ts
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=timezone.utc)
+
+            # Macro Alpha-Sweep scan is between hours 8 and 20 UTC.
+            if not (8 <= now.hour < 20):
+                continue
+
+            h1_before = h1_df[h1_df.index < bar_ts].tail(24)
+            if len(h1_before) < 8:
+                continue
+            h1_candles = _build_candle_dicts(h1_before, 0, len(h1_before))
+
+            m3_before = m3_df[m3_df.index <= bar_ts].tail(50)
+            m3_candles = _build_candle_dicts(m3_before, 0, len(m3_before))
+
+            try:
+                raw = core_fn(
+                    now=now,
+                    h1_candles=h1_candles,
+                    daily_candles=daily_candles,
+                    m3_candles=m3_candles,
+                    dry_run=True,
+                )
+            except Exception as e:
+                records.append(SignalRecord(
+                    system=system_key,
+                    timestamp=now,
+                    direction="error",
+                    taken=False,
+                    skip_reason=f"live_replay_crashed: {e}",
+                    entry_price=None, sl_price=None, tp_price=None,
+                    sweep_wick=None, sweep_dir=None,
+                    bias=daily_bias.get(target_date, "neutral"),
+                    range_high=None, range_low=None,
+                ))
+                continue
+
+            for sig in raw or []:
+                ts_str = sig.get("time")
+                ts = pd.Timestamp(ts_str)
+                if ts.tzinfo is None:
+                    ts = ts.tz_localize("UTC")
+                ts_dt = ts.to_pydatetime()
+
+                # Dedup: Macro core writes to its sweep blacklist after a
+                # signal fires, so calling again on the next bar shouldn't
+                # produce the same signal twice. But we still bucket by
+                # (timestamp_minute, direction) so duplicate emits get
+                # collapsed at diff time.
+                records.append(SignalRecord(
+                    system=system_key,
+                    timestamp=ts_dt.astimezone(timezone.utc),
+                    direction=sig["direction"],
+                    taken=True,
+                    skip_reason="",
+                    entry_price=float(sig["entry"]),
+                    sl_price=float(sig["sl"]),
+                    tp_price=float(sig["tp"]),
+                    sweep_wick=float(sig["sweep_wick"]) if sig.get("sweep_wick") is not None else None,
+                    sweep_dir=sig.get("sweep_dir"),
+                    bias=sig.get("bias", "neutral"),
+                    range_high=float(sig["asia_high"]) if sig.get("asia_high") is not None else None,
+                    range_low=float(sig["asia_low"]) if sig.get("asia_low") is not None else None,
                 ))
     return records
