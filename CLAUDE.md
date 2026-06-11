@@ -182,3 +182,18 @@ Test DB: `golddigger_test` (env: `TEST_DB_URL`)
 - Stress test: `scripts/stress_test_ny_sweep.py` + `scripts/pessimistic_ny_sweep.py`
 - Audit: `AUDIT_REPORT.md` (11 issues found, 10 fixed, 1 accepted)
 - Failures learned from: `/Users/subash/SUBASH/VibeTrader/eval/FAILURES.md` (55 items)
+
+---
+
+## Parity Harness (live ↔ backtest drift measurement)
+
+`tests/harness/test_22_parity.py` measures structural drift between live signal-gen and backtest signal-gen for all 4 systems. Runs in ~25s; soft-gate fails the build on catastrophic drift (parity<50% or direction-flip>5), warns on minor drift.
+
+```bash
+python3 -m pytest tests/harness/test_22_parity.py -v        # all 4 systems
+python3 -m pytest tests/harness/test_22_parity.py -k gold_micro   # one system
+```
+
+JSON artifacts in `tests/harness/parity_reports/` (gitignored). v1 baseline + operator guide in `docs/PARITY_HARNESS.md`. Full design rationale in `docs/PARITY_HARNESS_PLAN.md`.
+
+**Always run this harness when modifying strategy code** in `backend*/scanner/scheduler.py` or `backend*/strategies/`. Drift bugs that bypassed earlier tests have cost real money 5 times in 3 weeks. See `docs/LIVE_VS_BACKTEST_PARITY.md` for the underlying drift analysis.

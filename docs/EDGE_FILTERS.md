@@ -451,7 +451,16 @@ Log which filter caused the skip so we can attribute backtest deltas correctly.
 Each step gates on backtest results. **Do not ship to live until parity harness verifies live & backtest match for the same input.**
 
 ### Phase 0: Parity Harness (PREREQUISITE)
-Build the live↔backtest signal-gen comparison harness. Without this, no EDGE_FILTER can be safely shipped — every change risks the same drift bugs that have hit the system 5 times in 3 weeks.
+**✅ SHIPPED** as of 2026-06-11. See `docs/PARITY_HARNESS.md` for the operator guide and `docs/PARITY_HARNESS_PLAN.md` for the design.
+
+The harness lives at `tests/harness/test_22_parity.py` + `tests/harness/parity/`. It runs in ~25s across all 4 systems, fails the build on catastrophic drift (parity<50% or direction-flip>5), and emits a JSON artifact per run. v1 baseline numbers are recorded in PARITY_HARNESS.md.
+
+For each EDGE_FILTER below, the workflow is:
+1. Add the filter to the live signal-gen path.
+2. Run the parity harness — observe the new skip events on the live side.
+3. Mirror the filter on the backtest signal-gen path.
+4. Re-run the harness. Confirm parity stays at or above the v1 baseline.
+5. If parity drops, the filter is implemented asymmetrically — fix before shipping.
 
 ### Phase 1: Filter #1 (Range Exhaustion) — solo
 - Implement filter
