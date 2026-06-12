@@ -500,22 +500,29 @@ def daily_recon_job():
     from backend import notify
     from datetime import timedelta
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    _log.info("SYSTEM", "daily_recon_start", yesterday=str(yesterday))
     try:
         stats = daily_recon_stats("OIL-MI-%", "micro_alpha_sweep_oil", yesterday)
+        _log.info("SYSTEM", "daily_recon_stats", yesterday=str(yesterday), stats=str(stats))
         notify.daily_recon("Oil Micro", str(yesterday), **stats)
     except Exception as e:
+        _log.exception("SYSTEM", "daily_recon_job_failed", yesterday=str(yesterday), err=str(e))
         print(f"  [OIL-MICRO] daily_recon_job error: {e}")
         _log_journal_safe("SYSTEM", "micro_alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "daily_recon"})
 
 
 def start_scheduler():
+    _log.info("SYSTEM", "service_starting", service="oil-micro")
     _restore_traded_sweeps_on_startup()
     scheduler.add_job(micro_sweep_job, "cron", minute="*/3", id="oil_micro_sweep_poll")
     scheduler.add_job(position_monitor_job, "cron", minute="*", id="oil_micro_position_monitor")
     scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="oil_micro_daily_recon")
     scheduler.start()
+    _log.info("SYSTEM", "service_started", service="oil-micro", jobs=["micro_sweep_poll@*/3min","position_monitor@1min","daily_recon@00:05"])
     print("Oil Micro scheduler started: Rolling window sweep poll (3min) + Position monitor + orphan reconciler (1min) + Daily recon (00:05 UTC)")
 
 
 def stop_scheduler():
+    _log.info("SYSTEM", "service_stopping", service="oil-micro")
     scheduler.shutdown(wait=False)
+    _log.info("SYSTEM", "service_stopped", service="oil-micro")
