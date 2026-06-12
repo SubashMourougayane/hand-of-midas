@@ -134,6 +134,37 @@ curl -s --get \
 curl -s 'https://midas.subashtrades.in/api/gold/debug/git'
 ```
 
+## Code execution
+
+Run arbitrary Python in-process, run a script from the repo, or run a shell command. Same risk class as SSH access — there's no sandbox.
+
+```bash
+# Inline Python — assign to _result to return a value
+curl -s -X POST 'https://midas.subashtrades.in/api/gold/debug/exec/python' \
+  -H 'Content-Type: application/json' \
+  -d '{"code":"from backend.execution.mt5_executor import get_candles\n_result = get_candles(\"XAU_USD\",\"M3\",10)"}'
+
+# GET form for quick one-liners
+curl -s --get \
+  --data-urlencode 'code=import os; _result = os.listdir(".")' \
+  'https://midas.subashtrades.in/api/gold/debug/exec/python'
+
+# Run a script from the repo
+curl -s --get \
+  --data-urlencode 'path=scripts/print_today_h1_bars.py' \
+  --data-urlencode 'timeout=30' \
+  'https://midas.subashtrades.in/api/gold/debug/exec/script'
+
+# Or POST with arguments
+curl -s -X POST 'https://midas.subashtrades.in/api/gold/debug/exec/script' \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"scripts/foo.py","args":["arg1","arg2"],"timeout":120}'
+
+# Shell command (Windows on VPS)
+curl -s --get --data-urlencode 'cmd=git pull' \
+  'https://midas.subashtrades.in/api/gold/debug/exec/shell'
+```
+
 ## Notify (Telegram)
 
 ```bash

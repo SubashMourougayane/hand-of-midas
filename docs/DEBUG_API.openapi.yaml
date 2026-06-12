@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: "Hand of Midas \u2014 Debug API"
-  description: "Read-only introspection across 4 services. NO auth, NO scrubbing \u2014 exposes secrets/tracebacks/full env.\
-    \ By design."
-  version: 1.0.0
+  description: "Read-only by convention but NOT enforced. /sql can DROP tables, /exec runs arbitrary Python. NO auth, NO scrubbing\
+    \ \u2014 exposes secrets, full env, raw tracebacks. By design \u2014 same risk class as SSH."
+  version: 1.1.0
 servers:
 - url: https://midas.subashtrades.in
   description: VPS production
@@ -571,6 +571,185 @@ paths:
           content:
             application/json:
               schema: {}
+  /api/gold/debug/exec/python:
+    post:
+      summary: Exec Python
+      description: "Run arbitrary Python code in-process. Returns stdout, stderr, and\nthe value of `_result` if the code\
+        \ assigned to that name.\n\nHas access to the live process \u2014 same imports, same db connection,\nsame scheduler,\
+        \ same DWX state. Useful for one-off introspection\nlike:\n    from backend.execution.mt5_executor import get_candles\n\
+        \    _result = get_candles('XAU_USD', 'M3', 50)\n\nCode runs in-process; errors are caught and returned, not propagated."
+      operationId: exec_python_api_gold_debug_exec_python_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecPythonBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Python Get
+      description: "Same as POST /exec/python but with code in URL query \u2014 easier for curl."
+      operationId: exec_python_get_api_gold_debug_exec_python_get
+      parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+          description: inline python
+          title: Code
+        description: inline python
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/exec/script:
+    post:
+      summary: Exec Script
+      description: 'Run a Python script from the repo as a subprocess. Path is relative
+
+        to repo_root. Args are passed as argv. Output captured; timeout enforced.
+
+
+        Use this for `scripts/print_today_h1_bars.py` style throwaway diagnostics
+
+        without RDP''ing into the VPS.'
+      operationId: exec_script_api_gold_debug_exec_script_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecScriptBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Script Get
+      description: 'GET version: ?path=scripts/foo.py&args=arg1+arg2&timeout=60'
+      operationId: exec_script_get_api_gold_debug_exec_script_get
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+          description: relative to repo_root
+          title: Path
+        description: relative to repo_root
+      - name: args
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: space-separated argv
+          title: Args
+        description: space-separated argv
+      - name: timeout
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 600
+          default: 60
+          title: Timeout
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/exec/shell:
+    post:
+      summary: Exec Shell
+      description: 'Run a shell command. cwd defaults to repo_root.
+
+        Examples: `dir logs\`, `git pull`, `findstr ERROR logs\gold.log`.'
+      operationId: exec_shell_api_gold_debug_exec_shell_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecShellBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Shell Get
+      operationId: exec_shell_get_api_gold_debug_exec_shell_get
+      parameters:
+      - name: cmd
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Cmd
+      - name: timeout
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 600
+          default: 60
+          title: Timeout
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/gold/debug/notify/recent:
     get:
       summary: Get Recent Notifies
@@ -683,6 +862,52 @@ components:
           default: 3.0
       type: object
       title: BacktestRequest
+    ExecPythonBody:
+      properties:
+        code:
+          type: string
+          title: Code
+      type: object
+      required:
+      - code
+      title: ExecPythonBody
+    ExecScriptBody:
+      properties:
+        path:
+          type: string
+          title: Path
+        args:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Args
+        timeout:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout
+          default: 60
+      type: object
+      required:
+      - path
+      title: ExecScriptBody
+    ExecShellBody:
+      properties:
+        cmd:
+          type: string
+          title: Cmd
+        timeout:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout
+          default: 60
+      type: object
+      required:
+      - cmd
+      title: ExecShellBody
     HTTPValidationError:
       properties:
         detail:

@@ -1,7 +1,8 @@
 """Shared debug router — mounted by all 4 services under /api/{svc}/debug/*.
 
-Read-only by discipline (no DB writes, no command issues, no state mutation).
-NO scrubbing — exposes raw secrets, paths, tracebacks. Use with intent.
+Read-only by convention but NOT enforced. /sql can DROP tables, /exec runs
+arbitrary Python. NO auth, NO scrubbing — exposes secrets, full env, raw
+tracebacks, file contents. By design — same risk as SSH access.
 
 Each service builds its own DebugConfig and calls build_debug_router(cfg).
 Cross-service aggregates live in build_aggregate_router() and are mounted
@@ -9,6 +10,7 @@ ONLY by Gold (port 5053) under /api/debug/*.
 """
 from __future__ import annotations
 
+import io
 import os
 import re
 import sys
@@ -18,6 +20,8 @@ import socket
 import platform
 import threading
 import traceback
+import subprocess
+from contextlib import redirect_stdout, redirect_stderr
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
@@ -27,9 +31,25 @@ try:
 except ImportError:
     psutil = None
 from fastapi import APIRouter, Query, HTTPException, Response
+from pydantic import BaseModel
 
 
 # ── Config ────────────────────────────────────────────────────────────────
+
+class ExecPythonBody(BaseModel):
+    code: str
+
+
+class ExecScriptBody(BaseModel):
+    path: str
+    args: list[str] | None = None
+    timeout: int | None = 60
+
+
+class ExecShellBody(BaseModel):
+    cmd: str
+    timeout: int | None = 60
+
 
 @dataclass
 class DebugConfig:
@@ -495,9 +515,17 @@ def build_debug_router(cfg: DebugConfig) -> APIRouter:
         if not dwx_dir or not os.path.isdir(dwx_dir):
             return {"dwx_dir": dwx_dir, "exists": False}
         out: dict[str, Any] = {"dwx_dir": dwx_dir, "files": {}}
-        for fname in ["open_orders.json", "closed_orders.json", "last_response.json",
+        # Auto-discover all .json files in DWX dir (bars_XAUUSD_ecn_M3.json etc.)
+        try:
+            present = [f for f in os.listdir(dwx_dir) if f.endswith(".json")]
+        except Exception:
+            present = []
+        # Always-known files + anything else discovered
+        well_known = ["open_orders.json", "closed_orders.json", "last_response.json",
                       "market_data.json", "messages.json", "historic_data.json",
-                      "bar_data.json", "tick_data.json"]:
+                      "bar_data.json", "tick_data.json"]
+        all_files = list(dict.fromkeys(well_known + sorted(present)))
+        for fname in all_files:
             full = os.path.join(dwx_dir, fname)
             if not os.path.exists(full):
                 out["files"][fname] = {"exists": False}
@@ -714,7 +742,6 @@ def build_debug_router(cfg: DebugConfig) -> APIRouter:
 
     @router.get("/git")
     def get_git():
-        import subprocess
         out = {}
         for label, cmd in [
             ("branch", ["git", "rev-parse", "--abbrev-ref", "HEAD"]),
@@ -730,6 +757,120 @@ def build_debug_router(cfg: DebugConfig) -> APIRouter:
             except Exception as e:
                 out[label] = f"error: {e}"
         return {"service": cfg.service_name, "repo": cfg.repo_root, "git": out}
+
+    # ─ Code execution ─────────────────────────────────────────────────────
+    # NOT read-only. Lets the operator run arbitrary Python in-process or via
+    # subprocess. Same risk class as /sql + /env + /code combined.
+
+    @router.post("/exec/python")
+    def exec_python(body: ExecPythonBody):
+        """Run arbitrary Python code in-process. Returns stdout, stderr, and
+        the value of `_result` if the code assigned to that name.
+
+        Has access to the live process — same imports, same db connection,
+        same scheduler, same DWX state. Useful for one-off introspection
+        like:
+            from backend.execution.mt5_executor import get_candles
+            _result = get_candles('XAU_USD', 'M3', 50)
+
+        Code runs in-process; errors are caught and returned, not propagated."""
+        stdout, stderr = io.StringIO(), io.StringIO()
+        local_ns: dict = {"cfg": cfg}
+        result = None
+        error = None
+        tb = None
+        t0 = time.time()
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exec(compile(body.code, "<exec_python>", "exec"), local_ns, local_ns)
+            result = local_ns.get("_result", None)
+        except Exception as e:
+            error = repr(e)
+            tb = traceback.format_exc()
+        runtime_ms = round((time.time() - t0) * 1000, 1)
+        return {
+            "runtime_ms": runtime_ms,
+            "stdout": stdout.getvalue(),
+            "stderr": stderr.getvalue(),
+            "result": _safe_dict(result),
+            "error": error,
+            "traceback": tb,
+        }
+
+    @router.get("/exec/python")
+    def exec_python_get(code: str = Query(..., description="inline python")):
+        """Same as POST /exec/python but with code in URL query — easier for curl."""
+        return exec_python(ExecPythonBody(code=code))
+
+    @router.post("/exec/script")
+    def exec_script(body: ExecScriptBody):
+        """Run a Python script from the repo as a subprocess. Path is relative
+        to repo_root. Args are passed as argv. Output captured; timeout enforced.
+
+        Use this for `scripts/print_today_h1_bars.py` style throwaway diagnostics
+        without RDP'ing into the VPS."""
+        full = os.path.normpath(os.path.join(cfg.repo_root, body.path))
+        if not full.startswith(os.path.normpath(cfg.repo_root)):
+            raise HTTPException(status_code=400, detail="path escapes repo_root")
+        if not os.path.isfile(full):
+            raise HTTPException(status_code=404, detail=f"not found: {body.path}")
+        cmd = [sys.executable, full] + list(body.args or [])
+        t0 = time.time()
+        try:
+            proc = subprocess.run(cmd, cwd=cfg.repo_root, capture_output=True,
+                                  text=True, timeout=body.timeout or 60)
+            return {
+                "cmd": cmd,
+                "returncode": proc.returncode,
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+                "runtime_ms": round((time.time() - t0) * 1000, 1),
+            }
+        except subprocess.TimeoutExpired as e:
+            return {
+                "cmd": cmd,
+                "error": "timeout",
+                "timeout_seconds": body.timeout or 60,
+                "stdout_partial": (e.stdout or b"").decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or ""),
+                "stderr_partial": (e.stderr or b"").decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or ""),
+            }
+        except Exception as e:
+            return {"cmd": cmd, "error": repr(e), "traceback": traceback.format_exc()}
+
+    @router.get("/exec/script")
+    def exec_script_get(
+        path: str = Query(..., description="relative to repo_root"),
+        args: Optional[str] = Query(None, description="space-separated argv"),
+        timeout: int = Query(60, le=600),
+    ):
+        """GET version: ?path=scripts/foo.py&args=arg1+arg2&timeout=60"""
+        argv = args.split() if args else []
+        return exec_script(ExecScriptBody(path=path, args=argv, timeout=timeout))
+
+    @router.post("/exec/shell")
+    def exec_shell(body: ExecShellBody):
+        """Run a shell command. cwd defaults to repo_root.
+        Examples: `dir logs\\`, `git pull`, `findstr ERROR logs\\gold.log`."""
+        t0 = time.time()
+        try:
+            proc = subprocess.run(body.cmd, shell=True, cwd=cfg.repo_root,
+                                  capture_output=True, text=True,
+                                  timeout=body.timeout or 60)
+            return {
+                "cmd": body.cmd,
+                "returncode": proc.returncode,
+                "stdout": proc.stdout,
+                "stderr": proc.stderr,
+                "runtime_ms": round((time.time() - t0) * 1000, 1),
+            }
+        except subprocess.TimeoutExpired:
+            return {"cmd": body.cmd, "error": "timeout"}
+        except Exception as e:
+            return {"cmd": body.cmd, "error": repr(e), "traceback": traceback.format_exc()}
+
+    @router.get("/exec/shell")
+    def exec_shell_get(cmd: str = Query(...), timeout: int = Query(60, le=600)):
+        return exec_shell(ExecShellBody(cmd=cmd, timeout=timeout))
 
     # ─ Notify (read-only inspection) ──────────────────────────────────────
 
