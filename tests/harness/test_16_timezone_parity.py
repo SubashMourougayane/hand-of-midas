@@ -124,6 +124,34 @@ class TestNoLegacyBuggyCode:
             "Should use _server_to_utc_iso(t) instead."
         )
 
+    def test_get_trade_details_uses_helper(self):
+        """get_trade_details() must convert close_time via _server_to_utc_iso(),
+        not the ad-hoc string-massage. Regression for the 2026-06-12 bug found
+        via GD-MI-da28460d postmortem."""
+        path = os.path.join(PROJECT_ROOT, "backend/execution/mt5_executor.py")
+        with open(path) as f:
+            content = f.read()
+
+        match = re.search(
+            r'def get_trade_details\([^)]*\):.*?(?=\n(?:def |class |\Z))',
+            content,
+            re.DOTALL,
+        )
+        assert match, "Could not find get_trade_details function"
+        body = match.group(0)
+
+        # Bug pattern: entry["close_time"].replace(".", "-")...
+        bug_pattern = r'\["close_time"\]\.replace\("\.", "-"\)'
+        assert not re.search(bug_pattern, body), (
+            "Buggy timestamp transformation still present in get_trade_details. "
+            "close_time must go through _server_to_utc_iso() to convert GMT+3 → UTC."
+        )
+        # Positive: must reference _server_to_utc_iso for close_time
+        assert "_server_to_utc_iso(entry[\"close_time\"])" in body or \
+               "_server_to_utc_iso(entry['close_time'])" in body, (
+            "get_trade_details must call _server_to_utc_iso() on close_time."
+        )
+
     def test_helper_function_exists(self):
         """_server_to_utc_iso must be defined in mt5_executor.py."""
         path = os.path.join(PROJECT_ROOT, "backend/execution/mt5_executor.py")
@@ -225,6 +253,83 @@ class TestConfigurableOffset:
         """Default offset is 3 (JustMarkets)."""
         from backend.execution.mt5_executor import MT5_SERVER_OFFSET_HOURS
         assert MT5_SERVER_OFFSET_HOURS == 3
+
+
+# ============================================================================
+# Test 7: get_trade_details() close_time conversion (TDB variant 2)
+# ============================================================================
+
+class TestGetTradeDetailsCloseTime:
+    """Regression for the close_time bug found via GD-MI-da28460d postmortem
+    on 2026-06-12. get_trade_details() returns the EA's GMT+3 server time
+    converted to real UTC. Previously did ad-hoc string-massage and labelled
+    GMT+3 as UTC — 3-hour error in DB exit_time. Fix: route through
+    _server_to_utc_iso() (which already existed for bar timestamps).
+    """
+
+    def test_close_time_converted_to_utc(self, tmp_path, monkeypatch):
+        """closed_orders.json entry like '2026.06.12 16:43:15' (server GMT+3)
+        → get_trade_details returns '2026-06-12T13:43:15Z' (real UTC)."""
+        import json as jsonlib
+        fake_dir = tmp_path
+        (fake_dir / "open_orders.json").write_text("{}")
+        (fake_dir / "closed_orders.json").write_text(jsonlib.dumps([{
+            "ticket": "2045156688",
+            "symbol": "XAUUSD.ecn",
+            "type": "BUY",
+            "volume": 0.19,
+            "open_price": 4204.09,
+            "open_time": "2026.06.12 16:36:01",
+            "close_price": 4184.63,
+            "close_time": "2026.06.12 16:43:15",
+            "profit": -369.74,
+            "swap": 0.0,
+            "commission": 0.0,
+            "magic": 200000,
+            "comment": "micro_alpha_sweep|GD-MI-da28460",
+            "deal_reason": "SL",
+        }]))
+
+        from backend.execution import mt5_executor
+        monkeypatch.setattr(mt5_executor, "DWX_DIR", str(fake_dir))
+
+        details = mt5_executor.get_trade_details("2045156688")
+
+        assert details is not None
+        assert details["state"] == "CLOSED"
+        # The fix: server GMT+3 16:43:15 → UTC 13:43:15
+        assert details["close_time"] == "2026-06-12T13:43:15Z"
+        assert details["close_price"] == 4184.63
+        assert details["realized_pl"] == -369.74
+        assert details["exit_reason"] == "SL"
+
+    def test_close_time_iso_passthrough(self, tmp_path, monkeypatch):
+        """If close_time is already in ISO form (no '.' separator), passthrough."""
+        import json as jsonlib
+        fake_dir = tmp_path
+        (fake_dir / "open_orders.json").write_text("{}")
+        (fake_dir / "closed_orders.json").write_text(jsonlib.dumps([{
+            "ticket": "999",
+            "symbol": "XAUUSD.ecn",
+            "type": "BUY",
+            "volume": 0.01,
+            "open_price": 4200.0,
+            "open_time": "2026-06-12T13:36:01Z",
+            "close_price": 4201.0,
+            "close_time": "2026-06-12T13:43:15Z",
+            "profit": 0.01,
+            "swap": 0.0,
+            "commission": 0.0,
+            "magic": 200000,
+            "comment": "test",
+            "deal_reason": "EXPERT",
+        }]))
+
+        from backend.execution import mt5_executor
+        monkeypatch.setattr(mt5_executor, "DWX_DIR", str(fake_dir))
+
+        details = mt5_executor.get_trade_details("999")
+        assert details["close_time"] == "2026-06-12T13:43:15Z"
 
 
 if __name__ == "__main__":
