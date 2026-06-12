@@ -75,8 +75,9 @@ def _row(bar: dict) -> list:
 
 def main():
     for tf, fname, count in TIMEFRAMES:
-        path = os.path.join(RAW_DIR, fname)
-        last = _last_ts(path)
+        existing_path = os.path.join(RAW_DIR, fname)
+        out_path = os.path.join(RAW_DIR, fname.replace(".csv", "_extended.csv"))
+        last = _last_ts(existing_path)
         print(f"\n=== {tf} ({fname}) ===")
         print(f"  last existing ts: {last!r}")
         bars = get_candles(instrument=INSTRUMENT, granularity=tf, count=count)
@@ -86,25 +87,29 @@ def main():
         first_dwx = bars[0]["timestamp"]
         last_dwx = bars[-1]["timestamp"]
         print(f"  DWX buffer: {len(bars)} bars, {first_dwx} → {last_dwx}")
-        # Only append rows STRICTLY newer than last existing.
-        last_norm = last  # raw string from CSV — has '+00:00'
+
+        # Build full extended CSV: copy existing rows + append new ones strictly newer
+        rows = []
+        with open(existing_path, "r", newline="") as f:
+            r = csv.reader(f)
+            header = next(r)
+            for row in r:
+                rows.append(row)
+        n_existing = len(rows)
         appended = 0
-        rows_to_write = []
+        last_norm = last
         for bar in bars:
             new_ts = _normalize_ts(bar["timestamp"])
             if last_norm and new_ts <= last_norm:
                 continue
-            rows_to_write.append(_row(bar))
+            rows.append(_row(bar))
             appended += 1
-        if not rows_to_write:
-            print(f"  no new rows to append")
-            continue
-        # Append (no header — file has it)
-        with open(path, "a", newline="") as f:
+        with open(out_path, "w", newline="") as f:
             w = csv.writer(f)
-            for r in rows_to_write:
-                w.writerow(r)
-        print(f"  appended {appended} new rows (oldest {rows_to_write[0][0]}, newest {rows_to_write[-1][0]})")
+            w.writerow(header)
+            for row in rows:
+                w.writerow(row)
+        print(f"  wrote {out_path}: {n_existing} existing + {appended} new = {len(rows)} rows")
 
 
 if __name__ == "__main__":
