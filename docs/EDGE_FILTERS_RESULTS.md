@@ -6,6 +6,79 @@ For the candidate catalog see [EDGE_FILTERS.md](EDGE_FILTERS.md). For the 6-step
 
 ---
 
+## Filter #1 — Range Exhaustion (rejected 2026-06-12, threshold sweep)
+
+**Status:** ❌ REJECTED. Tested across 5 thresholds × 4 systems = 20 backtests. NOT shipped.
+
+**Type:** Alpha filter (skip when today's range is large vs typical recent ATR).
+
+### Motivation
+
+Live trade `GD-MI-09314bdd` (Gold Micro SHORT, -$1,012 SL on 2026-06-11) entered late in the session after Asia range was already wide. Hypothesis: late-day entries after the day has "burned its fuel" tend to be mean-reversion bets that get caught when the day's true direction reasserts.
+
+### What was tested
+
+For each engulfing entry, compute:
+- **ATR_20** = average true range over the LAST 20 daily bars before trade-date (true range = max(day_high - day_low, |day_high - prev_close|, |day_low - prev_close|))
+- **today_range** = today's H1 high minus today's H1 low (so far)
+- **ratio** = today_range / ATR_20
+
+Skip the trade if `ratio > threshold`.
+
+**Bug found mid-session:** Initial implementation computed ATR over H1 bars (wrong) — single-bar true range averages ~ 1/4 of a daily range, so ratios came out ~5× too high. Fixed by computing ATR over DAILY bars. Without the fix, even threshold=0.5 rejected ~99% of trades. (Logged here so we don't repeat the mistake.)
+
+After fix, distribution of `today_range / ATR_20` (Gold H1, 6,320 days):
+- median 0.94, mean 1.02
+- pct ≥ 0.7: 70%, pct ≥ 1.1: 37%, pct ≥ 2.0: 6.3%
+
+Sensible thresholds: 0.9, 1.1, 1.3, 1.5, 2.0.
+
+### Results — PF Δ vs baseline
+
+| Threshold | Gold Macro | Gold Micro | Oil Macro | Oil Micro | Improved | Regressed |
+|---|---|---|---|---|---|---|
+| 0.9 | 2.78 (+0.22) | 2.53 (+0.11) | **1.99 (-0.67)** | 3.76 (+1.07) | 3 | 1 |
+| 1.1 | 2.79 (+0.23) | 2.81 (+0.39) | **2.35 (-0.31)** | 3.40 (+0.71) | 3 | 1 |
+| 1.3 | 2.71 (+0.15) | 2.81 (+0.39) | **2.37 (-0.29)** | 3.06 (+0.37) | 3 | 1 |
+| 1.5 | 2.63 (+0.07) | 2.67 (+0.25) | **2.48 (-0.18)** | 2.87 (+0.18) | 3 | 1 |
+| **2.0** | 2.65 (+0.09) | 2.55 (+0.13) | **2.69 (+0.03)** | 2.80 (+0.11) | **4** | **0** |
+
+### Results — Net P&L Δ% vs baseline
+
+| Threshold | Gold Macro | Gold Micro | Oil Macro | Oil Micro |
+|---|---|---|---|---|
+| 0.9 | **-63%** | -76% | -88% | -75% |
+| 1.1 | -38% | -52% | -69% | -45% |
+| 1.3 | -25% | -38% | -50% | -26% |
+| 1.5 | -15% | -29% | -33% | -16% |
+| 2.0 | **-3%** | -14% | -10% | -4% |
+
+### Verdict — REJECT (despite formal pass at thr-2.0)
+
+**Threshold 2.0 formally passes the gate** (PF improves on all 4 systems, no regression). But the trade-off is bad:
+- ✅ Modest PF improvement (+0.03 to +0.13)
+- ❌ Every system loses Net P&L (-3% to -14%)
+- ❌ The skipped trades are net positive on average — strategy still profits from them
+- ❌ Wouldn't catch the motivating live loss `GD-MI-09314bdd`: that trade's ratio was ~1.12, well below the thr-2.0 cutoff
+
+**The hypothesis is rejected on its own data.** Late-day entries after wide-range days don't have systematically worse expected value. The motivating trade was an unlucky outcome from a normal-distribution setup, not a structural pattern.
+
+Tighter thresholds (0.9-1.5) DO catch the motivating trade but regress Oil Macro PF and slash total P&L by 25-88%. None of those passes the gate spirit.
+
+### Lessons captured
+
+1. **Formal gate vs spirit gate**: a filter that improves PF marginally but loses 10%+ of total P&L is not making the strategy "better" — it's making it more risk-averse at the cost of expected value. Updated my mental model: the gate should require BOTH (PF improves) AND (Net P&L within ~5% of baseline).
+2. **Eye-pattern motivations don't generalize.** The "exhausted range = bad entry" intuition felt strong from one trade. 21-yr data says it's wrong.
+3. **Bug in metric definition is the silent killer.** ATR-on-H1 vs ATR-on-Daily produces 5x different ratios; threshold sensitivity flipped completely. Always sanity-check distribution before threshold sweep (mean ≈ 1.0 expected for "ratio of equivalent-timeframe ranges").
+
+### Status
+
+- All 4 modified files reverted clean.
+- Parity harness re-verified (22 tests pass).
+- Gold Macro baseline backtest reproduces exact post-#11 numbers ($346,196 / PF 2.56).
+
+---
+
 ## Filter #11 — Deterministic slippage (shipped 2026-06-12, commit `d6896b4`)
 
 **Status:** ✅ Shipped hard. No shadow mode.
