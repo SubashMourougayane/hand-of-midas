@@ -16,6 +16,7 @@ from backend.execution import (
 from backend.config import EXECUTOR, STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, MEAN_REV, CROSS_MARKET, slippage
 from backend.db import execute, insert_returning, get_conn, safe_json_dumps
 from backend import notify
+from backend.scanner import _log
 
 # Per-trade EXIT_AMBIGUOUS streak counter. Cleared on success or close-resolution.
 # A few cycles is normal (DWX file race during close). Sustained = DWX EA broken;
@@ -195,6 +196,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     # Place order on MT5/OANDA
     oanda_units = units if direction == "long" else -units
+    _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref, strategy=strategy)
     print(f"  [{strategy}] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
 
     result = place_market_order(
@@ -207,6 +209,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     if not result.get("success"):
         error = result.get("error", "Unknown")
+        _log.error("BROKER", "order_failed", direction=direction, units=units, err=error, trade_ref=trade_ref, strategy=strategy)
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"oanda_error: {error}")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": error})
         print(f"  [{strategy}] Order FAILED: {error}")
@@ -215,6 +218,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
     # Order filled — persist to DB (CRITICAL: wrapped in try/except)
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
+    _log.info("BROKER", "order_filled", direction=direction, units=units, fill=fill_price, oanda_id=oanda_trade_id, trade_ref=trade_ref, strategy=strategy)
 
     _log_signal(strategy, direction, fill_price, sl_price, tp_price, taken=True, trade_ref=trade_ref)
 
@@ -257,6 +261,7 @@ def check_open_positions():
         fetch=True
     )
 
+    _log.debug("POSITION", "tick", open=len(open_db_trades) if open_db_trades else 0)
     if not open_db_trades:
         return
 
@@ -322,6 +327,7 @@ def check_open_positions():
             # a journal-write failure must not propagate.
             streak = _exit_ambiguous_streak.get(oanda_id, 0) + 1
             _exit_ambiguous_streak[oanda_id] = streak
+            _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, reason="no_open_no_closed_record", streak=streak)
             _log_journal_safe(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                 "oanda_id": oanda_id,
                 "reason": "no_open_no_closed_record",
@@ -391,6 +397,7 @@ def check_open_positions():
         new_peak = max(float(dd_state["peak_equity"]), new_equity)
         _update_dd_state(new_consecutive, new_pause, new_equity, new_peak)
 
+        _log.info("EXIT", "detected", trade_ref=trade["trade_ref"], reason=exit_reason, fill=fill_price, pnl_usd=pnl_usd, oanda_id=oanda_id)
         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
             "reason": exit_reason, "pnl": realized_pl, "oanda_id": oanda_id,
         })

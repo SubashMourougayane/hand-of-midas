@@ -19,6 +19,7 @@ from backend.execution import (
 from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
+from scanner import _log
 
 # Price extremes cache: tracks HIGH and LOW seen per open trade.
 # When a trade disappears from MT5, we check if price reached SL or TP level.
@@ -194,6 +195,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             return None
 
     oanda_units = units if direction == "long" else -units
+    _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref, units_raw=units_raw, risk_dollar=risk_dollar, equity_usd=equity_usd)
     print(f"  [MICRO] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
 
     result = place_market_order(
@@ -206,6 +208,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     if not result.get("success"):
         error = result.get("error", "Unknown")
+        _log.error("BROKER", "order_failed", direction=direction, units=units, err=error, trade_ref=trade_ref)
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"order_error: {error}")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": error})
         print(f"  [MICRO] Order FAILED: {error}")
@@ -213,6 +216,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
+    _log.info("BROKER", "order_filled", direction=direction, units=units, fill=fill_price, oanda_id=oanda_trade_id, trade_ref=trade_ref)
 
     # ALL DB operations after fill are in try/except — trade exists on MT5 regardless
     # Must ALWAYS return trade_ref to prevent duplicate orders
@@ -262,6 +266,7 @@ def check_open_positions():
         fetch=True
     )
 
+    _log.debug("POSITION", "tick", open=len(open_db_trades) if open_db_trades else 0)
     if not open_db_trades:
         return
 
@@ -281,6 +286,7 @@ def check_open_positions():
                 else:
                     _price_extremes[oid]["high"] = max(_price_extremes[oid]["high"], mid)
                     _price_extremes[oid]["low"] = min(_price_extremes[oid]["low"], mid)
+                _log.debug("POSITION", "state", ref=trade["trade_ref"], side=trade["side"], entry=float(trade["entry_price"]), sl=float(trade["sl_price"] or 0), tp=float(trade["tp_price"] or 0), current=mid, mae=_price_extremes[oid]["low"] if trade["side"]=="LONG" else _price_extremes[oid]["high"], mfe=_price_extremes[oid]["high"] if trade["side"]=="LONG" else _price_extremes[oid]["low"])
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
@@ -366,6 +372,7 @@ def check_open_positions():
                     print(f"  [MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both={sl_reached and tp_reached}, neither={not sl_reached and not tp_reached}). "
                           f"Skipping — will retry next cycle when closed_orders.json populates.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -389,6 +396,7 @@ def check_open_positions():
                     print(f"  [MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both={sl_reached and tp_reached}, neither={not sl_reached and not tp_reached}). "
                           f"Skipping — will retry next cycle when closed_orders.json populates.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -423,6 +431,7 @@ def check_open_positions():
         )
 
         _update_dd_after_exit(realized_pl)
+        _log.info("EXIT", "detected", trade_ref=trade["trade_ref"], reason=exit_reason, fill=fill_price, pnl_usd=pnl_usd, oanda_id=oanda_id)
         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
             "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
         })

@@ -18,6 +18,7 @@ def _parse_ts(ts_str: str) -> datetime:
 
 from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE
 from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _log_journal, _log_journal_safe
+from scanner import _log
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -31,12 +32,15 @@ def london_session_job():
     hour = now.hour + now.minute / 60.0
     cfg = ALPHA_SWEEP
     if hour < cfg["scan_start"] or hour > cfg["scan_end"]:
+        _log.debug("SCAN", "outside_scan_window", hour=hour, scan_start=cfg["scan_start"], scan_end=cfg["scan_end"])
         return
 
+    _log.info("SCAN", "tick", scan_start=cfg["scan_start"], scan_end=cfg["scan_end"])
     print(f"  [OIL {now.strftime('%H:%M:%S')} UTC] Alpha-Sweep polling...")
     try:
         _run_alpha_sweep()
     except Exception as e:
+        _log.exception("SYSTEM", "alpha_sweep_failed", err=str(e))
         print(f"  [OIL] Alpha-Sweep error: {e}")
         _log_journal("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "london_session"})
 
@@ -48,12 +52,14 @@ def position_monitor_job():
         check_open_positions()
         check_alpha_sweep_breakeven()
     except Exception as e:
+        _log.exception("SYSTEM", "position_monitor_failed", job="position_monitor", err=str(e))
         print(f"  [OIL] Position monitor error: {e}")
         _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "position_monitor"})
 
     try:
         reconcile_orphans()
     except Exception as e:
+        _log.exception("SYSTEM", "orphan_reconciler_failed", job="reconcile_orphans", err=str(e))
         print(f"  [OIL] Orphan reconciler error: {e}")
         _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "reconcile_orphans"})
 
@@ -67,9 +73,11 @@ def _run_alpha_sweep():
     now = datetime.now(timezone.utc)
     h1_candles = [c for c in get_candles(instrument="BCO_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
     if len(h1_candles) < 8:
+        _log.warn("BROKER", "h1_too_few", got=len(h1_candles), need=8)
         return
     daily_candles = get_candles(instrument="BCO_USD", granularity="D", count=2, price="BA")
     if len(daily_candles) < 2:
+        _log.warn("BROKER", "daily_too_few", got=len(daily_candles), need=2)
         return
     m3_candles = get_candles(instrument="BCO_USD", granularity="M3", count=50, price="BA")
     return _run_alpha_sweep_core(now, h1_candles, daily_candles, m3_candles)
@@ -107,6 +115,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         )
         trades_today = existing[0]["cnt"] if existing else 0
         if trades_today >= cfg["max_trades_per_day"]:
+            _log.debug("GATE", "max_trades_reached", trades_today=trades_today, max=cfg["max_trades_per_day"])
             return None
 
         # 5-min cooldown after last signal attempt (taken OR failed with
@@ -124,6 +133,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             skip = recent_signal[0].get("skip_reason", "")
             if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
                 if now < last_signal_time + timedelta(minutes=5):
+                    _log.debug("GATE", "cooldown_active", last_signal=last_signal_time.isoformat(), age_seconds=int((now - last_signal_time).total_seconds()))
                     return None  # Cooldown
 
         # One position at a time (skip if open Oil Macro trade exists in DB).
@@ -137,6 +147,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             fetch=True
         )
         if open_oil_macro and open_oil_macro[0]["cnt"] > 0:
+            _log.debug("GATE", "open_position_db", db_count=open_oil_macro[0]["cnt"])
             return None
     else:
         trades_today = 0
@@ -152,14 +163,20 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             asia_bars.append(c)
 
     if len(asia_bars) < 3:
+        if not dry_run:
+            _log.debug("GATE", "asia_too_few_bars", got=len(asia_bars), need=3)
         return signals_found if dry_run else None
 
     asia_high = max(c["mid_high"] for c in asia_bars)
     asia_low = min(c["mid_low"] for c in asia_bars)
     asia_range = asia_high - asia_low
 
+    if not dry_run:
+        _log.debug("SCAN", "asia_range", high=asia_high, low=asia_low, range=asia_range, min_required=cfg["asia_min_range"])
+
     if asia_range < cfg["asia_min_range"]:
         if not dry_run:
+            _log.debug("GATE", "asia_range_too_small", range=asia_range, min=cfg["asia_min_range"])
             _log_journal("SYSTEM", "alpha_sweep_oil", "NO_SIGNAL", None, {
                 "reason": "asia_range_too_small", "asia_range": round(asia_range, 4),
                 "min_required": cfg["asia_min_range"],
@@ -177,6 +194,8 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             scan_bars.append(c)
 
     if not scan_bars:
+        if not dry_run:
+            _log.debug("GATE", "no_scan_bars_yet", scan_start=cfg["scan_start"])
         return signals_found if dry_run else None
 
     # Daily bias — Combined V1+V2 (matches Gold Macro/Micro and Oil Micro)
@@ -222,7 +241,13 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             sweeps.append(("bullish", bar["mid_low"], bar["timestamp"]))
 
     if not sweeps:
+        if not dry_run:
+            _log.debug("SCAN", "no_sweeps", asia_high=asia_high, asia_low=asia_low, scan_bars_checked=len(scan_bars))
         return signals_found if dry_run else None
+
+    if not dry_run:
+        for sd, sw, st in sweeps:
+            _log.debug("SCAN", "sweep_detected", dir=sd, wick=sw, time=str(st), asia_high=asia_high, asia_low=asia_low, bias=bias)
 
     # M3 candles passed in via parameter (live wrapper fetches; harness injects).
 
@@ -233,13 +258,19 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
 
         sweep_key = f"{sweep_ts}_{sweep_dir}"
         if sweep_key in _traded_sweeps_oil["keys"]:
+            if not dry_run:
+                _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
             continue
 
         # Bias filter (Variant C: neutral = allow both directions)
         if bias != "neutral":
             if sweep_dir == "bullish" and bias != "bullish":
+                if not dry_run:
+                    _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
                 continue
             if sweep_dir == "bearish" and bias != "bearish":
+                if not dry_run:
+                    _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
                 continue
 
         sweep_time = _parse_ts(sweep_ts) if isinstance(sweep_ts, str) else sweep_ts
@@ -252,6 +283,8 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 relevant_m3.append(c)
 
         if len(relevant_m3) < 3:
+            if not dry_run:
+                _log.debug("GATE", "engulfing_window_too_few_m3", sweep_key=sweep_key, m3_count=len(relevant_m3), expired=(now >= window_end))
             continue
 
         for j in range(2, len(relevant_m3)):
@@ -283,10 +316,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     sl = entry - cfg["min_sl"]
                     risk = cfg["min_sl"]
                 if risk < 0.01 or risk > asia_range * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "risk_out_of_band", side="long", risk=risk, min=0.01, max=asia_range*0.8, asia_range=asia_range)
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_high - tp_buf
                 if tp - entry < risk * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "tp_too_close", side="long", entry=entry, tp=tp, risk=risk, tp_distance=tp-entry, min_required=risk*0.8)
                     continue
                 direction = "long"
             else:
@@ -297,10 +334,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     sl = entry + cfg["min_sl"]
                     risk = cfg["min_sl"]
                 if risk < 0.01 or risk > asia_range * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "risk_out_of_band", side="short", risk=risk, min=0.01, max=asia_range*0.8, asia_range=asia_range)
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_low + tp_buf
                 if entry - tp < risk * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "tp_too_close", side="short", entry=entry, tp=tp, risk=risk, tp_distance=entry-tp, min_required=risk*0.8)
                     continue
                 direction = "short"
 
@@ -314,6 +355,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 })
             else:
                 # Execute via live_engine
+                _log.info("SIGNAL", "fired", direction=direction, entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
                 execute_signal(
                     direction=direction,
                     entry_price=entry,
@@ -331,7 +373,11 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             # No engulfing found — consume only if window expired
             if now >= window_end:
                 _traded_sweeps_oil["keys"].add(sweep_key)
+            if not dry_run:
+                _log.debug("GATE", "no_engulfing", direction=sweep_dir, sweep_wick=sweep_wick, m3_bars_checked=len(relevant_m3), expired=(now >= window_end), bias=bias)
 
+    if not dry_run:
+        _log.info("SCAN", "complete", trades_today=trades_today)
     return signals_found if dry_run else None
 
 

@@ -19,6 +19,7 @@ from backend.execution import (
 from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
+from scanner import _log
 
 _price_extremes = {}
 
@@ -173,6 +174,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             return None
 
     oanda_units = units if direction == "long" else -units
+    _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL-MICRO] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
 
     result = place_market_order(
@@ -185,12 +187,14 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     if not result.get("success"):
         error = result.get("error", "Unknown")
+        _log.error("BROKER", "order_failed", direction=direction, units=units, err=error, trade_ref=trade_ref)
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"order_error: {error}")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": error})
         print(f"  [OIL-MICRO] Order FAILED: {error}")
         return None
 
     fill_price = result["fill_price"]
+    _log.info("BROKER", "order_filled", direction=direction, units=units, fill=fill_price, oanda_id=result.get("trade_id"), trade_ref=trade_ref)
     oanda_trade_id = result["trade_id"]
 
     try:
@@ -233,6 +237,7 @@ def check_open_positions():
         fetch=True
     )
 
+    _log.debug("POSITION", "tick", open=len(open_db_trades) if open_db_trades else 0)
     if not open_db_trades:
         return
 
@@ -250,6 +255,7 @@ def check_open_positions():
                 else:
                     _price_extremes[oid]["high"] = max(_price_extremes[oid]["high"], mid)
                     _price_extremes[oid]["low"] = min(_price_extremes[oid]["low"], mid)
+                _log.debug("POSITION", "state", ref=trade["trade_ref"], side=trade["side"], entry=float(trade["entry_price"]), sl=float(trade["sl_price"] or 0), tp=float(trade["tp_price"] or 0), current=mid, mae=_price_extremes[oid]["low"] if trade["side"]=="LONG" else _price_extremes[oid]["high"], mfe=_price_extremes[oid]["high"] if trade["side"]=="LONG" else _price_extremes[oid]["low"])
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
@@ -329,6 +335,7 @@ def check_open_positions():
                 else:
                     print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both/neither). Skipping — retry next cycle.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -350,6 +357,7 @@ def check_open_positions():
                 else:
                     print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both/neither). Skipping — retry next cycle.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -384,6 +392,7 @@ def check_open_positions():
         )
 
         _update_dd_after_exit(realized_pl)
+        _log.info("EXIT", "detected", trade_ref=trade["trade_ref"], reason=exit_reason, fill=fill_price, pnl_usd=pnl_usd, oanda_id=oanda_id)
         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
             "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
         })

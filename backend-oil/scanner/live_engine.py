@@ -24,6 +24,7 @@ def _get_gbp_usd_rate():
 from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, ALPHA_SWEEP, slippage
+from scanner import _log
 
 # Per-trade EXIT_AMBIGUOUS streak counter. Cleared on success or close-resolution.
 # A few cycles is normal (DWX file race during close). Sustained = DWX EA broken;
@@ -147,6 +148,7 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
         return None
 
     oanda_units = units if direction == "long" else -units
+    _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
 
     result = place_market_order(
@@ -159,6 +161,7 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
 
     if not result.get("success"):
         error = result.get("error", "Unknown")
+        _log.error("BROKER", "order_failed", direction=direction, units=units, err=error, trade_ref=trade_ref)
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"oanda_error: {error}")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": error, "instrument": "BCO_USD"})
         print(f"  [OIL] Order FAILED: {error}")
@@ -166,6 +169,7 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
 
     fill_price = result["fill_price"]
     oanda_trade_id = result["trade_id"]
+    _log.info("BROKER", "order_filled", direction=direction, units=units, fill=fill_price, oanda_id=oanda_trade_id, trade_ref=trade_ref)
 
     # Wrap _log_signal — if it raises (numpy serialization etc.), order is
     # already on broker and we must not crash before journaling/notify.
@@ -215,6 +219,7 @@ def check_open_positions():
         fetch=True
     )
 
+    _log.debug("POSITION", "tick", open=len(open_db_trades) if open_db_trades else 0)
     if not open_db_trades:
         return
 
@@ -282,6 +287,7 @@ def check_open_positions():
             # _log_journal_safe: we're in a failure-recovery code path.
             streak = _exit_ambiguous_streak.get(oanda_id, 0) + 1
             _exit_ambiguous_streak[oanda_id] = streak
+            _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, reason="no_open_no_closed_record", streak=streak)
             print(f"  [OIL] Position {oanda_id} not in open_orders, no closed_orders entry yet — "
                   f"skipping; will retry next cycle (race or pending close, streak={streak})")
             _log_journal_safe(trade["trade_ref"], "alpha_sweep_oil", "EXIT_AMBIGUOUS", None, {
@@ -331,6 +337,7 @@ def check_open_positions():
 
         _update_dd_after_exit(realized_pl, pnl_usd)
 
+        _log.info("EXIT", "detected", trade_ref=trade["trade_ref"], reason=exit_reason, fill=fill_price, pnl_usd=pnl_usd, oanda_id=oanda_id)
         _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", fill_price, {
             "reason": exit_reason, "pnl_gbp": realized_pl, "pnl_usd": pnl_usd,
             "oanda_id": oanda_id, "instrument": "BCO_USD",
