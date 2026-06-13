@@ -30,9 +30,14 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    rr_lower_bound: float | None = None,
 ) -> list[Signal]:
-    """Generate Alpha-Sweep signals for Oil."""
+    """Generate Alpha-Sweep signals for Oil.
+    rr_lower_bound: Filter #16 — minimum (tp-entry)/risk ratio. None = read from config (0.8 default).
+    """
     cfg = ALPHA_SWEEP
+    if rr_lower_bound is None:
+        rr_lower_bound = cfg.get("rr_lower_bound", 0.8)
     signals = []
     dates = sorted(set(oil_h1.index.date))
 
@@ -121,7 +126,7 @@ def generate_signals(
                     if risk < 0.01 or risk > ar * 0.8:
                         continue
                     tpv = entry + ar * cfg["tp_multiplier"]
-                    if tpv - entry < risk * 0.8:
+                    if tpv - entry < risk * rr_lower_bound:
                         continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
@@ -139,7 +144,7 @@ def generate_signals(
                     if risk < 0.01 or risk > ar * 0.8:
                         continue
                     tpv = entry - ar * cfg["tp_multiplier"]
-                    if entry - tpv < risk * 0.8:
+                    if entry - tpv < risk * rr_lower_bound:
                         continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,

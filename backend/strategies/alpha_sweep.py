@@ -12,14 +12,20 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    rr_lower_bound: float | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    rr_lower_bound: Filter #16 — minimum (tp - entry) / risk ratio to keep a signal.
+        None (default) = read from ALPHA_SWEEP config (currently 0.8).
+        Pass 1.5 to filter aggressively. Higher = fewer trades but cleaner R:R.
     """
     cfg = ALPHA_SWEEP
+    if rr_lower_bound is None:
+        rr_lower_bound = cfg.get("rr_lower_bound", 0.8)
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -113,7 +119,7 @@ def generate_signals(
 
                     tp_buf = cfg.get("tp_structure_buffer", ar * cfg["tp_multiplier"])
                     tpv = ah - tp_buf
-                    if tpv - entry < risk * 0.8:
+                    if tpv - entry < risk * rr_lower_bound:
                         continue
 
                     signals.append(Signal(
@@ -137,7 +143,7 @@ def generate_signals(
 
                     tp_buf = cfg.get("tp_structure_buffer", ar * cfg["tp_multiplier"])
                     tpv = al + tp_buf
-                    if entry - tpv < risk * 0.8:
+                    if entry - tpv < risk * rr_lower_bound:
                         continue
 
                     signals.append(Signal(

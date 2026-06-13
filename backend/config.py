@@ -33,6 +33,7 @@ ALPHA_SWEEP = {
     "partial_tp_at_pct": 0.5,    # Filter #7 shipped 2026-06-13 (Variant A): PF 2.56→3.53, +$81k 21yr (+23.5%)
     "partial_tp_size": 0.5,      # bank 50% of position at halfway, runner takes full TP/SL
     "partial_arms_be": False,    # Variant A — BE on original schedule, not on partial fire
+    "rr_lower_bound": 0.8,       # Filter #16: skip signals where (tp-entry)/risk < this. 0.8 = legacy default.
     "max_bars": 80,
     "skip_first_bar": True,
     "engulfing_window_hours": 0.75,  # 45 min (optimal: PF 3.34 vs 3.07 at 2hr)

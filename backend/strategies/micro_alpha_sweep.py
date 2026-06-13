@@ -43,8 +43,14 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    rr_lower_bound: float | None = None,
 ) -> list[Signal]:
+    """rr_lower_bound: Filter #16 — minimum (tp-entry)/risk ratio. None = read from
+    parent ALPHA_SWEEP config. Pass per-system value from each backend's MICRO_ALPHA_SWEEP
+    config so Gold Micro and Gold Macro can ship different bounds."""
     cfg = ALPHA_SWEEP
+    if rr_lower_bound is None:
+        rr_lower_bound = cfg.get("rr_lower_bound", 0.8)
     mcfg = MICRO_CONFIG
     close_start = mcfg["market_close_start"]
     signals = []
@@ -177,7 +183,7 @@ def generate_signals(
                                 continue
                             tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
                             tpv = range_high - tp_buf
-                            if tpv - entry < risk * 0.8:
+                            if tpv - entry < risk * rr_lower_bound:
                                 continue
                             signals.append(Signal(
                                 date=gold_m3.index[idx], entry=entry, sl=slv, tp=tpv,
@@ -197,7 +203,7 @@ def generate_signals(
                                 continue
                             tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
                             tpv = range_low + tp_buf
-                            if entry - tpv < risk * 0.8:
+                            if entry - tpv < risk * rr_lower_bound:
                                 continue
                             signals.append(Signal(
                                 date=gold_m3.index[idx], entry=entry, sl=slv, tp=tpv,

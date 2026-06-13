@@ -322,9 +322,10 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_high - tp_buf
-                if tp - entry < risk * 0.8:
+                rr_min = cfg.get("rr_lower_bound", 0.8)
+                if tp - entry < risk * rr_min:
                     if not dry_run:
-                        _log.debug("GATE", "tp_too_close", side="long", entry=entry, tp=tp, risk=risk, tp_distance=tp-entry, min_required=risk*0.8)
+                        _log.debug("GATE", "tp_too_close", side="long", entry=entry, tp=tp, risk=risk, tp_distance=tp-entry, min_required=risk*rr_min, rr_lower_bound=rr_min)
                     continue
                 direction = "long"
             else:
@@ -340,9 +341,10 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_low + tp_buf
-                if entry - tp < risk * 0.8:
+                rr_min = cfg.get("rr_lower_bound", 0.8)
+                if entry - tp < risk * rr_min:
                     if not dry_run:
-                        _log.debug("GATE", "tp_too_close", side="short", entry=entry, tp=tp, risk=risk, tp_distance=entry-tp, min_required=risk*0.8)
+                        _log.debug("GATE", "tp_too_close", side="short", entry=entry, tp=tp, risk=risk, tp_distance=entry-tp, min_required=risk*rr_min, rr_lower_bound=rr_min)
                     continue
                 direction = "short"
 

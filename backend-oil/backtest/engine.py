@@ -70,11 +70,13 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    rr_lower_bound: float | None = None,
 ) -> BacktestResult:
     """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
     trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    rr_lower_bound: Filter #16 — minimum (tp-entry)/risk ratio. None = read from ALPHA_SWEEP (0.8 default).
     """
     if partial_tp_at_pct is None:
         partial_tp_at_pct = ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
@@ -82,6 +84,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if rr_lower_bound is None:
+        rr_lower_bound = ALPHA_SWEEP.get("rr_lower_bound", 0.8)
     if be_trigger_pct is None:
         be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
     if trail_after_be_pct is None:
@@ -125,7 +129,7 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1, oil_m3, daily_bias)
+    all_signals = generate_signals(oil_h1, oil_m3, daily_bias, rr_lower_bound=rr_lower_bound)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range
