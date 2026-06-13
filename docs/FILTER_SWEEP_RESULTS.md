@@ -12,7 +12,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 5 | BE 50% → 35% | 1 | ✅ SHIPPED (3/4) | filter-05-be-pct | +0.31 avg (3 sys) | +$179k (3 sys) | n/a (fill-side) | SHIP — Gold Micro, Oil Macro, Oil Micro. Excluded Gold Macro (-$5k). |
 | 6 | Trailing SL after BE | 1 | ✅ SHIPPED (1/4) | filter-06-trail-after-be | +0.03 (Oil Macro) | +$80,245 (Oil Macro) | n/a (fill-side) | SHIP — Oil Macro only. Gold Macro / Gold Micro / Oil Micro EXCLUDED. |
 | 7 | Partial TP at 50% | 1 | ✅ SHIPPED (4/4) | filter-07-partial-tp | +1.79 avg | +$1,261,109 | n/a (fill-side) | SHIP — Variant A on all 4 systems. No regressions. |
-| 16 | R:R lower bound 1.5 | 2 | pending | — | — | — | — | — |
+| 16 | R:R lower bound | 2 | ❌ STASHED | archive-filter-16 | varies | -$701k @ 1.5 / -$37k @ 1.0 | n/a (drift-fixed at impl) | STASH — sweep across 0.8/1.0/1.2/1.5 all net negative. Sub-1.5R trades profitable. |
 | 2 | First-Sweep-of-Day | 2 | pending | — | — | — | — | — |
 | 9 | R:R Upper Bound 4.0 | 2 | pending | — | — | — | — | — |
 | 3 | TP Feasibility | 3 | pending | — | — | — | — | — |
@@ -75,6 +75,28 @@ This is the strongest filter result of the sweep. Variant B (partial + BE-arms-o
 **Cumulative shipped impact (Filters #5 + #6 + #7): +$1,520,727 / 21 yrs (+$72.4k/yr).**
 
 
-## Wave 2 — pending
+## Wave 2
+
+### Filter #16 — R:R lower bound — ❌ STASHED
+
+Audit-discovered: current floor of 0.8 lets through trades needing ~80% WR to break even.
+
+Sweep across thresholds (21yr × 4 systems × 4 thresholds, total 16 BTs):
+
+| System | rr=0.8 (baseline) | rr=1.0 | rr=1.2 | rr=1.5 |
+|---|---|---|---|---|
+| Gold Macro | $428k (PF 3.53) | $423k −1.0% (PF 3.57) | $415k −3.1% (PF 3.69) | $363k −15.1% (PF 3.73) |
+| Gold Micro | $335k (PF 4.40) | $331k −1.1% (PF 4.45) | $326k −2.8% (PF 4.62) | $279k −16.7% (PF 4.36) |
+| Oil Macro | $826k (PF 4.70) | $826k 0% (no-op) | $826k 0% (no-op) | $826k 0% (no-op) |
+| Oil Micro | $3.18M (PF 5.76) | $3.15M −0.9% (PF 5.98) | $3.00M −5.7% (PF 6.26) | $2.60M −18.3% (PF 6.62) |
+| **Total** | **$4.77M** | $4.73M (−0.8%) | $4.56M (−4.2%) | $4.06M (−14.7%) |
+
+**Decision: STASH all variants.** Hypothesis disproven — sub-1.5R trades are profitable in this strategy. Even rr=1.0 (the marginal case) costs P&L for small PF improvement.
+
+**Oil Macro is structurally immune** — its TP buffer geometry produces ≥1.5R always. Filter is a true no-op there.
+
+Branch archived as `archive-filter-16` (no merge, no live impact).
+
+## Wave 2 (continued) — pending
 ## Wave 3 — pending
 ## Wave 4 — pending
