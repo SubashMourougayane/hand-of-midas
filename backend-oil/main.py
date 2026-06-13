@@ -64,6 +64,33 @@ app.include_router(journal_router, prefix="/api/oil")
 app.include_router(journey_router, prefix="/api/oil")
 app.include_router(scan_status_router, prefix="/api/oil")
 
+from backend_common.debug_router import build_debug_router, DebugConfig
+import config as _oil_cfg
+from scanner import scheduler as _oil_sched
+from backend import db as _oil_db
+
+
+def _oil_dwx_dir():
+    try:
+        from backend.execution.mt5_executor import DWX_DIR
+        return DWX_DIR
+    except Exception:
+        return None
+
+
+app.include_router(build_debug_router(DebugConfig(
+    service_name="oil",
+    log_filename="oil.log",
+    repo_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    instrument="BCO_USD",
+    strategies=["alpha_sweep_oil"],
+    trade_ref_prefix="OIL-AS-",
+    db_execute=_oil_db.execute,
+    config_module=_oil_cfg,
+    scheduler_module=_oil_sched,
+    dwx_dir_getter=_oil_dwx_dir,
+)), prefix="/api/oil/debug")
+
 
 @app.get("/api/health")
 def health():

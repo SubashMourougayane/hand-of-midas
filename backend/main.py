@@ -63,6 +63,42 @@ app.include_router(trades_router, prefix="/api/gold")
 app.include_router(journal_router, prefix="/api/gold")
 app.include_router(journey_router, prefix="/api/gold")
 
+from backend_common.debug_router import build_debug_router, build_aggregate_router, DebugConfig
+from backend import config as _gold_cfg
+from backend.scanner import scheduler as _gold_sched
+from backend import db as _gold_db
+
+
+def _gold_dwx_dir():
+    try:
+        from backend.execution.mt5_executor import DWX_DIR
+        return DWX_DIR
+    except Exception:
+        return None
+
+
+_debug_cfg = DebugConfig(
+    service_name="gold",
+    log_filename="gold.log",
+    repo_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    instrument="XAU_USD",
+    strategies=["alpha_sweep", "mean_reversion", "cross_market"],
+    trade_ref_prefix="GD-AL-",
+    db_execute=_gold_db.execute,
+    config_module=_gold_cfg,
+    scheduler_module=_gold_sched,
+    dwx_dir_getter=_gold_dwx_dir,
+)
+app.include_router(build_debug_router(_debug_cfg), prefix="/api/gold/debug")
+
+# Cross-service aggregator — mounted only on Gold @ 5053
+app.include_router(build_aggregate_router({
+    "gold": "http://localhost:5053",
+    "oil": "http://localhost:5054",
+    "micro": "http://localhost:5055",
+    "oil-micro": "http://localhost:5056",
+}), prefix="/api/debug")
+
 
 @app.get("/api/health")
 def health():

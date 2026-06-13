@@ -1,0 +1,953 @@
+openapi: 3.1.0
+info:
+  title: "Hand of Midas \u2014 Debug API"
+  description: "Read-only by convention but NOT enforced. /sql can DROP tables, /exec runs arbitrary Python. NO auth, NO scrubbing\
+    \ \u2014 exposes secrets, full env, raw tracebacks. By design \u2014 same risk class as SSH."
+  version: 1.1.0
+servers:
+- url: https://midas.subashtrades.in
+  description: VPS production
+- url: http://localhost:5053
+  description: Local Gold (5053)
+- url: http://localhost:5054
+  description: Local Oil (5054)
+- url: http://localhost:5055
+  description: Local Micro (5055)
+- url: http://localhost:5056
+  description: Local Oil-Micro (5056)
+paths:
+  /api/gold/debug/logs:
+    get:
+      summary: Get Logs
+      operationId: get_logs_api_gold_debug_logs_get
+      parameters:
+      - name: lines
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50000
+          default: 500
+          title: Lines
+      - name: level
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: DEBUG/INFO/WARN/ERROR/CRIT
+          title: Level
+        description: DEBUG/INFO/WARN/ERROR/CRIT
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: SCAN/SIGNAL/GATE/POSITION/EXIT/BROKER/DB/SYSTEM
+          title: Category
+        description: SCAN/SIGNAL/GATE/POSITION/EXIT/BROKER/DB/SYSTEM
+      - name: grep
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: regex
+          title: Grep
+        description: regex
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 1h, 30m, 2d, or ISO-8601
+          title: Since
+        description: 1h, 30m, 2d, or ISO-8601
+      - name: filename
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'rotated file (default: live)'
+          title: Filename
+        description: 'rotated file (default: live)'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/logs/files:
+    get:
+      summary: List Log Files
+      operationId: list_log_files_api_gold_debug_logs_files_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/logs/raw:
+    get:
+      summary: Get Logs Raw
+      description: Plain-text response, no JSON envelope. Useful for piping/grep.
+      operationId: get_logs_raw_api_gold_debug_logs_raw_get
+      parameters:
+      - name: filename
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filename
+      - name: lines
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100000
+          default: 2000
+          title: Lines
+      responses:
+        '200':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/journal:
+    get:
+      summary: Get Journal
+      operationId: get_journal_api_gold_debug_journal_get
+      parameters:
+      - name: trade_ref
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Trade Ref
+      - name: event_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Event Type
+      - name: strategy
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strategy
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          default: 200
+          title: Limit
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Since
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/trade/{trade_ref}:
+    get:
+      summary: Get Trade
+      operationId: get_trade_api_gold_debug_trade__trade_ref__get
+      parameters:
+      - name: trade_ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Trade Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/trades:
+    get:
+      summary: List Trades
+      operationId: list_trades_api_gold_debug_trades_get
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          description: open/closed/all
+          default: all
+          title: Status
+        description: open/closed/all
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Since
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          default: 50
+          title: Limit
+      - name: strategy
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Strategy
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/signals:
+    get:
+      summary: List Signals
+      operationId: list_signals_api_gold_debug_signals_get
+      parameters:
+      - name: taken
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Taken
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Since
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/orphans:
+    get:
+      summary: Find Orphans
+      description: Broker-not-in-DB and DB-not-on-broker mismatches for THIS service.
+      operationId: find_orphans_api_gold_debug_orphans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/sql:
+    get:
+      summary: Run Sql
+      description: "Raw SQL passthrough. NO write protection \u2014 caller responsibility.\nReturns rows, runtime, row count."
+      operationId: run_sql_api_gold_debug_sql_get
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          description: "raw SELECT \u2014 read-only by discipline"
+          title: Q
+        description: "raw SELECT \u2014 read-only by discipline"
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/config:
+    get:
+      summary: Get Config
+      description: "Dump current config module values. Includes secrets \u2014 by design."
+      operationId: get_config_api_gold_debug_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/scanner-state:
+    get:
+      summary: Get Scanner State
+      description: "Internal scheduler module state \u2014 _traded_sweeps, _seen_sweeps, etc."
+      operationId: get_scanner_state_api_gold_debug_scanner_state_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/asia:
+    get:
+      summary: Get Asia
+      description: Today's asia/range computation if available on scheduler module.
+      operationId: get_asia_api_gold_debug_asia_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/dwx:
+    get:
+      summary: Get Dwx
+      description: "DWX bridge directory dump \u2014 open_orders, closed_orders, last_response."
+      operationId: get_dwx_api_gold_debug_dwx_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/account:
+    get:
+      summary: Get Account
+      description: Live broker account snapshot.
+      operationId: get_account_api_gold_debug_account_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/price:
+    get:
+      summary: Get Price
+      description: Live broker price snapshot.
+      operationId: get_price_api_gold_debug_price_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/bars:
+    get:
+      summary: Get Bars
+      description: Last N bars from cached/live data the scanner sees.
+      operationId: get_bars_api_gold_debug_bars_get
+      parameters:
+      - name: timeframe
+        in: query
+        required: false
+        schema:
+          type: string
+          default: M3
+          title: Timeframe
+      - name: count
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          default: 50
+          title: Count
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/health:
+    get:
+      summary: Health
+      operationId: health_api_gold_debug_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/exceptions:
+    get:
+      summary: Get Exceptions
+      operationId: get_exceptions_api_gold_debug_exceptions_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/env:
+    get:
+      summary: Get Env
+      description: "Full os.environ. Includes secrets \u2014 by design."
+      operationId: get_env_api_gold_debug_env_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/threads:
+    get:
+      summary: Get Threads
+      operationId: get_threads_api_gold_debug_threads_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/code:
+    get:
+      summary: Get Code
+      description: "Read a file from the repo. No path traversal \u2014 must stay under repo_root."
+      operationId: get_code_api_gold_debug_code_get
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+          description: path relative to repo_root
+          title: Path
+        description: path relative to repo_root
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/code/grep:
+    get:
+      summary: Grep Code
+      operationId: grep_code_api_gold_debug_code_grep_get
+      parameters:
+      - name: pattern
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Pattern
+      - name: path
+        in: query
+        required: false
+        schema:
+          type: string
+          description: dir under repo_root, default = whole repo
+          default: ''
+          title: Path
+        description: dir under repo_root, default = whole repo
+      - name: max_results
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 2000
+          default: 200
+          title: Max Results
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/git:
+    get:
+      summary: Get Git
+      operationId: get_git_api_gold_debug_git_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/gold/debug/exec/python:
+    post:
+      summary: Exec Python
+      description: "Run arbitrary Python code in-process. Returns stdout, stderr, and\nthe value of `_result` if the code\
+        \ assigned to that name.\n\nHas access to the live process \u2014 same imports, same db connection,\nsame scheduler,\
+        \ same DWX state. Useful for one-off introspection\nlike:\n    from backend.execution.mt5_executor import get_candles\n\
+        \    _result = get_candles('XAU_USD', 'M3', 50)\n\nCode runs in-process; errors are caught and returned, not propagated."
+      operationId: exec_python_api_gold_debug_exec_python_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecPythonBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Python Get
+      description: "Same as POST /exec/python but with code in URL query \u2014 easier for curl."
+      operationId: exec_python_get_api_gold_debug_exec_python_get
+      parameters:
+      - name: code
+        in: query
+        required: true
+        schema:
+          type: string
+          description: inline python
+          title: Code
+        description: inline python
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/exec/script:
+    post:
+      summary: Exec Script
+      description: 'Run a Python script from the repo as a subprocess. Path is relative
+
+        to repo_root. Args are passed as argv. Output captured; timeout enforced.
+
+
+        Use this for `scripts/print_today_h1_bars.py` style throwaway diagnostics
+
+        without RDP''ing into the VPS.'
+      operationId: exec_script_api_gold_debug_exec_script_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecScriptBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Script Get
+      description: 'GET version: ?path=scripts/foo.py&args=arg1+arg2&timeout=60'
+      operationId: exec_script_get_api_gold_debug_exec_script_get
+      parameters:
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+          description: relative to repo_root
+          title: Path
+        description: relative to repo_root
+      - name: args
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: space-separated argv
+          title: Args
+        description: space-separated argv
+      - name: timeout
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 600
+          default: 60
+          title: Timeout
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/exec/shell:
+    post:
+      summary: Exec Shell
+      description: 'Run a shell command. cwd defaults to repo_root.
+
+        Examples: `dir logs\`, `git pull`, `findstr ERROR logs\gold.log`.'
+      operationId: exec_shell_api_gold_debug_exec_shell_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecShellBody'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      summary: Exec Shell Get
+      operationId: exec_shell_get_api_gold_debug_exec_shell_get
+      parameters:
+      - name: cmd
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Cmd
+      - name: timeout
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 600
+          default: 60
+          title: Timeout
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/gold/debug/notify/recent:
+    get:
+      summary: Get Recent Notifies
+      description: If notify history is in gd_journal, surface entries. Otherwise scrape log.
+      operationId: get_recent_notifies_api_gold_debug_notify_recent_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/debug/all-health:
+    get:
+      summary: All Health
+      operationId: all_health_api_debug_all_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/debug/all-orphans:
+    get:
+      summary: All Orphans
+      operationId: all_orphans_api_debug_all_orphans_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/debug/all-state:
+    get:
+      summary: All State
+      operationId: all_state_api_debug_all_state_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/debug/all-exceptions:
+    get:
+      summary: All Exceptions
+      operationId: all_exceptions_api_debug_all_exceptions_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          default: 20
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    BacktestRequest:
+      properties:
+        strategies:
+          items:
+            type: string
+          type: array
+          title: Strategies
+          default:
+          - alpha_sweep
+          - mean_rev
+          - cross_market
+        start_date:
+          type: string
+          title: Start Date
+          default: '2006-01-01'
+        end_date:
+          type: string
+          title: End Date
+          default: '2026-12-31'
+        capital:
+          type: number
+          title: Capital
+          default: 5000.0
+        risk_pct:
+          type: number
+          title: Risk Pct
+          default: 3.0
+      type: object
+      title: BacktestRequest
+    ExecPythonBody:
+      properties:
+        code:
+          type: string
+          title: Code
+      type: object
+      required:
+      - code
+      title: ExecPythonBody
+    ExecScriptBody:
+      properties:
+        path:
+          type: string
+          title: Path
+        args:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Args
+        timeout:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout
+          default: 60
+      type: object
+      required:
+      - path
+      title: ExecScriptBody
+    ExecShellBody:
+      properties:
+        cmd:
+          type: string
+          title: Cmd
+        timeout:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout
+          default: 60
+      type: object
+      required:
+      - cmd
+      title: ExecShellBody
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          title: Email
+        password:
+          type: string
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

@@ -525,7 +525,7 @@ def get_trade_details(trade_id):
                     "instrument": SYMBOL_MAP_REVERSE.get(entry["symbol"], entry["symbol"]),
                     "price": entry["open_price"],
                     "close_price": entry["close_price"],
-                    "close_time": entry["close_time"].replace(".", "-").replace(" ", "T") + "Z" if "." in entry["close_time"] else entry["close_time"],
+                    "close_time": _server_to_utc_iso(entry["close_time"]),
                     # realized_pl is gross (broker profit only — does NOT include commission/swap)
                     # Caller can subtract commission separately via the field below if needed.
                     "realized_pl": float(entry.get("profit", 0)),

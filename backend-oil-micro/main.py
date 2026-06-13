@@ -59,6 +59,33 @@ app.include_router(state_router, prefix="/api/oil-micro")
 app.include_router(trades_router, prefix="/api/oil-micro")
 app.include_router(journal_router, prefix="/api/oil-micro")
 
+from backend_common.debug_router import build_debug_router, DebugConfig
+import config as _omicro_cfg
+from scanner import scheduler as _omicro_sched
+from backend import db as _omicro_db
+
+
+def _omicro_dwx_dir():
+    try:
+        from backend.execution.mt5_executor import DWX_DIR
+        return DWX_DIR
+    except Exception:
+        return None
+
+
+app.include_router(build_debug_router(DebugConfig(
+    service_name="oil-micro",
+    log_filename="oil-micro.log",
+    repo_root=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    instrument="BCO_USD",
+    strategies=["micro_alpha_sweep_oil"],
+    trade_ref_prefix="OIL-MI-",
+    db_execute=_omicro_db.execute,
+    config_module=_omicro_cfg,
+    scheduler_module=_omicro_sched,
+    dwx_dir_getter=_omicro_dwx_dir,
+)), prefix="/api/oil-micro/debug")
+
 
 @app.get("/api/health")
 def health():
