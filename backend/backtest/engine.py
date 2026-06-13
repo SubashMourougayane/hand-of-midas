@@ -77,8 +77,12 @@ def run_backtest(
     capital: float = YEARLY_CAPITAL,
     risk_pct: float = RISK_PCT,
     seed: int = 42,
+    be_trigger_pct: float = 0.5,
 ) -> BacktestResult:
-    """Run full portfolio backtest."""
+    """Run full portfolio backtest.
+
+    be_trigger_pct: BE trigger fraction. Default 0.5 (production). Filter #5 tests 0.35.
+    """
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -221,6 +225,7 @@ def run_backtest(
             max_bars=signal.max_bars,
             strategy=signal.strategy,
             use_break_even=(signal.strategy == "alpha_sweep"),
+            be_trigger_pct=be_trigger_pct,
         )
 
         if result is None:

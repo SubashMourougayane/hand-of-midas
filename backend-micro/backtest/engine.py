@@ -13,7 +13,7 @@ from backend.backtest.engine import (
 from backend.strategies import micro_alpha_sweep, mean_rev, cross_market
 from backend.strategies.dd_protection import DDState, should_skip_signal, get_risk_multiplier, update_after_trade
 from backend.execution.fill_model import execute_trade
-from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK
+from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK, MICRO_ALPHA_SWEEP
 
 
 def run_backtest(
@@ -23,8 +23,15 @@ def run_backtest(
     capital: float = YEARLY_CAPITAL,
     risk_pct: float = RISK_PCT,
     seed: int = 42,
+    be_trigger_pct: float | None = None,
 ) -> BacktestResult:
-    """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market)."""
+    """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
+
+    be_trigger_pct: BE trigger fraction override. None (default) = read from
+      MICRO_ALPHA_SWEEP config (post-Filter-#5: 0.35).
+    """
+    if be_trigger_pct is None:
+        be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
     if strategies is None:
         strategies = ["micro_alpha_sweep", "mean_rev", "cross_market"]
     # Frontend sends "alpha_sweep" — map to micro variant
@@ -190,6 +197,7 @@ def run_backtest(
             max_bars=signal.max_bars,
             strategy=signal.strategy,
             use_break_even=use_be,
+            be_trigger_pct=be_trigger_pct,
         )
 
         if result is None:

@@ -29,7 +29,7 @@ MICRO_ALPHA_SWEEP = {
     "min_sl": 0.10,                 # $0.10 min SL
     "tp_multiplier": 2.0,
     "tp_structure_buffer": 0.13,    # $0.13 TP buffer (vs $2 for gold)
-    "be_trigger_pct": 0.50,
+    "be_trigger_pct": 0.35,         # Filter #5 shipped 2026-06-13: PF 2.69→3.10, +$115k 21yr, +7.2pp WR
     "max_bars": 80,
     "skip_first_bar": True,
     "engulfing_window_hours": 0.75,  # 45 min (same as Gold Micro)

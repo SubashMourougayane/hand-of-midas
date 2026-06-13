@@ -28,7 +28,7 @@ MICRO_ALPHA_SWEEP = {
     "min_sl": 5.0,
     "tp_multiplier": 2.0,
     "tp_structure_buffer": 2.0,
-    "be_trigger_pct": 0.50,
+    "be_trigger_pct": 0.35,  # Filter #5 shipped 2026-06-13: PF 2.42→2.77, +$12k 21yr, +5.9pp WR
     "max_bars": 80,
     "skip_first_bar": True,
     "engulfing_window_hours": 0.75,  # 45 min (was 2hr — stale signals after 45min dilute PF)

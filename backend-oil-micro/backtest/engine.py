@@ -270,8 +270,12 @@ class BacktestResult:
     losses: int = 0
 
 
-def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True):
-    """Simple fill model for Oil Micro — walks M3 bars."""
+def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True, be_trigger_pct=0.5):
+    """Simple fill model for Oil Micro — walks M3 bars.
+
+    be_trigger_pct: fraction of distance to TP that triggers BE move.
+      Default 0.5 (production behavior). Filter #5 tests 0.35.
+    """
     be_triggered = False
     be_sl = None
 
@@ -294,8 +298,8 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
                 return {"exit_price": tp, "pnl_per_unit": pnl, "exit_reason": "TP", "bars_held": i}
             if use_break_even and not be_triggered:
                 mid = (bar_high + bar_low) / 2
-                target_50 = entry + (tp - entry) * 0.5
-                if mid >= target_50:
+                target_be = entry + (tp - entry) * be_trigger_pct
+                if mid >= target_be:
                     be_triggered = True
                     be_sl = entry + 0.01
         else:
@@ -307,8 +311,8 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
                 return {"exit_price": tp, "pnl_per_unit": pnl, "exit_reason": "TP", "bars_held": i}
             if use_break_even and not be_triggered:
                 mid = (bar_high + bar_low) / 2
-                target_50 = entry - (entry - tp) * 0.5
-                if mid <= target_50:
+                target_be = entry - (entry - tp) * be_trigger_pct
+                if mid <= target_be:
                     be_triggered = True
                     be_sl = entry - 0.01
 
@@ -326,8 +330,15 @@ def run_backtest(
     capital: float = YEARLY_CAPITAL,
     risk_pct: float = RISK_PCT,
     seed: int = 42,
+    be_trigger_pct: float | None = None,
 ) -> BacktestResult:
-    """Run Oil Micro portfolio backtest."""
+    """Run Oil Micro portfolio backtest.
+
+    be_trigger_pct: BE trigger fraction override. None (default) = read from
+      MICRO_ALPHA_SWEEP config (post-Filter-#5: 0.35).
+    """
+    if be_trigger_pct is None:
+        be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -458,6 +469,7 @@ def run_backtest(
             direction=signal.direction,
             max_bars=signal.max_bars,
             use_break_even=True,
+            be_trigger_pct=be_trigger_pct,
         )
 
         if result is None:

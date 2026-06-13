@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.cache import load_candles
 from strategies.alpha_sweep import generate_signals, Signal
 from execution.fill_model import execute_trade, TradeResult
-from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK
+from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK, ALPHA_SWEEP
 from dataclasses import dataclass, field
 
 _DATA_CACHE = {}
@@ -65,7 +65,12 @@ def run_backtest(
     capital: float = YEARLY_CAPITAL,
     risk_pct: float = RISK_PCT,
     seed: int = 42,
+    be_trigger_pct: float | None = None,
 ) -> BacktestResult:
+    """be_trigger_pct: BE trigger fraction override. None (default) = read from
+    ALPHA_SWEEP config (post-Filter-#5: 0.35)."""
+    if be_trigger_pct is None:
+        be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -179,6 +184,7 @@ def run_backtest(
             max_bars=signal.max_bars,
             strategy="alpha_sweep_oil",
             use_break_even=True,
+            be_trigger_pct=be_trigger_pct,
         )
 
         if result is None:
