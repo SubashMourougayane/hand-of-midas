@@ -13,7 +13,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 6 | Trailing SL after BE | 1 | ✅ SHIPPED (1/4) | filter-06-trail-after-be | +0.03 (Oil Macro) | +$80,245 (Oil Macro) | n/a (fill-side) | SHIP — Oil Macro only. Gold Macro / Gold Micro / Oil Micro EXCLUDED. |
 | 7 | Partial TP at 50% | 1 | ✅ SHIPPED (4/4) | filter-07-partial-tp | +1.79 avg | +$1,261,109 | n/a (fill-side) | SHIP — Variant A on all 4 systems. No regressions. |
 | 16 | R:R lower bound | 2 | ❌ STASHED | archive-filter-16 | varies | -$701k @ 1.5 / -$37k @ 1.0 | n/a (drift-fixed at impl) | STASH — sweep across 0.8/1.0/1.2/1.5 all net negative. Sub-1.5R trades profitable. |
-| 2 | First-Sweep-of-Day | 2 | pending | — | — | — | — | — |
+| 2 | First-Sweep-of-Day | 2 | ❌ STASHED | archive-filter-02 | varies | -$1.55M @ max=1 / -$384k @ max=2 | n/a (drift-fixed at impl) | STASH — sweep across max-{1,2} both net negative all 4 systems. |
 | 9 | R:R Upper Bound 4.0 | 2 | pending | — | — | — | — | — |
 | 3 | TP Feasibility | 3 | pending | — | — | — | — | — |
 | 4 | Anti-Trend-Extension | 3 | pending | — | — | — | — | — |
@@ -96,6 +96,26 @@ Sweep across thresholds (21yr × 4 systems × 4 thresholds, total 16 BTs):
 **Oil Macro is structurally immune** — its TP buffer geometry produces ≥1.5R always. Filter is a true no-op there.
 
 Branch archived as `archive-filter-16` (no merge, no live impact).
+
+### Filter #2 — First-Sweep-of-Day — ❌ STASHED
+
+Hypothesis: cap signals per direction per day (skip 2nd same-direction sweep onwards as redundant or reversal trap).
+
+Sweep across thresholds (21yr × 4 systems × 3 thresholds, 12 BTs):
+
+| System | no-cap (baseline) | max=2 | max=1 |
+|---|---|---|---|
+| Gold Macro | $428k (PF 3.53) | $393k −8.1% (PF 3.51) | $284k −33.7% (PF 3.37) |
+| Gold Micro | $335k (PF 4.40) | $300k −10.5% (PF 4.31) | $216k −35.6% (PF 4.00) |
+| Oil Macro | $826k (PF 4.70) | $772k −6.6% (PF **4.91**) | $548k −33.6% (PF 4.89) |
+| Oil Micro | $3.18M (PF 5.76) | $2.92M −8.2% (PF 5.76) | $2.17M −31.9% (PF 5.83) |
+| **Total** | **$4.77M** | $4.38M (−8.1%) | $3.21M (−32.6%) |
+
+**Decision: STASH all variants.** Hypothesis disproven — same-direction follow-up sweeps are profitable. Even max=2 (the milder cap) costs P&L on every system. PF improves slightly on Oil Macro but P&L drops $54k.
+
+Branch archived as `archive-filter-02` (no merge, no live impact).
+
+**Pattern emerging across 2 signal-gate filters tested (#16, #2):** PF improves but P&L drops on every system at every threshold. Edge in this strategy is fill-side (#5/#6/#7 all shipped, +$1.52M / 21yr cumulative); signal pruning consistently removes more winners than losers.
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
