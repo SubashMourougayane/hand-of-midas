@@ -29,6 +29,9 @@ MICRO_ALPHA_SWEEP = {
     "tp_multiplier": 2.0,
     "tp_structure_buffer": 2.0,
     "be_trigger_pct": 0.35,  # Filter #5 shipped 2026-06-13: PF 2.42→2.77, +$12k 21yr, +5.9pp WR
+    "partial_tp_at_pct": 0.5,    # Filter #7 shipped 2026-06-13 (Variant A): PF 2.77→4.40, +$82k 21yr (+32.7%)
+    "partial_tp_size": 0.5,
+    "partial_arms_be": False,    # Variant A — BE on original schedule
     "max_bars": 80,
     "skip_first_bar": True,
     "engulfing_window_hours": 0.75,  # 45 min (was 2hr — stale signals after 45min dilute PF)

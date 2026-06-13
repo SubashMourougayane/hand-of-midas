@@ -32,6 +32,9 @@ ALPHA_SWEEP = {
     "tp_structure_buffer": 0.13,  # Oil-scaled ($2 / 15.2x ratio)
     "be_trigger_pct": 0.35,       # Filter #5 shipped 2026-06-13: PF 2.66→2.94, +$52k 21yr, +6.2pp WR
     "trail_after_be_pct": 0.50,   # Filter #6 shipped 2026-06-13 (Oil Macro only): +$80k 21yr, +11.5% P&L
+    "partial_tp_at_pct": 0.5,     # Filter #7 shipped 2026-06-13 (Variant A): PF 2.96→4.70, +$45k 21yr (+5.8%)
+    "partial_tp_size": 0.5,
+    "partial_arms_be": False,     # Variant A — BE on original schedule
     "max_bars": 80,               # Same (~4 hours)
     "skip_first_bar": True,       # Same
     "engulfing_window_hours": 2,  # Same
