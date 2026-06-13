@@ -58,6 +58,31 @@ SYMBOL_MAP_REVERSE = {v: k for k, v in SYMBOL_MAP.items()}
 MAGIC = 200000
 
 
+# Logger — try service-local 'scanner._log' first (gold-micro/oil/oil-micro),
+# fall back to 'backend.scanner._log' (gold-macro). Each service runs in its own
+# Python process, so module caching gives the correct SERVICE_NAME at runtime.
+# If neither resolves (e.g. running mt5_executor in isolation for tests), use
+# a no-op shim so logging never crashes the executor.
+try:
+    from scanner import _log  # gold-micro / oil-macro / oil-micro
+except ImportError:
+    try:
+        from backend.scanner import _log  # gold-macro
+    except ImportError:
+        class _NoOpLog:
+            @staticmethod
+            def debug(*a, **kw): pass
+            @staticmethod
+            def info(*a, **kw): pass
+            @staticmethod
+            def warn(*a, **kw): pass
+            @staticmethod
+            def error(*a, **kw): pass
+            @staticmethod
+            def exception(*a, **kw): pass
+        _log = _NoOpLog()
+
+
 def _read_json(filename):
     """Read a JSON file from DWX directory. Retries once on decode error (EA mid-write)."""
     path = os.path.join(DWX_DIR, filename)
@@ -111,10 +136,34 @@ def _wait_response(timeout=10):
 
 def _send_command(cmd_string, timeout=10):
     """Thread-safe: write command + wait response atomically.
-    Prevents concurrent commands from reading each other's responses (B4 fix)."""
+    Prevents concurrent commands from reading each other's responses (B4 fix).
+
+    Logs every command's send/receive cycle to BROKER category for full
+    traceability when investigating live issues. The action prefix
+    (OPEN/MODIFY/CLOSE/CLOSE_PARTIAL/CLOSE_ALL) is logged separately so
+    grep "BROKER.*action=CLOSE_PARTIAL" finds all partial closes.
+    """
+    action = cmd_string.split("|", 1)[0] if "|" in cmd_string else cmd_string
+    t0 = time.time()
+    _log.debug("BROKER", "command_sent", action=action, cmd=cmd_string, timeout=timeout)
+
     with _command_lock:
         _write_command(cmd_string)
-        return _wait_response(timeout)
+        response = _wait_response(timeout)
+
+    elapsed_ms = int((time.time() - t0) * 1000)
+
+    if response is None:
+        _log.warn("BROKER", "command_timeout", action=action, cmd=cmd_string, elapsed_ms=elapsed_ms)
+    elif response.get("success"):
+        _log.info("BROKER", "command_ack", action=action,
+                  elapsed_ms=elapsed_ms, response=response)
+    else:
+        _log.error("BROKER", "command_rejected", action=action, elapsed_ms=elapsed_ms,
+                   retcode=response.get("retcode"),
+                   error=response.get("error") or response.get("comment", "Unknown"))
+
+    return response
 
 
 def _mt5_symbol(instrument):
@@ -292,12 +341,19 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
     sl_price = sl if sl else 0
     tp_price = tp if tp else 0
 
+    _log.info("BROKER", "place_market_order_start", instrument=instrument, symbol=symbol,
+              type=order_type, units=volume, lots=lots, sl=sl_price, tp=tp_price, comment=comment)
+
     cmd = f"OPEN|{symbol}|{order_type}|{lots}|{price}|{sl_price}|{tp_price}|{comment}"
     response = _send_command(cmd, timeout=10)
     if not response:
+        _log.error("BROKER", "place_market_order_timeout", instrument=instrument, units=volume)
         return {"success": False, "error": "Timeout waiting for EA response"}
 
     if response.get("success"):
+        _log.info("BROKER", "place_market_order_filled", instrument=instrument,
+                  trade_id=str(response.get("ticket", 0)), fill_price=response.get("price", 0),
+                  units=volume)
         return {
             "success": True,
             "fill_price": response.get("price", 0),
@@ -306,6 +362,8 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
             "time": datetime.now(timezone.utc).isoformat(),
         }
     else:
+        _log.error("BROKER", "place_market_order_failed", instrument=instrument,
+                   retcode=response.get("retcode"), comment=response.get("comment", "Unknown"))
         return {
             "success": False,
             "error": f"retcode={response.get('retcode')}: {response.get('comment', 'Unknown')}",
@@ -315,10 +373,22 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
 def modify_stop_loss(trade_id, new_sl, new_tp=None):
     """Modify the stop loss (and optionally TP) of an existing position."""
     tp_price = new_tp if new_tp else 0
+    _log.info("BROKER", "modify_stop_loss_start", trade_id=str(trade_id),
+              new_sl=new_sl, new_tp=tp_price)
+
     cmd = f"MODIFY|{trade_id}|{new_sl}|{tp_price}"
     response = _send_command(cmd, timeout=10)
     if not response:
+        _log.error("BROKER", "modify_stop_loss_timeout", trade_id=str(trade_id), new_sl=new_sl)
         return {"success": False, "error": "Timeout"}
+
+    if response.get("success"):
+        _log.info("BROKER", "modify_stop_loss_ok", trade_id=str(trade_id),
+                  new_sl=new_sl, new_tp=tp_price)
+    else:
+        _log.error("BROKER", "modify_stop_loss_failed", trade_id=str(trade_id),
+                   new_sl=new_sl, retcode=response.get("retcode"),
+                   comment=response.get("comment", ""))
 
     return {
         "success": response.get("success", False),
@@ -328,10 +398,21 @@ def modify_stop_loss(trade_id, new_sl, new_tp=None):
 
 def close_trade(trade_id):
     """Close an open position by ticket."""
+    _log.info("BROKER", "close_trade_start", trade_id=str(trade_id))
+
     cmd = f"CLOSE|{trade_id}"
     response = _send_command(cmd, timeout=10)
     if not response:
+        _log.error("BROKER", "close_trade_timeout", trade_id=str(trade_id))
         return {"success": False, "error": "Timeout"}
+
+    if response.get("success"):
+        _log.info("BROKER", "close_trade_ok", trade_id=str(trade_id),
+                  close_price=response.get("close_price", 0),
+                  realized_pl=response.get("profit", 0))
+    else:
+        _log.error("BROKER", "close_trade_failed", trade_id=str(trade_id),
+                   retcode=response.get("retcode"), comment=response.get("comment", ""))
 
     return {
         "success": response.get("success", False),
@@ -363,15 +444,23 @@ def close_partial_trade(trade_id, units_to_close, instrument="XAU_USD"):
         lots = units_to_close / 100000.0
     lots = round(max(lots, 0.01), 2)
 
+    _log.info("BROKER", "close_partial_start", trade_id=str(trade_id),
+              instrument=instrument, units_to_close=units_to_close, lots=lots)
+
     cmd = f"CLOSE_PARTIAL|{trade_id}|{lots}"
     response = _send_command(cmd, timeout=10)
     if not response:
+        _log.error("BROKER", "close_partial_timeout", trade_id=str(trade_id),
+                   units_to_close=units_to_close)
         return {"success": False, "error": "Timeout waiting for EA response"}
 
     if not response.get("success"):
+        err = response.get("error") or response.get("comment", "Unknown")
+        _log.error("BROKER", "close_partial_failed", trade_id=str(trade_id),
+                   units_to_close=units_to_close, retcode=response.get("retcode"), error=err)
         return {
             "success": False,
-            "error": response.get("error") or response.get("comment", "Unknown"),
+            "error": err,
             "retcode": response.get("retcode"),
         }
 
@@ -384,11 +473,19 @@ def close_partial_trade(trade_id, units_to_close, instrument="XAU_USD"):
         units_factor = 1000.0
     else:
         units_factor = 100000.0
+    closed_units = int(round(closed_lots * units_factor))
+    remaining_units = int(round(remaining_lots * units_factor))
+
+    _log.info("BROKER", "close_partial_ok", trade_id=str(trade_id),
+              close_price=response.get("close_price", 0),
+              closed_lots=closed_lots, remaining_lots=remaining_lots,
+              closed_units=closed_units, remaining_units=remaining_units)
+
     return {
         "success": True,
         "close_price": response.get("close_price", 0),
-        "closed_units": int(round(closed_lots * units_factor)),
-        "remaining_units": int(round(remaining_lots * units_factor)),
+        "closed_units": closed_units,
+        "remaining_units": remaining_units,
         "error": None,
     }
 
