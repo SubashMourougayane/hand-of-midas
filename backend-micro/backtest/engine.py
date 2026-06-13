@@ -24,14 +24,18 @@ def run_backtest(
     risk_pct: float = RISK_PCT,
     seed: int = 42,
     be_trigger_pct: float | None = None,
+    trail_after_be_pct: float | None = None,
 ) -> BacktestResult:
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
 
     be_trigger_pct: BE trigger fraction override. None (default) = read from
       MICRO_ALPHA_SWEEP config (post-Filter-#5: 0.35).
+    trail_after_be_pct: post-BE trail fraction override. None = read from config.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
+    if trail_after_be_pct is None:
+        trail_after_be_pct = MICRO_ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
     if strategies is None:
         strategies = ["micro_alpha_sweep", "mean_rev", "cross_market"]
     # Frontend sends "alpha_sweep" — map to micro variant
@@ -198,6 +202,7 @@ def run_backtest(
             strategy=signal.strategy,
             use_break_even=use_be,
             be_trigger_pct=be_trigger_pct,
+            trail_after_be_pct=trail_after_be_pct,
         )
 
         if result is None:

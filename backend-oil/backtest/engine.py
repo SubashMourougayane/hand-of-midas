@@ -66,11 +66,15 @@ def run_backtest(
     risk_pct: float = RISK_PCT,
     seed: int = 42,
     be_trigger_pct: float | None = None,
+    trail_after_be_pct: float | None = None,
 ) -> BacktestResult:
-    """be_trigger_pct: BE trigger fraction override. None (default) = read from
-    ALPHA_SWEEP config (post-Filter-#5: 0.35)."""
+    """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
+    trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
+    """
     if be_trigger_pct is None:
         be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
+    if trail_after_be_pct is None:
+        trail_after_be_pct = ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -185,6 +189,7 @@ def run_backtest(
             strategy="alpha_sweep_oil",
             use_break_even=True,
             be_trigger_pct=be_trigger_pct,
+            trail_after_be_pct=trail_after_be_pct,
         )
 
         if result is None:

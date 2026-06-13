@@ -36,6 +36,7 @@ def execute_trade(
     strategy: str,
     use_break_even: bool = False,
     be_trigger_pct: float = 0.5,
+    trail_after_be_pct: float = 0.0,
 ) -> Optional[TradeResult]:
     """
     Walk bar-by-bar from bar_start+1, checking exits.
@@ -47,14 +48,22 @@ def execute_trade(
     1. Gap-through SL (open past SL) → instant SL fill at open
     2. TP touch (high >= TP for long, low <= TP for short) → fill at TP
     3. SL touch (low <= SL for long, high >= SL for short) → fill at SL
-    4. Break-even update
-    5. If neither hit → continue to next bar
+    4. Break-even update (if not yet armed)
+    5. After-BE trail update (high-water-mark, only ratchets up)
+    6. If neither hit → continue to next bar
 
     be_trigger_pct: fraction of distance to TP that triggers BE move.
-      Default 0.5 (production behavior). Filter #5 tests 0.35.
+      Default 0.5 (production), Filter #5 ships 0.35 to 3 of 4 systems.
+    trail_after_be_pct: fraction of best-favorable-excursion (since BE armed)
+      to trail SL to. 0.0 (default) = no trail (legacy BE-only behavior).
+      Filter #6 tests 0.5 (trail SL to 50% of high-water-mark from entry).
+      High-water-mark semantics: SL only ratchets UP for longs / DOWN for shorts.
     """
     current_sl = sl
     bars_held = 0
+    be_armed = False
+    # High-water-mark since BE armed (longs: highest high; shorts: lowest low)
+    hwm = entry
 
     for b in range(bar_start + 1, min(bar_start + max_bars, len(df))):
         bars_held += 1
@@ -85,9 +94,22 @@ def execute_trade(
                 pnl = exit_price - entry
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
-            # 4. Break-even check (Alpha-Sweep only)
-            if use_break_even and bh >= entry + (tp - entry) * be_trigger_pct:
+            # 4. Break-even check (Alpha-Sweep only) — fires once
+            if use_break_even and not be_armed and bh >= entry + (tp - entry) * be_trigger_pct:
                 current_sl = entry + _sl_slip(bar_range)
+                be_armed = True
+                # Initialize HWM at the BE trigger bar's high
+                hwm = bh
+
+            # 5. After-BE trail: ratchet SL up using high-water-mark of bar high
+            if be_armed and trail_after_be_pct > 0:
+                if bh > hwm:
+                    hwm = bh
+                # Proposed trail SL: entry + (hwm - entry) × trail_pct
+                # Only move SL UP (high-water-mark semantics)
+                proposed_sl = entry + (hwm - entry) * trail_after_be_pct
+                if proposed_sl > current_sl:
+                    current_sl = proposed_sl
 
         else:  # short
             ao = df["ask_open"].iat[b]
@@ -115,9 +137,21 @@ def execute_trade(
                 pnl = entry - exit_price
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
-            # 4. Break-even for shorts
-            if use_break_even and al <= entry - (entry - tp) * be_trigger_pct:
+            # 4. Break-even for shorts — fires once
+            if use_break_even and not be_armed and al <= entry - (entry - tp) * be_trigger_pct:
                 current_sl = entry - _sl_slip(bar_range)
+                be_armed = True
+                hwm = al  # for shorts, "favorable" means lower lows
+
+            # 5. After-BE trail (shorts): ratchet SL DOWN using low-water-mark of bar low
+            if be_armed and trail_after_be_pct > 0:
+                if al < hwm:
+                    hwm = al
+                # Proposed trail SL: entry - (entry - hwm) × trail_pct
+                # Only move SL DOWN (matches longs' "ratchet only in favorable direction")
+                proposed_sl = entry - (entry - hwm) * trail_after_be_pct
+                if proposed_sl < current_sl:
+                    current_sl = proposed_sl
 
     # Max bars reached — exit at last bar close
     last_b = min(bar_start + max_bars - 1, len(df) - 1)
