@@ -67,10 +67,21 @@ def run_backtest(
     seed: int = 42,
     be_trigger_pct: float | None = None,
     trail_after_be_pct: float | None = None,
+    partial_tp_at_pct: float | None = None,
+    partial_tp_size: float | None = None,
+    partial_arms_be: bool | None = None,
 ) -> BacktestResult:
     """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
     trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
+    partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
+    partial_arms_be: Filter #7 Variant B (None = config default).
     """
+    if partial_tp_at_pct is None:
+        partial_tp_at_pct = ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
+    if partial_tp_size is None:
+        partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if partial_arms_be is None:
+        partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
     if be_trigger_pct is None:
         be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
     if trail_after_be_pct is None:
@@ -190,6 +201,9 @@ def run_backtest(
             use_break_even=True,
             be_trigger_pct=be_trigger_pct,
             trail_after_be_pct=trail_after_be_pct,
+            partial_tp_at_pct=partial_tp_at_pct,
+            partial_tp_size=partial_tp_size,
+            partial_arms_be=partial_arms_be,
         )
 
         if result is None:
