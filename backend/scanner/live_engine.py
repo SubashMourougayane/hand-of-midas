@@ -480,6 +480,124 @@ def check_alpha_sweep_breakeven():
                     _log_journal(trade["trade_ref"], "alpha_sweep", "BREAK_EVEN_FAILED", None, {"old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"), "source": "scheduler"})
 
 
+def check_alpha_sweep_partial_tp():
+    """Filter #7 — bank `partial_tp_size` of position when bar reaches halfway.
+    Mirror of backend-oil/scanner/live_engine.py:check_alpha_sweep_partial_tp.
+    Strategy='alpha_sweep', instrument='XAU_USD', config from backend.config.ALPHA_SWEEP.
+    """
+    from backend.config import ALPHA_SWEEP
+    partial_at = ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
+    partial_sz = ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if partial_at <= 0 or partial_sz <= 0:
+        return
+
+    open_trades = execute(
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND strategy='alpha_sweep' "
+        "AND oanda_trade_id IS NOT NULL AND COALESCE(partial_done, FALSE) = FALSE",
+        fetch=True
+    )
+    _log.debug("POSITION", "partial_check_tick", open=len(open_trades) if open_trades else 0,
+               partial_at=partial_at, partial_sz=partial_sz)
+    if not open_trades:
+        return
+
+    price = get_current_price(instrument="XAU_USD")
+    if not price:
+        _log.warn("BROKER", "partial_check_no_price")
+        return
+
+    from backend.execution import close_partial_trade
+
+    for trade in open_trades:
+        try:
+            entry = float(trade["entry_price"])
+            tp = float(trade["tp_price"]) if trade["tp_price"] else 0
+            side = trade["side"]
+            oid = trade["oanda_trade_id"]
+            units = int(trade["units"])
+            if tp <= 0 or units < 2:
+                continue
+
+            partial_target = entry + (tp - entry) * partial_at
+
+            if side == "LONG":
+                if tp <= entry:
+                    continue
+                reached = price["bid"] >= partial_target
+            else:
+                if tp >= entry:
+                    continue
+                reached = price["ask"] <= partial_target
+
+            if not reached:
+                _log.debug("POSITION", "partial_progress", ref=trade["trade_ref"], side=side,
+                           entry=entry, tp=tp, target=partial_target,
+                           current=price["bid"] if side == "LONG" else price["ask"])
+                continue
+
+            units_to_close = max(1, int(round(units * partial_sz)))
+            if units_to_close >= units:
+                _log.warn("POSITION", "partial_skip_full_close",
+                          ref=trade["trade_ref"], units=units, units_to_close=units_to_close)
+                continue
+
+            _log.info("POSITION", "partial_triggered", ref=trade["trade_ref"], side=side,
+                      entry=entry, tp=tp, target=partial_target, units=units,
+                      units_to_close=units_to_close,
+                      current=price["bid"] if side == "LONG" else price["ask"])
+
+            result = close_partial_trade(oid, units_to_close, instrument="XAU_USD")
+
+            if not result.get("success"):
+                _log.error("BROKER", "partial_close_failed", ref=trade["trade_ref"],
+                           units_to_close=units_to_close, err=result.get("error", "Unknown"))
+                _log_journal_safe(trade["trade_ref"], "alpha_sweep", "PARTIAL_TP_FAILED", None, {
+                    "units_to_close": units_to_close,
+                    "error": result.get("error"), "retcode": result.get("retcode"),
+                })
+                continue
+
+            fill_price = float(result.get("close_price") or partial_target)
+            closed_units = int(result.get("closed_units") or units_to_close)
+            remaining_units = int(result.get("remaining_units") or (units - units_to_close))
+            pnl_per_unit = (fill_price - entry) if side == "LONG" else (entry - fill_price)
+            banked_usd = pnl_per_unit * closed_units
+
+            try:
+                execute(
+                    """UPDATE gd_trades
+                       SET partial_done = TRUE,
+                           partial_fill_price = %s,
+                           partial_units = %s,
+                           partial_pnl_usd = %s,
+                           units = %s
+                       WHERE trade_ref = %s""",
+                    (fill_price, closed_units, banked_usd, remaining_units, trade["trade_ref"])
+                )
+            except Exception as e:
+                _log.exception("DB", "partial_db_update_failed",
+                               ref=trade["trade_ref"], err=str(e))
+
+            _log_journal_safe(trade["trade_ref"], "alpha_sweep", "PARTIAL_TP", fill_price, {
+                "side": side, "entry": entry, "tp": tp, "target": partial_target,
+                "closed_units": closed_units, "remaining_units": remaining_units,
+                "banked_usd": banked_usd, "partial_at_pct": partial_at, "partial_size": partial_sz,
+            })
+
+            try:
+                notify.partial_tp(trade["trade_ref"], "XAU_USD", closed_units, fill_price,
+                                  banked_usd, remaining_units)
+            except Exception as e:
+                print(f"  [GOLD] notify.partial_tp swallowed exception: {e}")
+
+            print(f"  [alpha_sweep] PARTIAL_TP {trade['trade_ref']} {side}: closed "
+                  f"{closed_units}/{units} @ {fill_price:.2f}, banked ${banked_usd:+.2f}, "
+                  f"runner={remaining_units}")
+        except Exception as e:
+            _log.exception("SYSTEM", "partial_check_loop_error",
+                           ref=trade.get("trade_ref"), err=str(e))
+
+
 def reconcile_orphans():
     """Adopt any broker positions that don't have a matching DB row.
     Production safety net for Gold Macro. Trade ref prefix is GD-."""

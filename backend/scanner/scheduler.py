@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.execution import get_candles, get_current_price
-from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _get_dd_state, _log_journal, _log_journal_safe
+from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, check_alpha_sweep_partial_tp, reconcile_orphans, _get_dd_state, _log_journal, _log_journal_safe
 from backend.scanner import _log
 from backend.db import execute, get_conn
 import re
@@ -738,6 +738,7 @@ def position_monitor_job():
     try:
         check_open_positions()
         check_alpha_sweep_breakeven()
+        check_alpha_sweep_partial_tp()  # Filter #7 — bank half at halfway
     except Exception as e:
         _log.exception("SYSTEM", "position_monitor_failed", job="position_monitor", err=str(e))
         print(f"  [GOLD] Position monitor error: {e}")

@@ -17,7 +17,7 @@ def _parse_ts(ts_str: str) -> datetime:
     return datetime.fromisoformat(cleaned)
 
 from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE
-from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _log_journal, _log_journal_safe
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, check_alpha_sweep_partial_tp, reconcile_orphans, _log_journal, _log_journal_safe
 from scanner import _log
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -51,6 +51,7 @@ def position_monitor_job():
     try:
         check_open_positions()
         check_alpha_sweep_breakeven()
+        check_alpha_sweep_partial_tp()  # Filter #7 — bank half at halfway
     except Exception as e:
         _log.exception("SYSTEM", "position_monitor_failed", job="position_monitor", err=str(e))
         print(f"  [OIL] Position monitor error: {e}")
