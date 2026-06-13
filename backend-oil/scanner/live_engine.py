@@ -398,7 +398,7 @@ def check_alpha_sweep_breakeven():
             if sl >= entry:
                 _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
                 continue
-            target_50 = entry + (tp - entry) * 0.5
+            target_50 = entry + (tp - entry) * ALPHA_SWEEP["be_trigger_pct"]
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_bid=price["bid"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=target_50-price["bid"])
             if price["bid"] >= target_50:
                 new_sl = entry + 0.01
@@ -423,7 +423,7 @@ def check_alpha_sweep_breakeven():
             if sl <= entry:
                 _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
                 continue
-            target_50 = entry - (entry - tp) * 0.5
+            target_50 = entry - (entry - tp) * ALPHA_SWEEP["be_trigger_pct"]
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_ask=price["ask"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=price["ask"]-target_50)
             if price["ask"] <= target_50:
                 new_sl = entry - 0.01

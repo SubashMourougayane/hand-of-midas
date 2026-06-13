@@ -96,6 +96,33 @@ report documents per filter; no parallel waves.
 **Total: ~5 hours sequential.** Telegram between every filter with summary
 + report path. Decision required from user before next filter starts.
 
+## Per-filter workflow (locked in 2026-06-13)
+
+For every filter:
+
+1. **Branch:** `filter-NN-name` off latest `midas-deploy`
+2. **Implement** filter (kwarg-gated, default off, in BT + Live as applicable)
+3. **Pre/post measurement** — Telegram'd to user
+4. **User decides:** ship / stash / next
+5. **If SHIP:**
+   - Merge `filter-NN-name` → `midas-deploy` **locally** (not yet pushed)
+   - **Regression check on midas-deploy:** `run_backtest()` on all 4 systems with no
+     kwarg overrides. Confirm:
+     - Ship systems show shipped numbers
+     - Excluded systems show baseline numbers (no leak)
+   - If clean → `git push midas-deploy` → done → move to next filter
+   - If dirty → revert merge, investigate, do NOT push
+6. **If STASH:**
+   - Rename branch to `archive-filter-NN`, no merge
+   - Move to next filter
+
+**End-of-weekend integrity sweep (after all 12 processed):**
+
+7. `pytest tests/harness/test_22_parity.py` (~25 sec) — confirms BT/Live signal-gen
+   still agree on direction post-cumulative changes
+8. Optionally `scripts/parity_audit_regimes.py` on the systems that changed (~30 min)
+   — confirms parity % across regimes hasn't drifted materially
+
 ## Telegram protocol
 
 After every filter completes:

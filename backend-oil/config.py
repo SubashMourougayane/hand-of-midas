@@ -30,7 +30,7 @@ ALPHA_SWEEP = {
     "min_sl": 0.10,               # $0.10 min SL (vs $5 for gold)
     "tp_multiplier": 2.0,
     "tp_structure_buffer": 0.13,  # Oil-scaled ($2 / 15.2x ratio)
-    "be_trigger_pct": 0.50,       # Same
+    "be_trigger_pct": 0.35,       # Filter #5 shipped 2026-06-13: PF 2.66→2.94, +$52k 21yr, +6.2pp WR
     "max_bars": 80,               # Same (~4 hours)
     "skip_first_bar": True,       # Same
     "engulfing_window_hours": 2,  # Same

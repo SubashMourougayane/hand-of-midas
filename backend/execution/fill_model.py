@@ -35,6 +35,7 @@ def execute_trade(
     max_bars: int,
     strategy: str,
     use_break_even: bool = False,
+    be_trigger_pct: float = 0.5,
 ) -> Optional[TradeResult]:
     """
     Walk bar-by-bar from bar_start+1, checking exits.
@@ -48,6 +49,9 @@ def execute_trade(
     3. SL touch (low <= SL for long, high >= SL for short) → fill at SL
     4. Break-even update
     5. If neither hit → continue to next bar
+
+    be_trigger_pct: fraction of distance to TP that triggers BE move.
+      Default 0.5 (production behavior). Filter #5 tests 0.35.
     """
     current_sl = sl
     bars_held = 0
@@ -82,7 +86,7 @@ def execute_trade(
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
             # 4. Break-even check (Alpha-Sweep only)
-            if use_break_even and bh >= entry + (tp - entry) * 0.5:
+            if use_break_even and bh >= entry + (tp - entry) * be_trigger_pct:
                 current_sl = entry + _sl_slip(bar_range)
 
         else:  # short
@@ -112,7 +116,7 @@ def execute_trade(
                 return TradeResult(pnl, bars_held, "sl", exit_price)
 
             # 4. Break-even for shorts
-            if use_break_even and al <= entry - (entry - tp) * 0.5:
+            if use_break_even and al <= entry - (entry - tp) * be_trigger_pct:
                 current_sl = entry - _sl_slip(bar_range)
 
     # Max bars reached — exit at last bar close
