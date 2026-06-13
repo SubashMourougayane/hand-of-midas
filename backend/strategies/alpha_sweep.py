@@ -12,14 +12,21 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    max_per_direction_per_day: int | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    max_per_direction_per_day: Filter #2 — cap signals per direction per day.
+      None (default) = read from ALPHA_SWEEP config; if config also unset, no cap (legacy).
+      max=1 = skip ALL subsequent same-direction sweeps after first.
+      max=2 = allow 2 per direction, skip 3rd+.
     """
     cfg = ALPHA_SWEEP
+    if max_per_direction_per_day is None:
+        max_per_direction_per_day = cfg.get("max_per_direction_per_day", 0)  # 0 = no cap
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -59,10 +66,15 @@ def generate_signals(
         # Process each sweep (up to max_trades_per_day)
         day_trades = 0
         max_per_day = cfg.get("max_trades_per_day", 3)
+        dir_counts: dict[str, int] = {"bullish": 0, "bearish": 0}  # Filter #2: count per direction
 
         for sweep_dir, sweep_wick, sweep_time in sweeps:
             if day_trades >= max_per_day:
                 break
+
+            # Filter #2: skip if this direction has hit its per-day cap
+            if max_per_direction_per_day > 0 and dir_counts[sweep_dir] >= max_per_direction_per_day:
+                continue
 
             # Bias filter (Variant C: neutral = allow both directions)
             if bias != "neutral":
@@ -149,6 +161,7 @@ def generate_signals(
                     ))
 
                 day_trades += 1
+                dir_counts[sweep_dir] += 1  # Filter #2: track count per direction
                 break  # One engulfing per sweep
 
     return signals

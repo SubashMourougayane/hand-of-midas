@@ -43,9 +43,14 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    max_per_direction_per_day: int | None = None,
 ) -> list[Signal]:
+    """max_per_direction_per_day: Filter #2 — cap signals per direction per day.
+    None (default) = read from config; 0 = no cap (legacy). 1 = first-only. 2 = max-2."""
     cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
+    if max_per_direction_per_day is None:
+        max_per_direction_per_day = cfg.get("max_per_direction_per_day", 0)
     close_start = mcfg["market_close_start"]
     signals = []
 
@@ -60,6 +65,7 @@ def generate_signals(
         day_trades = 0
         max_per_day = mcfg["max_trades_per_day"]
         traded_sweeps = set()
+        dir_counts: dict[str, int] = {"bullish": 0, "bearish": 0}  # Filter #2: count per direction
 
         for bar_ts, bar in day_h1.iterrows():
             if day_trades >= max_per_day:
@@ -129,6 +135,10 @@ def generate_signals(
                     # Dedup: already traded this sweep for this window
                     sk = (sbar_ts, start_hour)
                     if sk in traded_sweeps:
+                        continue
+
+                    # Filter #2: skip if this direction has hit its per-day cap
+                    if max_per_direction_per_day > 0 and dir_counts[sweep_dir] >= max_per_direction_per_day:
                         continue
 
                     # Bias filter (Variant C)
@@ -209,6 +219,7 @@ def generate_signals(
 
                         traded_sweeps.add(sk)
                         day_trades += 1
+                        dir_counts[sweep_dir] += 1  # Filter #2: track count per direction
                         found = True
                         break
 

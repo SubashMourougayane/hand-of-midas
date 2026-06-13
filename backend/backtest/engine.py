@@ -82,6 +82,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    max_per_direction_per_day: int | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -89,6 +90,8 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    max_per_direction_per_day: Filter #2 — cap signals per direction per day.
+      None = config default (0 = no cap, legacy). 1 = first-only. 2 = max-2-per-direction.
     """
     from backend.config import ALPHA_SWEEP
     if partial_tp_at_pct is None:
@@ -97,6 +100,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if max_per_direction_per_day is None:
+        max_per_direction_per_day = ALPHA_SWEEP.get("max_per_direction_per_day", 0)
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -162,7 +167,8 @@ def run_backtest(
 
     if "alpha_sweep" in strategies:
         np.random.seed(seed)
-        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias))
+        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias,
+                                                         max_per_direction_per_day=max_per_direction_per_day))
 
     all_signals.sort(key=lambda x: x.date)
 

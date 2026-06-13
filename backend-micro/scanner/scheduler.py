@@ -106,6 +106,22 @@ def micro_sweep_job():
     if _traded_sweeps["date"] != today:
         _traded_sweeps = {"date": today, "keys": set()}
 
+    # Filter #2: per-direction count today (DB-loaded for restart safety)
+    cfg = MICRO_ALPHA_SWEEP
+    max_per_direction_per_day = cfg.get("max_per_direction_per_day", 0)
+    dir_counts: dict[str, int] = {"bullish": 0, "bearish": 0}
+    if max_per_direction_per_day > 0:
+        rows = execute(
+            "SELECT side, COUNT(*) as cnt FROM gd_trades WHERE strategy='micro_alpha_sweep' AND entry_time::date = %s GROUP BY side",
+            (today,), fetch=True
+        ) or []
+        for r in rows:
+            side = r["side"]
+            if side == "LONG":
+                dir_counts["bullish"] = int(r["cnt"])
+            elif side == "SHORT":
+                dir_counts["bearish"] = int(r["cnt"])
+
     # Daily max loss check — query ACTUAL daily P&L from DB (not local variable)
     daily_pnl_rows = execute(
         f"SELECT COALESCE(SUM(pnl_usd), 0) as daily_pnl FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time::date = %s AND pnl_usd IS NOT NULL",
@@ -336,6 +352,12 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                     _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
                 continue
 
+            # Filter #2: skip if this direction has hit its per-day cap
+            if max_per_direction_per_day > 0 and dir_counts[sweep_dir] >= max_per_direction_per_day:
+                if not dry_run:
+                    _log.debug("GATE", "max_per_direction_reached", sweep_dir=sweep_dir, count=dir_counts[sweep_dir], max=max_per_direction_per_day)
+                continue
+
             # One-at-a-time: check BOTH DB and MT5 (DB may miss trades if INSERT failed)
             open_micro = execute(
                 f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
@@ -448,6 +470,7 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                         "consol_range": consol_range, "sweep_wick": sweep_wick,
                     })
                     _traded_sweeps["keys"].add(sweep_key)
+                    dir_counts[sweep_dir] += 1  # Filter #2: increment per-direction count
                     trades_today += 1
                     trade_placed_this_cycle = True
                 else:
@@ -477,6 +500,7 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                         if trade_ref:
                             trades_today += 1
                             trade_placed_this_cycle = True
+                            dir_counts[sweep_dir] += 1  # Filter #2: increment per-direction count
                             _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction=direction)
                         else:
                             # Signal skipped (DD, sl_too_close, etc.) — roll back optimistic counter

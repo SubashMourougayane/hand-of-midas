@@ -68,9 +68,14 @@ def _hour_past(current: int, target: int) -> bool:
     return 0 < diff <= 12
 
 
-def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict) -> list[Signal]:
-    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows."""
+def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict,
+                     max_per_direction_per_day: int | None = None) -> list[Signal]:
+    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows.
+    max_per_direction_per_day: Filter #2 — cap signals per direction per day.
+    None (default) = read from config; 0 = no cap (legacy)."""
     cfg = MICRO_ALPHA_SWEEP
+    if max_per_direction_per_day is None:
+        max_per_direction_per_day = cfg.get("max_per_direction_per_day", 0)
     close_start = cfg["market_close_start"]
     signals = []
 
@@ -85,6 +90,7 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
         day_trades = 0
         max_per_day = cfg["max_trades_per_day"]
         traded_sweeps = set()
+        dir_counts: dict[str, int] = {"bullish": 0, "bearish": 0}  # Filter #2: count per direction
 
         for bar_ts, bar in day_h1.iterrows():
             if day_trades >= max_per_day:
@@ -146,6 +152,10 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
 
                     sk = (sbar_ts, start_hour)
                     if sk in traded_sweeps:
+                        continue
+
+                    # Filter #2: skip if this direction has hit its per-day cap
+                    if max_per_direction_per_day > 0 and dir_counts[sweep_dir] >= max_per_direction_per_day:
                         continue
 
                     if bias != "neutral":
@@ -223,6 +233,7 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
 
                         traded_sweeps.add(sk)
                         day_trades += 1
+                        dir_counts[sweep_dir] += 1  # Filter #2: track count per direction
                         found = True
                         break
 
@@ -394,6 +405,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    max_per_direction_per_day: int | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -401,6 +413,7 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction override. None = read from config.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    max_per_direction_per_day: Filter #2 — cap signals per direction per day. None = config default (0 = no cap).
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -410,6 +423,8 @@ def run_backtest(
         partial_tp_at_pct = MICRO_ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
     if partial_tp_size is None:
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if max_per_direction_per_day is None:
+        max_per_direction_per_day = MICRO_ALPHA_SWEEP.get("max_per_direction_per_day", 0)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
     np.random.seed(seed)
@@ -455,7 +470,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias)
+    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias,
+                                    max_per_direction_per_day=max_per_direction_per_day)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range

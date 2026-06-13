@@ -430,6 +430,22 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
 
     signals_found: list[dict] = []  # collected only when dry_run=True
 
+    # Filter #2: per-direction count today (DB-loaded for restart safety).
+    # bullish → LONG side, bearish → SHORT side in DB.
+    max_per_direction_per_day = cfg.get("max_per_direction_per_day", 0)
+    dir_counts: dict[str, int] = {"bullish": 0, "bearish": 0}
+    if max_per_direction_per_day > 0 and not dry_run:
+        rows = execute(
+            "SELECT side, COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s GROUP BY side",
+            (today,), fetch=True
+        ) or []
+        for r in rows:
+            side = r["side"]
+            if side == "LONG":
+                dir_counts["bullish"] = int(r["cnt"])
+            elif side == "SHORT":
+                dir_counts["bearish"] = int(r["cnt"])
+
     if not dry_run:
         existing = execute(
             "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
@@ -580,6 +596,12 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
             continue
 
+        # Filter #2: skip if this direction has hit its per-day cap
+        if max_per_direction_per_day > 0 and dir_counts[sweep_dir] >= max_per_direction_per_day:
+            if not dry_run:
+                _log.debug("GATE", "max_per_direction_reached", sweep_dir=sweep_dir, count=dir_counts[sweep_dir], max=max_per_direction_per_day)
+            continue
+
         # Bias filter (Variant C: neutral = allow both directions)
         if bias != "neutral":
             if sweep_dir == "bullish" and bias != "bullish":
@@ -695,6 +717,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     })
 
             _traded_sweeps_macro["keys"].add(sweep_key)
+            dir_counts[sweep_dir] += 1  # Filter #2: increment per-direction count
             trades_today += 1
             break  # One engulfing per sweep
         else:
