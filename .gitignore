@@ -10,3 +10,5 @@ logs/
 # not stored in git). The .gitkeep file inside parity_reports/ is intentionally
 # tracked so the directory exists after clone.
 tests/harness/parity_reports/*.json
+scripts/output/*.log
+scripts/output/*.json
