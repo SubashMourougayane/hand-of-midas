@@ -271,14 +271,25 @@ class BacktestResult:
 
 
 def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True,
-                   be_trigger_pct=0.5, trail_after_be_pct=0.0):
+                   be_trigger_pct=0.5, trail_after_be_pct=0.0,
+                   partial_tp_at_pct=0.0, partial_tp_size=0.0, partial_arms_be=False):
     """Simple fill model for Oil Micro — walks M3 bars.
 
     be_trigger_pct: fraction of distance to TP that triggers BE move.
       Default 0.5 (production), Filter #5 ships 0.35.
     trail_after_be_pct: post-BE trail fraction. 0.0 = no trail (legacy).
       Filter #6 tests 0.5 (high-water-mark, ratchets only in favorable direction).
+    partial_tp_at_pct / partial_tp_size: Filter #7. Bank `partial_tp_size`
+      of position at `entry + partial_tp_at_pct × (tp − entry)`. 0.0 = off.
+    partial_arms_be: Variant B. Partial fire also arms BE on that bar.
     """
+    use_partial = (partial_tp_at_pct > 0 and partial_tp_size > 0)
+    partial_target = entry + (tp - entry) * partial_tp_at_pct
+    partial_done = False
+    partial_pnl_per_unit = 0.0
+    runner_size = 1.0 - partial_tp_size if use_partial else 1.0
+    partial_size = partial_tp_size if use_partial else 0.0
+
     be_triggered = False
     be_sl = None
     hwm = entry  # post-BE high-water-mark (longs) / low-water-mark (shorts)
@@ -295,11 +306,24 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
 
         if direction == "long":
             if bar_low <= current_sl:
-                pnl = current_sl - entry
-                return {"exit_price": current_sl, "pnl_per_unit": pnl, "exit_reason": "BE_SL" if be_triggered else "SL", "bars_held": i}
+                runner_pnl = current_sl - entry
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                base = "BE_SL" if be_triggered else "SL"
+                reason = f"PARTIAL+{base}" if partial_done else base
+                return {"exit_price": current_sl, "pnl_per_unit": blended, "exit_reason": reason, "bars_held": i}
+            # Partial TP fire (Filter #7)
+            if use_partial and not partial_done and bar_high >= partial_target:
+                partial_pnl_per_unit = partial_target - entry
+                partial_done = True
+                if partial_arms_be and not be_triggered:
+                    be_triggered = True
+                    be_sl = entry + 0.01
+                    hwm = bar_high
             if bar_high >= tp:
-                pnl = tp - entry
-                return {"exit_price": tp, "pnl_per_unit": pnl, "exit_reason": "TP", "bars_held": i}
+                runner_pnl = tp - entry
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "PARTIAL+TP" if partial_done else "TP"
+                return {"exit_price": tp, "pnl_per_unit": blended, "exit_reason": reason, "bars_held": i}
             if use_break_even and not be_triggered:
                 mid = (bar_high + bar_low) / 2
                 target_be = entry + (tp - entry) * be_trigger_pct
@@ -316,11 +340,24 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
                     be_sl = proposed
         else:
             if bar_high >= current_sl:
-                pnl = entry - current_sl
-                return {"exit_price": current_sl, "pnl_per_unit": pnl, "exit_reason": "BE_SL" if be_triggered else "SL", "bars_held": i}
+                runner_pnl = entry - current_sl
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                base = "BE_SL" if be_triggered else "SL"
+                reason = f"PARTIAL+{base}" if partial_done else base
+                return {"exit_price": current_sl, "pnl_per_unit": blended, "exit_reason": reason, "bars_held": i}
+            # Partial TP fire (Filter #7)
+            if use_partial and not partial_done and bar_low <= partial_target:
+                partial_pnl_per_unit = entry - partial_target
+                partial_done = True
+                if partial_arms_be and not be_triggered:
+                    be_triggered = True
+                    be_sl = entry - 0.01
+                    hwm = bar_low
             if bar_low <= tp:
-                pnl = entry - tp
-                return {"exit_price": tp, "pnl_per_unit": pnl, "exit_reason": "TP", "bars_held": i}
+                runner_pnl = entry - tp
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "PARTIAL+TP" if partial_done else "TP"
+                return {"exit_price": tp, "pnl_per_unit": blended, "exit_reason": reason, "bars_held": i}
             if use_break_even and not be_triggered:
                 mid = (bar_high + bar_low) / 2
                 target_be = entry - (entry - tp) * be_trigger_pct
@@ -339,8 +376,10 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
     # Max hold exit
     exit_idx = min(bar_start + max_bars, len(df) - 1)
     exit_price = df["mid_close"].iat[exit_idx]
-    pnl = (exit_price - entry) if direction == "long" else (entry - exit_price)
-    return {"exit_price": exit_price, "pnl_per_unit": pnl, "exit_reason": "MAX_HOLD", "bars_held": max_bars}
+    runner_pnl = (exit_price - entry) if direction == "long" else (entry - exit_price)
+    blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+    reason = "PARTIAL+MAX_HOLD" if partial_done else "MAX_HOLD"
+    return {"exit_price": exit_price, "pnl_per_unit": blended, "exit_reason": reason, "bars_held": max_bars}
 
 
 def run_backtest(
@@ -352,16 +391,27 @@ def run_backtest(
     seed: int = 42,
     be_trigger_pct: float | None = None,
     trail_after_be_pct: float | None = None,
+    partial_tp_at_pct: float | None = None,
+    partial_tp_size: float | None = None,
+    partial_arms_be: bool | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
     be_trigger_pct: BE trigger fraction override. None = read from MICRO_ALPHA_SWEEP config.
     trail_after_be_pct: post-BE trail fraction override. None = read from config.
+    partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
+    partial_arms_be: Filter #7 Variant B (None = config default).
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
     if trail_after_be_pct is None:
         trail_after_be_pct = MICRO_ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
+    if partial_tp_at_pct is None:
+        partial_tp_at_pct = MICRO_ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
+    if partial_tp_size is None:
+        partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if partial_arms_be is None:
+        partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -494,6 +544,9 @@ def run_backtest(
             use_break_even=True,
             be_trigger_pct=be_trigger_pct,
             trail_after_be_pct=trail_after_be_pct,
+            partial_tp_at_pct=partial_tp_at_pct,
+            partial_tp_size=partial_tp_size,
+            partial_arms_be=partial_arms_be,
         )
 
         if result is None:

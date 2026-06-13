@@ -37,6 +37,9 @@ def execute_trade(
     use_break_even: bool = False,
     be_trigger_pct: float = 0.5,
     trail_after_be_pct: float = 0.0,
+    partial_tp_at_pct: float = 0.0,
+    partial_tp_size: float = 0.0,
+    partial_arms_be: bool = False,
 ) -> Optional[TradeResult]:
     """
     Walk bar-by-bar from bar_start+1, checking exits.
@@ -45,6 +48,7 @@ def execute_trade(
                           ask_open, ask_high, ask_low, ask_close
 
     Order of checks per bar:
+    0. Partial TP touch (Filter #7): bank fraction at halfway, remainder rides
     1. Gap-through SL (open past SL) → instant SL fill at open
     2. TP touch (high >= TP for long, low <= TP for short) → fill at TP
     3. SL touch (low <= SL for long, high >= SL for short) → fill at SL
@@ -58,7 +62,23 @@ def execute_trade(
       to trail SL to. 0.0 (default) = no trail (legacy BE-only behavior).
       Filter #6 tests 0.5 (trail SL to 50% of high-water-mark from entry).
       High-water-mark semantics: SL only ratchets UP for longs / DOWN for shorts.
+    partial_tp_at_pct: Filter #7. Fraction of distance to TP at which to bank
+      partial profit. 0.0 = off (legacy single-leg). 0.5 = halfway.
+    partial_tp_size: fraction of position to close at the partial level.
+      0.0 = off. 0.5 = close half, let half ride.
+      Reported pnl_per_unit is the size-weighted blend of both legs so
+      downstream sizing/equity code is unchanged.
+    partial_arms_be: Variant B. If True, partial TP firing also arms BE
+      immediately (SL ratchets to entry+slip on the partial bar) regardless
+      of be_trigger_pct. Variant A (False) keeps BE on its original schedule.
     """
+    use_partial = (partial_tp_at_pct > 0 and partial_tp_size > 0)
+    partial_target = entry + (tp - entry) * partial_tp_at_pct  # signed; works for both sides
+    partial_done = False
+    partial_pnl_per_unit = 0.0  # banked at the partial fill
+    runner_size = 1.0 - partial_tp_size if use_partial else 1.0
+    partial_size = partial_tp_size if use_partial else 0.0
+
     current_sl = sl
     bars_held = 0
     be_armed = False
@@ -79,20 +99,35 @@ def execute_trade(
             if bo <= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = bo - slip * 0.2
-                pnl = exit_price - entry
-                return TradeResult(pnl, bars_held, "sl", exit_price)
+                runner_pnl = exit_price - entry
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+sl" if partial_done else "sl"
+                return TradeResult(blended, bars_held, reason, exit_price)
+
+            # 0. Partial TP touch (Filter #7): bank fraction at halfway, runner continues
+            if use_partial and not partial_done and bh >= partial_target:
+                partial_pnl_per_unit = partial_target - entry
+                partial_done = True
+                if partial_arms_be and not be_armed:
+                    current_sl = entry + _sl_slip(bar_range)
+                    be_armed = True
+                    hwm = bh
 
             # 2. TP touch: bar high reaches TP → fill at TP (OANDA instant fill)
             if tp > 0 and bh >= tp:
-                pnl = tp - entry
-                return TradeResult(pnl, bars_held, "tp", tp)
+                runner_pnl = tp - entry
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+tp" if partial_done else "tp"
+                return TradeResult(blended, bars_held, reason, tp)
 
             # 3. SL touch: bar low reaches SL
             if bl <= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = current_sl - slip * 0.2
-                pnl = exit_price - entry
-                return TradeResult(pnl, bars_held, "sl", exit_price)
+                runner_pnl = exit_price - entry
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+sl" if partial_done else "sl"
+                return TradeResult(blended, bars_held, reason, exit_price)
 
             # 4. Break-even check (Alpha-Sweep only) — fires once
             if use_break_even and not be_armed and bh >= entry + (tp - entry) * be_trigger_pct:
@@ -122,20 +157,35 @@ def execute_trade(
             if ao >= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = ao + slip * 0.2
-                pnl = entry - exit_price
-                return TradeResult(pnl, bars_held, "sl", exit_price)
+                runner_pnl = entry - exit_price
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+sl" if partial_done else "sl"
+                return TradeResult(blended, bars_held, reason, exit_price)
+
+            # 0. Partial TP touch (Filter #7): bank fraction at halfway
+            if use_partial and not partial_done and al <= partial_target:
+                partial_pnl_per_unit = entry - partial_target
+                partial_done = True
+                if partial_arms_be and not be_armed:
+                    current_sl = entry - _sl_slip(bar_range)
+                    be_armed = True
+                    hwm = al
 
             # 2. TP touch: bar low reaches TP → fill at TP
             if tp > 0 and al <= tp:
-                pnl = entry - tp
-                return TradeResult(pnl, bars_held, "tp", tp)
+                runner_pnl = entry - tp
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+tp" if partial_done else "tp"
+                return TradeResult(blended, bars_held, reason, tp)
 
             # 3. SL touch: bar high reaches SL
             if ah >= current_sl:
                 slip = _sl_slip(bar_range)
                 exit_price = current_sl + slip * 0.2
-                pnl = entry - exit_price
-                return TradeResult(pnl, bars_held, "sl", exit_price)
+                runner_pnl = entry - exit_price
+                blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+                reason = "tp_partial+sl" if partial_done else "sl"
+                return TradeResult(blended, bars_held, reason, exit_price)
 
             # 4. Break-even for shorts — fires once
             if use_break_even and not be_armed and al <= entry - (entry - tp) * be_trigger_pct:
@@ -157,11 +207,13 @@ def execute_trade(
     last_b = min(bar_start + max_bars - 1, len(df) - 1)
     if direction == "long":
         exit_price = df["bid_close"].iat[last_b]
-        pnl = exit_price - entry
+        runner_pnl = exit_price - entry
     else:
         exit_price = df["ask_close"].iat[last_b]
-        pnl = entry - exit_price
-    return TradeResult(pnl, bars_held, "expired", exit_price)
+        runner_pnl = entry - exit_price
+    blended = partial_pnl_per_unit * partial_size + runner_pnl * runner_size
+    reason = "tp_partial+expired" if partial_done else "expired"
+    return TradeResult(blended, bars_held, reason, exit_price)
 
 
 def _sl_slip(bar_range: float) -> float:

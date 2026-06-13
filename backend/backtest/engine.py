@@ -79,12 +79,24 @@ def run_backtest(
     seed: int = 42,
     be_trigger_pct: float = 0.5,
     trail_after_be_pct: float = 0.0,
+    partial_tp_at_pct: float | None = None,
+    partial_tp_size: float | None = None,
+    partial_arms_be: bool | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
     be_trigger_pct: BE trigger fraction. Default 0.5 (production), Filter #5 tests 0.35.
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
+    partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
+    partial_arms_be: Filter #7 Variant B (None = config default).
     """
+    from backend.config import ALPHA_SWEEP
+    if partial_tp_at_pct is None:
+        partial_tp_at_pct = ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
+    if partial_tp_size is None:
+        partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if partial_arms_be is None:
+        partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -217,6 +229,12 @@ def run_backtest(
         if signal.strategy == "mean_rev" and tp == 0:
             tp = signal.entry + signal.risk * 3
 
+        # Filter #7 — partial TP only on alpha-sweep
+        if signal.strategy == "alpha_sweep":
+            ptp_at, ptp_sz, p_arms = partial_tp_at_pct, partial_tp_size, partial_arms_be
+        else:
+            ptp_at, ptp_sz, p_arms = 0.0, 0.0, False
+
         result = execute_trade(
             df=df,
             bar_start=bar_idx,
@@ -229,6 +247,9 @@ def run_backtest(
             use_break_even=(signal.strategy == "alpha_sweep"),
             be_trigger_pct=be_trigger_pct,
             trail_after_be_pct=trail_after_be_pct,
+            partial_tp_at_pct=ptp_at,
+            partial_tp_size=ptp_sz,
+            partial_arms_be=p_arms,
         )
 
         if result is None:
