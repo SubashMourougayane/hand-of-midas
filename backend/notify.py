@@ -62,6 +62,19 @@ def break_even(trade_ref: str, instrument: str, new_sl: float):
     send(f"🛡️ Break-even: {trade_ref}\nSL moved to ${new_sl:{fmt}}")
 
 
+def partial_tp(trade_ref: str, instrument: str, units_closed: int, fill_price: float,
+               banked_usd: float, units_remaining: int):
+    """Filter #7: partial TP fired. Half banked, runner continues."""
+    fmt = ".2f" if "XAU" in instrument else ".4f"
+    send(
+        f"🪓 <b>PARTIAL TP</b>\n"
+        f"{trade_ref}\n"
+        f"Closed {units_closed} units @ ${fill_price:{fmt}}\n"
+        f"Banked: ${banked_usd:+.2f}\n"
+        f"Runner: {units_remaining} units (full TP/SL/BE/trail apply)"
+    )
+
+
 def error(message: str):
     send(f"⚠️ <b>ERROR</b>\n{message}")
 

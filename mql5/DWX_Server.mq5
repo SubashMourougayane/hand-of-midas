@@ -14,6 +14,7 @@ input string InpSymbols = "XAUUSD.ecn,BRENT.ecn";  // Symbols to stream (comma-s
 input int    InpTimerMs = 25;                        // Timer interval (ms)
 input string InpFolder  = "DWX";                    // Folder in MQL5/Files/
 input int    InpMagic   = 200000;                   // Magic number base
+input bool   InpPartialTPEnabled = true;            // Filter #7: allow CLOSE_PARTIAL action
 
 string g_symbols[];
 int    g_numSymbols;
@@ -306,6 +307,26 @@ void ProcessCommand(string cmd, string filename)
     {
         ExecuteCloseAll();
     }
+    else if(action == "CLOSE_PARTIAL" && n >= 3)
+    {
+        // CLOSE_PARTIAL|TICKET|VOLUME_LOTS
+        // Filter #7: close partial volume of a position. Remainder stays open
+        // with original SL/TP. OnTradeTransaction logs the partial close to
+        // closed_orders.json with the same JSON shape as full closes — Python
+        // detects "partial" by comparing volume to the original position size.
+        if(!InpPartialTPEnabled)
+        {
+            WriteFile(g_folder + "/last_response.json",
+                "{\"success\":false,\"error\":\"PartialTP disabled (InpPartialTPEnabled=false)\"}");
+            Print("[DWX] CLOSE_PARTIAL rejected: feature flag off");
+        }
+        else
+        {
+            ulong ticket = (ulong)StringToInteger(parts[1]);
+            double volumeLots = StringToDouble(parts[2]);
+            ExecuteClosePartial(ticket, volumeLots);
+        }
+    }
     else
     {
         Print("[DWX] Unknown command: ", action);
@@ -478,6 +499,101 @@ void ExecuteCloseAll()
         }
     }
     Print("[DWX] CloseAll: closed ", closed, " positions");
+}
+
+//+------------------------------------------------------------------+
+//| Close PARTIAL position volume (Filter #7)                        |
+//| Sends an opposite-side market deal with volume < position volume.|
+//| MT5 nets it against the existing position: position remains open |
+//| with reduced volume, and a partial close shows in deal history   |
+//| (which OnTradeTransaction picks up and writes to closed_orders).  |
+//+------------------------------------------------------------------+
+void ExecuteClosePartial(ulong ticket, double volumeLots)
+{
+    if(!PositionSelectByTicket(ticket))
+    {
+        WriteFile(g_folder + "/last_response.json",
+            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket));
+        return;
+    }
+
+    string symbol = PositionGetString(POSITION_SYMBOL);
+    double posVolume = PositionGetDouble(POSITION_VOLUME);
+    long   posType   = PositionGetInteger(POSITION_TYPE);
+
+    // Sanity: requested volume must be > 0 and < full position size
+    // (= full close should use CLOSE, not CLOSE_PARTIAL).
+    double minLot  = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+    double lotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+    if(lotStep > 0)
+        volumeLots = MathRound(volumeLots / lotStep) * lotStep;
+    if(volumeLots < minLot)
+    {
+        WriteFile(g_folder + "/last_response.json",
+            StringFormat("{\"success\":false,\"error\":\"Requested partial volume %.4f below min %.4f\"}",
+                volumeLots, minLot));
+        return;
+    }
+    if(volumeLots >= posVolume)
+    {
+        WriteFile(g_folder + "/last_response.json",
+            StringFormat("{\"success\":false,\"error\":\"Requested partial volume %.2f >= position volume %.2f (use CLOSE not CLOSE_PARTIAL)\"}",
+                volumeLots, posVolume));
+        return;
+    }
+    // Remaining volume must also be >= minLot, else broker rejects (orphan dust).
+    double remaining = posVolume - volumeLots;
+    if(remaining < minLot)
+    {
+        WriteFile(g_folder + "/last_response.json",
+            StringFormat("{\"success\":false,\"error\":\"Remaining %.4f < min lot %.4f after partial — would orphan dust\"}",
+                remaining, minLot));
+        return;
+    }
+
+    MqlTradeRequest request = {};
+    MqlTradeResult result = {};
+
+    request.action     = TRADE_ACTION_DEAL;
+    request.position   = ticket;
+    request.symbol     = symbol;
+    request.volume     = volumeLots;
+    request.deviation  = 20;
+    request.magic      = InpMagic;
+    request.type_filling = ORDER_FILLING_FOK;
+
+    if(posType == POSITION_TYPE_BUY)
+    {
+        request.type  = ORDER_TYPE_SELL;
+        request.price = SymbolInfoDouble(symbol, SYMBOL_BID);
+    }
+    else
+    {
+        request.type  = ORDER_TYPE_BUY;
+        request.price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+    }
+
+    bool success = OrderSend(request, result);
+
+    string response = StringFormat(
+        "{\"success\":%s,\"ticket\":%d,\"close_price\":%.5f,\"closed_volume\":%.2f,"
+        "\"remaining_volume\":%.2f,\"retcode\":%d,\"comment\":\"%s\",\"partial\":true}",
+        success ? "true" : "false",
+        ticket,
+        result.price,
+        success ? volumeLots : 0.0,
+        success ? remaining  : posVolume,
+        result.retcode,
+        result.comment
+    );
+
+    WriteFile(g_folder + "/last_response.json", response);
+
+    if(success)
+        Print("[DWX] PARTIAL #", ticket, " closed ", volumeLots, " lots @ ", result.price,
+              " (remaining=", remaining, ")");
+    else
+        Print("[DWX] PARTIAL FAILED #", ticket, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+

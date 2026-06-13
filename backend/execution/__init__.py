@@ -17,6 +17,7 @@ if EXECUTOR == "mt5":
         place_market_order,
         modify_stop_loss,
         close_trade,
+        close_partial_trade,
         get_trade_details,
         is_connected,
     )
@@ -31,6 +32,10 @@ else:
         close_trade,
         get_trade_details,
     )
+
+    def close_partial_trade(*args, **kwargs):
+        """Filter #7 — only implemented in MT5 path. OANDA executor is legacy."""
+        return {"success": False, "error": "close_partial_trade not implemented for OANDA executor"}
 
     def is_connected():
         return True

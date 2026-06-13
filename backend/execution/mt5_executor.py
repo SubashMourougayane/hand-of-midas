@@ -341,6 +341,58 @@ def close_trade(trade_id):
     }
 
 
+def close_partial_trade(trade_id, units_to_close, instrument="XAU_USD"):
+    """Filter #7: close PART of an open position.
+
+    Args:
+        trade_id: broker ticket (string)
+        units_to_close: position units (oz for XAU, barrels for BCO).
+                        Converted to lots using same formula as place_market_order.
+        instrument: needed for unit→lot conversion. Pass the same instrument
+                    that opened the trade (e.g. "XAU_USD" or "BCO_USD").
+
+    Returns:
+        dict {success, close_price, closed_units, remaining_units, error}
+    """
+    symbol = _mt5_symbol(instrument)
+    if "XAU" in symbol:
+        lots = units_to_close / 100.0
+    elif "BRENT" in symbol or "BCO" in symbol:
+        lots = units_to_close / 1000.0
+    else:
+        lots = units_to_close / 100000.0
+    lots = round(max(lots, 0.01), 2)
+
+    cmd = f"CLOSE_PARTIAL|{trade_id}|{lots}"
+    response = _send_command(cmd, timeout=10)
+    if not response:
+        return {"success": False, "error": "Timeout waiting for EA response"}
+
+    if not response.get("success"):
+        return {
+            "success": False,
+            "error": response.get("error") or response.get("comment", "Unknown"),
+            "retcode": response.get("retcode"),
+        }
+
+    closed_lots = response.get("closed_volume", lots)
+    remaining_lots = response.get("remaining_volume", 0)
+    # Convert lots back to units (same formula, inverse direction)
+    if "XAU" in symbol:
+        units_factor = 100.0
+    elif "BRENT" in symbol or "BCO" in symbol:
+        units_factor = 1000.0
+    else:
+        units_factor = 100000.0
+    return {
+        "success": True,
+        "close_price": response.get("close_price", 0),
+        "closed_units": int(round(closed_lots * units_factor)),
+        "remaining_units": int(round(remaining_lots * units_factor)),
+        "error": None,
+    }
+
+
 def get_trade_details(trade_id):
     """Get details of a specific trade. Checks open_orders.json first; if the
     trade is no longer open, falls back to closed_orders.json (written by the

@@ -86,8 +86,19 @@ CREATE TABLE IF NOT EXISTS gd_trades (
     exit_reason VARCHAR(30),
     mode VARCHAR(10) DEFAULT 'paper',
     oanda_trade_id VARCHAR(30),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    -- Filter #7: Partial TP at 50%
+    partial_done BOOLEAN DEFAULT FALSE,
+    partial_fill_price DECIMAL(10,4),
+    partial_units INTEGER,
+    partial_pnl_usd DECIMAL(10,2)
 );
+
+-- Idempotent column adds for upgrades from pre-Filter-#7 schema
+ALTER TABLE gd_trades ADD COLUMN IF NOT EXISTS partial_done BOOLEAN DEFAULT FALSE;
+ALTER TABLE gd_trades ADD COLUMN IF NOT EXISTS partial_fill_price DECIMAL(10,4);
+ALTER TABLE gd_trades ADD COLUMN IF NOT EXISTS partial_units INTEGER;
+ALTER TABLE gd_trades ADD COLUMN IF NOT EXISTS partial_pnl_usd DECIMAL(10,2);
 
 -- Signals (every signal generated, taken or skipped)
 CREATE TABLE IF NOT EXISTS gd_signals (
