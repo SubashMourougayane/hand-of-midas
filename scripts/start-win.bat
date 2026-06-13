@@ -24,6 +24,22 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5055" ^| findstr "LISTENING
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5056" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3001" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 
+REM Rotate prior logs (restart-based; preserves week-long history across restarts).
+REM Date format normalization: %date% on Windows can be "Fri 06/12/2026" or "12-06-2026" depending on locale.
+REM Use PowerShell to get a deterministic timestamp.
+for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmm"') do set "TS=%%i"
+echo [LOG ROTATE] timestamp=%TS%
+if exist logs\gold.log ren logs\gold.log gold.%TS%.log
+if exist logs\oil.log ren logs\oil.log oil.%TS%.log
+if exist logs\micro.log ren logs\micro.log micro.%TS%.log
+if exist logs\oil-micro.log ren logs\oil-micro.log oil-micro.%TS%.log
+if exist logs\frontend.log ren logs\frontend.log frontend.%TS%.log
+
+REM Default observability log level (DEBUG = max verbosity for week-long observability run).
+REM Override at any time by setting HOM_LOG_LEVEL=INFO|WARN|ERROR before running this script.
+if not defined HOM_LOG_LEVEL set HOM_LOG_LEVEL=DEBUG
+echo [LOG LEVEL] HOM_LOG_LEVEL=%HOM_LOG_LEVEL%
+
 echo [1/5] Starting Gold Macro Backend (port 5053)...
 start /B cmd /c "cd /d C:\hand-of-midas && python -m uvicorn backend.main:app --host 0.0.0.0 --port 5053 > logs\gold.log 2>&1"
 echo       OK

@@ -19,6 +19,7 @@ from backend.execution import (
 from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
+from scanner import _log
 
 _price_extremes = {}
 
@@ -173,6 +174,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             return None
 
     oanda_units = units if direction == "long" else -units
+    _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL-MICRO] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
 
     result = place_market_order(
@@ -185,12 +187,14 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     if not result.get("success"):
         error = result.get("error", "Unknown")
+        _log.error("BROKER", "order_failed", direction=direction, units=units, err=error, trade_ref=trade_ref)
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason=f"order_error: {error}")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": error})
         print(f"  [OIL-MICRO] Order FAILED: {error}")
         return None
 
     fill_price = result["fill_price"]
+    _log.info("BROKER", "order_filled", direction=direction, units=units, fill=fill_price, oanda_id=result.get("trade_id"), trade_ref=trade_ref)
     oanda_trade_id = result["trade_id"]
 
     try:
@@ -205,6 +209,7 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             (trade_ref, strategy, direction.upper(), fill_price, sl_price, tp_price, units / 1000.0, units, oanda_trade_id)
         )
     except Exception as e:
+        _log.exception("DB", "trade_insert_failed_orphan_risk", trade_ref=trade_ref, oanda_id=oanda_trade_id, fill=fill_price, err=str(e))
         print(f"  [OIL-MICRO] DB INSERT FAILED (trade is open on OANDA!): {e}")
         try:
             _log_journal(trade_ref, strategy, "DB_INSERT_FAILED", fill_price, {"error": str(e), "oanda_id": oanda_trade_id})
@@ -233,6 +238,7 @@ def check_open_positions():
         fetch=True
     )
 
+    _log.debug("POSITION", "tick", open=len(open_db_trades) if open_db_trades else 0)
     if not open_db_trades:
         return
 
@@ -250,6 +256,7 @@ def check_open_positions():
                 else:
                     _price_extremes[oid]["high"] = max(_price_extremes[oid]["high"], mid)
                     _price_extremes[oid]["low"] = min(_price_extremes[oid]["low"], mid)
+                _log.debug("POSITION", "state", ref=trade["trade_ref"], side=trade["side"], entry=float(trade["entry_price"]), sl=float(trade["sl_price"] or 0), tp=float(trade["tp_price"] or 0), current=mid, mae=_price_extremes[oid]["low"] if trade["side"]=="LONG" else _price_extremes[oid]["high"], mfe=_price_extremes[oid]["high"] if trade["side"]=="LONG" else _price_extremes[oid]["low"])
 
     for trade in open_db_trades:
         oanda_id = trade["oanda_trade_id"]
@@ -261,6 +268,7 @@ def check_open_positions():
                     entry_time = entry_time.replace(tzinfo=timezone.utc)
                 bars_held = (datetime.now(timezone.utc) - entry_time).total_seconds() / 180
                 if bars_held >= MICRO_ALPHA_SWEEP["max_bars"]:
+                    _log.info("EXIT", "max_hold_force_close", ref=trade["trade_ref"], bars_held=int(bars_held), max_bars=MICRO_ALPHA_SWEEP["max_bars"], oanda_id=oanda_id)
                     print(f"  [OIL-MICRO MAX HOLD] {trade['trade_ref']} held {bars_held:.0f} bars — force closing")
                     result = close_trade(oanda_id)
                     if result.get("success"):
@@ -279,11 +287,13 @@ def check_open_positions():
                             (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl)
+                        _log.info("EXIT", "detected", ref=trade["trade_ref"], reason="MAX_HOLD", fill=close_price, pnl_usd=pnl_usd, bars_held=int(bars_held), source="max_hold")
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", close_price, {
                             "reason": "MAX_HOLD", "bars_held": int(bars_held), "pnl_usd": pnl_usd,
                         })
                         notify.trade_closed(trade["trade_ref"], "BCO_USD", "MAX_HOLD", realized_pl, pnl_usd)
                     else:
+                        _log.error("BROKER", "max_hold_close_failed", ref=trade["trade_ref"], oanda_id=oanda_id, err=result.get("error", "Unknown"))
                         _log_journal(trade["trade_ref"], trade["strategy"], "CLOSE_FAILED", None, {
                             "reason": "MAX_HOLD", "error": result.get("error", "Unknown"),
                         })
@@ -329,6 +339,7 @@ def check_open_positions():
                 else:
                     print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both/neither). Skipping — retry next cycle.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -350,6 +361,7 @@ def check_open_positions():
                 else:
                     print(f"  [OIL-MICRO] Position {oanda_id} closed but reason AMBIGUOUS "
                           f"(both/neither). Skipping — retry next cycle.")
+                    _log.warn("EXIT", "ambiguous", trade_ref=trade["trade_ref"], oanda_id=oanda_id, sl_reached=bool(sl_reached), tp_reached=bool(tp_reached), extremes=extremes)
                     _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_AMBIGUOUS", None, {
                         "oanda_id": oanda_id, "sl_reached": bool(sl_reached), "tp_reached": bool(tp_reached),
                         "extremes": extremes,
@@ -384,6 +396,7 @@ def check_open_positions():
         )
 
         _update_dd_after_exit(realized_pl)
+        _log.info("EXIT", "detected", trade_ref=trade["trade_ref"], reason=exit_reason, fill=fill_price, pnl_usd=pnl_usd, oanda_id=oanda_id)
         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", fill_price, {
             "reason": exit_reason, "pnl_usd": pnl_usd, "oanda_id": oanda_id,
         })
@@ -393,6 +406,8 @@ def check_open_positions():
 
 def _update_dd_after_exit(realized_pl_gbp: float):
     dd_state = _get_dd_state()
+    old_consecutive = dd_state["consecutive_losses"]
+    old_pause = dd_state["pause_counter"]
     if realized_pl_gbp > 0:
         new_consecutive = 0
     else:
@@ -400,6 +415,9 @@ def _update_dd_after_exit(realized_pl_gbp: float):
     new_pause = dd_state["pause_counter"]
     if new_consecutive >= DD_PROTECTION["consecutive_loss_pause"]:
         new_pause = DD_PROTECTION["pause_signals"]
+    _log.info("SYSTEM", "dd_state_update", pl=realized_pl_gbp, consec_old=old_consecutive, consec_new=new_consecutive, pause_old=old_pause, pause_new=new_pause, threshold=DD_PROTECTION["consecutive_loss_pause"])
+    if new_pause != old_pause and new_pause > 0:
+        _log.warn("SYSTEM", "dd_pause_armed", consecutive_losses=new_consecutive, pause_signals=new_pause)
     _update_dd_state(new_consecutive, new_pause)
 
 
@@ -410,11 +428,13 @@ def check_alpha_sweep_breakeven():
         fetch=True
     )
 
+    _log.debug("POSITION", "be_check_tick", open=len(open_trades) if open_trades else 0)
     if not open_trades:
         return
 
     price = get_current_price(instrument="BCO_USD")
     if not price:
+        _log.warn("BROKER", "be_check_no_price")
         return
 
     cfg = MICRO_ALPHA_SWEEP
@@ -425,39 +445,50 @@ def check_alpha_sweep_breakeven():
         side = trade["side"]
 
         if tp <= 0:
+            _log.debug("POSITION", "be_skip_no_tp", ref=trade["trade_ref"])
             continue
 
         if side == "LONG":
             if tp <= entry or sl >= entry:
+                _log.debug("POSITION", "be_skip_already_armed_or_invalid", ref=trade["trade_ref"], side=side, entry=entry, sl=sl, tp=tp)
                 continue
             target_50 = entry + (tp - entry) * cfg["be_trigger_pct"]
+            _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_bid=price["bid"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=target_50-price["bid"])
             if price["bid"] >= target_50:
                 new_sl = entry + 0.01
+                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["bid"], target_50=target_50, old_sl=sl, new_sl=new_sl)
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
+                    _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["bid"])
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN", new_sl, {
                         "old_sl": sl, "trigger_price": price["bid"], "source": "scheduler",
                     })
                     print(f"  [OIL-MICRO] LONG break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
+                    _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN_FAILED", None, {
                         "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"),
                     })
         else:
             if tp >= entry or sl <= entry:
+                _log.debug("POSITION", "be_skip_already_armed_or_invalid", ref=trade["trade_ref"], side=side, entry=entry, sl=sl, tp=tp)
                 continue
             target_50 = entry - (entry - tp) * cfg["be_trigger_pct"]
+            _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_ask=price["ask"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=price["ask"]-target_50)
             if price["ask"] <= target_50:
                 new_sl = entry - 0.01
+                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["ask"], target_50=target_50, old_sl=sl, new_sl=new_sl)
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
+                    _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["ask"])
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN", new_sl, {
                         "old_sl": sl, "trigger_price": price["ask"], "source": "scheduler",
                     })
                     print(f"  [OIL-MICRO] SHORT break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
+                    _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN_FAILED", None, {
                         "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"),
                     })
@@ -476,9 +507,11 @@ def reconcile_orphans():
     try:
         broker_open = get_open_trades(instrument="BCO_USD") or []
     except Exception as e:
+        _log.exception("SYSTEM", "reconcile_get_open_trades_failed", err=str(e))
         print(f"  [OIL-MICRO] reconcile_orphans: get_open_trades failed: {e}")
         return
 
+    _log.debug("POSITION", "reconcile_tick", broker_open=len(broker_open))
     if not broker_open:
         return
 
@@ -506,6 +539,7 @@ def reconcile_orphans():
         # all skip without coordination.
         comment = (pos.get("comment") or "")
         if comment.lower().startswith("harness"):
+            _log.debug("POSITION", "reconcile_skip_harness", broker_id=broker_id, comment=comment)
             continue
 
         # ORPHAN — adopt it
@@ -516,6 +550,7 @@ def reconcile_orphans():
             # harness/test trade or partial-close artifact — not our trade
             # to manage. Adopting with units=0 produces a ghost row that
             # can never be reconciled or P&L-accounted.
+            _log.warn("POSITION", "reconcile_skip_sub_lot", broker_id=broker_id, units_signed=units_signed)
             continue
         side = "LONG" if units_signed > 0 else "SHORT"
         entry_price = float(pos.get("price", 0))
@@ -524,6 +559,7 @@ def reconcile_orphans():
         lot_size = units / 1000.0  # oil: 1 lot = 1000 barrels
 
         trade_ref = f"{TRADE_REF_PREFIX}orphan-{broker_id[-8:]}"
+        _log.warn("POSITION", "orphan_detected", broker_id=broker_id, side=side, units=units, entry=entry_price, sl=sl, tp=tp, comment=comment, trade_ref=trade_ref)
 
         try:
             inserted = execute(
@@ -539,6 +575,7 @@ def reconcile_orphans():
                 fetch=True
             )
         except Exception as e:
+            _log.exception("DB", "orphan_adopt_insert_failed", broker_id=broker_id, trade_ref=trade_ref, err=str(e))
             print(f"  [OIL-MICRO] reconcile_orphans: INSERT failed for {broker_id}: {e}")
             _log_journal_safe("SYSTEM", "micro_alpha_sweep_oil", "ORPHAN_ADOPT_FAILED",
                               entry_price, {"broker_id": broker_id, "error": str(e)})
@@ -547,8 +584,10 @@ def reconcile_orphans():
         # If ON CONFLICT skipped the insert, RETURNING is empty. Already adopted
         # by us or another system — don't re-fire notifications.
         if not inserted:
+            _log.debug("POSITION", "orphan_adopt_conflict_no_insert", broker_id=broker_id, trade_ref=trade_ref)
             continue
 
+        _log.warn("POSITION", "orphan_adopted", trade_ref=trade_ref, broker_id=broker_id, side=side, units=units, entry=entry_price, sl=sl, tp=tp)
         _log_journal_safe(trade_ref, "micro_alpha_sweep_oil", "ORPHAN_ADOPTED",
                           entry_price, {
                               "broker_id": broker_id, "side": side, "units": units,
@@ -558,6 +597,7 @@ def reconcile_orphans():
         try:
             notify.orphan_adopted(trade_ref, broker_id, "BCO_USD", side, units, entry_price, sl, tp)
         except Exception as e:
+            _log.exception("SYSTEM", "orphan_notify_failed", trade_ref=trade_ref, err=str(e))
             print(f"  [OIL-MICRO] reconcile_orphans: notify failed: {e}")
 
         print(f"  [OIL-MICRO] ORPHAN ADOPTED: {trade_ref} (broker {broker_id}) — investigate logs")

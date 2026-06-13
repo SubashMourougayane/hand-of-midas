@@ -13,6 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.execution import get_candles, get_current_price
 from backend.scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, reconcile_orphans, _get_dd_state, _log_journal, _log_journal_safe
+from backend.scanner import _log
 from backend.db import execute, get_conn
 import re
 
@@ -35,6 +36,7 @@ def daily_close_job():
     22:00 UTC — Run Cross-Market consensus + Mean-Rev dip check.
     Also: check Mean-Rev condition exits, enforce max hold, manage open trades.
     """
+    _log.info("SCAN", "daily_close_job_start", time=datetime.now(timezone.utc).isoformat())
     print(f"\n[{datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC] Daily close job running...")
     _log_journal("SYSTEM", "system", "DAILY_SCAN_START", context={"time": datetime.now(timezone.utc).isoformat()})
 
@@ -42,26 +44,31 @@ def daily_close_job():
     try:
         _check_mean_rev_exit()
     except Exception as e:
+        _log.exception("SYSTEM", "mean_rev_exit_failed", err=str(e))
         print(f"  Mean-Rev exit check error: {e}")
 
     try:
         _check_max_hold_exits()
     except Exception as e:
+        _log.exception("SYSTEM", "max_hold_exit_failed", err=str(e))
         print(f"  Max hold check error: {e}")
 
     # Then: check for new signals
     try:
         _run_cross_market()
     except Exception as e:
+        _log.exception("SYSTEM", "cross_market_failed", err=str(e))
         print(f"  Cross-Market error: {e}")
         _log_journal("SYSTEM", "cross_market", "ERROR", context={"error": str(e)})
 
     try:
         _run_mean_rev()
     except Exception as e:
+        _log.exception("SYSTEM", "mean_rev_failed", err=str(e))
         print(f"  Mean-Rev error: {e}")
         _log_journal("SYSTEM", "mean_rev", "ERROR", context={"error": str(e)})
 
+    _log.info("SCAN", "daily_close_job_complete")
     print(f"  Daily close job complete.")
 
 
@@ -73,12 +80,14 @@ def _check_mean_rev_exit():
         "SELECT * FROM gd_trades WHERE strategy='mean_rev' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
         fetch=True
     )
+    _log.debug("POSITION", "mean_rev_exit_check_tick", open=len(open_mr) if open_mr else 0)
     if not open_mr:
         return
 
     # Fetch daily data for condition check
     candles = get_candles(instrument="XAU_USD", granularity="D", count=15, price="BA")
     if len(candles) < 12:
+        _log.warn("BROKER", "mean_rev_daily_too_few", got=len(candles), need=12)
         return
 
     closes = [(c["bid_close"] + c["ask_close"]) / 2 for c in candles]
@@ -97,15 +106,18 @@ def _check_mean_rev_exit():
 
     # Conditions reversed if c1 >= -0.4 OR c2 >= -0.8
     conditions_reversed = (c1 >= MEAN_REV["condition1_threshold"] or c2 >= MEAN_REV["condition2_threshold"])
+    _log.debug("SCAN", "mean_rev_conditions", c1=c1, c2=c2, c1_thr=MEAN_REV["condition1_threshold"], c2_thr=MEAN_REV["condition2_threshold"], reversed=conditions_reversed)
 
     for trade in open_mr:
         entry_time = trade["entry_time"]
         days_held = (datetime.now(timezone.utc) - entry_time.replace(tzinfo=timezone.utc if entry_time.tzinfo is None else entry_time.tzinfo)).days
 
         should_exit = conditions_reversed or days_held >= MEAN_REV["max_hold_days"]
+        _log.debug("POSITION", "mean_rev_trade_check", ref=trade["trade_ref"], days_held=days_held, max_days=MEAN_REV["max_hold_days"], should_exit=should_exit, reversed=conditions_reversed)
 
         if should_exit:
             reason = "CONDITION_EXIT" if conditions_reversed else "MAX_HOLD"
+            _log.info("EXIT", "mean_rev_force_close", ref=trade["trade_ref"], reason=reason, days_held=days_held, c1=c1, c2=c2)
             print(f"  [mean_rev] Closing trade {trade['trade_ref']}: {reason} (held {days_held}d, c1={c1:.2f}, c2={c2:.2f})")
 
             result = close_trade(trade["oanda_trade_id"])
@@ -130,8 +142,11 @@ def _check_mean_rev_exit():
                 new_eq = dd_state["equity"] + pnl_usd
                 _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
 
+                _log.info("EXIT", "detected", ref=trade["trade_ref"], reason=reason, fill=result["close_price"], pnl_usd=pnl_usd, days_held=days_held, source="mean_rev_exit")
                 _log_journal(trade["trade_ref"], "mean_rev", "EXIT_FILLED", result["close_price"],
                     {"reason": reason, "pnl_gbp": realized_pl, "pnl_usd": pnl_usd, "days_held": days_held})
+            else:
+                _log.error("BROKER", "mean_rev_close_failed", ref=trade["trade_ref"], err=result.get("error", "Unknown"))
 
 
 def _check_max_hold_exits():
@@ -142,14 +157,17 @@ def _check_max_hold_exits():
         "SELECT * FROM gd_trades WHERE strategy='cross_market' AND exit_time IS NULL AND oanda_trade_id IS NOT NULL",
         fetch=True
     )
+    _log.debug("POSITION", "max_hold_check_tick", open=len(open_cm) if open_cm else 0)
     if not open_cm:
         return
 
     for trade in open_cm:
         entry_time = trade["entry_time"]
         days_held = (datetime.now(timezone.utc) - entry_time.replace(tzinfo=timezone.utc if entry_time.tzinfo is None else entry_time.tzinfo)).days
+        _log.debug("POSITION", "max_hold_trade_check", ref=trade["trade_ref"], days_held=days_held, max_days=CROSS_MARKET["max_hold_days"])
 
         if days_held >= CROSS_MARKET["max_hold_days"]:
+            _log.info("EXIT", "max_hold_force_close", ref=trade["trade_ref"], days_held=days_held, source="cross_market")
             print(f"  [cross_market] Closing trade {trade['trade_ref']}: MAX_HOLD ({days_held}d)")
 
             result = close_trade(trade["oanda_trade_id"])
@@ -170,6 +188,7 @@ def _check_max_hold_exits():
                 new_eq = dd_state["equity"] + pnl_usd
                 _update_dd_state(new_consec, dd_state["pause_counter"], new_eq, max(dd_state["peak_equity"], new_eq))
 
+                _log.info("EXIT", "detected", ref=trade["trade_ref"], reason="MAX_HOLD", fill=result["close_price"], pnl_usd=pnl_usd, days_held=days_held, source="cross_market")
                 _log_journal(trade["trade_ref"], "cross_market", "EXIT_FILLED", result["close_price"],
                     {"reason": "MAX_HOLD", "pnl_gbp": realized_pl, "pnl_usd": pnl_usd, "days_held": days_held})
 
@@ -177,6 +196,7 @@ def _check_max_hold_exits():
 def _run_cross_market():
     """Check Cross-Market consensus signal."""
     cfg = CROSS_MARKET
+    _log.info("SCAN", "cross_market_start")
 
     # Don't open a new Cross-Market if one is already open
     open_cm = execute(
@@ -184,6 +204,7 @@ def _run_cross_market():
         fetch=True
     )
     if open_cm and open_cm[0]["cnt"] > 0:
+        _log.debug("GATE", "cross_market_open_position", db_count=open_cm[0]["cnt"])
         print(f"  Cross-Market: skipping — already has open position")
         return
 
@@ -196,6 +217,7 @@ def _run_cross_market():
         last_ts = last_signal[0]["timestamp"]
         days_since = (datetime.now(timezone.utc) - last_ts.replace(tzinfo=timezone.utc if last_ts.tzinfo is None else last_ts.tzinfo)).days
         if days_since < cfg["min_bar_gap"]:
+            _log.debug("GATE", "cross_market_min_bar_gap", days_since=days_since, min=cfg["min_bar_gap"])
             print(f"  Cross-Market: skipping — last signal {days_since}d ago (min gap: {cfg['min_bar_gap']}d)")
             return
     w = cfg["weights"]
@@ -227,15 +249,18 @@ def _run_cross_market():
 
     consensus = (se * w["eur"] + sy * w["us10y"] + ss * w["spx"] + ssi * w["silver"] + so * w["oil"] + s2 * w["us2y"]) / max_score
 
+    _log.debug("SCAN", "cross_market_consensus", consensus=consensus, threshold=cfg["consensus_min"], se=se, sy=sy, ss=ss, ssi=ssi, so=so, s2=s2)
     print(f"  Cross-Market consensus: {consensus:.3f} (threshold: {cfg['consensus_min']})")
 
     if consensus < cfg["consensus_min"]:
+        _log.debug("GATE", "cross_market_consensus_too_low", consensus=consensus, threshold=cfg["consensus_min"])
         _log_journal("SYSTEM", "cross_market", "NO_SIGNAL", context={"consensus": consensus})
         return
 
     # Signal triggered — compute entry, SL, TP using mid prices (matches backtest)
     gold_candles = get_candles(instrument="XAU_USD", granularity="D", count=20, price="BA")
     if len(gold_candles) < 15:
+        _log.warn("BROKER", "cross_market_daily_too_few", got=len(gold_candles), need=15)
         return
 
     # ATR(14) using mid prices
@@ -249,6 +274,7 @@ def _run_cross_market():
 
     price = get_current_price()
     if not price or not price["tradeable"]:
+        _log.warn("BROKER", "cross_market_no_price_or_not_tradeable", price=price)
         return
 
     br = price["ask"] - price["bid"]
@@ -257,8 +283,10 @@ def _run_cross_market():
     tp = entry + atr * cfg["tp_atr_mult"]
 
     if entry - sl < 1.0:
+        _log.debug("GATE", "cross_market_sl_too_close", entry=entry, sl=sl, distance=entry-sl)
         return
 
+    _log.info("SIGNAL", "fired", strategy="cross_market", direction="long", entry=entry, sl=sl, tp=tp, consensus=consensus, atr=atr)
     print(f"  Cross-Market SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}, ATR={atr:.1f}")
     execute_signal("cross_market", "long", entry, sl, tp, context={"consensus": consensus, "atr": atr})
 
@@ -266,6 +294,7 @@ def _run_cross_market():
 def _run_mean_rev():
     """Check Mean-Rev dip-buy conditions."""
     cfg = MEAN_REV
+    _log.info("SCAN", "mean_rev_start")
 
     # Only 1 Mean-Rev trade at a time (matches backtest in_trade logic)
     open_mr = execute(
@@ -273,12 +302,14 @@ def _run_mean_rev():
         fetch=True
     )
     if open_mr and open_mr[0]["cnt"] > 0:
+        _log.debug("GATE", "mean_rev_open_position", db_count=open_mr[0]["cnt"])
         print(f"  Mean-Rev: skipping — already has open position")
         return
 
     # Fetch 15 daily candles — use mid prices (matches backtest)
     candles = get_candles(instrument="XAU_USD", granularity="D", count=15, price="BA")
     if len(candles) < 12:
+        _log.warn("BROKER", "mean_rev_daily_too_few", got=len(candles), need=12)
         return
 
     closes = [(c["bid_close"] + c["ask_close"]) / 2 for c in candles]
@@ -295,20 +326,24 @@ def _run_mean_rev():
     avg_range_10 = np.mean(ranges[-11:-1])
 
     if range_yesterday < 0.5:
+        _log.debug("GATE", "mean_rev_range_too_small", range_yesterday=range_yesterday, min=0.5)
         return
 
     c1 = (ma10_low - close_2d_ago) / range_yesterday
     c2 = (close_yesterday - ma10_high) / range_yesterday
 
+    _log.debug("SCAN", "mean_rev_conditions", c1=c1, c2=c2, c1_thr=cfg["condition1_threshold"], c2_thr=cfg["condition2_threshold"])
     print(f"  Mean-Rev conditions: c1={c1:.3f} (<{cfg['condition1_threshold']}?), c2={c2:.3f} (<{cfg['condition2_threshold']}?)")
 
     if c1 >= cfg["condition1_threshold"] or c2 >= cfg["condition2_threshold"]:
+        _log.debug("GATE", "mean_rev_conditions_not_met", c1=c1, c2=c2)
         _log_journal("SYSTEM", "mean_rev", "NO_SIGNAL", context={"c1": c1, "c2": c2})
         return
 
     # Signal! Entry at next open (which is NOW since we run at 22:00 UTC = daily close)
     price = get_current_price()
     if not price or not price["tradeable"]:
+        _log.warn("BROKER", "mean_rev_no_price_or_not_tradeable", price=price)
         return
 
     br = price["ask"] - price["bid"]
@@ -316,8 +351,10 @@ def _run_mean_rev():
     sl = entry - avg_range_10 * cfg["sl_range_multiplier"]
 
     if entry - sl < 1.0:
+        _log.debug("GATE", "mean_rev_sl_too_close", entry=entry, sl=sl, distance=entry-sl)
         return
 
+    _log.info("SIGNAL", "fired", strategy="mean_rev", direction="long", entry=entry, sl=sl, tp=0, c1=c1, c2=c2, avg_range=avg_range_10)
     print(f"  Mean-Rev SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, avg_range={avg_range_10:.1f}")
     execute_signal("mean_rev", "long", entry, sl, 0, context={"c1": c1, "c2": c2, "avg_range": avg_range_10})
 
@@ -333,13 +370,16 @@ def london_session_job():
     cfg = ALPHA_SWEEP
 
     if hour < cfg["scan_start"] or hour > cfg["scan_end"]:
+        _log.debug("SCAN", "outside_scan_window", hour=hour, scan_start=cfg["scan_start"], scan_end=cfg["scan_end"])
         return
 
+    _log.info("SCAN", "tick", scan_start=cfg["scan_start"], scan_end=cfg["scan_end"])
     print(f"  [{now.strftime('%H:%M:%S')} UTC] Alpha-Sweep polling...")
 
     try:
         _run_alpha_sweep()
     except Exception as e:
+        _log.exception("SYSTEM", "alpha_sweep_failed", err=str(e))
         print(f"  Alpha-Sweep error: {e}")
         _log_journal("SYSTEM", "alpha_sweep", "ERROR", context={"error": str(e)})
 
@@ -355,9 +395,11 @@ def _run_alpha_sweep():
     now = datetime.now(timezone.utc)
     h1_candles = [c for c in get_candles(instrument="XAU_USD", granularity="H1", count=24, price="BA") if c.get("complete", True)]
     if len(h1_candles) < 8:
+        _log.warn("BROKER", "h1_too_few", got=len(h1_candles), need=8)
         return
     daily_candles = get_candles(instrument="XAU_USD", granularity="D", count=2, price="BA")
     if len(daily_candles) < 2:
+        _log.warn("BROKER", "daily_too_few", got=len(daily_candles), need=2)
         return
     m3_candles = get_candles(instrument="XAU_USD", granularity="M3", count=50, price="BA")
     return _run_alpha_sweep_core(now, h1_candles, daily_candles, m3_candles)
@@ -395,6 +437,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         )
         trades_today = existing[0]["cnt"] if existing else 0
         if trades_today >= cfg["max_trades_per_day"]:
+            _log.debug("GATE", "max_trades_reached", trades_today=trades_today, max=cfg["max_trades_per_day"])
             return None
 
         # 5-min cooldown after last signal attempt (taken OR failed)
@@ -409,6 +452,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             skip = recent_signal[0].get("skip_reason", "")
             if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
                 if now < last_signal_time + timedelta(minutes=5):
+                    _log.debug("GATE", "cooldown_active", last_signal=last_signal_time.isoformat(), age_seconds=int((now - last_signal_time).total_seconds()), reason="recent_signal")
                     return None  # Cooldown
 
         # One position at a time
@@ -417,6 +461,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             fetch=True
         )
         if open_macro and open_macro[0]["cnt"] > 0:
+            _log.debug("GATE", "open_position_db", db_count=open_macro[0]["cnt"])
             return None
     else:
         # Harness path: counters live in memory only.
@@ -434,13 +479,20 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             asia_bars.append(c)
 
     if len(asia_bars) < 3:
+        if not dry_run:
+            _log.debug("GATE", "asia_too_few_bars", got=len(asia_bars), need=3)
         return signals_found if dry_run else None
 
     asia_high = max(c["mid_high"] for c in asia_bars)
     asia_low = min(c["mid_low"] for c in asia_bars)
     asia_range = asia_high - asia_low
 
+    if not dry_run:
+        _log.debug("SCAN", "asia_range", high=asia_high, low=asia_low, range=asia_range, min_required=cfg["asia_min_range"])
+
     if asia_range < cfg["asia_min_range"]:
+        if not dry_run:
+            _log.debug("GATE", "asia_range_too_small", range=asia_range, min=cfg["asia_min_range"])
         return signals_found if dry_run else None
 
     # Check for sweep in scan window bars — use MID prices for parity
@@ -454,6 +506,8 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             scan_bars.append(c)
 
     if not scan_bars:
+        if not dry_run:
+            _log.debug("GATE", "no_scan_bars_yet", scan_start=cfg["scan_start"])
         return signals_found if dry_run else None
 
     # Daily bias filter — Combined V1+V2: EITHER body% OR close-position triggers
@@ -498,11 +552,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             sweeps.append(("bullish", ml, bar["timestamp"]))
 
     if not sweeps:
+        if not dry_run:
+            _log.debug("SCAN", "no_sweeps", asia_high=asia_high, asia_low=asia_low, scan_bars_checked=len(scan_bars))
         return signals_found if dry_run else None
 
     # Log sweep detection (skip in dry_run — no DB writes during harness replay)
     if not dry_run:
         for sd, sw, st in sweeps:
+            _log.debug("SCAN", "sweep_detected", dir=sd, wick=sw, time=str(st), asia_high=asia_high, asia_low=asia_low, bias=bias)
             _log_journal("SYSTEM", "alpha_sweep", "SWEEP_DETECTED",
                 price=sw, context={"direction": sd, "sweep_wick": sw, "sweep_time": str(st),
                                    "asia_high": asia_high, "asia_low": asia_low, "bias": bias})
@@ -519,13 +576,19 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         # Sweep blacklist: once consumed (traded or SL'd), never re-fires that day
         sweep_key = f"{sweep_ts}_{sweep_dir}"
         if sweep_key in _traded_sweeps_macro["keys"]:
+            if not dry_run:
+                _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
             continue
 
         # Bias filter (Variant C: neutral = allow both directions)
         if bias != "neutral":
             if sweep_dir == "bullish" and bias != "bullish":
+                if not dry_run:
+                    _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
                 continue
             if sweep_dir == "bearish" and bias != "bearish":
+                if not dry_run:
+                    _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
                 continue
 
         # Find engulfing after this sweep
@@ -539,6 +602,8 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 relevant_m3.append(c)
 
         if len(relevant_m3) < 3:
+            if not dry_run:
+                _log.debug("GATE", "engulfing_window_too_few_m3", sweep_key=sweep_key, m3_count=len(relevant_m3), expired=(now >= window_end))
             continue
 
         for j in range(2, len(relevant_m3)):
@@ -572,10 +637,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     sl = entry - cfg["min_sl"]
                     risk = cfg["min_sl"]
                 if risk < 0.3 or risk > asia_range * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "risk_out_of_band", side="long", risk=risk, min=0.3, max=asia_range*0.8, asia_range=asia_range)
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_high - tp_buf
                 if tp - entry < risk * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "tp_too_close", side="long", entry=entry, tp=tp, risk=risk, tp_distance=tp-entry, min_required=risk*0.8)
                     continue
 
                 if dry_run:
@@ -587,6 +656,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                         "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
                     })
                 else:
+                    _log.info("SIGNAL", "fired", direction="long", entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
                     print(f"  Alpha-Sweep SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
                     execute_signal("alpha_sweep", "long", entry, sl, tp, context={
                         "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
@@ -599,10 +669,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     sl = entry + cfg["min_sl"]
                     risk = cfg["min_sl"]
                 if risk < 0.3 or risk > asia_range * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "risk_out_of_band", side="short", risk=risk, min=0.3, max=asia_range*0.8, asia_range=asia_range)
                     continue
                 tp_buf = cfg.get("tp_structure_buffer", asia_range * cfg["tp_multiplier"])
                 tp = asia_low + tp_buf
                 if entry - tp < risk * 0.8:
+                    if not dry_run:
+                        _log.debug("GATE", "tp_too_close", side="short", entry=entry, tp=tp, risk=risk, tp_distance=entry-tp, min_required=risk*0.8)
                     continue
 
                 if dry_run:
@@ -614,6 +688,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                         "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
                     })
                 else:
+                    _log.info("SIGNAL", "fired", direction="short", entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
                     print(f"  Alpha-Sweep SIGNAL: SHORT @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
                     execute_signal("alpha_sweep", "short", entry, sl, tp, context={
                         "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
@@ -627,11 +702,14 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             if now >= window_end:
                 _traded_sweeps_macro["keys"].add(sweep_key)
             if not dry_run:
+                _log.debug("GATE", "no_engulfing", direction=sweep_dir, sweep_wick=sweep_wick, m3_bars_checked=len(relevant_m3), expired=(now >= window_end), bias=bias)
                 _log_journal("SYSTEM", "alpha_sweep", "NO_ENGULFING",
                     price=sweep_wick, context={"direction": sweep_dir, "sweep_wick": sweep_wick,
                                                "m3_bars_checked": len(relevant_m3), "bias": bias})
                 print(f"  [SWEEP] {sweep_dir} sweep — no engulfing found ({len(relevant_m3)} M3 bars checked)")
 
+    if not dry_run:
+        _log.info("SCAN", "complete", trades_today=trades_today)
     return signals_found if dry_run else None
 
 
@@ -661,18 +739,21 @@ def position_monitor_job():
         check_open_positions()
         check_alpha_sweep_breakeven()
     except Exception as e:
+        _log.exception("SYSTEM", "position_monitor_failed", job="position_monitor", err=str(e))
         print(f"  [GOLD] Position monitor error: {e}")
         _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "position_monitor"})
 
     try:
         reconcile_orphans()
     except Exception as e:
+        _log.exception("SYSTEM", "orphan_reconciler_failed", job="reconcile_orphans", err=str(e))
         print(f"  [GOLD] Orphan reconciler error: {e}")
         _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "reconcile_orphans"})
 
 
 def heartbeat_job():
     """Hourly heartbeat during scan window — sends Telegram status."""
+    _log.info("SYSTEM", "heartbeat_tick")
     try:
         from backend.execution import get_current_price, get_candles
         from backend import notify
@@ -735,6 +816,7 @@ def heartbeat_job():
             f"Status: {'🟢 Scanning' if price and price.get('tradeable') else '🔴 Closed'}"
         )
     except Exception as e:
+        _log.exception("SYSTEM", "heartbeat_job_failed", err=str(e))
         print(f"  Heartbeat error: {e}")
 
 
@@ -744,16 +826,20 @@ def daily_recon_job():
     from backend import notify
     from datetime import timedelta
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+    _log.info("SYSTEM", "daily_recon_start", yesterday=str(yesterday))
     try:
         stats = daily_recon_stats("GD-%", "alpha_sweep", yesterday)
+        _log.info("SYSTEM", "daily_recon_stats", yesterday=str(yesterday), stats=str(stats))
         notify.daily_recon("Gold Macro", str(yesterday), **stats)
     except Exception as e:
+        _log.exception("SYSTEM", "daily_recon_job_failed", yesterday=str(yesterday), err=str(e))
         print(f"  [GOLD] daily_recon_job error: {e}")
         _log_journal_safe("SYSTEM", "alpha_sweep", "ERROR", None, {"error": str(e), "job": "daily_recon"})
 
 
 def start_scheduler():
     """Start all scheduled jobs."""
+    _log.info("SYSTEM", "service_starting", service="gold-macro")
     # 22:00 UTC daily — Cross-Market + Mean-Rev
     scheduler.add_job(daily_close_job, "cron", hour=22, minute=0, id="daily_close")
 
@@ -770,6 +856,7 @@ def start_scheduler():
     scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="daily_recon")
 
     scheduler.start()
+    _log.info("SYSTEM", "service_started", service="gold-macro", jobs=["daily_close@22:00","alpha_sweep_poll@*/3min","position_monitor@1min","heartbeat@hourly","daily_recon@00:05"])
     print("Scheduler started:")
     print("  - Daily close (Cross-Market + Mean-Rev): 22:00 UTC")
     print("  - Alpha-Sweep poll: every 3 min, 08:00-20:00 UTC (London + NY)")
@@ -780,4 +867,6 @@ def start_scheduler():
 
 def stop_scheduler():
     """Stop the scheduler gracefully."""
+    _log.info("SYSTEM", "service_stopping", service="gold-macro")
     scheduler.shutdown(wait=False)
+    _log.info("SYSTEM", "service_stopped", service="gold-macro")
