@@ -270,14 +270,18 @@ class BacktestResult:
     losses: int = 0
 
 
-def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True, be_trigger_pct=0.5):
+def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True,
+                   be_trigger_pct=0.5, trail_after_be_pct=0.0):
     """Simple fill model for Oil Micro — walks M3 bars.
 
     be_trigger_pct: fraction of distance to TP that triggers BE move.
-      Default 0.5 (production behavior). Filter #5 tests 0.35.
+      Default 0.5 (production), Filter #5 ships 0.35.
+    trail_after_be_pct: post-BE trail fraction. 0.0 = no trail (legacy).
+      Filter #6 tests 0.5 (high-water-mark, ratchets only in favorable direction).
     """
     be_triggered = False
     be_sl = None
+    hwm = entry  # post-BE high-water-mark (longs) / low-water-mark (shorts)
 
     for i in range(1, max_bars + 1):
         idx = bar_start + i
@@ -302,6 +306,14 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
                 if mid >= target_be:
                     be_triggered = True
                     be_sl = entry + 0.01
+                    hwm = bar_high
+            # Post-BE trail
+            if be_triggered and trail_after_be_pct > 0:
+                if bar_high > hwm:
+                    hwm = bar_high
+                proposed = entry + (hwm - entry) * trail_after_be_pct
+                if proposed > be_sl:
+                    be_sl = proposed
         else:
             if bar_high >= current_sl:
                 pnl = entry - current_sl
@@ -315,6 +327,14 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
                 if mid <= target_be:
                     be_triggered = True
                     be_sl = entry - 0.01
+                    hwm = bar_low
+            # Post-BE trail (shorts)
+            if be_triggered and trail_after_be_pct > 0:
+                if bar_low < hwm:
+                    hwm = bar_low
+                proposed = entry - (entry - hwm) * trail_after_be_pct
+                if proposed < be_sl:
+                    be_sl = proposed
 
     # Max hold exit
     exit_idx = min(bar_start + max_bars, len(df) - 1)
@@ -331,14 +351,17 @@ def run_backtest(
     risk_pct: float = RISK_PCT,
     seed: int = 42,
     be_trigger_pct: float | None = None,
+    trail_after_be_pct: float | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
-    be_trigger_pct: BE trigger fraction override. None (default) = read from
-      MICRO_ALPHA_SWEEP config (post-Filter-#5: 0.35).
+    be_trigger_pct: BE trigger fraction override. None = read from MICRO_ALPHA_SWEEP config.
+    trail_after_be_pct: post-BE trail fraction override. None = read from config.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
+    if trail_after_be_pct is None:
+        trail_after_be_pct = MICRO_ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -470,6 +493,7 @@ def run_backtest(
             max_bars=signal.max_bars,
             use_break_even=True,
             be_trigger_pct=be_trigger_pct,
+            trail_after_be_pct=trail_after_be_pct,
         )
 
         if result is None:

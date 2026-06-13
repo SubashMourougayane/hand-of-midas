@@ -32,6 +32,13 @@ from scanner import _log
 _exit_ambiguous_streak: dict = {}
 _EXIT_AMBIGUOUS_ALERT_CYCLES = 5
 
+# Filter #6: post-BE high-water-mark per trade. Keyed by oanda_trade_id.
+# For LONG: tracks highest bid seen since BE armed.
+# For SHORT: tracks lowest ask seen since BE armed.
+# Used to compute trail SL = entry ± (hwm - entry) × ALPHA_SWEEP["trail_after_be_pct"].
+# SL only ratchets in favorable direction (high-water-mark semantics).
+_post_be_hwm: dict = {}
+
 
 def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: float,
                 taken: bool, skip_reason: str = "", trade_ref: str = ""):
@@ -256,6 +263,7 @@ def check_open_positions():
                             (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl, pnl_usd)
+                        _post_be_hwm.pop(trade.get("oanda_trade_id"), None)  # Filter #6: clean up trail HWM
                         _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", result["close_price"], {
                             "reason": "MAX_HOLD", "bars_held": int(bars_held),
                             "pnl_gbp": realized_pl, "pnl_usd": pnl_usd,
@@ -315,6 +323,7 @@ def check_open_positions():
 
         # AUTHORITATIVE: real broker fill data — clear ambiguous streak.
         _exit_ambiguous_streak.pop(oanda_id, None)
+        _post_be_hwm.pop(oanda_id, None)  # Filter #6: clean up trail HWM
         fill_price = float(details.get("close_price", 0))
         realized_pl = float(details["realized_pl"])
         close_time = details.get("close_time", datetime.now(timezone.utc).isoformat())
@@ -392,18 +401,47 @@ def check_alpha_sweep_breakeven():
             _log.debug("POSITION", "be_skip_no_tp", ref=trade["trade_ref"])
             continue
 
+        oid = trade["oanda_trade_id"]
+        trail_pct = ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
+
         if side == "LONG":
             if tp <= entry:
                 continue
+            # Already armed → check if we should trail (Filter #6).
             if sl >= entry:
-                _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
+                if trail_pct <= 0:
+                    _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
+                    continue
+                # Update HWM (longs: highest bid seen post-BE)
+                cur = price["bid"]
+                hwm = _post_be_hwm.get(oid, cur)
+                if cur > hwm:
+                    hwm = cur
+                _post_be_hwm[oid] = hwm
+                proposed_sl = entry + (hwm - entry) * trail_pct
+                # Cap at TP - small buffer to avoid SL >= TP race
+                proposed_sl = min(proposed_sl, tp - 0.05)
+                if proposed_sl > sl + 0.005:  # 0.5c minimum delta to avoid noisy modifies
+                    _log.info("POSITION", "trail_triggered", ref=trade["trade_ref"], side=side,
+                              hwm=hwm, current_bid=cur, old_sl=sl, new_sl=proposed_sl, trail_pct=trail_pct)
+                    result = modify_stop_loss(oid, proposed_sl)
+                    if result.get("success"):
+                        execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (proposed_sl, trade["trade_ref"]))
+                        _log_journal(trade["trade_ref"], "alpha_sweep_oil", "TRAIL_SL", proposed_sl, {
+                            "old_sl": sl, "hwm": hwm, "trail_pct": trail_pct, "source": "scheduler",
+                        })
+                        print(f"  [OIL] LONG trail: SL {sl:.4f} → {proposed_sl:.4f}  (hwm={hwm:.4f})")
+                    else:
+                        _log.error("POSITION", "trail_modify_failed", ref=trade["trade_ref"], side=side,
+                                   old_sl=sl, attempted_sl=proposed_sl, err=result.get("error", "Unknown"))
                 continue
+            # Not yet armed: regular BE check
             target_50 = entry + (tp - entry) * ALPHA_SWEEP["be_trigger_pct"]
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_bid=price["bid"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=target_50-price["bid"])
             if price["bid"] >= target_50:
                 new_sl = entry + 0.01
                 _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["bid"], target_50=target_50, old_sl=sl, new_sl=new_sl)
-                result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
+                result = modify_stop_loss(oid, new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["bid"])
@@ -411,6 +449,9 @@ def check_alpha_sweep_breakeven():
                         "old_sl": sl, "trigger_price": price["bid"], "source": "scheduler",
                     })
                     notify.break_even(trade["trade_ref"], "BCO_USD", new_sl)
+                    # Initialize HWM for the trail (if enabled)
+                    if trail_pct > 0:
+                        _post_be_hwm[oid] = price["bid"]
                     print(f"  [OIL] LONG break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
                     _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
@@ -420,15 +461,40 @@ def check_alpha_sweep_breakeven():
         else:
             if tp >= entry:
                 continue
+            # Already armed → check trail
             if sl <= entry:
-                _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
+                if trail_pct <= 0:
+                    _log.debug("POSITION", "be_skip_already_armed", ref=trade["trade_ref"], side=side, sl=sl, entry=entry)
+                    continue
+                # SHORT: HWM = lowest ask seen post-BE
+                cur = price["ask"]
+                hwm = _post_be_hwm.get(oid, cur)
+                if cur < hwm:
+                    hwm = cur
+                _post_be_hwm[oid] = hwm
+                proposed_sl = entry - (entry - hwm) * trail_pct
+                proposed_sl = max(proposed_sl, tp + 0.05)
+                if proposed_sl < sl - 0.005:
+                    _log.info("POSITION", "trail_triggered", ref=trade["trade_ref"], side=side,
+                              hwm=hwm, current_ask=cur, old_sl=sl, new_sl=proposed_sl, trail_pct=trail_pct)
+                    result = modify_stop_loss(oid, proposed_sl)
+                    if result.get("success"):
+                        execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (proposed_sl, trade["trade_ref"]))
+                        _log_journal(trade["trade_ref"], "alpha_sweep_oil", "TRAIL_SL", proposed_sl, {
+                            "old_sl": sl, "hwm": hwm, "trail_pct": trail_pct, "source": "scheduler",
+                        })
+                        print(f"  [OIL] SHORT trail: SL {sl:.4f} → {proposed_sl:.4f}  (hwm={hwm:.4f})")
+                    else:
+                        _log.error("POSITION", "trail_modify_failed", ref=trade["trade_ref"], side=side,
+                                   old_sl=sl, attempted_sl=proposed_sl, err=result.get("error", "Unknown"))
                 continue
+            # Not yet armed: regular BE check
             target_50 = entry - (entry - tp) * ALPHA_SWEEP["be_trigger_pct"]
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_ask=price["ask"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=price["ask"]-target_50)
             if price["ask"] <= target_50:
                 new_sl = entry - 0.01
                 _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["ask"], target_50=target_50, old_sl=sl, new_sl=new_sl)
-                result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
+                result = modify_stop_loss(oid, new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["ask"])
@@ -436,6 +502,8 @@ def check_alpha_sweep_breakeven():
                         "old_sl": sl, "trigger_price": price["ask"], "source": "scheduler",
                     })
                     notify.break_even(trade["trade_ref"], "BCO_USD", new_sl)
+                    if trail_pct > 0:
+                        _post_be_hwm[oid] = price["ask"]
                     print(f"  [OIL] SHORT break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
                     _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
