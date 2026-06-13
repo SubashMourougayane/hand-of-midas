@@ -658,9 +658,30 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 else:
                     _log.info("SIGNAL", "fired", direction="long", entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
                     print(f"  Alpha-Sweep SIGNAL: LONG @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
-                    execute_signal("alpha_sweep", "long", entry, sl, tp, context={
-                        "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
-                    })
+                    # Filter #15: Pre-add sweep to blacklist BEFORE execute_signal.
+                    # If execute_signal raises (DB INSERT failure, MT5 timeout,
+                    # JSON serialization error), the next 3-min cron MUST NOT retry
+                    # the same sweep. Pre-marking here breaks the orphan-trade
+                    # cascade pattern (mirrors Oil Micro line 422; June 10 fix).
+                    _traded_sweeps_macro["keys"].add(sweep_key)
+                    trades_today += 1
+                    try:
+                        trade_ref = execute_signal("alpha_sweep", "long", entry, sl, tp, context={
+                            "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
+                        })
+                        if trade_ref:
+                            _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction="long")
+                        else:
+                            _log.warn("SIGNAL", "skipped_by_engine", direction="long", sweep_key=sweep_key)
+                    except Exception as e:
+                        # Order may have placed even if persistence raised. Sweep stays
+                        # blacklisted (above) so we don't re-fire. Conservative: assume
+                        # order went through, daily counter stays incremented.
+                        _log.exception("SYSTEM", "execute_signal_raised", direction="long", sweep_key=sweep_key, err=str(e))
+                        print(f"  [GOLD] execute_signal raised: {e}")
+                        _log_journal_safe("SYSTEM", "alpha_sweep", "EXECUTE_SIGNAL_RAISED",
+                                          entry, {"error": str(e), "sweep_key": sweep_key, "direction": "long"})
+                    break  # filter #15: live path increments + breaks here, skips shared post-block
             else:
                 entry = c["bid_close"] - slippage(br)
                 sl = sweep_wick + cfg["sl_buffer"]
@@ -690,10 +711,27 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                 else:
                     _log.info("SIGNAL", "fired", direction="short", entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
                     print(f"  Alpha-Sweep SIGNAL: SHORT @ {entry:.2f}, SL={sl:.2f}, TP={tp:.2f}")
-                    execute_signal("alpha_sweep", "short", entry, sl, tp, context={
-                        "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
-                    })
+                    # Filter #15: pre-add + try/except (see long path above)
+                    _traded_sweeps_macro["keys"].add(sweep_key)
+                    trades_today += 1
+                    try:
+                        trade_ref = execute_signal("alpha_sweep", "short", entry, sl, tp, context={
+                            "asia_high": asia_high, "asia_low": asia_low, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick
+                        })
+                        if trade_ref:
+                            _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction="short")
+                        else:
+                            _log.warn("SIGNAL", "skipped_by_engine", direction="short", sweep_key=sweep_key)
+                    except Exception as e:
+                        _log.exception("SYSTEM", "execute_signal_raised", direction="short", sweep_key=sweep_key, err=str(e))
+                        print(f"  [GOLD] execute_signal raised: {e}")
+                        _log_journal_safe("SYSTEM", "alpha_sweep", "EXECUTE_SIGNAL_RAISED",
+                                          entry, {"error": str(e), "sweep_key": sweep_key, "direction": "short"})
+                    break  # filter #15: live path handled inside the try/except above
 
+            # Dry-run path only — live paths break above. The dry_run branch
+            # still needs the blacklist + counter for the harness to reflect
+            # production behavior (otherwise dry_run reports too many sweeps).
             _traded_sweeps_macro["keys"].add(sweep_key)
             trades_today += 1
             break  # One engulfing per sweep
