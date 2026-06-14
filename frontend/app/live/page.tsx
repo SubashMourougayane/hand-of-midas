@@ -2,6 +2,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
+import {
+  PageHeader,
+  Card,
+  Stat,
+  Badge,
+  StatusDot,
+  EmptyState,
+} from "@/components/ui";
 
 interface ScanStatus {
   scan_active: boolean;
@@ -112,26 +120,33 @@ export default function LivePage() {
   }, [instrument]);
 
   const stratColor = (s: string) =>
-    s .includes("alpha_sweep") ? "#4fc3f7" : s === "mean_rev" ? "#00e87b" : "#ffd54f";
+    s.includes("alpha_sweep") ? "var(--color-info)" : s === "mean_rev" ? "var(--color-win)" : "var(--color-warn)";
   const stratLabel = (s: string) =>
-    s .includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MEAN-REV" : "CROSS";
+    s.includes("alpha_sweep") ? "Alpha" : s === "mean_rev" ? "MRev" : "Cross";
+
+  const symbol = instrument === "oil" || instrument === "oil-micro" ? "BCO/USD" : "XAU/USD";
 
   return (
-    <div className="p-3 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-2">
-          <div>
-            <h1 className="text-xl font-bold text-[var(--text)]">LIVE</h1>
-            <p className="text-xs text-[var(--text-dim)]">Real-time trading dashboard — {instrument === "gold" ? "XAU/USD" : "BCO/USD"}</p>
-          </div>
+    <div className="p-3 sm:p-6 max-w-[1280px] mx-auto">
+      <PageHeader
+        title="Live"
+        description={`Real-time trading dashboard — ${symbol}`}
+        actions={
           <div className="flex items-center gap-3">
-            {state?.scheduler_active && (
-              <span className="flex items-center gap-1 text-[10px] text-[var(--green)]">
-                <Radio size={10} className="animate-pulse" /> SCHEDULER ACTIVE
+            {state?.scheduler_active ? (
+              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.8px] text-[var(--color-win)]">
+                <StatusDot tone="win" pulse size={6} />
+                Scheduler active
               </span>
-            )}
-            {lastUpdate && <span className="text-[10px] text-[var(--text-dim)]">Updated: {lastUpdate}</span>}
+            ) : null}
+            {lastUpdate ? (
+              <span className="num text-[10px] text-[var(--color-text-muted)]">
+                Updated · {lastUpdate}
+              </span>
+            ) : null}
           </div>
-        </div>
+        }
+      />
 
         {/* System Mode */}
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
@@ -140,194 +155,267 @@ export default function LivePage() {
         {instrument !== "micro" && instrument !== "oil-micro" && <SweepProximity scan={scan} />}
         {(instrument === "micro" || instrument === "oil-micro") && scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
 
-        {error && <div className="t-panel p-3 mb-4 text-[var(--red)] text-xs">Backend disconnected: {error}</div>}
+        {error ? (
+          <Card padded className="mb-4 border-[var(--color-loss)]/40 bg-[var(--color-loss)]/5">
+            <p className="text-[12px] text-[var(--color-loss)]">Backend disconnected: {error}</p>
+          </Card>
+        ) : null}
 
         {state && (
           <>
             {/* Price + Account Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">{instrument === "oil" || instrument === "oil-micro" ? "BCO/USD" : "XAU/USD"}</div>
-                <div className="text-2xl font-bold text-[var(--text)] mt-1">
-                  {state.price ? `$${state.price.mid.toFixed(2)}` : "—"}
-                </div>
-                <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  {state.price ? `Spread: $${state.price.spread.toFixed(2)} | ${state.price.tradeable ? "Tradeable" : "CLOSED"}` : ""}
-                </div>
-              </div>
-              <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Account NAV</div>
-                <div className="text-2xl font-bold text-[var(--text)] mt-1">
-                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || state.account?.nav?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
-                </div>
-                <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"} USD
-                </div>
-              </div>
-              <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider">Open Positions</div>
-                <div className="text-2xl font-bold text-[var(--text)] mt-1">{state.db_positions?.length || 0}</div>
-                <div className="text-[10px] mt-0.5" style={{ color: (state.account?.unrealized_pl || 0) >= 0 ? "#00e87b" : "#ff3e3e" }}>
-                  {(state.account?.unrealized_pl || 0) !== 0 ? `Unrealized: $${state.account.unrealized_pl.toFixed(2)}` : "No positions"}
-                </div>
-              </div>
-              <div className="t-panel p-3">
-                <div className="text-[9px] text-[var(--text-dim)] uppercase tracking-wider flex items-center gap-1">
-                  <Shield size={10} /> DD Protection
-                </div>
-                <div className="text-lg font-bold text-[var(--text)] mt-1">
-                  {(state.dd_state?.consecutive_losses || 0) === 0 ? "CLEAR" :
-                    (state.dd_state?.pause_counter || 0) > 0 ? "PAUSED" :
-                      (state.dd_state?.consecutive_losses || 0) >= 3 ? "HALVED" : `${state.dd_state?.consecutive_losses || 0} losses`}
-                </div>
-                <div className="text-[10px] text-[var(--text-dim)] mt-0.5">
-                  Streak: {state.dd_state?.consecutive_losses || 0} | Equity: ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 mb-4 hom-stagger-children">
+              <Card padded lift className="hom-stagger">
+                <Stat
+                  label={symbol}
+                  value={state.price ? state.price.mid : 0}
+                  animate={!!state.price}
+                  decimals={2}
+                  prefix="$"
+                  size="lg"
+                  tone="brass"
+                  hint={
+                    state.price ? (
+                      <span className="num">
+                        Spread ${state.price.spread.toFixed(2)} ·{" "}
+                        <span className={state.price.tradeable ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}>
+                          {state.price.tradeable ? "Tradeable" : "Closed"}
+                        </span>
+                      </span>
+                    ) : null
+                  }
+                />
+              </Card>
+              <Card padded lift className="hom-stagger">
+                <Stat
+                  label="Account NAV"
+                  value={state.account?.nav_usd ?? state.account?.nav ?? 0}
+                  animate
+                  prefix="$"
+                  size="lg"
+                  hint={<span className="num">{state.account?.currency ?? "USD"}</span>}
+                />
+              </Card>
+              <Card padded lift className="hom-stagger">
+                <Stat
+                  label="Open positions"
+                  value={state.db_positions?.length || 0}
+                  animate
+                  mono={false}
+                  size="lg"
+                  tone={(state.db_positions?.length || 0) > 0 ? "win" : "neutral"}
+                  hint={
+                    (state.account?.unrealized_pl || 0) !== 0 ? (
+                      <span className={`num ${(state.account?.unrealized_pl || 0) >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+                        Unrealized ${state.account.unrealized_pl.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span>No positions</span>
+                    )
+                  }
+                />
+              </Card>
+              <Card padded lift className="hom-stagger">
+                <Stat
+                  label="DD Protection"
+                  value={
+                    (state.dd_state?.consecutive_losses || 0) === 0 ? "Clear" :
+                    (state.dd_state?.pause_counter || 0) > 0 ? "Paused" :
+                    (state.dd_state?.consecutive_losses || 0) >= 3 ? "Halved" :
+                    `${state.dd_state?.consecutive_losses || 0} losses`
+                  }
+                  size="md"
+                  mono={false}
+                  tone={(state.dd_state?.pause_counter || 0) > 0 ? "warn" : (state.dd_state?.consecutive_losses || 0) >= 3 ? "loss" : "neutral"}
+                  hint={
+                    <span className="num">
+                      Streak {state.dd_state?.consecutive_losses || 0} · Equity ${state.account?.nav_usd?.toLocaleString(undefined, { maximumFractionDigits: 0 }) || "—"}
+                    </span>
+                  }
+                />
+              </Card>
             </div>
 
             {/* Open Positions */}
-            {(state.db_positions?.length || 0) > 0 && (
-              <div className="t-panel p-3 sm:p-4 mb-4">
-                <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
-                  <TrendingUp size={12} /> Open Positions
-                </h2>
-                <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[var(--text-dim)]">
-                      <th className="text-left py-1">Strategy</th>
-                      <th className="text-left">Side</th>
-                      <th className="text-right">Entry</th>
-                      <th className="text-right">SL</th>
-                      <th className="text-right">TP</th>
-                      <th className="text-right">Units</th>
-                      <th className="text-left">Since</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(state.db_positions || []).map((p) => (
-                      <tr key={p.trade_ref} className="border-t border-[var(--border)]">
-                        <td className="py-1.5">
-                          <span className="text-[10px] px-1.5 py-0.5 font-semibold" style={{ color: stratColor(p.strategy), background: `${stratColor(p.strategy)}15` }}>
-                            {stratLabel(p.strategy)}
-                          </span>
-                        </td>
-                        <td className={p.side === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{p.side}</td>
-                        <td className="text-right">${p.entry_price.toFixed(2)}</td>
-                        <td className="text-right text-[var(--red)]">${p.sl?.toFixed(2) || "—"}</td>
-                        <td className="text-right text-[var(--green)]">${p.tp?.toFixed(2) || "—"}</td>
-                        <td className="text-right">{p.units}</td>
-                        <td className="text-[var(--text-dim)]">{new Date(p.entry_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
+            {(state.db_positions?.length || 0) > 0 ? (
+              <Card className="mb-4">
+                <Card.Header>
+                  <Card.Title>
+                    <span className="inline-flex items-center gap-1.5"><TrendingUp size={11} /> Open Positions</span>
+                  </Card.Title>
+                  <span className="num text-[11px] text-[var(--color-text-muted)]">
+                    {(state.db_positions || []).length}
+                  </span>
+                </Card.Header>
+                <div className="px-3 pb-3 overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Side</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Entry</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">SL</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">TP</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Units</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Since</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(state.db_positions || []).map((p) => (
+                        <tr key={p.trade_ref} className="border-t border-[var(--color-border)]/60">
+                          <td className="py-2">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: stratColor(p.strategy) }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: stratColor(p.strategy) }} aria-hidden />
+                              {stratLabel(p.strategy)}
+                            </span>
+                          </td>
+                          <td className="py-2"><Badge tone={p.side === "LONG" ? "win" : "loss"} variant="soft">{p.side}</Badge></td>
+                          <td className="py-2 text-right num">${p.entry_price.toFixed(2)}</td>
+                          <td className="py-2 text-right num text-[var(--color-loss)]">${p.sl?.toFixed(2) || "—"}</td>
+                          <td className="py-2 text-right num text-[var(--color-win)]">${p.tp?.toFixed(2) || "—"}</td>
+                          <td className="py-2 text-right num">{p.units}</td>
+                          <td className="py-2 num text-[11px] text-[var(--color-text-muted)]">
+                            {new Date(p.entry_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            )}
+              </Card>
+            ) : null}
 
             {/* Recent Signals */}
-            <div className="t-panel p-3 sm:p-4 mb-4">
-              <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
-                <Clock size={12} /> Recent Signals
-              </h2>
+            <Card className="mb-4">
+              <Card.Header>
+                <Card.Title>
+                  <span className="inline-flex items-center gap-1.5"><Clock size={11} /> Recent Signals</span>
+                </Card.Title>
+                <span className="num text-[11px] text-[var(--color-text-muted)]">
+                  {(state.recent_signals?.length || 0)}
+                </span>
+              </Card.Header>
               {(state.recent_signals?.length || 0) === 0 ? (
-                <p className="text-xs text-[var(--text-dim)]">
-                  {instrument === "micro" || instrument === "oil-micro"
-                    ? "No signals yet. Scanning all market hours (rolling 4hr windows)."
-                    : "No signals yet. Waiting for 08:00-20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan)."}
-                </p>
+                <EmptyState
+                  title="No signals yet"
+                  description={
+                    instrument === "micro" || instrument === "oil-micro"
+                      ? "Scanning all market hours (rolling 4hr windows)."
+                      : "Waiting for 08:00–20:00 UTC (Alpha-Sweep) or 22:00 UTC (Daily Scan)."
+                  }
+                />
               ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[var(--text-dim)]">
-                      <th className="text-left py-1">Time</th>
-                      <th className="text-left">Strategy</th>
-                      <th className="text-left">Dir</th>
-                      <th className="text-right">Entry</th>
-                      <th className="text-left">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(state.recent_signals || []).map((s, i) => (
-                      <tr key={i} className="border-t border-[var(--border)]">
-                        <td className="py-1 text-[var(--text-dim)]">{s.timestamp ? new Date(s.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
-                        <td><span style={{ color: stratColor(s.strategy) }}>{stratLabel(s.strategy)}</span></td>
-                        <td className={s.direction === "long" ? "text-[var(--green)]" : "text-[var(--red)]"}>{s.direction.toUpperCase()}</td>
-                        <td className="text-right">{s.entry_price ? `$${s.entry_price.toFixed(0)}` : "—"}</td>
-                        <td>
-                          {s.taken ? (
-                            <span className="text-[var(--green)] font-semibold">TAKEN</span>
-                          ) : (
-                            <span className="text-[var(--text-dim)]">Skip: {s.skip_reason}</span>
-                          )}
-                        </td>
+                <div className="px-3 pb-3 overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Time</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Dir</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Entry</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(state.recent_signals || []).map((s, i) => (
+                        <tr key={i} className="border-t border-[var(--color-border)]/60">
+                          <td className="py-1.5 num text-[11px] text-[var(--color-text-muted)]">
+                            {s.timestamp ? new Date(s.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                          </td>
+                          <td className="py-1.5">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: stratColor(s.strategy) }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: stratColor(s.strategy) }} aria-hidden />
+                              {stratLabel(s.strategy)}
+                            </span>
+                          </td>
+                          <td className="py-1.5"><Badge tone={s.direction === "long" ? "win" : "loss"} variant="soft">{s.direction.toUpperCase()}</Badge></td>
+                          <td className="py-1.5 text-right num">{s.entry_price ? `$${s.entry_price.toFixed(0)}` : "—"}</td>
+                          <td className="py-1.5">
+                            {s.taken ? (
+                              <Badge tone="win">Taken</Badge>
+                            ) : (
+                              <span className="text-[11px] text-[var(--color-text-muted)]">Skip · {s.skip_reason}</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
-            </div>
+            </Card>
 
             {/* Recent Trades */}
-            {(state.recent_trades?.length || 0) > 0 && (
-              <div className="t-panel p-3 sm:p-4 mb-4">
-                <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3 flex items-center gap-2">
-                  <TrendingDown size={12} /> Recent Closed Trades
-                </h2>
-                <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[var(--text-dim)]">
-                      <th className="text-left py-1">Strategy</th>
-                      <th className="text-left">Side</th>
-                      <th className="text-right">P&L</th>
-                      <th className="text-left">Exit</th>
-                      <th className="text-left">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(state.recent_trades || []).map((t) => (
-                      <tr key={t.trade_ref} className="border-t border-[var(--border)]">
-                        <td className="py-1"><span style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span></td>
-                        <td className={t.side === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{t.side}</td>
-                        <td className={`text-right font-semibold ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                          ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}{(t.pnl_usd || t.pnl_gbp).toFixed(0)}
-                        </td>
-                        <td className="text-[var(--yellow)]">{t.exit_reason}</td>
-                        <td className="text-[var(--text-dim)]">{t.exit_time ? new Date(t.exit_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+            {(state.recent_trades?.length || 0) > 0 ? (
+              <Card className="mb-4">
+                <Card.Header>
+                  <Card.Title>
+                    <span className="inline-flex items-center gap-1.5"><TrendingDown size={11} /> Recent Closed Trades</span>
+                  </Card.Title>
+                  <span className="num text-[11px] text-[var(--color-text-muted)]">
+                    {(state.recent_trades || []).length}
+                  </span>
+                </Card.Header>
+                <div className="px-3 pb-3 overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Side</th>
+                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">P&L</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Exit</th>
+                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Time</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(state.recent_trades || []).map((t) => (
+                        <tr key={t.trade_ref} className="border-t border-[var(--color-border)]/60">
+                          <td className="py-1.5">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: stratColor(t.strategy) }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: stratColor(t.strategy) }} aria-hidden />
+                              {stratLabel(t.strategy)}
+                            </span>
+                          </td>
+                          <td className="py-1.5"><Badge tone={t.side === "LONG" ? "win" : "loss"} variant="soft">{t.side}</Badge></td>
+                          <td className={`py-1.5 text-right num font-semibold ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+                            {(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}${(t.pnl_usd || t.pnl_gbp).toFixed(0)}
+                          </td>
+                          <td className="py-1.5 text-[11px] uppercase text-[var(--color-warn)]">{t.exit_reason}</td>
+                          <td className="py-1.5 num text-[11px] text-[var(--color-text-muted)]">
+                            {t.exit_time ? new Date(t.exit_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            )}
+              </Card>
+            ) : null}
 
             {/* Schedule Info */}
-            <div className="t-panel p-4">
-              <h2 className="text-xs font-semibold text-[var(--text-dim)] uppercase mb-3">Trading Schedule (UTC)</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                <div className="p-3 bg-[var(--bg)]">
-                  <div className="font-semibold" style={{ color: "#ffd54f" }}>CROSS-MARKET + MEAN-REV</div>
-                  <div className="text-[var(--text-dim)] mt-1">22:00 UTC daily</div>
-                  <div className="text-[10px] text-[var(--text-dim)] mt-0.5">Checks 6 inter-market signals + dip-buy conditions</div>
-                </div>
-                <div className="p-3 bg-[var(--bg)]">
-                  <div className="font-semibold" style={{ color: "#4fc3f7" }}>ALPHA-SWEEP</div>
-                  <div className="text-[var(--text-dim)] mt-1">08:00-20:00 UTC (every 3 min)</div>
-                  <div className="text-[10px] text-[var(--text-dim)] mt-0.5">Monitors London + NY session for Asia sweep + M3 engulfing</div>
-                </div>
-                <div className="p-3 bg-[var(--bg)]">
-                  <div className="font-semibold text-[var(--text)]">POSITION MONITOR</div>
-                  <div className="text-[var(--text-dim)] mt-1">Every 1 min</div>
-                  <div className="text-[10px] text-[var(--text-dim)] mt-0.5">Checks SL/TP fills, break-even stops</div>
-                </div>
+            <Card>
+              <Card.Header>
+                <Card.Title>Trading Schedule</Card.Title>
+                <span className="num text-[11px] text-[var(--color-text-muted)]">UTC</span>
+              </Card.Header>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-3">
+                <Card surface={2} padded>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.6px]" style={{ color: "var(--color-warn)" }}>Cross-Market + Mean-Rev</div>
+                  <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">22:00 UTC daily</div>
+                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Checks 6 inter-market signals + dip-buy conditions</div>
+                </Card>
+                <Card surface={2} padded>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.6px]" style={{ color: "var(--color-info)" }}>Alpha-Sweep</div>
+                  <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">08:00–20:00 UTC · every 3 min</div>
+                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Monitors London + NY session for Asia sweep + M3 engulfing</div>
+                </Card>
+                <Card surface={2} padded>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.6px] text-[var(--color-brass-hi)]">Position Monitor</div>
+                  <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">Every 1 min</div>
+                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Checks SL/TP fills, break-even stops</div>
+                </Card>
               </div>
-            </div>
+            </Card>
           </>
         )}
     </div>
@@ -357,7 +445,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
 
   if (isWeekend) {
     mode = "MARKET CLOSED";
-    color = "#9ca3b4";
+    color = "var(--color-text-muted)";
     icon = "🌙";
     // Forex opens Sunday 21:00 UTC (5 PM New York)
     const sundayOpen = new Date(now);
@@ -382,7 +470,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     // Micro scans 22:00-21:00 UTC (only 21-22 is closed)
     if (utcTime >= 21 && utcTime < 22) {
       mode = "MARKET CLOSED";
-      color = "#9ca3b4";
+      color = "var(--color-text-muted)";
       icon = "🌙";
       const minsLeft = Math.floor((22 - utcTime) * 60);
       countdown = `Opens in ${minsLeft}m`;
@@ -405,7 +493,7 @@ function SystemMode({ hasPositions }: { hasPositions: boolean }) {
     countdown = "Running Cross-Market + Mean-Rev...";
   } else {
     mode = "SLEEPING";
-    color = "#9ca3b4";
+    color = "var(--color-text-muted)";
     icon = "💤";
     // Next event
     let nextEvent: string;
@@ -611,7 +699,7 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
   const maxTrades = (scan as { max_trades_per_day?: number }).max_trades_per_day || 3;
   const skipReasons = (scan as { skip_reasons?: string[] }).skip_reasons || [];
 
-  const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+  const biasColor = bias === "bullish" ? "#00e87b" : bias === "bearish" ? "#ff3e3e" : "var(--color-text-muted)";
 
   const toIST12 = (utcH: number) => {
     const ist = (utcH + 5.5) % 24;
@@ -631,7 +719,7 @@ function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
   });
 
   return (
-    <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+    <div className="t-panel p-4 mb-4" style={{ background: "var(--color-surface-2)" }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
@@ -742,7 +830,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
 
   if (!scan || scan.dist_to_bearish === undefined) {
     return (
-      <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+      <div className="t-panel p-4 mb-4" style={{ background: "var(--color-surface-2)" }}>
         <div className="text-[10px] text-[var(--text-dim)]">Loading sweep proximity...</div>
       </div>
     );
@@ -783,7 +871,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
     dotColor = "#5b6370";
     gaugeLabel = scan.sweep_status === "TRADED" ? "TRADED" : "EXPIRED";
   } else if (isOutsideRange) {
-    dotColor = "#9ca3b4"; // gray — price drifted out, no setup
+    dotColor = "var(--color-text-muted)"; // gray — price drifted out, no setup
     gaugeLabel = scan.sweep_direction === "bullish" ? "BELOW RANGE" : "ABOVE RANGE";
   } else if (isSweepActive) {
     dotColor = "#00e87b"; // green — sweep active, looking for engulfing
@@ -803,13 +891,13 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
   const shouldPulse = isSweepActive || (!isGaugeStale && !isOutsideRange && closestDist <= 5);
 
   // Bias badge color
-  const biasColor = scan.daily_bias === "bullish" ? "#00e87b" : scan.daily_bias === "bearish" ? "#ff3e3e" : "#9ca3b4";
+  const biasColor = scan.daily_bias === "bullish" ? "#00e87b" : scan.daily_bias === "bearish" ? "#ff3e3e" : "var(--color-text-muted)";
 
   // Needle angle: 0% = -90deg (left/bullish), 100% = 90deg (right/bearish)
   const needleAngle = -90 + (clampedPosition / 100) * 180;
 
   return (
-    <div className="t-panel p-4 mb-4" style={{ background: "#181c24" }}>
+    <div className="t-panel p-4 mb-4" style={{ background: "var(--color-surface-2)" }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-[10px] font-semibold text-[var(--text-dim)] uppercase tracking-wider">Sweep Proximity</h2>
@@ -819,7 +907,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
             const statusStyle = status === "ACTIVE"
               ? { bg: "#00e87b20", color: "#00e87b", border: "#00e87b", anim: "sweepFlash 0.8s ease-in-out infinite alternate" }
               : status === "EXPIRED"
-              ? { bg: "#9ca3b415", color: "#9ca3b4", border: "#9ca3b440", anim: "none" }
+              ? { bg: "var(--color-text-muted)15", color: "var(--color-text-muted)", border: "var(--color-text-muted)40", anim: "none" }
               : status === "TRADED"
               ? { bg: "#4fc3f720", color: "#4fc3f7", border: "#4fc3f7", anim: "none" }
               : { bg: "#ff3e3e20", color: "#ff3e3e", border: "#ff3e3e", anim: "sweepFlash 0.8s ease-in-out infinite alternate" };
@@ -886,7 +974,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
           {/* Center pivot */}
           <div style={{
             position: "absolute", bottom: "6px", left: "50%", transform: "translateX(-50%)",
-            width: "10px", height: "10px", borderRadius: "50%", background: "#252a33", border: "2px solid #4b5563",
+            width: "10px", height: "10px", borderRadius: "50%", background: "var(--color-border)", border: "2px solid #4b5563",
           }} />
 
           {/* Labels */}
@@ -895,7 +983,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
 
           {/* Price in center */}
           <div style={{ position: "absolute", bottom: "22px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
-            <div style={{ fontSize: "16px", fontWeight: "bold", color: isGaugeStale ? "#9ca3b4" : dotColor }}>${scan.price.toFixed(2)}</div>
+            <div style={{ fontSize: "16px", fontWeight: "bold", color: isGaugeStale ? "var(--color-text-muted)" : dotColor }}>${scan.price.toFixed(2)}</div>
             <div style={{ fontSize: "8px", color: "#5b6370" }}>{String(instrument) === "oil" || String(instrument) === "oil-micro" ? "BCO/USD" : "XAU/USD"}</div>
           </div>
 
@@ -904,7 +992,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
             <div style={{ position: "absolute", top: "8px", left: "50%", transform: "translateX(-50%)", textAlign: "center" }}>
               <span className="text-[8px] font-bold px-1.5 py-0.5 rounded" style={{
                 background: isSweepActive ? "#00e87b15" : "#1a1f2b",
-                color: isSweepActive ? "#00e87b" : isOutsideRange ? "#9ca3b4" : "#5b6370",
+                color: isSweepActive ? "#00e87b" : isOutsideRange ? "var(--color-text-muted)" : "#5b6370",
                 border: `1px solid ${isSweepActive ? "#00e87b40" : "#333"}`,
                 animation: isSweepActive ? "sweepFlash 0.8s ease-in-out infinite alternate" : "none",
               }}>
@@ -959,7 +1047,7 @@ function SweepProximity({ scan }: { scan: ScanStatus | null }) {
                 <div className="text-sm font-bold" style={{ color:
                   scan.sweep_status === "ACTIVE" ? "#00e87b" :
                   scan.sweep_status === "TRADED" ? "#4fc3f7" :
-                  scan.sweep_status === "EXPIRED" ? "#9ca3b4" : "#5b6370"
+                  scan.sweep_status === "EXPIRED" ? "var(--color-text-muted)" : "#5b6370"
                 }}>
                   {scan.sweep_status || (scan.sweep_detected ? "DETECTED" : "WAITING")}
                 </div>
