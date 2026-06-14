@@ -140,6 +140,82 @@ export class MidasClient {
     return authFetch<T>(`${this.base()}/backtest/latest`);
   }
 
+  /**
+   * Kick off a backtest. The server returns either an SSE stream (Micro
+   * services) or a long-polling response (Macro services); we handle both.
+   * `onProgress(msg)` receives human-readable progress strings while the
+   * job runs. Returns the final BacktestResult after the run completes.
+   *
+   * Total timeout: 15 minutes (180 × 5s polling cycles).
+   */
+  async runBacktest<TReq, TRes>(req: TReq, onProgress?: (msg: string) => void): Promise<TRes> {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${this.base()}/backtest`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(req),
+    });
+    if (res.status === 401) {
+      clearTokenAndRedirect();
+      throw new ApiError(401, "Unauthorized");
+    }
+    if (!res.ok) throw new ApiError(res.status, `Backtest failed: ${res.status}`);
+
+    const ct = res.headers.get("content-type");
+    if (ct?.includes("text/event-stream") && res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let completed = false;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          for (const line of text.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const payload = JSON.parse(line.slice(6));
+              if (payload.type === "progress" && onProgress) onProgress(payload.message);
+              else if (payload.type === "done") completed = true;
+              else if (payload.type === "error") throw new Error(payload.message);
+            } catch (e) {
+              if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
+            }
+          }
+          if (completed) break;
+        }
+      } catch {
+        // SSE disconnected mid-stream — fall through to polling
+      }
+      if (completed) {
+        // DB write may lag the SSE 'done' event by a second or two
+        for (let i = 0; i < 10; i++) {
+          const latest = await this.latestBacktest<TRes | null>();
+          if (latest) return latest;
+          await new Promise((r) => setTimeout(r, 3000));
+          if (onProgress) onProgress("Saving to database…");
+        }
+        throw new Error("Backtest completed but results not found in DB");
+      }
+    }
+
+    // Polling path (Macro services + SSE-fallback)
+    if (onProgress) onProgress("Running backtest…");
+    for (let i = 0; i < 180; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      if (onProgress) {
+        const seconds = (i + 1) * 5;
+        onProgress(`Running backtest… (${Math.floor(seconds / 60)}m ${seconds % 60}s elapsed)`);
+      }
+      const poll = await this.latestBacktest<TRes | null>();
+      if (poll) return poll;
+    }
+    throw new Error("Backtest timed out (15 minutes). Check server logs.");
+  }
+
   // Per-trade journey (OHLC + entry/exit metadata)
   journey<T = unknown>(tradeRef: string) {
     return authFetch<T>(buildUrl(`${this.base()}/journey`, { trade_ref: tradeRef }));
@@ -148,27 +224,51 @@ export class MidasClient {
   /**
    * Open a live state stream. Uses EventSource (SSE) with polling fallback.
    * Returns an unsubscribe function. The fallback is a 30s setInterval over
-   * /state; the SSE consumer also runs the same poll until the first SSE tick
-   * arrives, mirroring the prior live page logic.
+   * /state + /scan-status; the SSE consumer also runs the same poll until
+   * the first SSE tick arrives, mirroring the prior live page logic.
+   *
+   * `baseOverride`: SSE must bypass the Next.js proxy in dev (it buffers
+   * streaming responses). Pass a fully-qualified upstream URL prefix here
+   * (e.g. https://midas.subashtrades.in) and it'll be used for the
+   * EventSource only — the polling fallback continues to use the relative
+   * `/api/...` path so it goes through the proxy normally.
    */
-  streamLive<T = unknown>(onMessage: (data: T) => void, opts: { fallbackMs?: number } = {}): () => void {
+  streamLive<T = unknown>(
+    onMessage: (data: T) => void,
+    opts: { fallbackMs?: number; baseOverride?: string; onReconnecting?: () => void } = {},
+  ): () => void {
     const fallbackMs = opts.fallbackMs ?? 30_000;
     let cancelled = false;
     let es: EventSource | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let connected = false;
+
+    const fallbackBase = `${this.base()}`; // through proxy
+    const sseUrl = `${opts.baseOverride ?? ""}${this.base()}/stream`;
+
+    const fallbackFetch = async () => {
+      if (cancelled || connected) return;
+      try {
+        const [s, sc] = await Promise.all([
+          fetch(`${fallbackBase}/state`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          fetch(`${fallbackBase}/scan-status`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const merged: Record<string, unknown> = {};
+        if (s) merged.state = s;
+        if (sc && !sc.error) merged.scan = sc;
+        if (Object.keys(merged).length) onMessage(merged as T);
+      } catch {
+        /* swallow */
+      }
+    };
 
     const startPolling = () => {
       if (pollTimer || cancelled) return;
-      const tick = () => {
-        if (cancelled) return;
-        this.state<T>()
-          .then((data) => { if (!cancelled) onMessage(data); })
-          .catch(() => { /* swallow — SSE may recover */ });
-      };
-      tick();
-      pollTimer = setInterval(tick, fallbackMs);
+      fallbackFetch();
+      pollTimer = setInterval(fallbackFetch, fallbackMs);
     };
-
     const stopPolling = () => {
       if (pollTimer) {
         clearInterval(pollTimer);
@@ -176,30 +276,45 @@ export class MidasClient {
       }
     };
 
-    try {
-      es = new EventSource(`${this.base()}/stream`, { withCredentials: false });
-      es.onmessage = (ev) => {
-        try {
-          const data = JSON.parse(ev.data) as T;
-          stopPolling();
-          if (!cancelled) onMessage(data);
-        } catch {
-          // Ignore malformed events
-        }
-      };
-      es.onerror = () => {
-        // Connection dropped; engage polling fallback while the browser retries.
+    const connectSSE = () => {
+      try {
+        es = new EventSource(sseUrl);
+        es.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data) as T;
+            connected = true;
+            stopPolling();
+            if (!cancelled) onMessage(data);
+          } catch {
+            /* malformed event */
+          }
+        };
+        es.onerror = () => {
+          connected = false;
+          opts.onReconnecting?.();
+          es?.close();
+          es = null;
+          // Engage polling while we wait to reconnect
+          startPolling();
+          if (!cancelled) {
+            reconnectTimer = setTimeout(connectSSE, 3000);
+          }
+        };
+      } catch {
+        // EventSource unsupported or threw — go straight to polling
         startPolling();
-      };
-    } catch {
-      // EventSource unsupported in this environment — go straight to polling.
-      startPolling();
-    }
+      }
+    };
+
+    connectSSE();
+    // Initial fetch for fast first paint (SSE takes ~5s for first push)
+    fallbackFetch();
 
     return () => {
       cancelled = true;
       es?.close();
       stopPolling();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
     };
   }
 }

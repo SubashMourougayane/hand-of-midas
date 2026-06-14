@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import PnlCalendar from "@/components/PnlCalendar";
 import DatePicker from "@/components/DatePicker";
-import { runBacktest, getLatestBacktest, BacktestResult } from "@/lib/api";
+import type { BacktestResult } from "@/lib/api";
+import { client, type ServiceKey } from "@/lib/client";
 import { formatINR } from "@/lib/format";
 import { useInstrument } from "@/lib/instrument";
 import {
@@ -69,7 +70,8 @@ const SESSIONS = [
 ] as const;
 
 export default function BacktestPage() {
-  const { apiBase, instrument } = useInstrument();
+  const { instrument } = useInstrument();
+  const svc = instrument as ServiceKey;
   const [startDate, setStartDate] = useState("2006-01-01");
   const [endDate, setEndDate] = useState("2026-05-21");
   const [capital, setCapital] = useState(5000);
@@ -88,9 +90,10 @@ export default function BacktestPage() {
     setProgressMsg("");
     setError("");
     let cancelled = false;
-    getLatestBacktest(apiBase, instrument).then((data) => {
-      if (cancelled) return;
-      if (data) {
+    client(svc)
+      .latestBacktest<BacktestResult & { config?: { start_date: string; end_date: string; capital: number; risk_pct: number; strategies?: string[] } }>()
+      .then((data) => {
+        if (cancelled || !data) return;
         setResult(data);
         if (data.config) {
           setStartDate(data.config.start_date);
@@ -99,23 +102,35 @@ export default function BacktestPage() {
           setRiskPct(data.config.risk_pct);
           if (data.config.strategies) setSelectedStrategies(data.config.strategies);
         }
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
     return () => { cancelled = true; };
-  }, [apiBase, instrument]);
+  }, [svc]);
 
   const handleRun = async () => {
     setLoading(true);
     setError("");
     setProgressMsg("");
     try {
-      const data = await runBacktest({
-        strategies: selectedStrategies,
-        start_date: startDate,
-        end_date: endDate,
-        capital,
-        risk_pct: riskPct,
-      }, apiBase, instrument, (msg) => setProgressMsg(msg));
+      const data = await client(svc).runBacktest<
+        {
+          strategies: string[];
+          start_date: string;
+          end_date: string;
+          capital: number;
+          risk_pct: number;
+        },
+        BacktestResult
+      >(
+        {
+          strategies: selectedStrategies,
+          start_date: startDate,
+          end_date: endDate,
+          capital,
+          risk_pct: riskPct,
+        },
+        (msg) => setProgressMsg(msg),
+      );
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Backtest failed");

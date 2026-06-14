@@ -1,7 +1,9 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
+import type { ServiceKey } from "@/lib/client";
+import { useLiveStream } from "@/lib/hooks";
 import {
   PageHeader,
   Card,
@@ -46,78 +48,32 @@ interface LiveState {
   scheduler_active: boolean;
 }
 
+interface LivePayload {
+  state?: LiveState;
+  scan?: ScanStatus;
+}
+
 export default function LivePage() {
-  const { apiBase, instrument } = useInstrument();
-  const [state, setState] = useState<LiveState | null>(null);
-  const [scan, setScan] = useState<ScanStatus | null>(null);
-  const [error, setError] = useState("");
-  const [lastUpdate, setLastUpdate] = useState("");
+  const { instrument } = useInstrument();
+  const svc = instrument as ServiceKey;
 
-  const sseConnected = useRef(false);
+  // SSE must bypass the Next.js proxy in dev (the proxy buffers streaming
+  // responses). On localhost, point straight at the upstream service.
+  const baseOverride = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return window.location.hostname === "localhost" ? "https://midas.subashtrades.in" : "";
+  }, []);
 
-  useEffect(() => {
-    setState(null);
-    setScan(null);
-    sseConnected.current = false;
-    const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
-    // SSE must bypass Next.js proxy (it buffers streaming responses)
-    const sseBase = typeof window !== "undefined" && window.location.hostname === "localhost"
-      ? "https://midas.subashtrades.in"
-      : "";
-    const url = `${sseBase}/api/${prefix}/stream`;
-    let es: EventSource | null = null;
-    let fallbackInterval: NodeJS.Timeout | null = null;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
+  const { data, reconnecting, lastUpdate } = useLiveStream<LivePayload>(svc, { baseOverride });
+  const state = data?.state ?? null;
+  const scan = data?.scan ?? null;
+  const error = reconnecting ? "Stream disconnected, reconnecting…" : "";
 
-    const connectSSE = () => {
-      es = new EventSource(url);
-      es.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.state) setState(data.state);
-          if (data.scan) setScan(data.scan);
-          setLastUpdate(new Date().toLocaleTimeString());
-          setError("");
-          sseConnected.current = true;
-        } catch {}
-      };
-      es.onerror = () => {
-        sseConnected.current = false;
-        setError("Stream disconnected, reconnecting...");
-        es?.close();
-        reconnectTimeout = setTimeout(connectSSE, 3000);
-      };
-    };
-
-    connectSSE();
-
-    // Fallback poll only if SSE hasn't delivered data
-    const fallbackFetch = async () => {
-      if (sseConnected.current) return;
-      try {
-        const [stateRes, scanRes] = await Promise.all([
-          fetch(`${apiBase}/api/${prefix}/state`),
-          fetch(`${apiBase}/api/${prefix}/scan-status`),
-        ]);
-        if (stateRes.ok) setState(await stateRes.json());
-        if (scanRes.ok) {
-          const d = await scanRes.json();
-          if (!d.error) setScan(d);
-        }
-        setLastUpdate(new Date().toLocaleTimeString());
-      } catch {}
-    };
-    fallbackInterval = setInterval(fallbackFetch, 30000);
-    // Initial fetch for fast first paint (SSE takes ~5s for first push)
-    fallbackFetch();
-
-    return () => {
-      es?.close();
-      if (fallbackInterval) clearInterval(fallbackInterval);
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [instrument]);
+  // Format lastUpdate as a wall-clock time string for the header
+  const lastUpdateLabel = useMemo(() => {
+    if (!lastUpdate) return "";
+    return new Date(lastUpdate).toLocaleTimeString();
+  }, [lastUpdate]);
 
   const stratColor = (s: string) =>
     s.includes("alpha_sweep") ? "var(--color-info)" : s === "mean_rev" ? "var(--color-win)" : "var(--color-warn)";
@@ -139,9 +95,9 @@ export default function LivePage() {
                 Scheduler active
               </span>
             ) : null}
-            {lastUpdate ? (
+            {lastUpdateLabel ? (
               <span className="num text-[10px] text-[var(--color-text-muted)]">
-                Updated · {lastUpdate}
+                Updated · {lastUpdateLabel}
               </span>
             ) : null}
           </div>
