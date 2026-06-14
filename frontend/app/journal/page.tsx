@@ -77,6 +77,21 @@ function formatTime(iso?: string): string {
   });
 }
 
+/** Compact relative-time string ('4m', '2h', '3d'). */
+function relativeAge(iso?: string, now: number = Date.now()): string {
+  if (!iso) return "";
+  const ageMs = now - new Date(iso).getTime();
+  if (ageMs < 0) return "now";
+  const sec = Math.floor(ageMs / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.floor(hr / 24);
+  return `${day}d`;
+}
+
 function formatBacktestDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -128,6 +143,22 @@ export default function JournalPage() {
     return { total, errors, entries, exits };
   }, [events]);
 
+  // Detect quiet-period: newest event > 2 hours old. Tells the user that
+  // what they're looking at is stale (e.g. weekend / market closed) rather
+  // than current activity.
+  const newestAgeMs = useMemo(() => {
+    if (events.length === 0) return null;
+    const newest = events.reduce((acc, e) => {
+      const t = new Date(e.timestamp).getTime();
+      return t > acc ? t : acc;
+    }, 0);
+    return Date.now() - newest;
+  }, [events]);
+  const isStale = newestAgeMs !== null && newestAgeMs > 2 * 60 * 60 * 1000;
+  const staleLabel = newestAgeMs !== null
+    ? relativeAge(new Date(Date.now() - newestAgeMs).toISOString())
+    : "";
+
   return (
     <div className="p-3 sm:p-6 max-w-[1280px] mx-auto">
       <PageHeader
@@ -142,6 +173,21 @@ export default function JournalPage() {
           </Tabs.Root>
         }
       />
+
+      {/* Staleness banner — newest event > 2h old means quiet period */}
+      {tab === "live" && isStale ? (
+        <Card padded surface={2} className="mb-4 border-[var(--color-warn)]/30">
+          <div className="flex items-center gap-3 text-[12px]">
+            <span className="text-[16px]" aria-hidden>🌙</span>
+            <div className="flex-1">
+              <div className="text-[var(--color-warn)] font-medium">Quiet period — newest event is {staleLabel} old</div>
+              <div className="text-[var(--color-text-muted)] text-[11px] leading-relaxed">
+                Markets may be closed, or no scans have triggered events recently. The list below shows historical activity, not live state.
+              </div>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {/* Live event counts */}
       {tab === "live" && events.length > 0 ? (
@@ -250,13 +296,22 @@ export default function JournalPage() {
                         .map(([k, v]) => `${k}=${typeof v === "number" ? (v as number).toFixed(2) : v}`)
                         .join(" · ")
                     : "";
+                const age = relativeAge(e.timestamp);
+                const isAged = (Date.now() - new Date(e.timestamp).getTime()) > 2 * 60 * 60 * 1000;
                 return (
                   <li
                     key={e.id}
                     className="px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 hover:bg-[var(--color-surface-2)]/60 transition-colors"
                   >
-                    <span className="num text-[11px] text-[var(--color-text-muted)] sm:min-w-[150px] shrink-0">
-                      {formatTime(e.timestamp)}
+                    <span className="flex items-baseline gap-2 sm:min-w-[200px] shrink-0">
+                      <span className="num text-[11px] text-[var(--color-text-muted)]">
+                        {formatTime(e.timestamp)}
+                      </span>
+                      {age ? (
+                        <span className={`num text-[10px] ${isAged ? "text-[var(--color-text-muted)] opacity-60" : "text-[var(--color-text-dim)]"}`}>
+                          {age}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="sm:min-w-[60px] shrink-0">{strategyTag(e.strategy)}</span>
                     <Badge tone={tone} variant="soft" className="shrink-0">
