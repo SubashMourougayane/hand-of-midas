@@ -15,7 +15,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 16 | R:R lower bound | 2 | ❌ STASHED | archive-filter-16 | varies | -$701k @ 1.5 / -$37k @ 1.0 | n/a (drift-fixed at impl) | STASH — sweep across 0.8/1.0/1.2/1.5 all net negative. Sub-1.5R trades profitable. |
 | 2 | First-Sweep-of-Day | 2 | ❌ STASHED | archive-filter-02 | varies | -$1.55M @ max=1 / -$384k @ max=2 | n/a (drift-fixed at impl) | STASH — sweep across max-{1,2} both net negative all 4 systems. |
 | 9 | R:R Upper Bound 4.0 | 2 | pending | — | — | — | — | — |
-| 3 | TP Feasibility | 3 | pending | — | — | — | — | — |
+| 3 | TP Feasibility | 3 | ❌ STASHED | archive-filter-03 | varies | -$137k @ 0.5 / -$324k @ 0.7 / -$905k @ 1.0 | n/a (BT only) | STASH — sweep across factor 0/0.5/0.7/0.9/1.0 all net negative. Same shape as #16/#2/#10. |
 | 4 | Anti-Trend-Extension | 3 | pending | — | — | — | — | — |
 | 12 | Engulfing-of-doji | 3 | pending | — | — | — | — | — |
 | 13 | Engulfing wick-vs-body | 4 | ❌ STASHED | archive-filter-13 | ALL DOWN | -$592k @ 1.0 / -$1.29M @ 0.5 / -$1.90M @ 0.3 | n/a (BT only) | STASH — uniformly bad: PF and P&L both drop at every threshold. Worse than #16/#2/#10 which had a PF/P&L tradeoff. Wick-rejection engulfings are MORE profitable than clean ones. |
@@ -215,6 +215,28 @@ Branch archived as `archive-filter-13` (no merge, no live impact).
 Branch archived as `archive-filter-14` (no merge, no live impact).
 
 **Pattern across 5 disproven hypotheses (#16, #2, #10, #13, #14):** signal-volume AND signal-quality pruning both lose. Strategy edge is fill-side ops (#5/#6/#7) + current trade volume + current pattern-match permissiveness. Future "skip more trades" or "require cleaner pattern" hypotheses face very high prior of failure.
+
+### Filter #3 — TP Feasibility Check — ❌ STASHED
+
+**Audit hypothesis:** at signal time, check whether TP is reachable in time given current ATR_H1 pace. Skip if `expected_distance < required × tp_feasibility_factor`.
+
+**Implementation:** ATR_14 H1 precomputed in each strategy. `asof()` lookup at signal time. Mins remaining = `min(MAX_BARS×3, mins_to_session_close=21UTC)`. Bit-identical to baseline at factor=0 (verified $427,598 = Filter #7 ship baseline).
+
+**Sweep results** (21yr × 4 systems × 5 thresholds = 20 BTs):
+
+| System | factor=0 (baseline) | 0.5 | 0.7 | 0.9 | 1.0 |
+|---|---|---|---|---|---|
+| **Gold Macro** | $427,598 (PF 3.53) | $417,889 −2.3% (PF 3.51) | $409,461 −4.2% (PF 3.49) | $398,022 −6.9% (PF 3.50) | $391,410 −8.5% (PF 3.51) |
+| **Gold Micro** | $334,808 (PF 4.40) | $317,827 −5.1% (PF 4.43) | $313,458 −6.4% (PF 4.43) | $303,090 −9.5% (PF 4.38) | $300,011 −10.4% (PF 4.41) |
+| **Oil Macro** | $825,879 (PF 4.70) | $778,681 −5.7% (PF **4.80**) | $661,255 −20% (PF **5.32**) | $362,540 −56% (PF 4.89) | $260,082 −69% (PF 5.47) |
+| **Oil Micro** | $3,177,780 (PF 5.76) | $3,114,475 −2.0% (PF 5.71) | $3,057,403 −3.8% (PF 5.70) | $2,986,867 −6.0% (PF 5.68) | $2,910,035 −8.4% (PF 5.75) |
+| **Total** | **$4,766,065** | $4,628,872 (−2.9%) | $4,441,577 (−6.8%) | $4,050,520 (−15.0%) | $3,861,537 (−19.0%) |
+
+**Decision: STASH all variants.** Same shape as #16/#2/#10: PF gains on Oil Macro (4.70→5.32 at factor=0.7) but P&L drops on every system at every threshold. No factor produces net positive aggregate.
+
+Branch archived as `archive-filter-03` (no merge, no live impact).
+
+**Pattern across 6 disproven hypotheses (#16, #2, #10, #13, #14, #3):** signal-pruning consistently underperforms regardless of mechanism (R:R floor, first-sweep, sl_buffer, wick-quality, prev-bar pollution, TP feasibility). Strategy edge is fill-side ops + current trade volume.
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
