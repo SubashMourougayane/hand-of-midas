@@ -43,9 +43,14 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    require_prev_reversal: bool | None = None,
 ) -> list[Signal]:
+    """require_prev_reversal: Filter #14 — require engulfing predecessor to be
+    reversal-direction. None = read from config (False = legacy)."""
     cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
+    if require_prev_reversal is None:
+        require_prev_reversal = cfg.get("require_prev_reversal", False)
     close_start = mcfg["market_close_start"]
     signals = []
 
@@ -158,6 +163,13 @@ def generate_signals(
 
                         ct, cb = max(co, cc), min(co, cc)
                         pt, pb = max(po, pc), min(po, pc)
+
+                        # Filter #14: require prev to be reversal-direction
+                        if require_prev_reversal:
+                            if sweep_dir == "bullish" and not (pc < po):
+                                continue
+                            if sweep_dir == "bearish" and not (pc > po):
+                                continue
 
                         tol = ENGULFING_TOLERANCE
                         if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):

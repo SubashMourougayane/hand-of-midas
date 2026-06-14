@@ -12,14 +12,21 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    require_prev_reversal: bool | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    require_prev_reversal: Filter #14 — require the engulfing predecessor to be
+      a reversal-direction bar relative to the sweep. For bullish-sweep, prev must
+      be bearish (pc < po). For bearish-sweep, prev must be bullish (pc > po).
+      None = read from config (False = legacy = accept any prev).
     """
     cfg = ALPHA_SWEEP
+    if require_prev_reversal is None:
+        require_prev_reversal = cfg.get("require_prev_reversal", False)
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -92,6 +99,14 @@ def generate_signals(
                 cb = min(co, cc)
                 pt = max(po, pc)
                 pb = min(po, pc)
+
+                # Filter #14: require prev to be reversal-direction (real engulfing,
+                # not continuation of the sweep-recovery move).
+                if require_prev_reversal:
+                    if sweep_dir == "bullish" and not (pc < po):
+                        continue  # bullish-sweep needs bearish prev
+                    if sweep_dir == "bearish" and not (pc > po):
+                        continue  # bearish-sweep needs bullish prev
 
                 tol = ENGULFING_TOLERANCE
                 if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):

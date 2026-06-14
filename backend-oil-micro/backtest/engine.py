@@ -68,9 +68,14 @@ def _hour_past(current: int, target: int) -> bool:
     return 0 < diff <= 12
 
 
-def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict) -> list[Signal]:
-    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows."""
+def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict,
+                     require_prev_reversal: bool | None = None) -> list[Signal]:
+    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows.
+    require_prev_reversal: Filter #14 — require engulfing predecessor to be
+    reversal-direction. None = read from config (False = legacy)."""
     cfg = MICRO_ALPHA_SWEEP
+    if require_prev_reversal is None:
+        require_prev_reversal = cfg.get("require_prev_reversal", False)
     close_start = cfg["market_close_start"]
     signals = []
 
@@ -173,6 +178,13 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
 
                         ct, cb = max(co, cc), min(co, cc)
                         pt, pb = max(po, pc), min(po, pc)
+
+                        # Filter #14: require prev to be reversal-direction
+                        if require_prev_reversal:
+                            if sweep_dir == "bullish" and not (pc < po):
+                                continue
+                            if sweep_dir == "bearish" and not (pc > po):
+                                continue
 
                         tol = ENGULFING_TOLERANCE
                         if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
@@ -394,6 +406,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    require_prev_reversal: bool | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -410,6 +423,8 @@ def run_backtest(
         partial_tp_at_pct = MICRO_ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
     if partial_tp_size is None:
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if require_prev_reversal is None:
+        require_prev_reversal = MICRO_ALPHA_SWEEP.get("require_prev_reversal", False)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
     np.random.seed(seed)
@@ -455,7 +470,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias)
+    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias,
+                                    require_prev_reversal=require_prev_reversal)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range

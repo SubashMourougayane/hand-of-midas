@@ -82,6 +82,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    require_prev_reversal: bool | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -89,6 +90,8 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    require_prev_reversal: Filter #14 — require engulfing prev to be reversal-direction.
+      None = config default (False = legacy).
     """
     from backend.config import ALPHA_SWEEP
     if partial_tp_at_pct is None:
@@ -97,6 +100,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if require_prev_reversal is None:
+        require_prev_reversal = ALPHA_SWEEP.get("require_prev_reversal", False)
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -162,7 +167,8 @@ def run_backtest(
 
     if "alpha_sweep" in strategies:
         np.random.seed(seed)
-        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias))
+        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias,
+                                                         require_prev_reversal=require_prev_reversal))
 
     all_signals.sort(key=lambda x: x.date)
 
