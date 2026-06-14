@@ -39,7 +39,13 @@ app = FastAPI(title="OilMiner Micro", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "https://midas.subashtrades.in",
+        "https://staging.midas.subashtrades.in",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
