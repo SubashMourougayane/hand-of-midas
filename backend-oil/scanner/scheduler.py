@@ -354,42 +354,22 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     "asia_high": asia_high, "asia_low": asia_low,
                     "sweep_wick": sweep_wick, "sweep_dir": sweep_dir,
                 })
-                _traded_sweeps_oil["keys"].add(sweep_key)
-                trades_today += 1
-                break  # dry_run path: parity with live's pre-add behavior
             else:
-                # Filter #15: Pre-add sweep to blacklist BEFORE execute_signal.
-                # If execute_signal raises (DB INSERT failure, MT5 timeout,
-                # JSON serialization error), the next 3-min cron MUST NOT retry
-                # the same sweep. Pre-marking here breaks the orphan-trade
-                # cascade pattern (mirrors Oil Micro line 422; June 10 fix).
+                # Execute via live_engine
                 _log.info("SIGNAL", "fired", direction=direction, entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, asia_high=asia_high, asia_low=asia_low)
-                _traded_sweeps_oil["keys"].add(sweep_key)
-                trades_today += 1
-                try:
-                    trade_ref = execute_signal(
-                        direction=direction,
-                        entry_price=entry,
-                        sl_price=sl,
-                        tp_price=tp,
-                        context={
-                            "asia_high": asia_high, "asia_low": asia_low, "asia_range": asia_range,
-                            "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
-                        },
-                    )
-                    if trade_ref:
-                        _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction=direction)
-                    else:
-                        _log.warn("SIGNAL", "skipped_by_engine", direction=direction, sweep_key=sweep_key)
-                except Exception as e:
-                    # Order may have placed even if persistence raised. Sweep stays
-                    # blacklisted (above) so we don't re-fire. Conservative: assume
-                    # order went through, daily counter stays incremented.
-                    _log.exception("SYSTEM", "execute_signal_raised", direction=direction, sweep_key=sweep_key, err=str(e))
-                    print(f"  [OIL] execute_signal raised: {e}")
-                    _log_journal_safe("SYSTEM", "alpha_sweep_oil", "EXECUTE_SIGNAL_RAISED",
-                                      entry, {"error": str(e), "sweep_key": sweep_key, "direction": direction})
-                break  # One engulfing per sweep
+                execute_signal(
+                    direction=direction,
+                    entry_price=entry,
+                    sl_price=sl,
+                    tp_price=tp,
+                    context={
+                        "asia_high": asia_high, "asia_low": asia_low, "asia_range": asia_range,
+                        "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                    },
+                )
+            _traded_sweeps_oil["keys"].add(sweep_key)
+            trades_today += 1
+            break  # One engulfing per sweep
         else:
             # No engulfing found — consume only if window expired
             if now >= window_end:
