@@ -82,6 +82,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    wick_to_body_ratio_max: float | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -89,6 +90,8 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    wick_to_body_ratio_max: Filter #13 — reject engulfing with rejection-wick/body
+      > this ratio. None = config default (no filter, infinity).
     """
     from backend.config import ALPHA_SWEEP
     if partial_tp_at_pct is None:
@@ -97,6 +100,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = ALPHA_SWEEP.get("wick_to_body_ratio_max", float("inf"))
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -162,7 +167,8 @@ def run_backtest(
 
     if "alpha_sweep" in strategies:
         np.random.seed(seed)
-        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias))
+        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias,
+                                                         wick_to_body_ratio_max=wick_to_body_ratio_max))
 
     all_signals.sort(key=lambda x: x.date)
 

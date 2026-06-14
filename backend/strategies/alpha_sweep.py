@@ -12,14 +12,21 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    wick_to_body_ratio_max: float | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    wick_to_body_ratio_max: Filter #13 — reject engulfing if rejection-wick / body
+      exceeds this ratio. None = read from config (no filter = legacy).
+      For bullish: upper_wick / body. For bearish: lower_wick / body.
+      Lower = stricter. Audit suggested 0.5 (upper wick ≤ half body).
     """
     cfg = ALPHA_SWEEP
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = cfg.get("wick_to_body_ratio_max", float("inf"))
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -98,6 +105,21 @@ def generate_signals(
                     continue
                 if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
+
+                # Filter #13: reject engulfing with large rejection wick
+                if wick_to_body_ratio_max < float("inf"):
+                    body = abs(cc - co)
+                    if body > 0:
+                        m3_high = gold_m3["mid_high"].iat[idx]
+                        m3_low = gold_m3["mid_low"].iat[idx]
+                        if sweep_dir == "bullish":
+                            upper_wick = m3_high - ct
+                            if upper_wick > body * wick_to_body_ratio_max:
+                                continue
+                        else:
+                            lower_wick = cb - m3_low
+                            if lower_wick > body * wick_to_body_ratio_max:
+                                continue
 
                 if sweep_dir == "bullish":
                     entry = gold_m3["ask_close"].iat[idx] + slippage(br)

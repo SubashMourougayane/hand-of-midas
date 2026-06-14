@@ -68,9 +68,14 @@ def _hour_past(current: int, target: int) -> bool:
     return 0 < diff <= 12
 
 
-def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict) -> list[Signal]:
-    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows."""
+def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict,
+                     wick_to_body_ratio_max: float | None = None) -> list[Signal]:
+    """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows.
+    wick_to_body_ratio_max: Filter #13 — reject engulfing if rejection-wick/body
+    exceeds this ratio. None = read from config (no filter = legacy)."""
     cfg = MICRO_ALPHA_SWEEP
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = cfg.get("wick_to_body_ratio_max", float("inf"))
     close_start = cfg["market_close_start"]
     signals = []
 
@@ -179,6 +184,21 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                             continue
                         if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                             continue
+
+                        # Filter #13: reject engulfing with large rejection wick
+                        if wick_to_body_ratio_max < float("inf"):
+                            body = abs(cc - co)
+                            if body > 0:
+                                m3_high = oil_m3["mid_high"].iat[idx]
+                                m3_low = oil_m3["mid_low"].iat[idx]
+                                if sweep_dir == "bullish":
+                                    upper_wick = m3_high - ct
+                                    if upper_wick > body * wick_to_body_ratio_max:
+                                        continue
+                                else:
+                                    lower_wick = cb - m3_low
+                                    if lower_wick > body * wick_to_body_ratio_max:
+                                        continue
 
                         if sweep_dir == "bullish":
                             entry = oil_m3["ask_close"].iat[idx] + _slippage(br)
@@ -394,6 +414,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    wick_to_body_ratio_max: float | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -410,6 +431,8 @@ def run_backtest(
         partial_tp_at_pct = MICRO_ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
     if partial_tp_size is None:
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = MICRO_ALPHA_SWEEP.get("wick_to_body_ratio_max", float("inf"))
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
     np.random.seed(seed)
@@ -455,7 +478,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias)
+    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias,
+                                    wick_to_body_ratio_max=wick_to_body_ratio_max)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range

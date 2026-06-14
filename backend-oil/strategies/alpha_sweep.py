@@ -30,9 +30,14 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    wick_to_body_ratio_max: float | None = None,
 ) -> list[Signal]:
-    """Generate Alpha-Sweep signals for Oil."""
+    """Generate Alpha-Sweep signals for Oil.
+    wick_to_body_ratio_max: Filter #13 — reject engulfing if rejection-wick/body
+    exceeds this ratio. None = read from config (no filter = legacy)."""
     cfg = ALPHA_SWEEP
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = cfg.get("wick_to_body_ratio_max", float("inf"))
     signals = []
     dates = sorted(set(oil_h1.index.date))
 
@@ -110,6 +115,21 @@ def generate_signals(
                     continue
                 if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
+
+                # Filter #13: reject engulfing with large rejection wick
+                if wick_to_body_ratio_max < float("inf"):
+                    body = abs(cc - co)
+                    if body > 0:
+                        m3_high = oil_m3["mid_high"].iat[idx]
+                        m3_low = oil_m3["mid_low"].iat[idx]
+                        if sweep_dir == "bullish":
+                            upper_wick = m3_high - ct
+                            if upper_wick > body * wick_to_body_ratio_max:
+                                continue
+                        else:
+                            lower_wick = cb - m3_low
+                            if lower_wick > body * wick_to_body_ratio_max:
+                                continue
 
                 if sweep_dir == "bullish":
                     entry = oil_m3["ask_close"].iat[idx] + slippage(br)

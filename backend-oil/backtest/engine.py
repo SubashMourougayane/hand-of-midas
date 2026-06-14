@@ -70,6 +70,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    wick_to_body_ratio_max: float | None = None,
 ) -> BacktestResult:
     """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
     trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
@@ -82,6 +83,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if wick_to_body_ratio_max is None:
+        wick_to_body_ratio_max = ALPHA_SWEEP.get("wick_to_body_ratio_max", float("inf"))
     if be_trigger_pct is None:
         be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
     if trail_after_be_pct is None:
@@ -125,7 +128,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1, oil_m3, daily_bias)
+    all_signals = generate_signals(oil_h1, oil_m3, daily_bias,
+                                     wick_to_body_ratio_max=wick_to_body_ratio_max)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range
