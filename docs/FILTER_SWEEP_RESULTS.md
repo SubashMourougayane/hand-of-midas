@@ -19,7 +19,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 4 | Anti-Trend-Extension | 3 | pending | — | — | — | — | — |
 | 12 | Engulfing-of-doji | 3 | pending | — | — | — | — | — |
 | 13 | Engulfing wick-vs-body | 4 | ❌ STASHED | archive-filter-13 | ALL DOWN | -$592k @ 1.0 / -$1.29M @ 0.5 / -$1.90M @ 0.3 | n/a (BT only) | STASH — uniformly bad: PF and P&L both drop at every threshold. Worse than #16/#2/#10 which had a PF/P&L tradeoff. Wick-rejection engulfings are MORE profitable than clean ones. |
-| 14 | prev=sweep-bar pollution | 4 | pending | — | — | — | — | — |
+| 14 | prev=sweep-bar pollution | 4 | ❌ STASHED | archive-filter-14 | ALL DOWN | -$784k aggregate (-16.5%) | n/a (BT only) | STASH — bug structurally real (engulfing prev IS inside H1 sweep), but those "bad" trades are MORE profitable. Same shape as #13. |
 | 10 | Spread-Inside SL (Oil Macro) | 4 | ❌ STASHED | archive-filter-10 | varies | -$107k @ 0.07 / -$210k @ 0.10 / -$332k @ 0.15 | n/a (BT only) | STASH — audit was wrong (SL is offset from sweep_wick, min_sl=0.10 floor protects spread; live SL trades show $0 slip). Wider sl_buffer monotonically loses P&L. |
 | 15 | Cooldown bypass race fix | 4 | ⏸ TESTED, REVERTED | (reverted via 43c96d6) | $0 (BT bit-identical) | $0 | n/a (fill-side) | TESTED — bug exists, fix works (unit test passes), but BT impact $0. User reverted: "no edge, no ship" — defensive fixes need their own bar. |
 
@@ -189,6 +189,32 @@ Branch archived as `archive-filter-10` (no merge, no live impact).
 Branch archived as `archive-filter-13` (no merge, no live impact).
 
 **Pattern across 4 stashed hypotheses (#16, #2, #10, #13):** every "skip more trades" filter loses P&L. Three (#16/#2/#10) gain PF as tradeoff. One (#13) loses both. This strategy's edge is signal-volume + fill-side ops; signal-quality pruning consistently underperforms.
+
+### Filter #14 — prev=sweep-bar pollution / require_prev_reversal — ❌ STASHED
+
+**Audit hypothesis:** `skip_first_bar=True` (all 4 configs) → `start_idx=2` → engulfing prev = `m3_window[1]`. Since `m3_window` starts strictly after `sweep_time` and OANDA H1 timestamp = bar open, `m3_window[0]` and `[1]` are M3 sub-bars INSIDE the H1 sweep formation, not clean prior bars.
+
+**Audit's structural finding: VERIFIED.** The engulfing IS using a sub-bar of the sweep formation as its predecessor.
+
+**Proposed fix:** require prev to be reversal-direction:
+- bullish-sweep (LONG): prev must be bearish (pc < po)
+- bearish-sweep (SHORT): prev must be bullish (pc > po)
+
+**Sweep results** (21yr × 4 systems × baseline/filter, 8 BTs):
+
+| System | Baseline | Filter ON | Δ P&L | Δ N | Δ PF |
+|---|---|---|---|---|---|
+| **Gold Macro** | $427,598 (PF 3.53) | $387,862 (PF 3.46) | −$40k (−9.3%) | −97 | −0.07 ❌ |
+| **Gold Micro** | $334,808 (PF 4.40) | $305,261 (PF 4.24) | −$30k (−8.8%) | −86 | −0.16 ❌ |
+| **Oil Macro** | $825,879 (PF 4.70) | $604,724 (PF 4.30) | −$221k (−27%) | −86 | −0.40 ❌ |
+| **Oil Micro** | $3,177,780 (PF 5.76) | $2,683,885 (PF 5.66) | −$494k (−16%) | −408 | −0.10 ❌ |
+| **Total** | **$4,766,065** | **$3,981,732** | **−$784,333 (−16.5%)** | −677 | — |
+
+**Decision: STASH.** Audit's structural concern is real BUT the resulting trades are profitable on average. Same shape as #13 — both PF AND P&L drop. Removing the "polluted" prev=sweep-bar engulfings removes more winners than losers. The classical "engulfing must reverse" idea doesn't hold here because the H1 sweep already provides the directional bias — the M3 engulfing is just an entry timing trigger, not a reversal pattern.
+
+Branch archived as `archive-filter-14` (no merge, no live impact).
+
+**Pattern across 5 disproven hypotheses (#16, #2, #10, #13, #14):** signal-volume AND signal-quality pruning both lose. Strategy edge is fill-side ops (#5/#6/#7) + current trade volume + current pattern-match permissiveness. Future "skip more trades" or "require cleaner pattern" hypotheses face very high prior of failure.
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
