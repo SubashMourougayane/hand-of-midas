@@ -6,6 +6,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
   surface?: 1 | 2 | 3;
   bordered?: boolean;
   padded?: boolean;
+  /** Apply hover-lift animation (translateY -1px + brass border tint). */
+  lift?: boolean;
 }
 
 const SURFACE: Record<1 | 2 | 3, string> = {
@@ -15,17 +17,18 @@ const SURFACE: Record<1 | 2 | 3, string> = {
 };
 
 const CardRoot = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { surface = 1, bordered = true, padded = false, className, ...rest },
+  { surface = 1, bordered = true, padded = false, lift = false, className, ...rest },
   ref,
 ) {
   return (
     <div
       ref={ref}
       className={cn(
-        "rounded-[6px]",
+        "rounded-[5px]",
         SURFACE[surface],
         bordered && "border border-[var(--color-border)]",
         padded && "p-4",
+        lift && "hom-lift",
         className,
       )}
       {...rest}
@@ -58,7 +61,7 @@ const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingEleme
     <h3
       ref={ref}
       className={cn(
-        "text-[12px] font-semibold uppercase tracking-[0.6px] text-[var(--color-text-dim)]",
+        "text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--color-text-dim)]",
         className,
       )}
       {...rest}

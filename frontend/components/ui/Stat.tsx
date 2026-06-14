@@ -1,17 +1,26 @@
 "use client";
 import { ReactNode } from "react";
 import { cn } from "./cn";
+import { CountUp } from "./CountUp";
 
-type Tone = "neutral" | "win" | "loss" | "info" | "warn" | "muted";
+type Tone = "neutral" | "win" | "loss" | "info" | "warn" | "muted" | "brass";
 
 interface StatProps {
   label: string;
+  /** Either a ReactNode (rendered as-is) or a number (animated via CountUp when `animate`). */
   value: ReactNode;
   hint?: ReactNode;
   tone?: Tone;
   trend?: "up" | "down" | "flat";
   size?: "sm" | "md" | "lg";
+  /** Apply mono+tabular-nums to the value. Default true. */
   mono?: boolean;
+  /** When `value` is a number, animate from prior value via CountUp. Default false. */
+  animate?: boolean;
+  /** CountUp formatting (only when `value` is number + `animate` true). */
+  decimals?: number;
+  prefix?: string;
+  suffix?: string;
   className?: string;
 }
 
@@ -22,12 +31,13 @@ const TONE_COLOR: Record<Tone, string> = {
   info: "text-[var(--color-info)]",
   warn: "text-[var(--color-warn)]",
   muted: "text-[var(--color-text-muted)]",
+  brass: "text-[var(--color-brass-hi)]",
 };
 
 const SIZE: Record<NonNullable<StatProps["size"]>, { value: string; label: string }> = {
   sm: { value: "text-[16px]", label: "text-[10px]" },
-  md: { value: "text-[20px]", label: "text-[11px]" },
-  lg: { value: "text-[28px]", label: "text-[11px]" },
+  md: { value: "text-[20px]", label: "text-[10px]" },
+  lg: { value: "text-[28px]", label: "text-[10px]" },
 };
 
 export function Stat({
@@ -38,14 +48,19 @@ export function Stat({
   trend,
   size = "md",
   mono = true,
+  animate = false,
+  decimals = 0,
+  prefix = "",
+  suffix = "",
   className,
 }: StatProps) {
   const arrow = trend === "up" ? "▲" : trend === "down" ? "▼" : trend === "flat" ? "·" : "";
+  const isNumber = typeof value === "number";
   return (
-    <div className={cn("flex flex-col gap-0.5", className)}>
+    <div className={cn("flex flex-col gap-1", className)}>
       <span
         className={cn(
-          "uppercase tracking-[0.6px] text-[var(--color-text-muted)] font-medium",
+          "uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium",
           SIZE[size].label,
         )}
       >
@@ -59,8 +74,12 @@ export function Stat({
           SIZE[size].value,
         )}
       >
-        {arrow ? <span className="mr-1 text-[0.7em]">{arrow}</span> : null}
-        {value}
+        {arrow ? <span className="mr-1 text-[0.7em] opacity-90">{arrow}</span> : null}
+        {animate && isNumber ? (
+          <CountUp value={value} decimals={decimals} prefix={prefix} suffix={suffix} />
+        ) : (
+          value
+        )}
       </span>
       {hint != null ? (
         <span className="text-[11px] text-[var(--color-text-muted)] leading-tight">{hint}</span>

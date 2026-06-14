@@ -16,32 +16,45 @@ const SECTIONS = [
 export function SectionNav() {
   const path = usePathname();
   const searchParams = useSearchParams();
-  // Preserve ?sys= when navigating between sections.
   const sys = searchParams.get("sys");
   const suffix = sys ? `?sys=${sys}` : "";
 
   return (
     <nav
       aria-label="Sections"
-      className="hidden md:flex md:flex-col md:w-[180px] md:flex-shrink-0 md:border-r md:border-[var(--color-border)] md:bg-[var(--color-surface-1)] py-3 px-2"
+      className="hidden md:flex md:flex-col md:w-[200px] md:flex-shrink-0 md:border-r md:border-[var(--color-border)] md:bg-[var(--color-surface-1)] py-4 px-2.5"
     >
       <ul className="flex flex-col gap-0.5">
         {SECTIONS.map(({ href, label, icon: Icon }) => {
           const active = path === href || path.startsWith(href + "/");
           return (
-            <li key={href}>
+            <li key={href} className="relative">
+              {active ? (
+                <span
+                  aria-hidden
+                  className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-[var(--color-brass)] rounded-full hom-fade-in"
+                  style={{ boxShadow: "0 0 8px rgba(212,164,100,0.5)" }}
+                />
+              ) : null}
               <Link
                 href={`${href}${suffix}`}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 h-8 px-2.5 rounded-[5px]",
-                  "text-[12px] font-medium transition-colors",
+                  "flex items-center gap-2.5 h-9 pl-3 pr-2.5 rounded-[4px]",
+                  "text-[12px] font-medium",
+                  "transition-[color,background-color] duration-180 ease-out",
                   active
-                    ? "bg-[var(--color-surface-3)] text-[var(--color-text)]"
+                    ? "bg-[var(--color-brass-tint)] text-[var(--color-brass-hi)]"
                     : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]",
                 )}
               >
-                <Icon size={14} className={active ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]"} />
+                <Icon
+                  size={14}
+                  className={cn(
+                    "transition-colors",
+                    active ? "text-[var(--color-brass)]" : "text-[var(--color-text-muted)]",
+                  )}
+                />
                 <span>{label}</span>
               </Link>
             </li>
@@ -72,7 +85,7 @@ export function SectionNavMobile() {
             className={cn(
               "flex flex-col items-center justify-center gap-0.5 flex-1 h-full",
               "text-[10px] font-medium transition-colors",
-              active ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]",
+              active ? "text-[var(--color-brass-hi)]" : "text-[var(--color-text-muted)]",
             )}
           >
             <Icon size={16} />

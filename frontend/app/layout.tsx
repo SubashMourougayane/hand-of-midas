@@ -1,24 +1,12 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import InstrumentProvider from "@/components/InstrumentProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppShell } from "@/components/shell/AppShell";
 
 export const dynamic = "force-dynamic";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-mono",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Hand Of Midas",
@@ -34,7 +22,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full`}>
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
+      style={{
+        // Geist's variable -> Tailwind v4 theme tokens. Inline so the @theme
+        // tokens resolve to the right CSS variable name on first paint.
+        ["--font-sans" as string]: "var(--font-geist-sans)",
+        ["--font-mono" as string]: "var(--font-geist-mono)",
+      }}
+    >
       <body className="min-h-full">
         <AuthProvider>
           <InstrumentProvider>

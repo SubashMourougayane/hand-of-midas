@@ -12,3 +12,7 @@ export { Tooltip } from "./Tooltip";
 export { EmptyState } from "./EmptyState";
 export { PageHeader } from "./PageHeader";
 export { Sparkline } from "./Sparkline";
+export { Display } from "./Display";
+export { CountUp } from "./CountUp";
+export { Reveal } from "./Reveal";
+export { MarqueeTicker } from "./MarqueeTicker";

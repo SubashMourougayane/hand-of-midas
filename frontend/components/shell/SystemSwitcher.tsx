@@ -57,11 +57,11 @@ export function SystemSwitcher() {
 
   return (
     <>
-      {/* Desktop: segmented control */}
+      {/* Desktop: segmented control with brass-trim active pill */}
       <div
         role="tablist"
         aria-label="Active trading system"
-        className="hidden lg:inline-flex items-center gap-0.5 p-0.5 rounded-[6px] bg-[var(--color-surface-1)] border border-[var(--color-border)]"
+        className="hidden lg:inline-flex items-center gap-0.5 p-0.5 rounded-[5px] bg-[var(--color-surface-1)] border border-[var(--color-border)]"
       >
         {ORDER.map((key, idx) => {
           const sys = INSTRUMENTS[key];
@@ -76,20 +76,27 @@ export function SystemSwitcher() {
               onClick={() => setInstrument(key)}
               title={`${SHORT_LABEL[key]} · ${sys.symbol} · ⌘${idx + 1}`}
               className={cn(
-                "h-7 px-2.5 rounded-[4px] text-[11px] font-medium transition-colors",
-                "flex items-center gap-1.5 whitespace-nowrap",
+                "h-7 px-3 rounded-[3px] text-[11px] font-medium",
+                "transition-[color,background-color,box-shadow] duration-200 ease-out",
+                "flex items-center gap-2 whitespace-nowrap",
                 active
                   ? "text-[var(--color-text)]"
                   : "text-[var(--color-text-muted)] hover:text-[var(--color-text-dim)]",
               )}
               style={active ? {
-                backgroundColor: `${color}1f`,
-                boxShadow: `inset 0 0 0 1px ${color}66`,
+                backgroundColor: `${color}1a`,
+                boxShadow: `inset 0 0 0 1px ${color}80, 0 0 14px -4px ${color}40`,
               } : undefined}
             >
               <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: color }}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full transition-transform",
+                  active && "scale-110",
+                )}
+                style={{
+                  backgroundColor: color,
+                  boxShadow: active ? `0 0 6px ${color}` : undefined,
+                }}
                 aria-hidden
               />
               <span>{SHORT_LABEL[key]}</span>

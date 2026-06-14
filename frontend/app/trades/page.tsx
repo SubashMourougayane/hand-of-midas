@@ -330,35 +330,47 @@ export default function TradesPage() {
 
       {/* Stats row */}
       {stats.total && stats.total > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-          <Card padded><Stat label="Trades" value={stats.total.toLocaleString()} mono={false} /></Card>
-          <Card padded>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4 hom-stagger-children">
+          <Card padded lift className="hom-stagger">
+            <Stat label="Trades" value={stats.total} animate mono />
+          </Card>
+          <Card padded lift className="hom-stagger">
             <Stat
               label="Win rate"
-              value={`${((stats.win_rate ?? 0) * 100).toFixed(1)}%`}
+              value={(stats.win_rate ?? 0) * 100}
+              animate
+              decimals={1}
+              suffix="%"
               tone={(stats.win_rate ?? 0) > 0.5 ? "win" : "neutral"}
             />
           </Card>
-          <Card padded>
+          <Card padded lift className="hom-stagger">
             <Stat
               label="Total P&L"
-              value={`${totalPnl >= 0 ? "+" : ""}$${totalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+              value={totalPnl}
+              animate
+              prefix={totalPnl >= 0 ? "+$" : "-$"}
+              decimals={0}
               tone={totalPnl >= 0 ? "win" : "loss"}
               hint={<span className="num">{formatINR(totalPnl)}</span>}
             />
           </Card>
-          <Card padded>
+          <Card padded lift className="hom-stagger">
             <Stat
               label="Avg win"
-              value={`+$${(stats.avg_win ?? 0).toFixed(0)}`}
+              value={stats.avg_win ?? 0}
+              animate
+              prefix="+$"
               tone="win"
               hint={<span className="num">{formatINR(stats.avg_win ?? 0)}</span>}
             />
           </Card>
-          <Card padded>
+          <Card padded lift className="hom-stagger">
             <Stat
               label="Avg loss"
-              value={`-$${Math.abs(stats.avg_loss ?? 0).toFixed(0)}`}
+              value={Math.abs(stats.avg_loss ?? 0)}
+              animate
+              prefix="-$"
               tone="loss"
               hint={<span className="num">{formatINR(stats.avg_loss ?? 0)}</span>}
             />
