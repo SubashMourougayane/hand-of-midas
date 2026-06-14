@@ -30,9 +30,18 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    sl_buffer: float | None = None,
 ) -> list[Signal]:
-    """Generate Alpha-Sweep signals for Oil."""
+    """Generate Alpha-Sweep signals for Oil.
+
+    sl_buffer: Filter #10 — distance past the sweep wick to place SL.
+      None = read from ALPHA_SWEEP config (current production: 0.03).
+      Higher values widen SL → smaller positions but better cushion past
+      the bid-ask spread on tight wicks.
+    """
     cfg = ALPHA_SWEEP
+    if sl_buffer is None:
+        sl_buffer = cfg["sl_buffer"]
     signals = []
     dates = sorted(set(oil_h1.index.date))
 
@@ -113,7 +122,7 @@ def generate_signals(
 
                 if sweep_dir == "bullish":
                     entry = oil_m3["ask_close"].iat[idx] + slippage(br)
-                    slv = sweep_wick - cfg["sl_buffer"]
+                    slv = sweep_wick - sl_buffer
                     risk = entry - slv
                     if risk < cfg["min_sl"]:
                         slv = entry - cfg["min_sl"]
@@ -131,7 +140,7 @@ def generate_signals(
                     ))
                 else:
                     entry = oil_m3["bid_close"].iat[idx] - slippage(br)
-                    slv = sweep_wick + cfg["sl_buffer"]
+                    slv = sweep_wick + sl_buffer
                     risk = slv - entry
                     if risk < cfg["min_sl"]:
                         slv = entry + cfg["min_sl"]
