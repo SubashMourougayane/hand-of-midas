@@ -30,10 +30,24 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    anti_trend_threshold: float | None = None,
+    anti_trend_lookback_h: int = 4,
 ) -> list[Signal]:
     """Generate Alpha-Sweep signals for Oil."""
     cfg = ALPHA_SWEEP
+    if anti_trend_threshold is None:
+        anti_trend_threshold = cfg.get("anti_trend_threshold", 0.0)
     signals = []
+
+    if anti_trend_threshold > 0:
+        _h1_hl = oil_h1["mid_high"] - oil_h1["mid_low"]
+        _h1_hp = (oil_h1["mid_high"] - oil_h1["mid_close"].shift(1)).abs()
+        _h1_lp = (oil_h1["mid_low"] - oil_h1["mid_close"].shift(1)).abs()
+        _h1_tr = pd.concat([_h1_hl, _h1_hp, _h1_lp], axis=1).max(axis=1)
+        atr_h1 = _h1_tr.rolling(14, min_periods=14).mean()
+    else:
+        atr_h1 = None
+
     dates = sorted(set(oil_h1.index.date))
 
     for date in dates:
@@ -110,6 +124,22 @@ def generate_signals(
                     continue
                 if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
+
+                # Filter #4: skip if prior N-hour move already extended in entry direction
+                if anti_trend_threshold > 0 and atr_h1 is not None:
+                    sig_ts = oil_m3.index[idx]
+                    h1_now = atr_h1.index.asof(sig_ts)
+                    if h1_now is not None:
+                        atr_val = atr_h1.loc[h1_now]
+                        if not pd.isna(atr_val) and atr_val > 0:
+                            prior_close = oil_h1["mid_close"].asof(sig_ts - pd.Timedelta(hours=anti_trend_lookback_h))
+                            curr_close = oil_h1["mid_close"].asof(sig_ts)
+                            if prior_close is not None and curr_close is not None and not pd.isna(prior_close) and not pd.isna(curr_close):
+                                move = curr_close - prior_close
+                                if sweep_dir == "bullish" and move > anti_trend_threshold * atr_val:
+                                    continue
+                                if sweep_dir == "bearish" and move < -anti_trend_threshold * atr_val:
+                                    continue
 
                 if sweep_dir == "bullish":
                     entry = oil_m3["ask_close"].iat[idx] + slippage(br)
