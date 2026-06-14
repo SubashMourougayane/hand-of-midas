@@ -67,14 +67,19 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
 }
 
 function GoldParticles() {
-  const particles = Array.from({ length: 24 }, (_, i) => ({
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    size: 2 + Math.random() * 3,
-    delay: Math.random() * 5,
-    duration: 4 + Math.random() * 4,
-    opacity: 0.15 + Math.random() * 0.25,
-  }));
+  // Deterministic-looking pseudorandom positions, computed once. Pure
+  // Math.random() during render is impure — useState lazy initializer
+  // runs once on mount and stays stable across re-renders.
+  const [particles] = useState(() =>
+    Array.from({ length: 24 }, () => ({
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 2 + Math.random() * 3,
+      delay: Math.random() * 5,
+      duration: 4 + Math.random() * 4,
+      opacity: 0.15 + Math.random() * 0.25,
+    })),
+  );
 
   return (
     <div className="hide-mobile" style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
