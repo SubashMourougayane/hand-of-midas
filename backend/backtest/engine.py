@@ -82,6 +82,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    tp_feasibility_factor: float | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -89,6 +90,8 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    tp_feasibility_factor: Filter #3 — require expected_distance ≥ required × factor.
+      None = config default (0 = no filter).
     """
     from backend.config import ALPHA_SWEEP
     if partial_tp_at_pct is None:
@@ -97,6 +100,8 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if tp_feasibility_factor is None:
+        tp_feasibility_factor = ALPHA_SWEEP.get("tp_feasibility_factor", 0.0)
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -162,7 +167,8 @@ def run_backtest(
 
     if "alpha_sweep" in strategies:
         np.random.seed(seed)
-        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias))
+        all_signals.extend(alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias,
+                                                         tp_feasibility_factor=tp_feasibility_factor))
 
     all_signals.sort(key=lambda x: x.date)
 

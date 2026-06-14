@@ -12,15 +12,35 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    tp_feasibility_factor: float | None = None,
+    session_close_hour: int = 21,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    tp_feasibility_factor: Filter #3 — require expected_distance ≥ required × factor.
+      None or 0 = no filter (legacy). 0.7 = need 70% of expected to be confident.
+      expected_distance = (minutes_remaining / 60) × ATR_H1.
+      minutes_remaining = min(MAX_BARS × 3, minutes_to_session_close).
+    session_close_hour: UTC hour after which expected price movement drops to ~0.
+      Default 21 (OANDA daily rollover; matches Macro scan_end + Micro market_close).
     """
     cfg = ALPHA_SWEEP
+    if tp_feasibility_factor is None:
+        tp_feasibility_factor = cfg.get("tp_feasibility_factor", 0.0)
     signals = []
+
+    # Precompute ATR_14 on H1 for the whole DataFrame (Filter #3)
+    if tp_feasibility_factor > 0:
+        _h1_high_low = gold_h1["mid_high"] - gold_h1["mid_low"]
+        _h1_hp = (gold_h1["mid_high"] - gold_h1["mid_close"].shift(1)).abs()
+        _h1_lp = (gold_h1["mid_low"] - gold_h1["mid_close"].shift(1)).abs()
+        _h1_tr = pd.concat([_h1_high_low, _h1_hp, _h1_lp], axis=1).max(axis=1)
+        atr_h1 = _h1_tr.rolling(14, min_periods=14).mean()
+    else:
+        atr_h1 = None
 
     dates = sorted(set(gold_h1.index.date))
 
@@ -116,6 +136,20 @@ def generate_signals(
                     if tpv - entry < risk * 0.8:
                         continue
 
+                    # Filter #3: TP feasibility (skip if TP unreachable in time)
+                    if tp_feasibility_factor > 0 and atr_h1 is not None:
+                        sig_ts = gold_m3.index[idx]
+                        h1_idx = atr_h1.index.asof(sig_ts)
+                        atr_val = atr_h1.loc[h1_idx] if h1_idx is not None else None
+                        if atr_val and not pd.isna(atr_val) and atr_val > 0:
+                            mins_to_close = max(0, (session_close_hour - sig_ts.hour) * 60 - sig_ts.minute)
+                            mins_max_hold = cfg["max_bars"] * 3
+                            mins_remaining = min(mins_max_hold, mins_to_close)
+                            expected = (mins_remaining / 60.0) * atr_val
+                            required = tpv - entry
+                            if expected < required * tp_feasibility_factor:
+                                continue
+
                     signals.append(Signal(
                         date=gold_m3.index[idx],
                         entry=entry, sl=slv, tp=tpv,
@@ -139,6 +173,20 @@ def generate_signals(
                     tpv = al + tp_buf
                     if entry - tpv < risk * 0.8:
                         continue
+
+                    # Filter #3: TP feasibility
+                    if tp_feasibility_factor > 0 and atr_h1 is not None:
+                        sig_ts = gold_m3.index[idx]
+                        h1_idx = atr_h1.index.asof(sig_ts)
+                        atr_val = atr_h1.loc[h1_idx] if h1_idx is not None else None
+                        if atr_val and not pd.isna(atr_val) and atr_val > 0:
+                            mins_to_close = max(0, (session_close_hour - sig_ts.hour) * 60 - sig_ts.minute)
+                            mins_max_hold = cfg["max_bars"] * 3
+                            mins_remaining = min(mins_max_hold, mins_to_close)
+                            expected = (mins_remaining / 60.0) * atr_val
+                            required = entry - tpv
+                            if expected < required * tp_feasibility_factor:
+                                continue
 
                     signals.append(Signal(
                         date=gold_m3.index[idx],

@@ -30,10 +30,24 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    tp_feasibility_factor: float | None = None,
+    session_close_hour: int = 21,
 ) -> list[Signal]:
-    """Generate Alpha-Sweep signals for Oil."""
+    """tp_feasibility_factor: Filter #3. None = read from config (0 = legacy)."""
     cfg = ALPHA_SWEEP
+    if tp_feasibility_factor is None:
+        tp_feasibility_factor = cfg.get("tp_feasibility_factor", 0.0)
     signals = []
+
+    if tp_feasibility_factor > 0:
+        _hl = oil_h1["mid_high"] - oil_h1["mid_low"]
+        _hp = (oil_h1["mid_high"] - oil_h1["mid_close"].shift(1)).abs()
+        _lp = (oil_h1["mid_low"] - oil_h1["mid_close"].shift(1)).abs()
+        _tr = pd.concat([_hl, _hp, _lp], axis=1).max(axis=1)
+        atr_h1 = _tr.rolling(14, min_periods=14).mean()
+    else:
+        atr_h1 = None
+
     dates = sorted(set(oil_h1.index.date))
 
     for date in dates:
@@ -123,6 +137,17 @@ def generate_signals(
                     tpv = entry + ar * cfg["tp_multiplier"]
                     if tpv - entry < risk * 0.8:
                         continue
+                    # Filter #3: TP feasibility
+                    if tp_feasibility_factor > 0 and atr_h1 is not None:
+                        sig_ts = oil_m3.index[idx]
+                        h1_idx = atr_h1.index.asof(sig_ts)
+                        atr_val = atr_h1.loc[h1_idx] if h1_idx is not None else None
+                        if atr_val and not pd.isna(atr_val) and atr_val > 0:
+                            mins_to_close = max(0, (session_close_hour - sig_ts.hour) * 60 - sig_ts.minute)
+                            mins_remaining = min(cfg["max_bars"] * 3, mins_to_close)
+                            expected = (mins_remaining / 60.0) * atr_val
+                            if expected < (tpv - entry) * tp_feasibility_factor:
+                                continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
                         direction="long", risk=risk, strategy="alpha_sweep",
@@ -141,6 +166,17 @@ def generate_signals(
                     tpv = entry - ar * cfg["tp_multiplier"]
                     if entry - tpv < risk * 0.8:
                         continue
+                    # Filter #3: TP feasibility
+                    if tp_feasibility_factor > 0 and atr_h1 is not None:
+                        sig_ts = oil_m3.index[idx]
+                        h1_idx = atr_h1.index.asof(sig_ts)
+                        atr_val = atr_h1.loc[h1_idx] if h1_idx is not None else None
+                        if atr_val and not pd.isna(atr_val) and atr_val > 0:
+                            mins_to_close = max(0, (session_close_hour - sig_ts.hour) * 60 - sig_ts.minute)
+                            mins_remaining = min(cfg["max_bars"] * 3, mins_to_close)
+                            expected = (mins_remaining / 60.0) * atr_val
+                            if expected < (entry - tpv) * tp_feasibility_factor:
+                                continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
                         direction="short", risk=risk, strategy="alpha_sweep",
