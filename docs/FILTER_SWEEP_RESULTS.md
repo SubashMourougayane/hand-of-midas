@@ -14,10 +14,10 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 7 | Partial TP at 50% | 1 | ✅ SHIPPED (4/4) | filter-07-partial-tp | +1.79 avg | +$1,261,109 | n/a (fill-side) | SHIP — Variant A on all 4 systems. No regressions. |
 | 16 | R:R lower bound | 2 | ❌ STASHED | archive-filter-16 | varies | -$701k @ 1.5 / -$37k @ 1.0 | n/a (drift-fixed at impl) | STASH — sweep across 0.8/1.0/1.2/1.5 all net negative. Sub-1.5R trades profitable. |
 | 2 | First-Sweep-of-Day | 2 | ❌ STASHED | archive-filter-02 | varies | -$1.55M @ max=1 / -$384k @ max=2 | n/a (drift-fixed at impl) | STASH — sweep across max-{1,2} both net negative all 4 systems. |
-| 9 | R:R Upper Bound 4.0 | 2 | pending | — | — | — | — | — |
+| 9 | R:R Upper Bound | 2 | ❌ STASHED | archive-filter-09 | varies (some +) | -$1.66M @ 3.0 / -$1.13M @ 4.0 / -$906k @ 5.0 / -$711k @ 6.0 | n/a (BT only) | STASH — sweep across 3.0/4.0/5.0/6.0 all net negative. Oil Macro at T=3.0 loses 98% of P&L (PF 4.70→1.53). Distant-TP setups are profitable BECAUSE bias is correct. |
 | 3 | TP Feasibility | 3 | ❌ STASHED | archive-filter-03 | varies | -$137k @ 0.5 / -$324k @ 0.7 / -$905k @ 1.0 | n/a (BT only) | STASH — sweep across factor 0/0.5/0.7/0.9/1.0 all net negative. Same shape as #16/#2/#10. |
-| 4 | Anti-Trend-Extension | 3 | pending | — | — | — | — | — |
-| 12 | Engulfing-of-doji | 3 | pending | — | — | — | — | — |
+| 4 | Anti-Trend-Extension | 3 | ❌ STASHED | archive-filter-04 | mostly flat | -$462k @ 1.5 / -$226k @ 2.0 / -$95k @ 2.5 | n/a (BT only) | STASH — sweep across 1.5/2.0/2.5 (× ATR_14) all net negative. Late-entry "extended" trades are profitable. |
+| 12 | Engulfing-of-doji | 3 | ❌ STASHED | archive-filter-12 | ALL DOWN | -$1.54M @ 0.3 / -$2.46M @ 0.5 / -$3.36M @ 0.7 | n/a (BT only) | STASH — both PF and P&L drop at every threshold. Engulfing-of-doji is structurally MORE profitable (compressed prev = absorbed pressure). |
 | 13 | Engulfing wick-vs-body | 4 | ❌ STASHED | archive-filter-13 | ALL DOWN | -$592k @ 1.0 / -$1.29M @ 0.5 / -$1.90M @ 0.3 | n/a (BT only) | STASH — uniformly bad: PF and P&L both drop at every threshold. Worse than #16/#2/#10 which had a PF/P&L tradeoff. Wick-rejection engulfings are MORE profitable than clean ones. |
 | 14 | prev=sweep-bar pollution | 4 | ❌ STASHED | archive-filter-14 | ALL DOWN | -$784k aggregate (-16.5%) | n/a (BT only) | STASH — bug structurally real (engulfing prev IS inside H1 sweep), but those "bad" trades are MORE profitable. Same shape as #13. |
 | 10 | Spread-Inside SL (Oil Macro) | 4 | ❌ STASHED | archive-filter-10 | varies | -$107k @ 0.07 / -$210k @ 0.10 / -$332k @ 0.15 | n/a (BT only) | STASH — audit was wrong (SL is offset from sweep_wick, min_sl=0.10 floor protects spread; live SL trades show $0 slip). Wider sl_buffer monotonically loses P&L. |
@@ -238,6 +238,119 @@ Branch archived as `archive-filter-03` (no merge, no live impact).
 
 **Pattern across 6 disproven hypotheses (#16, #2, #10, #13, #14, #3):** signal-pruning consistently underperforms regardless of mechanism (R:R floor, first-sweep, sl_buffer, wick-quality, prev-bar pollution, TP feasibility). Strategy edge is fill-side ops + current trade volume.
 
-## Wave 2 (continued) — pending
-## Wave 3 — pending
-## Wave 4 — pending
+## Wave 3 — final 3 filters (sweep complete 2026-06-14)
+
+### Filter #9 — R:R Upper Bound — ❌ STASHED
+
+**Audit hypothesis:** distant-TP setups (R:R > 4) are "lottery-ticket geometry" — tight SL gets stopped on noise; distant TP rarely hits.
+
+**Implementation:** `max_rr_threshold` kwarg in all 4 strategies. Applied AFTER existing R:R lower-bound check (`tpv - entry < risk * 0.8`). Skip if (tp-entry)/risk > T (LONG) or (entry-tp)/risk > T (SHORT).
+
+**Sweep results** (21yr × 4 systems × 5 thresholds = 20 BTs):
+
+| System | T=0 (baseline) | T=3.0 | T=4.0 | T=5.0 | T=6.0 |
+|---|---|---|---|---|---|
+| **Gold Macro** | $427,598 (PF 3.53) | $284,225 −33% (PF 3.27) | $356,557 −17% (PF 3.43) | $376,565 −12% (PF 3.44) | $389,949 −9% (PF 3.42) |
+| **Gold Micro** | $334,808 (PF 4.40) | $238,225 −29% (PF 4.11) | $290,130 −13% (PF 4.28) | $307,132 −8% (PF 4.24) | $319,516 −5% (PF 4.33) |
+| **Oil Macro** | $825,879 (PF 4.70) | $16,864 **−98%** (PF 1.53) | $75,382 −91% (PF 2.21) | $162,319 −80% (PF 2.81) | $273,495 −67% (PF 3.33) |
+| **Oil Micro** | $3,177,780 (PF 5.76) | $2,568,708 −19% (PF 5.25) | $2,912,308 −8% (PF 5.46) | $3,014,373 −5% (PF 5.58) | $3,072,286 −3% (PF 5.65) |
+| **Total** | **$4,766,065** | $3,108,022 (−34.8%) | $3,634,377 (−23.7%) | $3,860,389 (−19.0%) | $4,055,246 (−14.9%) |
+
+**Decision: STASH all variants.** Worst result: Oil Macro at T=3.0 loses 98% of P&L (PF crashes 4.70 → 1.53, only 802 trades remain). Oil Macro's TP geometry naturally produces wide R:R (`tp = entry + ar × tp_multiplier` based on Asia range), so capping R:R amputates most of its profitable setups. Other 3 systems also lose at every threshold. Distant-TP setups are profitable **because** the H1 sweep already provides correct directional bias — high-R:R trades that DO hit are the strategy's biggest wins.
+
+Branch archived as `archive-filter-09` (no merge, no live impact).
+
+### Filter #4 — Anti-Trend-Extension — ❌ STASHED
+
+**Audit hypothesis:** entries into already-extended directional moves are statistically late fades. Skip if prior 4hr H1 close-to-close move > N × ATR_14 in the same direction as entry.
+
+**Implementation:** `anti_trend_threshold` kwarg in all 4 strategies. Precompute ATR_14 H1; at signal time `asof()` lookup; for bullish-sweep (LONG entry) skip if move > T×ATR up; for bearish-sweep (SHORT) skip if move < -T×ATR down.
+
+**Sweep results** (21yr × 4 systems × 4 thresholds = 16 BTs):
+
+| System | T=0 (baseline) | T=1.5 | T=2.0 | T=2.5 |
+|---|---|---|---|---|
+| **Gold Macro** | $427,598 (PF 3.53) | $369,896 −13% (PF 3.35) | $406,386 −5% (PF 3.47) | $418,016 −2% (PF 3.49) |
+| **Gold Micro** | $334,808 (PF 4.40) | $319,580 −5% (PF 4.33) | $327,483 −2% (PF 4.37) | $331,587 −1% (PF 4.40) |
+| **Oil Macro** | $825,879 (PF 4.70) | $558,520 −32% (PF 4.33) | $698,972 −15% (PF 4.46) | $751,873 −9% (PF 4.56) |
+| **Oil Micro** | $3,177,780 (PF 5.76) | $3,056,509 −4% (PF 5.71) | $3,107,130 −2% (PF 5.71) | $3,169,696 −0% (PF 5.80) |
+| **Total** | **$4,766,065** | $4,304,505 (−9.7%) | $4,539,971 (−4.7%) | $4,671,172 (−2.0%) |
+
+**Decision: STASH all variants.** Same pattern as the prior 7 stashed: PF stays flat or slightly improves but P&L always drops. Late-entry "extended" trades are profitable in this strategy. Reinforces the central finding: H1 sweep + bias filter already encode directional truth; "is this trade late?" is not a useful additional gate.
+
+Branch archived as `archive-filter-04` (no merge, no live impact).
+
+### Filter #12 — Engulfing-of-Doji — ❌ STASHED
+
+**Audit hypothesis:** engulfing detector checks containment but not prev body magnitude. A doji prev (po ≈ pc) is trivially "engulfed" by any non-doji — that's continuation, not reversal. Require `prev_body ≥ ratio × curr_body`.
+
+**Implementation:** `min_prev_body_ratio` kwarg in all 4 strategies. Skip if `abs(pc-po) < ratio × abs(cc-co)`.
+
+**Sweep results** (21yr × 4 systems × 4 thresholds = 16 BTs):
+
+| System | T=0 (baseline) | T=0.3 | T=0.5 | T=0.7 |
+|---|---|---|---|---|
+| **Gold Macro** | $427,598 (PF 3.53) | $284,160 −34% (PF 3.34) | $234,843 −45% (PF 3.24) | $148,944 −65% (PF 3.02) |
+| **Gold Micro** | $334,808 (PF 4.40) | $230,130 −31% (PF 3.81) | $200,847 −40% (PF 3.81) | $149,127 −56% (PF 3.84) |
+| **Oil Macro** | $825,879 (PF 4.70) | $413,492 −50% (PF 3.86) | $256,126 −69% (PF 3.53) | $125,792 −85% (PF 2.89) |
+| **Oil Micro** | $3,177,780 (PF 5.76) | $2,293,490 −28% (PF 5.47) | $1,617,385 −49% (PF 5.54) | $981,011 −69% (PF 5.45) |
+| **Total** | **$4,766,065** | $3,221,272 (−32.4%) | $2,309,201 (−51.5%) | $1,404,874 (−70.5%) |
+
+**Decision: STASH all variants.** Worst pattern of the entire sweep — both PF AND P&L drop at every threshold (matches #13/#14/#9). Oil Macro hits −85% at T=0.7. Engulfing-of-doji is actually **more** profitable than engulfing-of-large-body: a small/quiet prev bar represents absorbed selling/buying pressure, and the directional break candle that follows is a stronger continuation signal. The "must reverse a real body" intuition does not survive 21-year measurement.
+
+Branch archived as `archive-filter-12` (no merge, no live impact).
+
+---
+
+## Audit list closure (2026-06-14)
+
+The 17-candidate audit list is now fully resolved.
+
+| Outcome | Count | Filters |
+|---|---|---|
+| ✅ **Shipped** | 4 | #11 (parity bug fix), #5 (BE pct, 3/4 systems), #6 (trail-after-BE, Oil Macro only), #7 (partial-TP, all 4) |
+| ❌ **Rejected** | 12 | #1, #8, #17, "Filter A", #16, #2, #10, #13, #14, #3, **#9, #4, #12** |
+| ⏸ **Tested + reverted** | 1 | #15 (cooldown bypass race fix — bug real but $0 BT impact) |
+
+**Cumulative shipped P&L: +$1,520,727 / 21yr (+$72.4k/yr)** on top of pre-filter baseline.
+
+### The central finding (data-confirmed across 9 independent disproven hypotheses)
+
+| # | Mechanism | Type |
+|---|---|---|
+| 16 | R:R lower bound | Signal-quality |
+| 2 | First-sweep-of-day cap | Signal-volume |
+| 10 | sl_buffer widening (Oil Macro) | Param widening |
+| 13 | Engulfing wick-vs-body asymmetry | Signal-quality |
+| 14 | Require prev=reversal-direction | Signal-quality |
+| 3 | TP feasibility (ATR × time) | Signal-feasibility |
+| 9 | R:R upper bound | Signal-quality |
+| 4 | Anti-trend-extension | Signal-timing |
+| 12 | Engulfing-of-doji | Signal-quality |
+
+**Every signal-side filter — across volume, quality, timing, R:R bounds, ATR multiples, body ratios, wick ratios, prev-bar requirements — loses P&L at every threshold tested.** Some (#16/#2/#10/#3/#9/#4) gain PF as a tradeoff for lower P&L; the rest (#13/#14/#12) lose both. No threshold of any signal-pruning hypothesis produced a net P&L improvement on aggregate across the 4 systems.
+
+**The 4 shipped filters are all fill-side ops:**
+- #11 — parity (bug fix, no signal change)
+- #5 — earlier BE arming (fill-side)
+- #6 — trail-after-BE (fill-side)
+- #7 — partial-TP at 50% (fill-side)
+
+### Why signal pruning fails in this strategy
+
+The H1 Asia/range sweep + Combined V1+V2 daily bias filter already encode directional truth. By the time a sweep + engulfing fires:
+
+1. **Direction is correct on average** (the filter combination is the entire alpha).
+2. **The M3 engulfing is just an entry-timing trigger**, not an additional reversal filter.
+3. **"Quality" of the engulfing pattern (clean body, no wicks, large prev) is uncorrelated with profitability** — what looks like a noisy entry is often the strategy taking a position before the bigger move resolves.
+4. **Any signal-side filter that removes trades removes more winners than losers** (or roughly equal, with P&L dropping while PF stays flat or improves).
+
+Edge is in **how trades are managed once entered** — earlier BE protection, partial profit-taking, post-BE trailing — not in **which trades to enter**.
+
+### Forward implications for R&D
+
+- **Future signal-pruning hypotheses face very high prior of failure.** 9 disproven mechanisms covering every reasonable angle. Any new signal-quality / volume / timing filter needs a strong explanation for why it would succeed where these failed.
+- **Future fill-side variants are higher-prior.** Candidates: more partial-TP variants (different split ratios, different trigger %), trail-after-BE refinements (different fractions, different anchors), BE trigger sweeps at non-standard levels (0.25, 0.40, 0.55), position-sizing experiments, time-stop variants.
+- **One outstanding fill-side bug:** Gold Micro `market_close=21-22 UTC` inheritance from Oil — worth +$27k / 21yr (+11.5% Gold Micro PF). Deferred; not part of audit list.
+
+Branch archives preserved on origin: `archive-filter-{02,03,04,09,10,12,13,14,16}` (9 stashed signal filters), `archive-filter-15` semantics live in commits `08a3b15`/`2d4b48e` reverted via `a7f29ed`/`43c96d6`.
