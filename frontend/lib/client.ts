@@ -12,6 +12,18 @@ export type ServiceKey = "gold" | "micro" | "oil" | "oil-micro";
 
 const TOKEN_KEY = "hom_token";
 
+/**
+ * Hosted API base. Set NEXT_PUBLIC_API_BASE in .env.local to override
+ * (e.g. point a local dev frontend at a local backend running on a
+ * different port). Default is the production VPS, which has CORS open
+ * for http://localhost:3000.
+ *
+ * Trailing slash is stripped so concatenation is always exact.
+ */
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE ?? "https://midas.subashtrades.in"
+).replace(/\/$/, "");
+
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {
     super(message);
@@ -111,7 +123,7 @@ export class MidasClient {
   constructor(public readonly svc: ServiceKey) {}
 
   private base() {
-    return `/api/${this.svc}`;
+    return `${API_BASE}/api/${this.svc}`;
   }
 
   // Live state — point-in-time snapshot
@@ -146,9 +158,30 @@ export class MidasClient {
    * `onProgress(msg)` receives human-readable progress strings while the
    * job runs. Returns the final BacktestResult after the run completes.
    *
+   * Stale-result fence: we snapshot the existing latest.created_at before
+   * kicking off the run, then only accept a /latest poll response whose
+   * created_at differs. Without this, /latest returns the previous
+   * cached result the moment we ask, and the polling loop would mistake
+   * it for the new completion.
+   *
    * Total timeout: 15 minutes (180 × 5s polling cycles).
    */
   async runBacktest<TReq, TRes>(req: TReq, onProgress?: (msg: string) => void): Promise<TRes> {
+    // Snapshot the existing latest's created_at so we can detect when a
+    // genuinely new result appears.
+    let baselineCreatedAt: string | null = null;
+    try {
+      const before = await this.latestBacktest<{ created_at?: string } | null>();
+      baselineCreatedAt = before?.created_at ?? null;
+    } catch {
+      // No prior result, or fetch failed — fence is just "any result counts"
+    }
+    const isFresh = (r: { created_at?: string } | null | undefined): boolean => {
+      if (!r) return false;
+      if (!baselineCreatedAt) return true; // no prior baseline -> first run
+      return r.created_at !== undefined && r.created_at !== baselineCreatedAt;
+    };
+
     const token = getToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -191,18 +224,21 @@ export class MidasClient {
         // SSE disconnected mid-stream — fall through to polling
       }
       if (completed) {
-        // DB write may lag the SSE 'done' event by a second or two
+        // DB write may lag the SSE 'done' event by a second or two —
+        // poll until a FRESH result lands.
         for (let i = 0; i < 10; i++) {
-          const latest = await this.latestBacktest<TRes | null>();
-          if (latest) return latest;
+          const latest = await this.latestBacktest<(TRes & { created_at?: string }) | null>();
+          if (isFresh(latest)) return latest as TRes;
           await new Promise((r) => setTimeout(r, 3000));
           if (onProgress) onProgress("Saving to database…");
         }
-        throw new Error("Backtest completed but results not found in DB");
+        throw new Error("Backtest completed but new result not found in DB");
       }
     }
 
-    // Polling path (Macro services + SSE-fallback)
+    // Polling path (Macro services + SSE-fallback). Only accept a result
+    // whose created_at differs from baselineCreatedAt — anything else is
+    // the previous cached run.
     if (onProgress) onProgress("Running backtest…");
     for (let i = 0; i < 180; i++) {
       await new Promise((r) => setTimeout(r, 5000));
@@ -210,8 +246,8 @@ export class MidasClient {
         const seconds = (i + 1) * 5;
         onProgress(`Running backtest… (${Math.floor(seconds / 60)}m ${seconds % 60}s elapsed)`);
       }
-      const poll = await this.latestBacktest<TRes | null>();
-      if (poll) return poll;
+      const poll = await this.latestBacktest<(TRes & { created_at?: string }) | null>();
+      if (isFresh(poll)) return poll as TRes;
     }
     throw new Error("Backtest timed out (15 minutes). Check server logs.");
   }
@@ -227,15 +263,12 @@ export class MidasClient {
    * /state + /scan-status; the SSE consumer also runs the same poll until
    * the first SSE tick arrives, mirroring the prior live page logic.
    *
-   * `baseOverride`: SSE must bypass the Next.js proxy in dev (it buffers
-   * streaming responses). Pass a fully-qualified upstream URL prefix here
-   * (e.g. https://midas.subashtrades.in) and it'll be used for the
-   * EventSource only — the polling fallback continues to use the relative
-   * `/api/...` path so it goes through the proxy normally.
+   * Both SSE and the fallback now hit the hosted API directly (API_BASE).
+   * No proxy in the path, so streaming responses aren't buffered.
    */
   streamLive<T = unknown>(
     onMessage: (data: T) => void,
-    opts: { fallbackMs?: number; baseOverride?: string; onReconnecting?: () => void } = {},
+    opts: { fallbackMs?: number; onReconnecting?: () => void } = {},
   ): () => void {
     const fallbackMs = opts.fallbackMs ?? 30_000;
     let cancelled = false;
@@ -244,8 +277,8 @@ export class MidasClient {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let connected = false;
 
-    const fallbackBase = `${this.base()}`; // through proxy
-    const sseUrl = `${opts.baseOverride ?? ""}${this.base()}/stream`;
+    const fallbackBase = this.base();
+    const sseUrl = `${this.base()}/stream`;
 
     const fallbackFetch = async () => {
       if (cancelled || connected) return;

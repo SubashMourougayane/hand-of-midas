@@ -2,8 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
-
-const API_BASE = "";
+import { API_BASE } from "@/lib/client";
 
 interface User {
   id: string;

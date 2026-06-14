@@ -60,14 +60,7 @@ export default function LivePage() {
   const { instrument } = useInstrument();
   const svc = instrument as ServiceKey;
 
-  // SSE must bypass the Next.js proxy in dev (the proxy buffers streaming
-  // responses). On localhost, point straight at the upstream service.
-  const baseOverride = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    return window.location.hostname === "localhost" ? "https://midas.subashtrades.in" : "";
-  }, []);
-
-  const { data, reconnecting, lastUpdate } = useLiveStream<LivePayload>(svc, { baseOverride });
+  const { data, reconnecting, lastUpdate } = useLiveStream<LivePayload>(svc);
   const state = data?.state ?? null;
   const scan = data?.scan ?? null;
   const error = reconnecting ? "Stream disconnected, reconnecting…" : "";

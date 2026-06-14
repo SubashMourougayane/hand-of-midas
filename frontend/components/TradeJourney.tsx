@@ -4,6 +4,7 @@ import { ComposedChart, Line, Area, XAxis, YAxis, ReferenceLine, ResponsiveConta
 import { X } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useInstrument } from "@/lib/instrument";
+import { API_BASE } from "@/lib/client";
 
 interface TradeJourneyProps {
   date: string;
@@ -29,7 +30,7 @@ interface OHLCPoint {
 }
 
 export default function TradeJourney({ date, strategy, direction, entry, sl, tp, exit_price, pnl, bars_held, status, hold_human, onClose }: TradeJourneyProps) {
-  const { apiBase, instrument } = useInstrument();
+  const { instrument } = useInstrument();
   const prefix = instrument === "oil" ? "oil" : "gold";
   const [points, setPoints] = useState<OHLCPoint[]>([]);
   const [entryIdx, setEntryIdx] = useState(0);
@@ -43,7 +44,7 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
           entry: entry.toString(), sl: sl.toString(),
           tp: tp.toString(), bars_held: bars_held.toString(),
         });
-        const res = await fetch(`${apiBase}/api/${prefix}/journey?${params}`);
+        const res = await fetch(`${API_BASE}/api/${prefix}/journey?${params}`);
         const data = await res.json();
         setPoints(data.points || []);
         setEntryIdx(data.entry_bar_index || 0);
