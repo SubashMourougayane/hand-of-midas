@@ -1,99 +1,198 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInstrument } from "@/lib/instrument";
+import { client, type ServiceKey } from "@/lib/client";
+import {
+  PageHeader,
+  Card,
+  Tabs,
+  Button,
+  Badge,
+  EmptyState,
+  Skeleton,
+} from "@/components/ui";
 
 interface JournalEvent {
-  id: number; timestamp: string; trade_ref: string;
-  strategy: string; event_type: string; price: number; context: Record<string, unknown>;
+  id: number;
+  timestamp: string;
+  trade_ref: string;
+  strategy: string;
+  event_type: string;
+  price: number;
+  context: Record<string, unknown>;
 }
 
 interface BacktestTrade {
-  date: string; year: number; strategy: string; direction: string;
-  entry: number; sl: number; tp: number; exit_price: number;
-  pnl_sized: number; status: string; hold_human: string; r_mult: number;
+  date: string;
+  year: number;
+  strategy: string;
+  direction: string;
+  entry: number;
+  sl: number;
+  tp: number;
+  exit_price: number;
+  pnl_sized: number;
+  status: string;
+  hold_human: string;
+  r_mult: number;
+}
+
+const STRATEGY_META: Record<string, { label: string; color: string }> = {
+  alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
+  micro_alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
+  micro_alpha_sweep_oil: { label: "Alpha", color: "var(--color-info)" },
+  mean_rev: { label: "MRev", color: "var(--color-win)" },
+  cross_market: { label: "Cross", color: "var(--color-warn)" },
+};
+
+function strategyTag(strategy: string) {
+  const key = Object.keys(STRATEGY_META).find((k) => strategy?.includes(k));
+  if (!key) {
+    return <span className="text-[10px] uppercase tracking-[0.6px] text-[var(--color-text-muted)]">SYS</span>;
+  }
+  const meta = STRATEGY_META[key];
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: meta.color }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: meta.color }} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+function eventTone(type: string): "win" | "loss" | "warn" | "info" | "neutral" {
+  if (!type) return "neutral";
+  if (type.includes("ENTRY") || type === "SIGNAL") return "win";
+  if (type.includes("EXIT") || type.includes("SL") || type.includes("TP_FILLED")) return "loss";
+  if (type.includes("BREAK_EVEN") || type.includes("BE")) return "info";
+  if (type.includes("SKIP") || type.includes("PAUSE") || type.includes("WARN")) return "warn";
+  if (type.includes("ERROR") || type.includes("FAILED")) return "loss";
+  return "neutral";
+}
+
+function formatTime(iso?: string): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit", month: "short",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+
+function formatBacktestDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export default function JournalPage() {
-  const { apiBase, instrument } = useInstrument();
-  const API_BASE = apiBase;
-  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
+  const { instrument } = useInstrument();
+  const svc = instrument as ServiceKey;
   const [tab, setTab] = useState<"live" | "backtest">("live");
+  const [filter, setFilter] = useState({ strategy: "", event_type: "" });
   const [events, setEvents] = useState<JournalEvent[]>([]);
   const [btTrades, setBtTrades] = useState<BacktestTrade[]>([]);
-  const [filter, setFilter] = useState({ strategy: "", event_type: "" });
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      if (tab === "live") {
-        const params = new URLSearchParams();
-        if (filter.strategy) params.set("strategy", filter.strategy);
-        if (filter.event_type) params.set("event_type", filter.event_type);
-        params.set("limit", "100");
-        const res = await fetch(`${API_BASE}/api/${prefix}/journal/events?${params}`);
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = await res.json();
-        setEvents(data.events || []);
-      } else {
-        const params = new URLSearchParams();
-        if (filter.strategy) params.set("strategy", filter.strategy);
-        params.set("limit", "500");
-        const res = await fetch(`${API_BASE}/api/${prefix}/trades/backtest?${params}`);
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = await res.json();
-        setBtTrades(data.trades || []);
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        if (tab === "live") {
+          const params: Record<string, unknown> = { limit: 100 };
+          if (filter.strategy) params.strategy = filter.strategy;
+          if (filter.event_type) params.event_type = filter.event_type;
+          const data = await client(svc).journal<{ events?: JournalEvent[] }>(params);
+          if (!cancelled) setEvents(data?.events ?? []);
+        } else {
+          const params: Record<string, unknown> = { source: "backtest", limit: 500 };
+          if (filter.strategy) params.strategy = filter.strategy;
+          const data = await client(svc).trades<{ trades?: BacktestTrade[] }>({ ...params });
+          if (!cancelled) setBtTrades(data?.trades ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setEvents([]);
+          setBtTrades([]);
+        }
       }
-    } catch {
-      setTimeout(fetchData, 3000);
-    }
-    setLoading(false);
-  };
+      if (!cancelled) setLoading(false);
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [svc, tab, filter, refreshKey]);
 
-  useEffect(() => { fetchData(); }, [tab, filter, apiBase, instrument]);
-
-  const eventColor = (type: string) => {
-    if (type.includes("ENTRY") || type === "SIGNAL") return "#00e87b";
-    if (type.includes("EXIT") || type.includes("SL") || type.includes("TP")) return "#ff3e3e";
-    if (type.includes("SKIP") || type.includes("PAUSE")) return "#e8c300";
-    if (type.includes("ERROR")) return "#ff3e3e";
-    if (type.includes("BREAK_EVEN")) return "#4da6ff";
-    return "#9ca3b4";
-  };
-
-  const stratColor = (s: string) => s .includes("alpha_sweep") ? "#4fc3f7" : s === "mean_rev" ? "#00e87b" : s === "cross_market" ? "#ffd54f" : "#9ca3b4";
-  const stratLabel = (s: string) => s .includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MREV" : s === "cross_market" ? "CROSS" : "SYS";
+  const liveCounts = useMemo(() => {
+    const total = events.length;
+    const errors = events.filter((e) => e.event_type?.includes("ERROR") || e.event_type?.includes("FAILED")).length;
+    const entries = events.filter((e) => e.event_type?.includes("ENTRY")).length;
+    const exits = events.filter((e) => e.event_type?.includes("EXIT") || e.event_type?.includes("FILLED")).length;
+    return { total, errors, entries, exits };
+  }, [events]);
 
   return (
-    <div className="p-3 sm:p-6">
-        <h1 className="text-xl font-bold text-[var(--text)] mb-1">JOURNAL</h1>
-        <p className="text-xs text-[var(--text-dim)] mb-4">Event log and trade narratives</p>
+    <div className="p-3 sm:p-6 max-w-[1280px] mx-auto">
+      <PageHeader
+        title="Journal"
+        description="Event log and trade narratives"
+        actions={
+          <Tabs.Root value={tab} onValueChange={(v) => setTab(v as "live" | "backtest")}>
+            <Tabs.List>
+              <Tabs.Trigger value="live">Live events</Tabs.Trigger>
+              <Tabs.Trigger value="backtest">Backtest journal</Tabs.Trigger>
+            </Tabs.List>
+          </Tabs.Root>
+        }
+      />
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-4">
-          <button onClick={() => setTab("live")}
-            className={`text-xs px-4 py-1.5 border ${tab === "live" ? "border-[var(--green)] text-[var(--green)] bg-[var(--green-dim)]" : "border-[var(--border)] text-[var(--text-dim)]"}`}>
-            LIVE EVENTS
-          </button>
-          <button onClick={() => setTab("backtest")}
-            className={`text-xs px-4 py-1.5 border ${tab === "backtest" ? "border-[var(--blue)] text-[var(--blue)] bg-[#4da6ff10]" : "border-[var(--border)] text-[var(--text-dim)]"}`}>
-            BACKTEST JOURNAL
-          </button>
+      {/* Live event counts */}
+      {tab === "live" && events.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 hom-stagger-children">
+          <Card padded lift className="hom-stagger">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Events</span>
+              <span className="num text-[20px] font-semibold text-[var(--color-text)]">{liveCounts.total}</span>
+            </div>
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Entries</span>
+              <span className="num text-[20px] font-semibold text-[var(--color-win)]">{liveCounts.entries}</span>
+            </div>
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Exits</span>
+              <span className="num text-[20px] font-semibold text-[var(--color-loss)]">{liveCounts.exits}</span>
+            </div>
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Errors</span>
+              <span className={`num text-[20px] font-semibold ${liveCounts.errors > 0 ? "text-[var(--color-loss)]" : "text-[var(--color-text-muted)]"}`}>{liveCounts.errors}</span>
+            </div>
+          </Card>
         </div>
+      ) : null}
 
-        {/* Filters */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <select value={filter.strategy} onChange={(e) => setFilter({ ...filter, strategy: e.target.value })}
-            className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+      {/* Filter bar */}
+      <Card padded surface={1} className="mb-4">
+        <div className="flex gap-2 flex-wrap items-center">
+          <select
+            value={filter.strategy}
+            onChange={(e) => setFilter({ ...filter, strategy: e.target.value })}
+            aria-label="Filter by strategy"
+          >
             <option value="">All Strategies</option>
             <option value="alpha_sweep">Alpha-Sweep</option>
             <option value="mean_rev">Mean-Rev</option>
             <option value="cross_market">Cross-Market</option>
-            {tab === "live" && <option value="system">System</option>}
+            {tab === "live" ? <option value="system">System</option> : null}
           </select>
-          {tab === "live" && (
-            <select value={filter.event_type} onChange={(e) => setFilter({ ...filter, event_type: e.target.value })}
-              className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+          {tab === "live" ? (
+            <select
+              value={filter.event_type}
+              onChange={(e) => setFilter({ ...filter, event_type: e.target.value })}
+              aria-label="Filter by event type"
+            >
               <option value="">All Events</option>
               <option value="ENTRY_FILLED">Entry</option>
               <option value="EXIT_FILLED">Exit</option>
@@ -102,65 +201,133 @@ export default function JournalPage() {
               <option value="ERROR">Errors</option>
               <option value="DAILY_SCAN_START">Daily Scan</option>
             </select>
-          )}
-          <button onClick={fetchData} className="text-xs px-3 py-1.5 border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)]">
+          ) : null}
+          <Button size="sm" variant="secondary" onClick={() => setRefreshKey((k) => k + 1)}>
             Refresh
-          </button>
+          </Button>
+          {(filter.strategy || filter.event_type) ? (
+            <Button size="sm" variant="ghost" onClick={() => setFilter({ strategy: "", event_type: "" })}>
+              Reset
+            </Button>
+          ) : null}
         </div>
+      </Card>
 
-        {/* Content */}
-        <div className="t-panel p-3 sm:p-4">
+      {/* Event / trade list */}
+      <Card>
+        <Card.Header>
+          <Card.Title>{tab === "live" ? "Live Events" : "Backtest Journal"}</Card.Title>
+          <span className="text-[11px] text-[var(--color-text-muted)]">
+            {tab === "live"
+              ? `${events.length.toLocaleString()} of last 100`
+              : `${btTrades.length.toLocaleString()} of last 500`}
+          </span>
+        </Card.Header>
+        <div className="max-h-[700px] overflow-auto">
           {loading ? (
-            <p className="text-xs text-[var(--text-dim)]">Loading...</p>
+            <div className="p-3 flex flex-col gap-1.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} height={28} />
+              ))}
+            </div>
           ) : tab === "live" && events.length === 0 ? (
-            <p className="text-xs text-[var(--text-dim)]">No events yet. System will log at next scheduled scan (22:00 UTC or 08:00-10:30 UTC).</p>
+            <EmptyState
+              title="No events yet"
+              description="System will log at next scheduled scan (22:00 UTC or 08:00–10:30 UTC)."
+            />
           ) : tab === "backtest" && btTrades.length === 0 ? (
-            <p className="text-xs text-[var(--text-dim)]">No backtest results in DB. Run a backtest first.</p>
+            <EmptyState
+              title="No backtest results in DB"
+              description="Run a backtest first from the Backtest page."
+            />
           ) : tab === "live" ? (
-            <div className="space-y-1 max-h-[700px] overflow-auto">
-              {events.map((e) => (
-                <div key={e.id} className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 py-1.5 border-b border-[var(--border)] text-xs">
-                  <span className="text-[var(--text-dim)] min-w-[120px] shrink-0">
-                    {e.timestamp ? new Date(e.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
-                  </span>
-                  <span className="min-w-[50px] shrink-0" style={{ color: stratColor(e.strategy) }}>
-                    {stratLabel(e.strategy)}
-                  </span>
-                  <span className="font-semibold min-w-[100px] shrink-0" style={{ color: eventColor(e.event_type) }}>
-                    {e.event_type}
-                  </span>
-                  {e.price && <span className="text-[var(--text)] min-w-[70px]">${e.price.toFixed(2)}</span>}
-                  <span className="text-[var(--text-dim)] truncate">
-                    {e.trade_ref && e.trade_ref !== "SYSTEM" && <span className="mr-2 text-[var(--blue)]">[{e.trade_ref}]</span>}
-                    {e.context && Object.keys(e.context).length > 0 && (
-                      <span>{Object.entries(e.context).map(([k, v]) => `${k}=${typeof v === 'number' ? (v as number).toFixed(2) : v}`).join(", ")}</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <ul className="divide-y divide-[var(--color-border)]/60">
+              {events.map((e) => {
+                const tone = eventTone(e.event_type);
+                const ctx =
+                  e.context && Object.keys(e.context).length > 0
+                    ? Object.entries(e.context)
+                        .map(([k, v]) => `${k}=${typeof v === "number" ? (v as number).toFixed(2) : v}`)
+                        .join(" · ")
+                    : "";
+                return (
+                  <li
+                    key={e.id}
+                    className="px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 hover:bg-[var(--color-surface-2)]/60 transition-colors"
+                  >
+                    <span className="num text-[11px] text-[var(--color-text-muted)] sm:min-w-[150px] shrink-0">
+                      {formatTime(e.timestamp)}
+                    </span>
+                    <span className="sm:min-w-[60px] shrink-0">{strategyTag(e.strategy)}</span>
+                    <Badge tone={tone} variant="soft" className="shrink-0">
+                      {e.event_type}
+                    </Badge>
+                    {e.price ? (
+                      <span className="num text-[11px] text-[var(--color-text)] sm:min-w-[70px] shrink-0">
+                        ${e.price.toFixed(2)}
+                      </span>
+                    ) : null}
+                    <span className="text-[11px] text-[var(--color-text-dim)] truncate flex-1">
+                      {e.trade_ref && e.trade_ref !== "SYSTEM" ? (
+                        <span className="num text-[var(--color-info)] mr-2">[{e.trade_ref}]</span>
+                      ) : null}
+                      {ctx ? <span className="num text-[var(--color-text-muted)]">{ctx}</span> : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
-            /* Backtest journal — trade-by-trade narrative */
-            <div className="space-y-2 max-h-[700px] overflow-x-auto">
+            <ul className="divide-y divide-[var(--color-border)]/60">
               {btTrades.map((t, i) => (
-                <div key={i} className="flex items-center gap-2 sm:gap-3 py-2 border-b border-[var(--border)] text-xs min-w-[600px]">
-                  <span className="text-[var(--text-dim)] min-w-[80px]">{t.date}</span>
-                  <span className="min-w-[50px]" style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span>
-                  <span className={`min-w-[40px] ${t.direction === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}`}>{t.direction}</span>
-                  <span className="text-[var(--text)] min-w-[60px]">${t.entry.toFixed(0)}</span>
-                  <span className="text-[var(--text-dim)]">→</span>
-                  <span className="text-[var(--text)] min-w-[60px]">${t.exit_price.toFixed(0)}</span>
-                  <span className={`font-semibold min-w-[70px] ${t.pnl_sized >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                    ${t.pnl_sized >= 0 ? "+" : ""}{t.pnl_sized.toFixed(0)}
+                <li
+                  key={`${t.date}-${t.entry}-${i}`}
+                  className="px-3 py-2 flex items-center gap-3 hover:bg-[var(--color-surface-2)]/60 transition-colors"
+                >
+                  <span className="num text-[11px] text-[var(--color-text-muted)] min-w-[110px] shrink-0">
+                    {formatBacktestDate(t.date)}
                   </span>
-                  <span className="text-[var(--text-dim)] min-w-[40px]">{t.r_mult > 0 ? "+" : ""}{t.r_mult.toFixed(1)}R</span>
-                  <span className="text-[var(--yellow)] min-w-[50px]">{t.status}</span>
-                  <span className="text-[var(--text-dim)]">{t.hold_human}</span>
-                </div>
+                  <span className="min-w-[60px] shrink-0">{strategyTag(t.strategy)}</span>
+                  <Badge tone={t.direction === "LONG" ? "win" : "loss"} variant="soft" className="shrink-0">
+                    {t.direction}
+                  </Badge>
+                  <span className="num text-[11px] text-[var(--color-text)] min-w-[60px] shrink-0">
+                    ${t.entry.toFixed(0)}
+                  </span>
+                  <span className="text-[var(--color-text-muted)] hidden sm:inline">→</span>
+                  <span className="num text-[11px] text-[var(--color-text-dim)] min-w-[60px] shrink-0">
+                    ${t.exit_price.toFixed(0)}
+                  </span>
+                  <span
+                    className={`num text-[12px] font-semibold min-w-[80px] shrink-0 ${
+                      t.pnl_sized >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"
+                    }`}
+                  >
+                    {t.pnl_sized >= 0 ? "+" : ""}${t.pnl_sized.toFixed(0)}
+                  </span>
+                  <span
+                    className={`num text-[11px] min-w-[50px] shrink-0 ${
+                      t.r_mult > 0
+                        ? "text-[var(--color-win)]"
+                        : t.r_mult < 0
+                          ? "text-[var(--color-loss)]"
+                          : "text-[var(--color-text-muted)]"
+                    }`}
+                  >
+                    {t.r_mult > 0 ? "+" : ""}{t.r_mult.toFixed(1)}R
+                  </span>
+                  <span className="text-[11px] uppercase text-[var(--color-warn)] min-w-[80px] shrink-0">
+                    {t.status}
+                  </span>
+                  <span className="text-[11px] text-[var(--color-text-muted)] truncate hidden md:inline">
+                    {t.hold_human}
+                  </span>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
+      </Card>
     </div>
   );
 }
