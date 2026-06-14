@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { client, type ServiceKey } from "@/lib/client";
 
 /**
@@ -13,12 +13,10 @@ import { client, type ServiceKey } from "@/lib/client";
 export function useLiveStream<T = unknown>(svc: ServiceKey) {
   const [data, setData] = useState<T | null>(null);
   const [connected, setConnected] = useState(false);
-  const errorRef = useRef<unknown>(null);
 
   useEffect(() => {
     setData(null);
     setConnected(false);
-    errorRef.current = null;
     const unsub = client(svc).streamLive<T>((next) => {
       setData(next);
       setConnected(true);
@@ -26,5 +24,5 @@ export function useLiveStream<T = unknown>(svc: ServiceKey) {
     return unsub;
   }, [svc]);
 
-  return { data, connected, error: errorRef.current };
+  return { data, connected };
 }
