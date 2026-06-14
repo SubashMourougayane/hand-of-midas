@@ -70,11 +70,13 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    min_prev_body_ratio: float | None = None,
 ) -> BacktestResult:
     """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
     trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    min_prev_body_ratio: Filter #12 — skip if prev body < ratio * current body.
     """
     if partial_tp_at_pct is None:
         partial_tp_at_pct = ALPHA_SWEEP.get("partial_tp_at_pct", 0.0)
@@ -86,6 +88,8 @@ def run_backtest(
         be_trigger_pct = ALPHA_SWEEP["be_trigger_pct"]
     if trail_after_be_pct is None:
         trail_after_be_pct = ALPHA_SWEEP.get("trail_after_be_pct", 0.0)
+    if min_prev_body_ratio is None:
+        min_prev_body_ratio = ALPHA_SWEEP.get("min_prev_body_ratio", 0.0)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -125,7 +129,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1, oil_m3, daily_bias)
+    all_signals = generate_signals(oil_h1, oil_m3, daily_bias,
+                                    min_prev_body_ratio=min_prev_body_ratio)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range

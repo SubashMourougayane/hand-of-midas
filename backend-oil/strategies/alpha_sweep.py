@@ -30,9 +30,12 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    min_prev_body_ratio: float | None = None,
 ) -> list[Signal]:
     """Generate Alpha-Sweep signals for Oil."""
     cfg = ALPHA_SWEEP
+    if min_prev_body_ratio is None:
+        min_prev_body_ratio = cfg.get("min_prev_body_ratio", 0.0)
     signals = []
     dates = sorted(set(oil_h1.index.date))
 
@@ -110,6 +113,13 @@ def generate_signals(
                     continue
                 if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
+
+                # Filter #12: require prev bar body >= ratio * current body
+                if min_prev_body_ratio > 0:
+                    prev_body = abs(pc - po)
+                    curr_body = abs(cc - co)
+                    if prev_body < min_prev_body_ratio * curr_body:
+                        continue
 
                 if sweep_dir == "bullish":
                     entry = oil_m3["ask_close"].iat[idx] + slippage(br)

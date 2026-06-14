@@ -12,14 +12,19 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    min_prev_body_ratio: float | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    min_prev_body_ratio: Filter #12 — require prev bar body >= ratio * current bar body
+      (skips engulfing-of-doji where prev is too small). None or 0 = legacy.
     """
     cfg = ALPHA_SWEEP
+    if min_prev_body_ratio is None:
+        min_prev_body_ratio = cfg.get("min_prev_body_ratio", 0.0)
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -98,6 +103,13 @@ def generate_signals(
                     continue
                 if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                     continue
+
+                # Filter #12: require prev bar body >= ratio * current body (skip doji prev)
+                if min_prev_body_ratio > 0:
+                    prev_body = abs(pc - po)
+                    curr_body = abs(cc - co)
+                    if prev_body < min_prev_body_ratio * curr_body:
+                        continue
 
                 if sweep_dir == "bullish":
                     entry = gold_m3["ask_close"].iat[idx] + slippage(br)

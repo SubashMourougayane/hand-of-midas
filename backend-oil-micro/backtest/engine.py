@@ -68,10 +68,13 @@ def _hour_past(current: int, target: int) -> bool:
     return 0 < diff <= 12
 
 
-def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict) -> list[Signal]:
+def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict,
+                     min_prev_body_ratio: float | None = None) -> list[Signal]:
     """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows."""
     cfg = MICRO_ALPHA_SWEEP
     close_start = cfg["market_close_start"]
+    if min_prev_body_ratio is None:
+        min_prev_body_ratio = cfg.get("min_prev_body_ratio", 0.0)
     signals = []
 
     dates = sorted(set(oil_h1.index.date))
@@ -179,6 +182,13 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                             continue
                         if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
                             continue
+
+                        # Filter #12: require prev bar body >= ratio * current body
+                        if min_prev_body_ratio > 0:
+                            prev_body = abs(pc - po)
+                            curr_body = abs(cc - co)
+                            if prev_body < min_prev_body_ratio * curr_body:
+                                continue
 
                         if sweep_dir == "bullish":
                             entry = oil_m3["ask_close"].iat[idx] + _slippage(br)
@@ -394,6 +404,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    min_prev_body_ratio: float | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -401,6 +412,7 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction override. None = read from config.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    min_prev_body_ratio: Filter #12 — skip if prev body < ratio * current body.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -412,6 +424,8 @@ def run_backtest(
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
+    if min_prev_body_ratio is None:
+        min_prev_body_ratio = MICRO_ALPHA_SWEEP.get("min_prev_body_ratio", 0.0)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -455,7 +469,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias)
+    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias,
+                                    min_prev_body_ratio=min_prev_body_ratio)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range
