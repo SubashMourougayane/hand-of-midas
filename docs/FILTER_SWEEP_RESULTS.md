@@ -18,7 +18,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 3 | TP Feasibility | 3 | pending | — | — | — | — | — |
 | 4 | Anti-Trend-Extension | 3 | pending | — | — | — | — | — |
 | 12 | Engulfing-of-doji | 3 | pending | — | — | — | — | — |
-| 13 | Engulfing wick-vs-body | 4 | pending | — | — | — | — | — |
+| 13 | Engulfing wick-vs-body | 4 | ❌ STASHED | archive-filter-13 | ALL DOWN | -$592k @ 1.0 / -$1.29M @ 0.5 / -$1.90M @ 0.3 | n/a (BT only) | STASH — uniformly bad: PF and P&L both drop at every threshold. Worse than #16/#2/#10 which had a PF/P&L tradeoff. Wick-rejection engulfings are MORE profitable than clean ones. |
 | 14 | prev=sweep-bar pollution | 4 | pending | — | — | — | — | — |
 | 10 | Spread-Inside SL (Oil Macro) | 4 | ❌ STASHED | archive-filter-10 | varies | -$107k @ 0.07 / -$210k @ 0.10 / -$332k @ 0.15 | n/a (BT only) | STASH — audit was wrong (SL is offset from sweep_wick, min_sl=0.10 floor protects spread; live SL trades show $0 slip). Wider sl_buffer monotonically loses P&L. |
 | 15 | Cooldown bypass race fix | 4 | ⏸ TESTED, REVERTED | (reverted via 43c96d6) | $0 (BT bit-identical) | $0 | n/a (fill-side) | TESTED — bug exists, fix works (unit test passes), but BT impact $0. User reverted: "no edge, no ship" — defensive fixes need their own bar. |
@@ -165,6 +165,30 @@ Regression check: Gold Macro / Gold Micro / Oil Micro all bit-identical to Filte
 **Decision: STASH.** Pattern matches #16 + #2: wider gating → higher PF, lower P&L. Oil Macro's edge includes the tight-wick trades. `sl_buffer=0.03` is already optimal in this range.
 
 Branch archived as `archive-filter-10` (no merge, no live impact).
+
+### Filter #13 — Engulfing wick-vs-body asymmetry — ❌ STASHED
+
+**Audit hypothesis:** Engulfing detector ignores rejection wicks. A bullish engulfing with a 2× body wick on top is structurally a top-wick rejection, not continuation. Reject these.
+
+**Implementation:** `wick_to_body_ratio_max` kwarg in all 4 strategies. For LONG (bullish): reject if `upper_wick > body × ratio_max`. For SHORT (bearish): inverse. Lower ratio = stricter.
+
+**Sweep results** (21yr × 4 systems × 4 thresholds):
+
+| System | no-filter | ratio=1.0 | ratio=0.5 | ratio=0.3 |
+|---|---|---|---|---|
+| **Gold Macro** | $427k (PF 3.53) | $399k −6.6% (PF **3.55** +0.02) | $338k −21% (PF 3.41 −0.12) | $286k −33% (PF 3.31 −0.22) |
+| **Gold Micro** | $335k (PF 4.40) | $312k −6.8% (PF 4.34 −0.06) | $264k −21% (PF 4.09 −0.31) | $227k −32% (PF 3.89 −0.51) |
+| **Oil Macro** | $826k (PF 4.70) | $682k −17% (PF 4.46 −0.24) | $541k −34% (PF 4.04 −0.66) | $378k −54% (PF 3.76 −0.94) |
+| **Oil Micro** | $3.18M (PF 5.76) | $2.78M −12% (PF 5.47 −0.29) | $2.33M −27% (PF 5.27 −0.49) | $1.98M −38% (PF 5.41 −0.35) |
+| **Total** | **$4.77M** | $4.17M (−12.4%) | $3.47M (−27.1%) | $2.87M (−39.8%) |
+
+**Key observation: WORSE than #16/#2/#10.** Those three had a PF/P&L tradeoff (better quality, smaller positions = higher PF). Filter #13 is uniformly bad — both PF and P&L drop at every threshold (only Gold Macro at ratio=1.0 nudges PF up +0.02, noise). The "ugly" wick-rejection engulfings are **MORE profitable than clean ones** in this strategy. Possible explanation: sweep already provides directional bias; a 3-min candle's upper wick is noise, not signal.
+
+**Decision: STASH.** Hypothesis disproven uniformly across systems and thresholds.
+
+Branch archived as `archive-filter-13` (no merge, no live impact).
+
+**Pattern across 4 stashed hypotheses (#16, #2, #10, #13):** every "skip more trades" filter loses P&L. Three (#16/#2/#10) gain PF as tradeoff. One (#13) loses both. This strategy's edge is signal-volume + fill-side ops; signal-quality pruning consistently underperforms.
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
