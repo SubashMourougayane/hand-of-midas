@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/Sidebar";
 import PnlCalendar from "@/components/PnlCalendar";
 import DatePicker from "@/components/DatePicker";
 import { runBacktest, getLatestBacktest, BacktestResult, Trade } from "@/lib/api";
@@ -81,9 +80,7 @@ export default function BacktestPage() {
   };
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
+    <div className="p-3 sm:p-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">BACKTEST</h1>
         <p className="text-xs text-[var(--text-dim)] mb-5">
           V4 + V7 + V8 Portfolio | Fresh capital each year | Honest fills
@@ -349,8 +346,7 @@ export default function BacktestPage() {
             </div>
           </>
         )}
-      </main>
-    </>
+    </div>
   );
 }
 

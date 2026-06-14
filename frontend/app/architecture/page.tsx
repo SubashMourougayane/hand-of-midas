@@ -4,7 +4,6 @@ import {
   Database, TrendingUp, Layers, Shield,
   Activity, Zap, BarChart2, Target, GitBranch, Clock, Radio,
 } from "lucide-react";
-import Sidebar from "@/components/Sidebar";
 
 type Tab = "overview" | "strategies" | "execution" | "risk" | "data" | "schedule";
 
@@ -21,9 +20,7 @@ export default function ArchitecturePage() {
   const [active, setActive] = useState<Tab>("overview");
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6" style={{ background: "#0a0d12" }}>
+    <div className="p-3 sm:p-6" style={{ background: "var(--color-bg)" }}>
         <style>{animationStyles}</style>
 
         <div className="mb-6">
@@ -56,8 +53,7 @@ export default function ArchitecturePage() {
         {active === "risk" && <RiskTab />}
         {active === "data" && <DataTab />}
         {active === "schedule" && <ScheduleTab />}
-      </main>
-    </>
+    </div>
   );
 }
 

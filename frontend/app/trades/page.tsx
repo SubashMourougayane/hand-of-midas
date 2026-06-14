@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from "react";
-import Sidebar from "@/components/Sidebar";
 import TradeJourney from "@/components/TradeJourney";
 import { formatINR } from "@/lib/format";
 import { useInstrument } from "@/lib/instrument";
@@ -75,9 +74,7 @@ export default function TradesPage() {
   const stratLabel = (s: string) => s.includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MREV" : "CROSS";
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
+    <div className="p-3 sm:p-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">TRADES</h1>
         <p className="text-xs text-[var(--text-dim)] mb-4">Trade history — live execution and backtested results</p>
 
@@ -267,7 +264,6 @@ export default function TradesPage() {
             </div>
           )}
         </div>
-      </main>
-    </>
+    </div>
   );
 }

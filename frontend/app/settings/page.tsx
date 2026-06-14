@@ -1,14 +1,11 @@
 "use client";
-import Sidebar from "@/components/Sidebar";
 import { useInstrument } from "@/lib/instrument";
 
 export default function SettingsPage() {
   const { instrument } = useInstrument();
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
+    <div className="p-3 sm:p-6">
         <h1 className="text-xl font-bold text-[var(--text)] mb-1">SETTINGS</h1>
         <p className="text-xs text-[var(--text-dim)] mb-5">
           {instrument === "gold" ? "GoldDigger" : "OilMiner"} — Strategy parameters and execution configuration
@@ -105,7 +102,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-      </main>
-    </>
+    </div>
   );
 }

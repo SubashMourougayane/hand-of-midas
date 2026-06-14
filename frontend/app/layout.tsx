@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import InstrumentProvider from "@/components/InstrumentProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AppShell } from "@/components/shell/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} h-full`}>
-      <body className="min-h-full flex">
+      <body className="min-h-full">
         <AuthProvider>
-          <InstrumentProvider>{children}</InstrumentProvider>
+          <InstrumentProvider>
+            <AppShell>{children}</AppShell>
+          </InstrumentProvider>
         </AuthProvider>
       </body>
     </html>

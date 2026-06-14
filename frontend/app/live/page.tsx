@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import Sidebar from "@/components/Sidebar";
 import { Radio, TrendingUp, TrendingDown, Shield, Clock } from "lucide-react";
 import { useInstrument } from "@/lib/instrument";
 
@@ -118,9 +117,7 @@ export default function LivePage() {
     s .includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MEAN-REV" : "CROSS";
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
+    <div className="p-3 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-2">
           <div>
             <h1 className="text-xl font-bold text-[var(--text)]">LIVE</h1>
@@ -333,8 +330,7 @@ export default function LivePage() {
             </div>
           </>
         )}
-      </main>
-    </>
+    </div>
   );
 }
 
