@@ -4,70 +4,85 @@ import {
   Database, TrendingUp, Layers, Shield,
   Activity, Zap, BarChart2, Target, GitBranch, Clock, Radio,
 } from "lucide-react";
+import { PageHeader, Tabs as UiTabs } from "@/components/ui";
 
 type Tab = "overview" | "strategies" | "execution" | "risk" | "data" | "schedule";
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "overview", label: "OVERVIEW", icon: Layers },
-  { id: "strategies", label: "STRATEGIES", icon: TrendingUp },
-  { id: "execution", label: "EXECUTION", icon: Zap },
-  { id: "risk", label: "RISK", icon: Shield },
-  { id: "data", label: "DATA", icon: Database },
-  { id: "schedule", label: "SCHEDULE", icon: Clock },
+  { id: "overview", label: "Overview", icon: Layers },
+  { id: "strategies", label: "Strategies", icon: TrendingUp },
+  { id: "execution", label: "Execution", icon: Zap },
+  { id: "risk", label: "Risk", icon: Shield },
+  { id: "data", label: "Data", icon: Database },
+  { id: "schedule", label: "Schedule", icon: Clock },
 ];
+
+// Brass-aware palette for the inline diagrams. Replaces the legacy
+// hardcoded greens / blues / yellows scattered through the tab bodies.
+const ARCH = {
+  brass: "var(--color-brass)",
+  brassHi: "var(--color-brass-hi)",
+  win: "var(--color-win)",
+  loss: "var(--color-loss)",
+  info: "var(--color-info)",
+  warn: "var(--color-warn)",
+  text: "var(--color-text)",
+  dim: "var(--color-text-dim)",
+  muted: "var(--color-text-muted)",
+  border: "var(--color-border)",
+  surface1: "var(--color-surface-1)",
+  surface2: "var(--color-surface-2)",
+};
 
 export default function ArchitecturePage() {
   const [active, setActive] = useState<Tab>("overview");
 
   return (
-    <div className="p-3 sm:p-6" style={{ background: "var(--color-bg)" }}>
-        <style>{animationStyles}</style>
+    <div className="p-3 sm:p-6 max-w-[1280px] mx-auto" style={{ background: "var(--color-bg)" }}>
+      <style>{animationStyles}</style>
 
-        <div className="mb-6">
-          <h1 className="text-xl font-bold tracking-wide" style={{ color: "#00e87b" }}>SYSTEM ARCHITECTURE</h1>
-          <p className="text-xs mt-1" style={{ color: "#9ca3b4" }}>Hand Of Midas — Multi-asset algorithmic trading engine</p>
-        </div>
+      <PageHeader
+        title="System Architecture"
+        description="Hand Of Midas — Multi-asset algorithmic trading engine"
+      />
 
-        <div className="flex flex-wrap gap-1 mb-6 sm:mb-8 pb-4 overflow-x-auto" style={{ borderBottom: "1px solid #252a33" }}>
+      <UiTabs.Root value={active} onValueChange={(v) => setActive(v as Tab)} className="mb-4">
+        <UiTabs.List className="overflow-x-auto">
           {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-xs font-semibold tracking-wider uppercase transition-all rounded whitespace-nowrap"
-              style={{
-                background: active === id ? "#181c24" : "transparent",
-                color: active === id ? "#00e87b" : "#9ca3b4",
-                border: active === id ? "1px solid #252a33" : "1px solid transparent",
-              }}
-            >
-              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">{label}</span>
-              <span className="sm:hidden">{label.slice(0, 4)}</span>
-            </button>
+            <UiTabs.Trigger key={id} value={id}>
+              <Icon className="w-3.5 h-3.5 mr-1.5 inline-block align-[-2px]" />
+              <span>{label}</span>
+            </UiTabs.Trigger>
           ))}
-        </div>
+        </UiTabs.List>
+      </UiTabs.Root>
 
-        {active === "overview" && <OverviewTab />}
-        {active === "strategies" && <StrategiesTab />}
-        {active === "execution" && <ExecutionTab />}
-        {active === "risk" && <RiskTab />}
-        {active === "data" && <DataTab />}
-        {active === "schedule" && <ScheduleTab />}
+      {active === "overview" && <OverviewTab />}
+      {active === "strategies" && <StrategiesTab />}
+      {active === "execution" && <ExecutionTab />}
+      {active === "risk" && <RiskTab />}
+      {active === "data" && <DataTab />}
+      {active === "schedule" && <ScheduleTab />}
     </div>
   );
 }
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 
-function FlowNode({ label, sub, color = "#00e87b", delay = 0 }: {
+function FlowNode({ label, sub, color, delay = 0 }: {
   label: string; sub?: string; color?: string; delay?: number;
 }) {
+  const c = color ?? ARCH.brass;
   return (
     <div className="arch-node relative px-5 py-4 text-center min-w-[130px]" style={{
-      background: `${color}08`, border: `2px solid ${color}`, animationDelay: `${delay}s`, borderRadius: "6px",
+      background: `color-mix(in srgb, ${c} 10%, transparent)`,
+      border: `1px solid ${c}`,
+      animationDelay: `${delay}s`,
+      borderRadius: "5px",
+      boxShadow: `0 0 16px -8px ${c}`,
     }}>
-      <div className="text-sm font-bold" style={{ color }}>{label}</div>
-      {sub && <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{sub}</div>}
+      <div className="text-[13px] font-semibold tracking-tight" style={{ color: c }}>{label}</div>
+      {sub && <div className="text-[11px] mt-1 num" style={{ color: ARCH.muted }}>{sub}</div>}
     </div>
   );
 }
@@ -75,8 +90,11 @@ function FlowNode({ label, sub, color = "#00e87b", delay = 0 }: {
 function FlowArrow({ delay = 0, label }: { delay?: number; label?: string }) {
   return (
     <div className="flex flex-col items-center justify-center mx-2" style={{ animationDelay: `${delay}s` }}>
-      <div className="arch-arrow h-[2px] w-10" style={{ background: "linear-gradient(90deg, #8b95a5, #00e87b)" }} />
-      {label && <span className="text-[9px] mt-1" style={{ color: "#9ca3b4" }}>{label}</span>}
+      <div
+        className="arch-arrow h-[2px] w-10"
+        style={{ background: `linear-gradient(90deg, ${ARCH.muted}, ${ARCH.brass})` }}
+      />
+      {label && <span className="text-[10px] mt-1 num" style={{ color: ARCH.muted }}>{label}</span>}
     </div>
   );
 }
@@ -84,29 +102,34 @@ function FlowArrow({ delay = 0, label }: { delay?: number; label?: string }) {
 function FlowArrowDown({ delay = 0, label }: { delay?: number; label?: string }) {
   return (
     <div className="flex flex-col items-center py-2" style={{ animationDelay: `${delay}s` }}>
-      <div className="arch-arrow-down w-[2px] h-8" style={{ background: "linear-gradient(180deg, #8b95a5, #00e87b)" }} />
-      {label && <span className="text-[9px] mt-1" style={{ color: "#9ca3b4" }}>{label}</span>}
+      <div
+        className="arch-arrow-down w-[2px] h-8"
+        style={{ background: `linear-gradient(180deg, ${ARCH.muted}, ${ARCH.brass})` }}
+      />
+      {label && <span className="text-[10px] mt-1 num" style={{ color: ARCH.muted }}>{label}</span>}
     </div>
   );
 }
 
-function PulseOrb({ color = "#00e87b", size = 10 }: { color?: string; size?: number }) {
+function PulseOrb({ color, size = 10 }: { color?: string; size?: number }) {
+  const c = color ?? ARCH.brass;
   return (
     <span className="arch-pulse inline-block rounded-full"
-      style={{ width: size, height: size, background: color, boxShadow: `0 0 10px ${color}` }} />
+      style={{ width: size, height: size, background: c, boxShadow: `0 0 10px ${c}` }} />
   );
 }
 
-function MetricBar({ label, value, max, color = "#00e87b" }: { label: string; value: number; max: number; color?: string }) {
+function MetricBar({ label, value, max, color }: { label: string; value: number; max: number; color?: string }) {
+  const c = color ?? ARCH.brass;
   const pct = Math.min((value / max) * 100, 100);
   return (
     <div className="mb-3">
-      <div className="flex justify-between text-xs mb-1">
-        <span style={{ color: "#9ca3b4" }}>{label}</span>
-        <span className="font-bold" style={{ color }}>{value}</span>
+      <div className="flex justify-between text-[12px] mb-1">
+        <span style={{ color: ARCH.dim }}>{label}</span>
+        <span className="num font-semibold" style={{ color: c }}>{value}</span>
       </div>
-      <div className="h-2 w-full rounded" style={{ background: "#181c24" }}>
-        <div className="arch-bar h-full rounded" style={{ width: `${pct}%`, background: color }} />
+      <div className="h-1.5 w-full rounded-full" style={{ background: ARCH.surface2 }}>
+        <div className="arch-bar h-full rounded-full" style={{ width: `${pct}%`, background: c }} />
       </div>
     </div>
   );
@@ -117,8 +140,8 @@ function MetricBar({ label, value, max, color = "#00e87b" }: { label: string; va
 function OverviewTab() {
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg overflow-x-auto" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-6" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg overflow-x-auto" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-5" style={{ color: "var(--color-brass-hi)" }}>
           COMPLETE SYSTEM FLOW — LONDON + NY SESSION (08:00-20:00 UTC)
         </div>
 
@@ -164,24 +187,24 @@ function OverviewTab() {
           { label: "BACKTEST (20yr)", value: "$640K", sub: "Gold $325K + Oil $315K", color: "#e8c300" },
           { label: "SCAN INTERVAL", value: "3 min", sub: "London + NY session", color: "#ff3e3e" },
         ].map(({ label, value, sub, color }) => (
-          <div key={label} className="p-5 text-center arch-fade-in rounded" style={{ background: "#0e1117", border: `1px solid ${color}30` }}>
+          <div key={label} className="p-5 text-center arch-fade-in rounded" style={{ background: "var(--color-surface-1)", border: `1px solid ${color}30` }}>
             <PulseOrb color={color} size={12} />
             <div className="text-xl font-bold mt-3" style={{ color }}>{value}</div>
-            <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{label}</div>
+            <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{label}</div>
             <div className="text-xs" style={{ color: "#8b95a5" }}>{sub}</div>
           </div>
         ))}
       </div>
 
       {/* Architecture summary */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           ARCHITECTURE — SEPARATE BACKENDS, SHARED FRONTEND
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-4" style={{ background: "#080a0f", border: "1.5px solid #e8c300" }}>
             <div className="text-xs font-bold" style={{ color: "#e8c300" }}>GOLD BACKEND :5053</div>
-            <div className="text-xs mt-2 space-y-1" style={{ color: "#9ca3b4" }}>
+            <div className="text-xs mt-2 space-y-1" style={{ color: "var(--color-text-muted)" }}>
               <div>Alpha-Sweep (London)</div>
               <div>Mean-Rev (Daily dip)</div>
               <div>Cross-Market (6 instruments)</div>
@@ -191,7 +214,7 @@ function OverviewTab() {
           </div>
           <div className="p-4" style={{ background: "#080a0f", border: "1.5px solid #4fc3f7" }}>
             <div className="text-xs font-bold" style={{ color: "#4fc3f7" }}>OIL BACKEND :5054</div>
-            <div className="text-xs mt-2 space-y-1" style={{ color: "#9ca3b4" }}>
+            <div className="text-xs mt-2 space-y-1" style={{ color: "var(--color-text-muted)" }}>
               <div>Alpha-Sweep (London)</div>
               <div>Position monitor (1 min)</div>
               <div>Price stream (BCO_USD)</div>
@@ -200,7 +223,7 @@ function OverviewTab() {
           </div>
           <div className="p-4" style={{ background: "#080a0f", border: "1.5px solid #00e87b" }}>
             <div className="text-xs font-bold" style={{ color: "#00e87b" }}>SHARED</div>
-            <div className="text-xs mt-2 space-y-1" style={{ color: "#9ca3b4" }}>
+            <div className="text-xs mt-2 space-y-1" style={{ color: "var(--color-text-muted)" }}>
               <div>Frontend :3001 (Next.js)</div>
               <div>OANDA account (GBP)</div>
               <div>PostgreSQL (golddigger)</div>
@@ -219,8 +242,8 @@ function OverviewTab() {
 function StrategiesTab() {
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           3 STRATEGIES — SIGNAL GENERATION LOGIC
         </div>
 
@@ -248,10 +271,10 @@ function StrategiesTab() {
             <div key={name} className="p-5 arch-fade-in" style={{ background: "#080a0f", border: `1.5px solid ${color}` }}>
               <div className="text-center mb-4">
                 <div className="text-sm font-bold" style={{ color }}>{name}</div>
-                <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{instruments}</div>
+                <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{instruments}</div>
                 <div className="flex gap-2 justify-center mt-2">
                   <span className="text-xs px-2 py-0.5" style={{ background: `${color}20`, color }}>Risk: {risk}</span>
-                  <span className="text-xs px-2 py-0.5" style={{ background: "#181c24", color: "#9ca3b4" }}>{stats}</span>
+                  <span className="text-xs px-2 py-0.5" style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}>{stats}</span>
                 </div>
               </div>
               <div className="space-y-1.5 mb-3">
@@ -271,8 +294,8 @@ function StrategiesTab() {
       </div>
 
       {/* Backtest results comparison */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           20-YEAR BACKTEST RESULTS ($5K/year capital)
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -284,9 +307,9 @@ function StrategiesTab() {
           ].map(({ label, trades, wr, pf, pnl, color }) => (
             <div key={label} className="p-4 text-center" style={{ background: "#080a0f", border: `1px solid ${color}30` }}>
               <div className="text-xs font-bold" style={{ color }}>{label}</div>
-              {trades > 0 && <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{trades} trades</div>}
+              {trades > 0 && <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{trades} trades</div>}
               <div className="text-lg font-bold mt-2" style={{ color }}>{pnl}</div>
-              <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>WR: {wr} | PF: {pf}</div>
+              <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>WR: {wr} | PF: {pf}</div>
             </div>
           ))}
         </div>
@@ -300,13 +323,13 @@ function StrategiesTab() {
 function ExecutionTab() {
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           TRADE LIFECYCLE — FROM SIGNAL TO EXIT
         </div>
 
         <div className="relative">
-          <div className="absolute left-6 top-0 bottom-0 w-[2px]" style={{ background: "#252a33" }} />
+          <div className="absolute left-6 top-0 bottom-0 w-[2px]" style={{ background: "var(--color-border)" }} />
 
           {[
             { time: "T+0", event: "SIGNAL DETECTED", detail: "Asia sweep + M3 engulfing confirmed + daily bias match", color: "#e8c300" },
@@ -323,7 +346,7 @@ function ExecutionTab() {
               <div className="relative z-10 w-3 h-3 rounded-full mt-1 flex-shrink-0" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono px-1.5 py-0.5" style={{ background: "#181c24", color: "#9ca3b4" }}>{time}</span>
+                  <span className="text-xs font-mono px-1.5 py-0.5" style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}>{time}</span>
                   <span className="text-xs font-bold" style={{ color }}>{event}</span>
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: "#8b949e" }}>{detail}</div>
@@ -334,8 +357,8 @@ function ExecutionTab() {
       </div>
 
       {/* Fill model rules */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           FILL MODEL — EXIT PRIORITY ORDER (BACKTEST + LIVE)
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -351,7 +374,7 @@ function ExecutionTab() {
               </div>
               <div>
                 <div className="text-xs font-bold" style={{ color }}>{rule}</div>
-                <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{desc}</div>
+                <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{desc}</div>
               </div>
             </div>
           ))}
@@ -369,8 +392,8 @@ function ExecutionTab() {
 function RiskTab() {
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           TIERED RISK — PER-STRATEGY ALLOCATION
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -383,7 +406,7 @@ function RiskTab() {
               <div className="text-center mb-3">
                 <div className="text-sm font-bold" style={{ color }}>{strategy}</div>
                 <div className="text-2xl font-bold mt-2" style={{ color }}>{risk}%</div>
-                <div className="text-xs" style={{ color: "#9ca3b4" }}>of equity per trade</div>
+                <div className="text-xs" style={{ color: "var(--color-text-muted)" }}>of equity per trade</div>
               </div>
               <MetricBar label="Gold (oz)" value={maxUnitsGold} max={100} color={color} />
               {maxUnitsOil > 0 && <MetricBar label="Oil (barrels)" value={maxUnitsOil} max={5000} color={color} />}
@@ -393,8 +416,8 @@ function RiskTab() {
       </div>
 
       {/* DD Protection State Machine */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           DRAWDOWN PROTECTION — STATE MACHINE
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -406,7 +429,7 @@ function RiskTab() {
           ].map(({ state, condition, action, color }) => (
             <div key={state} className="p-4 text-center" style={{ background: `${color}08`, border: `1.5px solid ${color}` }}>
               <div className="text-sm font-bold" style={{ color }}>{state}</div>
-              <div className="text-xs mt-2" style={{ color: "#9ca3b4" }}>{condition}</div>
+              <div className="text-xs mt-2" style={{ color: "var(--color-text-muted)" }}>{condition}</div>
               <div className="text-xs mt-1 font-mono" style={{ color }}>{action}</div>
             </div>
           ))}
@@ -414,18 +437,18 @@ function RiskTab() {
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-3 text-xs" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
             <span className="font-bold" style={{ color: "#00e87b" }}>WIN resets</span>
-            <span style={{ color: "#9ca3b4" }}> — any profit trade → consecutive_losses = 0</span>
+            <span style={{ color: "var(--color-text-muted)" }}> — any profit trade → consecutive_losses = 0</span>
           </div>
           <div className="p-3 text-xs" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
             <span className="font-bold" style={{ color: "#e8c300" }}>Gold + Oil independent</span>
-            <span style={{ color: "#9ca3b4" }}> — separate DD state (id=1 vs id=2)</span>
+            <span style={{ color: "var(--color-text-muted)" }}> — separate DD state (id=1 vs id=2)</span>
           </div>
         </div>
       </div>
 
       {/* Position guards */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           POSITION GUARDS — PREVENTING OVEREXPOSURE
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -437,7 +460,7 @@ function RiskTab() {
           ].map(({ guard, rule, color }) => (
             <div key={guard} className="p-3 text-center" style={{ background: "#080a0f", border: `1px solid ${color}30` }}>
               <div className="text-xs font-bold" style={{ color }}>{guard}</div>
-              <div className="text-xs mt-1" style={{ color: "#9ca3b4" }}>{rule}</div>
+              <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>{rule}</div>
             </div>
           ))}
         </div>
@@ -451,8 +474,8 @@ function RiskTab() {
 function DataTab() {
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           OANDA API CALLS — WHAT, WHEN, WHY
         </div>
         <div className="space-y-3 overflow-x-auto">
@@ -462,14 +485,14 @@ function DataTab() {
             { when: "Every 3 min (London)", call: "get_candles(D, 2)", returns: "Yesterday + today", purpose: "Daily bias filter", color: "#4fc3f7" },
             { when: "22:00 UTC daily", call: "get_candles(D, 55)", returns: "55 daily bars", purpose: "50-day MA gate", color: "#ffd54f" },
             { when: "Continuous (stream)", call: "Streaming API", returns: "Tick-by-tick bid/ask", purpose: "Break-even detection", color: "#00e87b" },
-            { when: "Every 1 min", call: "get_current_price()", returns: "Current bid/ask/mid", purpose: "BE fallback + monitor", color: "#9ca3b4" },
+            { when: "Every 1 min", call: "get_current_price()", returns: "Current bid/ask/mid", purpose: "BE fallback + monitor", color: "var(--color-text-muted)" },
             { when: "On signal", call: "get_account_summary()", returns: "NAV, balance, GBP/USD", purpose: "Position sizing", color: "#e8c300" },
             { when: "On signal", call: "place_market_order()", returns: "Fill price, trade_id", purpose: "Order execution", color: "#00e87b" },
           ].map(({ when, call, returns, purpose, color }, i) => (
             <div key={i} className="flex items-center gap-4 p-3 min-w-[600px]" style={{ background: "#080a0f", border: "1px solid #1a1f27" }}>
-              <div className="w-40 flex-shrink-0 text-xs" style={{ color: "#9ca3b4" }}>{when}</div>
+              <div className="w-40 flex-shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>{when}</div>
               <div className="w-48 flex-shrink-0 text-xs font-mono" style={{ color }}>{call}</div>
-              <div className="w-40 flex-shrink-0 text-xs" style={{ color: "#9ca3b4" }}>{returns}</div>
+              <div className="w-40 flex-shrink-0 text-xs" style={{ color: "var(--color-text-muted)" }}>{returns}</div>
               <div className="text-xs" style={{ color: "#8b949e" }}>{purpose}</div>
             </div>
           ))}
@@ -477,8 +500,8 @@ function DataTab() {
       </div>
 
       {/* DB Tables */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           POSTGRESQL STORAGE — WHAT'S PERSISTED
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -496,7 +519,7 @@ function DataTab() {
               </div>
               <div className="flex flex-wrap gap-1">
                 {fields.map(f => (
-                  <span key={f} className="px-1.5 py-0.5 text-xs font-mono" style={{ background: "#181c24", color: "#9ca3b4" }}>{f}</span>
+                  <span key={f} className="px-1.5 py-0.5 text-xs font-mono" style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}>{f}</span>
                 ))}
               </div>
             </div>
@@ -524,8 +547,8 @@ function ScheduleTab() {
 
   return (
     <div className="space-y-6">
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           24-HOUR TRADING SCHEDULE (UTC)
         </div>
 
@@ -577,7 +600,7 @@ function ScheduleTab() {
           ].map(({ name, time, interval, detail, color, istTime }) => (
             <div key={name} className="p-4" style={{ background: "#080a0f", border: `1.5px solid ${color}` }}>
               <div className="text-xs font-bold" style={{ color }}>{name}</div>
-              <div className="text-xs mt-2 font-mono" style={{ color: "#9ca3b4" }}>{time} ({interval})</div>
+              <div className="text-xs mt-2 font-mono" style={{ color: "var(--color-text-muted)" }}>{time} ({interval})</div>
               <div className="text-xs mt-1" style={{ color: "#8b949e" }}>{detail}</div>
               <div className="text-xs mt-2 font-mono" style={{ color: "#8b95a5" }}>{istTime}</div>
             </div>
@@ -586,8 +609,8 @@ function ScheduleTab() {
       </div>
 
       {/* Current status */}
-      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "#0e1117", border: "1px solid #252a33" }}>
-        <div className="text-xs sm:text-sm font-bold tracking-wider mb-5" style={{ color: "#4da6ff" }}>
+      <div className="p-3 sm:p-6 rounded-lg" style={{ background: "var(--color-surface-1)", border: "1px solid var(--color-border)" }}>
+        <div className="text-[11px] uppercase font-semibold tracking-[0.8px] mb-4" style={{ color: "var(--color-brass-hi)" }}>
           NOTIFICATION EVENTS — TELEGRAM ALERTS
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -603,7 +626,7 @@ function ScheduleTab() {
               <span className="text-lg">{emoji}</span>
               <div>
                 <div className="text-xs font-bold" style={{ color: "#c8cdd4" }}>{event}</div>
-                <div className="text-xs" style={{ color: "#9ca3b4" }}>{desc}</div>
+                <div className="text-xs" style={{ color: "var(--color-text-muted)" }}>{desc}</div>
               </div>
             </div>
           ))}
