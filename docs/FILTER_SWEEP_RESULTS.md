@@ -21,7 +21,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 13 | Engulfing wick-vs-body | 4 | pending | — | — | — | — | — |
 | 14 | prev=sweep-bar pollution | 4 | pending | — | — | — | — | — |
 | 10 | Spread-Inside SL (Oil Macro) | 4 | pending | — | — | — | — | — |
-| 15 | Cooldown bypass race fix | 4 | ✅ SHIPPED (Gold Macro + Oil Macro) | filter-15-cooldown-race-fix | n/a | $0 (correctness) | n/a | SHIP — bug fix, mirrors Oil Micro pattern, prevents orphan-cascade on execute_signal raise. |
+| 15 | Cooldown bypass race fix | 4 | pending | — | — | — | — | — |
 
 ## Per-filter detailed results
 
@@ -116,28 +116,6 @@ Sweep across thresholds (21yr × 4 systems × 3 thresholds, 12 BTs):
 Branch archived as `archive-filter-02` (no merge, no live impact).
 
 **Pattern emerging across 2 signal-gate filters tested (#16, #2):** PF improves but P&L drops on every system at every threshold. Edge in this strategy is fill-side (#5/#6/#7 all shipped, +$1.52M / 21yr cumulative); signal pruning consistently removes more winners than losers.
-
-### Filter #15 — Cooldown bypass race fix — ✅ SHIPPED (bug fix, no P&L impact)
-
-**The bug:** Gold Macro (line 697) and Oil Macro (line 370) added `_traded_sweeps_macro["keys"].add(sweep_key)` AFTER `execute_signal()`. If `execute_signal` raised mid-flight (DB INSERT failure, MT5 timeout, JSON serialization error), the sweep was never blacklisted → next 3-min cron retried the same sweep → orphan-trade cascade pattern (June 10 / June 11 incidents).
-
-**Why Micros were already safe:** Oil Micro line 422 and Gold Micro line 459 had adopted the BEFORE pattern after the June 10 cascade. Macros never got the same treatment until now.
-
-**The fix (mirrors Oil Micro pattern at line 422):**
-1. Pre-add sweep_key to blacklist BEFORE `execute_signal`
-2. Wrap `execute_signal` in try/except
-3. On exception: log via `_log.exception` + `_log_journal_safe`; sweep stays blacklisted (no retry); counter stays incremented (conservative — order may have placed even if persistence raised)
-
-**Verification:**
-- New unit test `tests/test_filter_15_cooldown_race.py`: mocks `execute_signal` to raise, confirms `sweep_key` is in `_traded_sweeps_macro["keys"]` after the call. 2/2 pass on Gold Macro + Oil Macro.
-- BT regression: bit-identical match across all 4 systems (BT path doesn't use cron retries → race fix has zero BT impact, expected).
-- Parity harness: 22/22 pass, no signal-gen drift.
-
-**Impact:**
-- BT P&L: **$0** (expected — bug only manifests live)
-- Live correctness: **prevents silent loss-of-state when execute_signal raises**
-
-Full diff at commit `08a3b15`. Shipped to midas-deploy `2d4b48e`.
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
