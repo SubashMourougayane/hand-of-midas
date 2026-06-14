@@ -43,9 +43,18 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    disable_market_close: bool | None = None,
 ) -> list[Signal]:
+    """
+    disable_market_close: Filter — drop the 21–22 UTC market-close block.
+      Inherited from Oil Micro config; Gold Micro doesn't actually close at
+      that hour. Default False (legacy = block 21-22 UTC). True = scan
+      through. None reads from cfg.disable_market_close (default False).
+    """
     cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
+    if disable_market_close is None:
+        disable_market_close = cfg.get("disable_market_close", False)
     close_start = mcfg["market_close_start"]
     signals = []
 
@@ -67,9 +76,12 @@ def generate_signals(
 
             now_hour = bar_ts.hour
 
-            # Skip during market close (same as live)
-            if mcfg["market_close_start"] <= now_hour < mcfg["market_close_end"]:
-                continue
+            # Skip during market close (same as live) — bypassed when
+            # disable_market_close is on (Gold Micro doesn't actually close
+            # at this hour; the gate was inherited from Oil Micro).
+            if not disable_market_close:
+                if mcfg["market_close_start"] <= now_hour < mcfg["market_close_end"]:
+                    continue
 
             # Check all windows (0, 2, 4, ..., 22) — same as live scheduler
             for start_hour in range(0, 24, mcfg["scan_gap_hours"]):
@@ -79,9 +91,10 @@ def generate_signals(
                 end_hour = (start_hour + mcfg["consol_hours"]) % 24
                 scan_end_hour = (start_hour + mcfg["consol_hours"] + mcfg["scan_after_hours"]) % 24
 
-                # Skip windows whose consolidation overlaps market close
+                # Skip windows whose consolidation overlaps market close.
+                # Bypassed when disable_market_close is on.
                 consol_hours = _hours_in_range(start_hour, end_hour)
-                if close_start in consol_hours:
+                if not disable_market_close and close_start in consol_hours:
                     continue
 
                 # Check if consolidation is done

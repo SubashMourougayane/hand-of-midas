@@ -38,6 +38,11 @@ MICRO_ALPHA_SWEEP = {
     "max_trades_per_day": 3,
     "market_close_start": 21,
     "market_close_end": 22,
+    # Filter shipped 2026-06-15: drop the 21-22 UTC block. The gate was
+    # inherited from Oil Micro config but Gold Micro doesn't actually close
+    # at that hour. BT 21-yr: PF 4.40→4.52, P&L +$26.8k (+8.0%), N +42.
+    # Oil Micro keeps the block (regresses without it per prior audit).
+    "disable_market_close": True,
 }
 
 STRATEGY_RISK = {"micro_alpha_sweep": 4.0, "mean_rev": 3.0, "cross_market": 2.0}

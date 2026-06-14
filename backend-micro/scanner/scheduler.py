@@ -39,14 +39,21 @@ def _get_active_windows(now: datetime) -> list:
     """Return all consolidation windows currently in their scan phase.
     Handles midnight wrap: windows can start at 22, 0, 2, ... up to 18.
     Market close: 21:00-22:00 UTC — no scanning during this hour.
+
+    Filter (shipped 2026-06-15): when MICRO_ALPHA_SWEEP['disable_market_close']
+    is True, both the live-hour skip and the consolidation-overlap skip are
+    bypassed. Backtest gain: PF 4.40→4.52, +$27k 21yr (+8.0%). The 21-22 UTC
+    block was inherited from Oil Micro config; Gold Micro doesn't actually
+    close at this hour. Oil Micro KEEPS the block (regresses without it).
     """
     cfg = MICRO_ALPHA_SWEEP
+    disable_mc = cfg.get("disable_market_close", False)
     close_start = cfg["market_close_start"]  # 21
     close_end = cfg["market_close_end"]      # 22
     current_hour = now.hour
 
-    # Skip during market close
-    if close_start <= current_hour < close_end:
+    # Skip during market close (bypassed when disable_market_close is on)
+    if not disable_mc and close_start <= current_hour < close_end:
         return []
 
     windows = []
@@ -55,10 +62,10 @@ def _get_active_windows(now: datetime) -> list:
         end_hour = (start_hour + cfg["consol_hours"]) % 24
         scan_end_hour = (start_hour + cfg["consol_hours"] + cfg["scan_after_hours"]) % 24
 
-        # Skip windows whose consolidation or scan overlaps market close
-        # If consolidation spans 21:00 (e.g. 20-00) or scan would run into 21:00
+        # Skip windows whose consolidation or scan overlaps market close.
+        # Bypassed when disable_market_close is on.
         consol_hours = _hours_in_range(start_hour, end_hour)
-        if close_start in consol_hours:
+        if not disable_mc and close_start in consol_hours:
             continue
 
         # Check if consolidation is done (current hour is past end_hour)
