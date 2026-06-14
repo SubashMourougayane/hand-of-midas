@@ -87,7 +87,7 @@ function GoldParticles() {
             top: `${p.y}%`,
             width: p.size,
             height: p.size,
-            background: "#e8c300",
+            background: "#d4a464",
             boxShadow: `0 0 ${p.size * 2}px rgba(232, 195, 0, 0.6)`,
             opacity: p.opacity,
             animation: `float-candle ${p.duration}s ease-in-out ${p.delay}s infinite`,
@@ -113,17 +113,17 @@ function LiveTradeFeed() {
 
   return (
     <div style={{ overflow: "hidden", position: "relative", margin: "0 auto", maxWidth: 700 }}>
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(90deg, #0a0d12, transparent)", zIndex: 2 }} />
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(270deg, #0a0d12, transparent)", zIndex: 2 }} />
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(90deg, var(--color-bg), transparent)", zIndex: 2 }} />
+      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(270deg, var(--color-bg), transparent)", zIndex: 2 }} />
       <div className="trade-feed-scroll" style={{ display: "flex", gap: 16, padding: "12px 0", width: "max-content" }}>
         {doubled.map((t, i) => (
           <div key={i} style={{
             display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
-            background: "#0e1117", border: "1px solid #1a1f28", whiteSpace: "nowrap",
+            background: "var(--color-surface-1)", border: "1px solid #1a1f28", whiteSpace: "nowrap",
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: t.pair.includes("XAU") ? "#e8c300" : "#4fc3f7" }}>{t.pair}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.pair.includes("XAU") ? "#d4a464" : "#4fc3f7" }}>{t.pair}</span>
             <span style={{ fontSize: 10, fontWeight: 600, color: t.side === "LONG" ? "#00e87b" : "#ff3e3e" }}>{t.side}</span>
-            <span style={{ fontSize: 10, color: "#9ca3b4" }}>{t.entry}</span>
+            <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{t.entry}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: "#00e87b" }}>{t.pnl}</span>
             <span style={{ fontSize: 9, color: "#6b7280" }}>{t.strat}</span>
           </div>
@@ -150,21 +150,21 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="landing-page" style={{ background: "#0a0d12", minHeight: "100vh", width: "100%", overflow: "hidden" }}>
+    <div className="landing-page" style={{ background: "var(--color-bg)", minHeight: "100vh", width: "100%", overflow: "hidden" }}>
 
       {/* Ambient gradient that follows mouse */}
       <div
         className="hide-mobile"
         style={{
           position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
-          background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(232, 195, 0, 0.03), transparent 60%)`,
+          background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(212, 164, 100, 0.04), transparent 60%)`,
         }}
       />
 
       {/* Grid background */}
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.35,
-        backgroundImage: `linear-gradient(rgba(37, 42, 51, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(37, 42, 51, 0.3) 1px, transparent 1px)`,
+        backgroundImage: `linear-gradient(rgba(60, 51, 39, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(60, 51, 39, 0.4) 1px, transparent 1px)`,
         backgroundSize: "60px 60px",
       }} />
 
@@ -173,31 +173,46 @@ export default function LandingPage() {
         <GoldParticles />
 
         <FadeIn>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", border: "1px solid #252a33", background: "#111318", marginBottom: 32 }}>
-            <div className="t-pulse" style={{ width: 6, height: 6, background: "#e8c300" }} />
-            <span style={{ fontSize: 11, color: "#9ca3b4", textTransform: "uppercase", letterSpacing: "0.12em" }}>No Phantom Fills. Honest Execution Only.</span>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", border: "1px solid var(--color-border)", background: "var(--color-surface-1)", marginBottom: 32 }}>
+            <div className="t-pulse" style={{ width: 6, height: 6, background: "#d4a464" }} />
+            <span style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.12em" }}>No Phantom Fills. Honest Execution Only.</span>
           </div>
         </FadeIn>
 
         <FadeIn delay={100}>
-          <div style={{ fontSize: 52, marginBottom: 12 }}>&#x1F91A;</div>
-          <h1 className="landing-hero-title" style={{
-            fontSize: "clamp(40px, 7vw, 72px)", fontWeight: 800, letterSpacing: "-0.02em",
-            background: "linear-gradient(135deg, #e8c300, #ffdf4a, #e8c300)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            marginBottom: 16, lineHeight: 1.1,
-          }}>
-            HAND OF MIDAS
+          <div className="flex items-center justify-center mb-3">
+            <span
+              className="inline-block w-3 h-3 rotate-45 bg-[var(--color-brass)]"
+              aria-hidden
+              style={{ boxShadow: "0 0 18px rgba(212,164,100,0.5)" }}
+            />
+          </div>
+          <h1
+            className="landing-hero-title display"
+            style={{
+              fontSize: "clamp(48px, 9vw, 96px)",
+              fontWeight: 400,
+              fontStyle: "italic",
+              letterSpacing: "-0.02em",
+              background: "linear-gradient(135deg, #d4a464, #e8be7e, #d4a464)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              marginBottom: 16,
+              lineHeight: 1.05,
+            }}
+          >
+            Hand of Midas
           </h1>
         </FadeIn>
 
         <FadeIn delay={200}>
-          <p className="landing-hero-subtitle" style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "#9ca3b4", maxWidth: 600, margin: "0 auto 12px", lineHeight: 1.6 }}>
+          <p className="landing-hero-subtitle" style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "var(--color-text-muted)", maxWidth: 600, margin: "0 auto 12px", lineHeight: 1.6 }}>
             Everything it touches turns to gold.
           </p>
           <p style={{ fontSize: 13, color: "#6b7280", maxWidth: 500, margin: "0 auto" }}>
             Fixed SL/TP. No trailing stops. No phantom fills.
             <br />
-            <span style={{ color: "#c8cdd5" }}>Gold + Oil — 20 years validated.</span>
+            <span style={{ color: "var(--color-text)" }}>Gold + Oil — 20 years validated.</span>
           </p>
         </FadeIn>
 
@@ -212,11 +227,11 @@ export default function LandingPage() {
             <button
               onClick={() => router.push("/login")}
               style={{
-                background: "linear-gradient(135deg, #e8c300, #c5a500)", color: "#000", border: "none",
+                background: "linear-gradient(135deg, #d4a464, #a8804f)", color: "#000", border: "none",
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 display: "inline-flex", alignItems: "center", gap: 8, transition: "transform 0.2s, box-shadow 0.2s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(232, 195, 0, 0.3)"; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(212, 164, 100, 0.3)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
             >
               Enter Dashboard &rarr;
@@ -236,12 +251,12 @@ export default function LandingPage() {
             <button
               onClick={() => router.push("/login")}
               style={{
-                background: "transparent", color: "#e8c300", border: "1px solid #e8c30055",
+                background: "transparent", color: "#d4a464", border: "1px solid #d4a46455",
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#e8c300"; e.currentTarget.style.background = "#e8c30010"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#e8c30055"; e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#d4a464"; e.currentTarget.style.background = "#d4a46410"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "#d4a46455"; e.currentTarget.style.background = "transparent"; }}
             >
               Login
             </button>
@@ -253,17 +268,17 @@ export default function LandingPage() {
       <section style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1a1f28", borderBottom: "1px solid #1a1f28", padding: "32px 24px", background: "#0c0e14" }}>
         <div className="landing-stats-ticker" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", maxWidth: 1100, margin: "0 auto", gap: 0 }}>
           {[
-            { value: 640000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#e8c300" },
+            { value: 640000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#d4a464" },
             { value: 2084, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "#4fc3f7" },
             { value: 65.4, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "#00e87b", decimals: 1 },
-            { value: 4.50, suffix: "x", label: "Profit Factor", sub: "Combined strategies", color: "#e8c300", decimals: 2 },
+            { value: 4.50, suffix: "x", label: "Profit Factor", sub: "Combined strategies", color: "#d4a464", decimals: 2 },
             { value: 20, suffix: "yr", label: "Backtested", sub: "2006-2026", color: "#4fc3f7" },
           ].map(({ value, prefix, suffix, label, sub, color, decimals }) => (
             <div key={label} style={{ textAlign: "center", padding: "16px 12px", borderRight: "1px solid #1a1f28" }}>
               <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color }}>
                 <AnimatedNumber target={value} prefix={prefix || ""} suffix={suffix || ""} decimals={decimals || 0} />
               </div>
-              <div style={{ fontSize: 10, color: "#9ca3b4", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{label}</div>
+              <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{label}</div>
               <div style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>{sub}</div>
             </div>
           ))}
@@ -276,7 +291,7 @@ export default function LandingPage() {
           <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 8, letterSpacing: "-0.01em", textAlign: "center" }}>
             Two Markets. One Engine.
           </h3>
-          <p style={{ fontSize: 14, color: "#9ca3b4", textAlign: "center", maxWidth: 500, margin: "0 auto 48px" }}>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted)", textAlign: "center", maxWidth: 500, margin: "0 auto 48px" }}>
             Commodities-focused algorithmic trading on the world's most liquid instruments.
           </p>
         </FadeIn>
@@ -284,15 +299,15 @@ export default function LandingPage() {
         <FadeIn delay={100}>
           <div className="landing-instruments-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, maxWidth: 800, margin: "0 auto" }}>
             {/* Gold card */}
-            <div style={{ background: "#111318", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #e8c300, transparent)" }} />
+            <div style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, transparent)" }} />
               <div style={{ fontSize: 32, marginBottom: 16 }}>&#x1F947;</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#e8c300", marginBottom: 4 }}>XAU/USD</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a464", marginBottom: 4 }}>XAU/USD</div>
               <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 20 }}>Gold — The king of commodities</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>1,238</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)" }}>1,238</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
@@ -300,7 +315,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#e8c300" }}>3.83</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a464" }}>3.83</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
@@ -310,7 +325,7 @@ export default function LandingPage() {
             </div>
 
             {/* Oil card */}
-            <div style={{ background: "#111318", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
+            <div style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #4fc3f7, transparent)" }} />
               <div style={{ fontSize: 32, marginBottom: 16 }}>&#x1F6E2;&#xFE0F;</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#4fc3f7", marginBottom: 4 }}>BCO/USD</div>
@@ -318,7 +333,7 @@ export default function LandingPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c8cdd5" }}>846</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)" }}>846</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
@@ -345,7 +360,7 @@ export default function LandingPage() {
             <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 8, textAlign: "center", letterSpacing: "-0.01em" }}>
               Three Strategies. Zero Phantom Fills.
             </h3>
-            <p style={{ fontSize: 14, color: "#9ca3b4", textAlign: "center", maxWidth: 550, margin: "0 auto 48px" }}>
+            <p style={{ fontSize: 14, color: "var(--color-text-muted)", textAlign: "center", maxWidth: 550, margin: "0 auto 48px" }}>
               Each strategy uses fixed SL/TP with honest bar-level fill logic. No trailing stop tricks.
             </p>
           </FadeIn>
@@ -356,7 +371,7 @@ export default function LandingPage() {
                 {
                   name: "Alpha-Sweep",
                   pf: "3.40",
-                  color: "#e8c300",
+                  color: "#d4a464",
                   desc: "Liquidity sweep detection at key levels. Enters on sweep confirmation with structure break. High conviction, fewer trades.",
                   conditions: ["Liquidity sweep at HTF level", "Market structure shift", "Fair value gap entry", "Fixed 2:1 R:R"],
                 },
@@ -375,13 +390,13 @@ export default function LandingPage() {
                   conditions: ["Correlation breakdown detected", "Regime shift confirmation", "Spread divergence > 2 std", "Fixed 1.8:1 R:R"],
                 },
               ].map(({ name, pf, color, desc, conditions }) => (
-                <div key={name} style={{ background: "#111318", border: "1px solid #1a1f28", padding: "28px 22px", position: "relative" }}>
+                <div key={name} style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "28px 22px", position: "relative" }}>
                   <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: color }} />
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f2f5" }}>{name}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color, padding: "2px 8px", border: `1px solid ${color}40`, background: `${color}10` }}>PF {pf}</span>
                   </div>
-                  <p style={{ fontSize: 12, color: "#9ca3b4", lineHeight: 1.6, marginBottom: 16 }}>{desc}</p>
+                  <p style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.6, marginBottom: 16 }}>{desc}</p>
                   <div style={{ borderTop: "1px solid #1a1f28", paddingTop: 12 }}>
                     {conditions.map((c, i) => (
                       <div key={i} style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
@@ -402,18 +417,18 @@ export default function LandingPage() {
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
           <FadeIn>
             <div style={{
-              background: "#111318", border: "1px solid #252a33", padding: "40px 32px",
+              background: "var(--color-surface-1)", border: "1px solid var(--color-border)", padding: "40px 32px",
               position: "relative", overflow: "hidden",
             }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #e8c300, #00e87b, #4fc3f7)" }} />
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, #00e87b, #4fc3f7)" }} />
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "#e8c300", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: "#d4a464", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
                   The Midas Difference
                 </div>
                 <h4 style={{ fontSize: "clamp(18px, 3vw, 24px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 16, lineHeight: 1.4 }}>
                   No trailing stops. No phantom fills.<br />Fixed SL/TP. Honest fills only.
                 </h4>
-                <p style={{ fontSize: 13, color: "#9ca3b4", lineHeight: 1.7, maxWidth: 550, margin: "0 auto" }}>
+                <p style={{ fontSize: 13, color: "var(--color-text-muted)", lineHeight: 1.7, maxWidth: 550, margin: "0 auto" }}>
                   Most backtests show inflated results because they fill trailing stops at impossible intra-bar prices.
                   Hand Of Midas uses only fixed stop-loss and take-profit levels, filled at the bar's actual OHLC prices.
                   What you see in backtest is what you get in live.
@@ -436,15 +451,15 @@ export default function LandingPage() {
           <FadeIn delay={100}>
             <div className="landing-arch-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
               {[
-                { step: "01", title: "Data Pipeline", desc: "20 years of H1 OHLCV data for Gold and Oil. Self-updating CSV pipeline appends new bars hourly from OANDA.", color: "#e8c300" },
+                { step: "01", title: "Data Pipeline", desc: "20 years of H1 OHLCV data for Gold and Oil. Self-updating CSV pipeline appends new bars hourly from OANDA.", color: "#d4a464" },
                 { step: "02", title: "Signal Engine", desc: "Three independent strategy engines scan every bar. Fixed entry conditions — no ML, no curve-fitting, no optimization.", color: "#00e87b" },
                 { step: "03", title: "Honest Fills", desc: "Bar-level fill simulation: SL/TP checked against actual High/Low. No intra-bar assumptions. What backtests show is real.", color: "#4fc3f7" },
                 { step: "04", title: "OANDA Execution", desc: "Live execution via OANDA REST API. Fixed SL/TP set at order time. No modifications, no trailing. Pure set-and-forget.", color: "#ff6b6b" },
               ].map(({ step, title, desc, color }) => (
-                <div key={step} style={{ padding: "24px 20px", background: "#111318", border: "1px solid #1a1f28", borderTop: `2px solid ${color}` }}>
+                <div key={step} style={{ padding: "24px 20px", background: "var(--color-surface-1)", border: "1px solid #1a1f28", borderTop: `2px solid ${color}` }}>
                   <div style={{ fontSize: 11, color, fontWeight: 700, marginBottom: 8, letterSpacing: "0.1em" }}>{step}</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f2f5", marginBottom: 8 }}>{title}</div>
-                  <div style={{ fontSize: 12, color: "#9ca3b4", lineHeight: 1.6 }}>{desc}</div>
+                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.6 }}>{desc}</div>
                 </div>
               ))}
             </div>
@@ -458,7 +473,7 @@ export default function LandingPage() {
           <h3 style={{ fontSize: "clamp(20px, 3vw, 28px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 12 }}>
             Login to start trading
           </h3>
-          <p style={{ fontSize: 13, color: "#9ca3b4", marginBottom: 32 }}>
+          <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 32 }}>
             Live on OANDA demo. Validated over 20 years. Zero phantom fills.
           </p>
         </FadeIn>
@@ -468,11 +483,11 @@ export default function LandingPage() {
             <button
               onClick={() => router.push("/login")}
               style={{
-                background: "linear-gradient(135deg, #e8c300, #c5a500)", color: "#000", border: "none",
+                background: "linear-gradient(135deg, #d4a464, #a8804f)", color: "#000", border: "none",
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 display: "inline-flex", alignItems: "center", gap: 8, transition: "transform 0.2s, box-shadow 0.2s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(232, 195, 0, 0.3)"; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(212, 164, 100, 0.3)"; }}
               onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
             >
               Login &rarr;
@@ -480,12 +495,12 @@ export default function LandingPage() {
             <button
               onClick={() => router.push("/login")}
               style={{
-                background: "transparent", color: "#9ca3b4", border: "1px solid #252a33",
+                background: "transparent", color: "var(--color-text-muted)", border: "1px solid var(--color-border)",
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 transition: "all 0.2s",
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = "#4fc3f7"; e.currentTarget.style.color = "#4fc3f7"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#252a33"; e.currentTarget.style.color = "#9ca3b4"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--color-border)"; e.currentTarget.style.color = "var(--color-text-muted)"; }}
             >
               View Backtests
             </button>
@@ -496,7 +511,7 @@ export default function LandingPage() {
           <div style={{ marginTop: 60, paddingTop: 40, borderTop: "1px solid #1a1f28" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 }}>
               <span style={{ fontSize: 18 }}>&#x1F91A;</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#e8c300", letterSpacing: "0.08em" }}>HAND OF MIDAS</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#d4a464", letterSpacing: "0.08em" }}>HAND OF MIDAS</span>
             </div>
             <p style={{ fontSize: 11, color: "#6b7280" }}>
               Built with honest fills. Validated without phantom trades. Ready for live.
