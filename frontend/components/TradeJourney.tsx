@@ -53,7 +53,7 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
     fetchJourney();
   }, [date, strategy, direction, entry, sl, tp, bars_held]);
 
-  const stratColor = strategy .includes("alpha_sweep") ? "#4fc3f7" : strategy === "mean_rev" ? "#00e87b" : "#ffd54f";
+  const stratColor = strategy.includes("alpha_sweep") ? "var(--color-info)" : strategy === "mean_rev" ? "var(--color-win)" : "var(--color-warn)";
   const stratLabel = strategy .includes("alpha_sweep") ? "Alpha-Sweep" : strategy === "mean_rev" ? "Mean-Rev" : "Cross-Market";
   const isLong = direction === "LONG";
 
@@ -104,48 +104,52 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
   };
 
   return (
-    <div className="t-panel p-4 mb-4 relative">
-      <button onClick={onClose} className="absolute top-3 right-3 text-[var(--text-dim)] hover:text-[var(--text)]">
+    <div className="rounded-[5px] bg-[var(--color-surface-1)] border border-[var(--color-border)] p-4 mb-4 relative">
+      <button
+        onClick={onClose}
+        className="absolute top-3 right-3 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+        aria-label="Close"
+      >
         <X size={14} />
       </button>
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap text-xs">
-        <span className="text-[var(--text-dim)]">{date}</span>
+      <div className="flex items-center gap-3 mb-3 flex-wrap text-[12px]">
+        <span className="num text-[var(--color-text-muted)]">{date}</span>
         <span className="font-semibold" style={{ color: stratColor }}>{stratLabel}</span>
-        <span className={isLong ? "text-[var(--green)]" : "text-[var(--red)]"}>{direction}</span>
-        <span>Entry <span className="text-[#4da6ff]">${entry.toFixed(2)}</span></span>
-        <span>SL <span className="text-[#ff3e3e]">${sl.toFixed(2)}</span></span>
-        {tp > 0 && <span>TP <span className="text-[#00e87b]">${tp.toFixed(2)}</span></span>}
-        <span className={`font-bold ${pnl >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-          ${pnl >= 0 ? "+" : ""}{pnl.toFixed(0)} <span className="text-[9px] font-normal text-[var(--text-dim)]">({formatINR(pnl)})</span>
+        <span className={isLong ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}>{direction}</span>
+        <span>Entry <span className="num text-[var(--color-info)]">${entry.toFixed(2)}</span></span>
+        <span>SL <span className="num text-[var(--color-loss)]">${sl.toFixed(2)}</span></span>
+        {tp > 0 && <span>TP <span className="num text-[var(--color-win)]">${tp.toFixed(2)}</span></span>}
+        <span className={`num font-semibold ${pnl >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+          ${pnl >= 0 ? "+" : ""}{pnl.toFixed(0)} <span className="text-[10px] font-normal text-[var(--color-text-muted)]">({formatINR(pnl)})</span>
         </span>
-        <span className="text-[var(--yellow)]">{status.toUpperCase()}</span>
-        <span className="text-[var(--text-dim)]">{hold_human}</span>
+        <span className="text-[11px] uppercase tracking-[0.6px] text-[var(--color-brass-hi)]">{status}</span>
+        <span className="text-[var(--color-text-muted)]">{hold_human}</span>
       </div>
 
       {/* Chart */}
       {loading ? (
-        <div className="h-[220px] flex items-center justify-center text-xs text-[var(--text-dim)]">Loading...</div>
+        <div className="h-[220px] flex items-center justify-center text-xs text-[var(--color-text-muted)]">Loading...</div>
       ) : points.length === 0 ? (
-        <div className="h-[220px] flex items-center justify-center text-xs text-[var(--text-dim)]">No data</div>
+        <div className="h-[220px] flex items-center justify-center text-xs text-[var(--color-text-muted)]">No data</div>
       ) : (
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={chartData} margin={{ top: 10, right: 60, bottom: 20, left: 10 }}>
             <XAxis
               dataKey="time"
-              tick={{ fontSize: 9, fill: "#9ca3b4" }}
+              tick={{ fontSize: 9, fill: "var(--color-text-muted)" }}
               tickFormatter={formatTime}
               interval={Math.max(Math.floor(points.length / 8), 1)}
             />
             <YAxis
               domain={[yMin, yMax]}
-              tick={{ fontSize: 9, fill: "#9ca3b4" }}
+              tick={{ fontSize: 9, fill: "var(--color-text-muted)" }}
               tickFormatter={(v) => `$${v.toFixed(0)}`}
               width={50}
             />
             <Tooltip
-              contentStyle={{ background: "#181c24", border: "1px solid #252a33", fontSize: 10 }}
+              contentStyle={{ background: "var(--color-surface-2)", border: "1px solid var(--color-border-hi)", borderRadius: 5, fontSize: 11, color: "var(--color-text)" }}
               formatter={(v, name) => [`$${Number(v).toFixed(2)}`, String(name)]}
               labelFormatter={(label) => formatTime(String(label))}
             />
@@ -154,43 +158,38 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
             <Area type="monotone" dataKey="high" stroke="none" fill="transparent" />
             <Area type="monotone" dataKey="low" stroke="none" fill="transparent" />
 
-            {/* Entry horizontal (blue) */}
-            <ReferenceLine y={entry} stroke="#4da6ff" strokeDasharray="4 4" strokeWidth={1}
-              label={{ value: `Entry $${entry.toFixed(0)}`, position: "right", fill: "#4da6ff", fontSize: 9 }} />
+            {/* Entry horizontal */}
+            <ReferenceLine y={entry} stroke="var(--color-info)" strokeDasharray="4 4" strokeWidth={1}
+              label={{ value: `Entry $${entry.toFixed(0)}`, position: "right", fill: "var(--color-info)", fontSize: 9 }} />
 
-            {/* SL line (red) — steps down/up on break-even */}
-            <Line type="stepAfter" dataKey="sl_level" stroke="#ff3e3e" strokeWidth={1} strokeDasharray="4 4" dot={false} name="SL" isAnimationActive={false} />
+            {/* SL line — steps down/up on break-even */}
+            <Line type="stepAfter" dataKey="sl_level" stroke="var(--color-loss)" strokeWidth={1} strokeDasharray="4 4" dot={false} name="SL" isAnimationActive={false} />
 
-            {/* TP horizontal (green) */}
-            {tp > 0 && <ReferenceLine y={tp} stroke="#00e87b" strokeDasharray="4 4" strokeWidth={1}
-              label={{ value: `TP $${tp.toFixed(0)}`, position: "right", fill: "#00e87b", fontSize: 9 }} />}
+            {/* TP horizontal */}
+            {tp > 0 && <ReferenceLine y={tp} stroke="var(--color-win)" strokeDasharray="4 4" strokeWidth={1}
+              label={{ value: `TP $${tp.toFixed(0)}`, position: "right", fill: "var(--color-win)", fontSize: 9 }} />}
 
-            {/* Entry vertical (blue) */}
-            {entryTime && <ReferenceLine x={entryTime} stroke="#4da6ff" strokeDasharray="3 3" strokeWidth={0.5} />}
+            {entryTime && <ReferenceLine x={entryTime} stroke="var(--color-info)" strokeDasharray="3 3" strokeWidth={0.5} />}
+            {exitTime && <ReferenceLine x={exitTime} stroke="var(--color-sys-gold-micro)" strokeDasharray="3 3" strokeWidth={1} />}
 
-            {/* Exit vertical (orange) */}
-            {exitTime && <ReferenceLine x={exitTime} stroke="#ff8c00" strokeDasharray="3 3" strokeWidth={1} />}
+            {/* High/Low traces — brass faded */}
+            <Line type="monotone" dataKey="high" stroke="var(--color-brass-dim)" strokeWidth={1} dot={false} name="High" strokeDasharray="2 1" />
+            <Line type="monotone" dataKey="low" stroke="var(--color-brass-dim)" strokeWidth={1} dot={false} name="Low" strokeDasharray="2 1" />
 
-            {/* High line (shows where SL/TP could trigger) */}
-            <Line type="monotone" dataKey="high" stroke="#e8c30080" strokeWidth={1} dot={false} name="High" strokeDasharray="2 1" />
-
-            {/* Low line (shows where SL/TP could trigger) */}
-            <Line type="monotone" dataKey="low" stroke="#e8c30080" strokeWidth={1} dot={false} name="Low" strokeDasharray="2 1" />
-
-            {/* Close price (main yellow line) */}
-            <Line type="monotone" dataKey="close" stroke="#e8c300" strokeWidth={1.5} dot={false} name="Close" />
+            {/* Close price — main brass line */}
+            <Line type="monotone" dataKey="close" stroke="var(--color-brass)" strokeWidth={1.5} dot={false} name="Close" />
           </ComposedChart>
         </ResponsiveContainer>
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-2 text-[8px] text-[var(--text-dim)]">
-        <span className="flex items-center gap-1"><span className="w-3 border-t-2 border-[#e8c300]" /> Close</span>
-        <span className="flex items-center gap-1"><span className="w-3 border-t border-[#e8c30050]" /> High/Low</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-[#4da6ff]" /> Entry</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-[#ff3e3e]" /> SL</span>
-        {tp > 0 && <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-[#00e87b]" /> TP</span>}
-        <span className="flex items-center gap-1"><span className="w-3 h-0 border-t border-dashed border-[#ff8c00]" /> Exit</span>
+      <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--color-text-muted)] flex-wrap">
+        <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-[var(--color-brass)]" /> Close</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 border-t border-[var(--color-brass-dim)]" /> High/Low</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-0 border-t border-dashed border-[var(--color-info)]" /> Entry</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-0 border-t border-dashed border-[var(--color-loss)]" /> SL</span>
+        {tp > 0 && <span className="flex items-center gap-1.5"><span className="w-3 h-0 border-t border-dashed border-[var(--color-win)]" /> TP</span>}
+        <span className="flex items-center gap-1.5"><span className="w-3 h-0 border-t border-dashed border-[var(--color-sys-gold-micro)]" /> Exit</span>
       </div>
     </div>
   );

@@ -59,12 +59,12 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
 
   return (
     <div className="relative" ref={ref}>
-      {label && <label className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider block mb-1">{label}</label>}
+      {label && <label className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider block mb-1">{label}</label>}
       <button
         onClick={() => { setOpen(!open); if (!open && value) { const d = new Date(value); setViewYear(d.getFullYear()); setViewMonth(d.getMonth()); } }}
-        className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2.5 py-1.5 w-[150px] hover:border-[var(--green)] transition-colors"
+        className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--color-text)] text-xs px-2.5 py-1.5 w-[150px] hover:border-[var(--color-win)] transition-colors"
       >
-        <Calendar size={11} className="text-[var(--text-dim)]" />
+        <Calendar size={11} className="text-[var(--color-text-muted)]" />
         <span>{value || "Select date"}</span>
       </button>
 
@@ -72,24 +72,24 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
         <div className="absolute top-full left-0 mt-1 z-50 w-[320px] bg-[var(--panel)] border border-[var(--border)] shadow-2xl shadow-black/50 p-4">
           {/* Year nav */}
           <div className="flex items-center justify-center gap-2 mb-2">
-            <button onClick={() => setViewYear(viewYear - 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[#1a2030]">
+            <button onClick={() => setViewYear(viewYear - 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[#1a2030]">
               ‹‹ {viewYear - 1}
             </button>
-            <span className="text-[10px] font-bold text-[var(--green)]">{viewYear}</span>
-            <button onClick={() => setViewYear(viewYear + 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[#1a2030]">
+            <span className="text-[10px] font-bold text-[var(--color-win)]">{viewYear}</span>
+            <button onClick={() => setViewYear(viewYear + 1)} className="px-1.5 py-0.5 text-[9px] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[#1a2030]">
               {viewYear + 1} ››
             </button>
           </div>
 
           {/* Month nav */}
           <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)]">
+            <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
               <ChevronLeft size={14} />
             </button>
-            <span className="text-xs font-bold tracking-widest text-[var(--text)]">
+            <span className="text-xs font-bold tracking-widest text-[var(--color-text)]">
               {monthNames[viewMonth]}
             </span>
-            <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)]">
+            <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
               <ChevronRight size={14} />
             </button>
           </div>
@@ -97,7 +97,7 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
           {/* Day headers */}
           <div className="grid grid-cols-7 gap-0 mb-1">
             {["MO", "TU", "WE", "TH", "FR", "SA", "SU"].map((d) => (
-              <div key={d} className="text-center text-[9px] font-semibold tracking-wider text-[var(--text-dim)] py-1">
+              <div key={d} className="text-center text-[9px] font-semibold tracking-wider text-[var(--color-text-muted)] py-1">
                 {d}
               </div>
             ))}
@@ -126,12 +126,12 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
                   onClick={() => selectDay(day)}
                   className={`aspect-square flex items-center justify-center text-xs font-semibold transition-all
                     ${isSelected
-                      ? "bg-[var(--green)] text-[var(--bg)]"
+                      ? "bg-[var(--color-win)] text-[var(--bg)]"
                       : isToday
                         ? "border border-[var(--blue)] text-[var(--blue)]"
                         : isWeekend
-                          ? "text-[var(--text-dim)] opacity-40"
-                          : "text-[var(--text)] hover:bg-[#1a2030]"
+                          ? "text-[var(--color-text-muted)] opacity-40"
+                          : "text-[var(--color-text)] hover:bg-[#1a2030]"
                     }
                   `}
                 >
@@ -143,10 +143,10 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
 
           {/* Legend */}
           <div className="flex items-center gap-4 mt-3 pt-2 border-t border-[var(--border)]">
-            <div className="flex items-center gap-1.5 text-[8px] text-[var(--text-dim)]">
-              <span className="w-2.5 h-2.5 bg-[var(--green)]" /> SELECTED
+            <div className="flex items-center gap-1.5 text-[8px] text-[var(--color-text-muted)]">
+              <span className="w-2.5 h-2.5 bg-[var(--color-win)]" /> SELECTED
             </div>
-            <div className="flex items-center gap-1.5 text-[8px] text-[var(--text-dim)]">
+            <div className="flex items-center gap-1.5 text-[8px] text-[var(--color-text-muted)]">
               <span className="w-2.5 h-2.5 border border-[var(--blue)]" /> TODAY
             </div>
           </div>

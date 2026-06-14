@@ -33,7 +33,7 @@ function AnimatedNumber({ target, prefix = "", suffix = "", duration = 2000, dec
   }, [target, duration]);
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="num">
       {prefix}{decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString()}{suffix}
     </div>
   );
@@ -126,10 +126,10 @@ function LiveTradeFeed() {
             display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
             background: "var(--color-surface-1)", border: "1px solid #1a1f28", whiteSpace: "nowrap",
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: t.pair.includes("XAU") ? "#d4a464" : "#4fc3f7" }}>{t.pair}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: t.side === "LONG" ? "#00e87b" : "#ff3e3e" }}>{t.side}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.pair.includes("XAU") ? "#d4a464" : "var(--color-info)" }}>{t.pair}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, color: t.side === "LONG" ? "var(--color-win)" : "var(--color-loss)" }}>{t.side}</span>
             <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{t.entry}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#00e87b" }}>{t.pnl}</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-win)" }}>{t.pnl}</span>
             <span style={{ fontSize: 9, color: "#6b7280" }}>{t.strat}</span>
           </div>
         ))}
@@ -244,12 +244,12 @@ export default function LandingPage() {
             <button
               onClick={() => window.open("/midas-report.html", "_blank")}
               style={{
-                background: "transparent", color: "#00e87b", border: "1px solid #00e87b55",
+                background: "transparent", color: "var(--color-win)", border: "1px solid var(--color-win)55",
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#00e87b"; e.currentTarget.style.background = "#00e87b10"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#00e87b55"; e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--color-win)"; e.currentTarget.style.background = "var(--color-win)10"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--color-win)55"; e.currentTarget.style.background = "transparent"; }}
             >
               Midas Backtest Report
             </button>
@@ -274,10 +274,10 @@ export default function LandingPage() {
         <div className="landing-stats-ticker" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", maxWidth: 1100, margin: "0 auto", gap: 0 }}>
           {[
             { value: 640000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#d4a464" },
-            { value: 2084, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "#4fc3f7" },
-            { value: 65.4, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "#00e87b", decimals: 1 },
+            { value: 2084, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "var(--color-info)" },
+            { value: 65.4, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "var(--color-win)", decimals: 1 },
             { value: 4.50, suffix: "x", label: "Profit Factor", sub: "Combined strategies", color: "#d4a464", decimals: 2 },
-            { value: 20, suffix: "yr", label: "Backtested", sub: "2006-2026", color: "#4fc3f7" },
+            { value: 20, suffix: "yr", label: "Backtested", sub: "2006-2026", color: "var(--color-info)" },
           ].map(({ value, prefix, suffix, label, sub, color, decimals }) => (
             <div key={label} style={{ textAlign: "center", padding: "16px 12px", borderRight: "1px solid #1a1f28" }}>
               <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color }}>
@@ -316,7 +316,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>63.2%</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>63.2%</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
@@ -324,16 +324,16 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$325K</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>$325K</div>
                 </div>
               </div>
             </div>
 
             {/* Oil card */}
             <div style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #4fc3f7, transparent)" }} />
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--color-info), transparent)" }} />
               <div style={{ fontSize: 32, marginBottom: 16 }}>&#x1F6E2;&#xFE0F;</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#4fc3f7", marginBottom: 4 }}>BCO/USD</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-info)", marginBottom: 4 }}>BCO/USD</div>
               <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 20 }}>Brent Crude Oil — Black gold</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
@@ -342,15 +342,15 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>74.0%</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>74.0%</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#4fc3f7" }}>7.95</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-info)" }}>7.95</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#00e87b" }}>$315K</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>$315K</div>
                 </div>
               </div>
             </div>
@@ -383,14 +383,14 @@ export default function LandingPage() {
                 {
                   name: "Mean-Rev",
                   pf: "2.80",
-                  color: "#00e87b",
+                  color: "var(--color-win)",
                   desc: "Mean reversion at statistical extremes. RSI + Bollinger Band deviation with momentum confirmation for reversal entries.",
                   conditions: ["RSI(14) < 25 or > 75", "Price outside 2.5 std BB", "Momentum divergence", "Fixed 1.5:1 R:R"],
                 },
                 {
                   name: "Cross-Market",
                   pf: "2.10",
-                  color: "#4fc3f7",
+                  color: "var(--color-info)",
                   desc: "Gold-Oil correlation regime trades. Exploits temporary decorrelation between XAU and BCO for convergence plays.",
                   conditions: ["Correlation breakdown detected", "Regime shift confirmation", "Spread divergence > 2 std", "Fixed 1.8:1 R:R"],
                 },
@@ -425,7 +425,7 @@ export default function LandingPage() {
               background: "var(--color-surface-1)", border: "1px solid var(--color-border)", padding: "40px 32px",
               position: "relative", overflow: "hidden",
             }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, #00e87b, #4fc3f7)" }} />
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, var(--color-win), var(--color-info))" }} />
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 11, color: "#d4a464", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
                   The Midas Difference
@@ -457,8 +457,8 @@ export default function LandingPage() {
             <div className="landing-arch-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
               {[
                 { step: "01", title: "Data Pipeline", desc: "20 years of H1 OHLCV data for Gold and Oil. Self-updating CSV pipeline appends new bars hourly from OANDA.", color: "#d4a464" },
-                { step: "02", title: "Signal Engine", desc: "Three independent strategy engines scan every bar. Fixed entry conditions — no ML, no curve-fitting, no optimization.", color: "#00e87b" },
-                { step: "03", title: "Honest Fills", desc: "Bar-level fill simulation: SL/TP checked against actual High/Low. No intra-bar assumptions. What backtests show is real.", color: "#4fc3f7" },
+                { step: "02", title: "Signal Engine", desc: "Three independent strategy engines scan every bar. Fixed entry conditions — no ML, no curve-fitting, no optimization.", color: "var(--color-win)" },
+                { step: "03", title: "Honest Fills", desc: "Bar-level fill simulation: SL/TP checked against actual High/Low. No intra-bar assumptions. What backtests show is real.", color: "var(--color-info)" },
                 { step: "04", title: "OANDA Execution", desc: "Live execution via OANDA REST API. Fixed SL/TP set at order time. No modifications, no trailing. Pure set-and-forget.", color: "#ff6b6b" },
               ].map(({ step, title, desc, color }) => (
                 <div key={step} style={{ padding: "24px 20px", background: "var(--color-surface-1)", border: "1px solid #1a1f28", borderTop: `2px solid ${color}` }}>
@@ -504,7 +504,7 @@ export default function LandingPage() {
                 padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
                 transition: "all 0.2s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#4fc3f7"; e.currentTarget.style.color = "#4fc3f7"; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--color-info)"; e.currentTarget.style.color = "var(--color-info)"; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--color-border)"; e.currentTarget.style.color = "var(--color-text-muted)"; }}
             >
               View Backtests
@@ -525,7 +525,7 @@ export default function LandingPage() {
               Gold + Oil Algorithmic Trading Engine
             </p>
             <p style={{ fontSize: 10, color: "#6b7280", marginTop: 12 }}>
-              Contact: <a href="mailto:subashtrades.in@gmail.com" style={{ color: "#4fc3f7", textDecoration: "none" }}>subashtrades.in@gmail.com</a>
+              Contact: <a href="mailto:subashtrades.in@gmail.com" style={{ color: "var(--color-info)", textDecoration: "none" }}>subashtrades.in@gmail.com</a>
             </p>
           </div>
         </FadeIn>
