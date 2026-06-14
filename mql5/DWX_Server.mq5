@@ -609,10 +609,19 @@ void WriteResponse(string content, string cmdFile)
 
 //+------------------------------------------------------------------+
 //| UTILITY: Write string to file (atomic)                           |
+//|                                                                  |
+//| FILE_SHARE_READ|FILE_SHARE_WRITE: allow other processes (Python  |
+//| backends reading market_data.json, open_orders.json, etc.) to    |
+//| have the file open while we write. Without these flags MT5 takes |
+//| an exclusive lock and reader contention surfaces as              |
+//| ERR_FILE_CANNOT_OPEN (5004) every few seconds — burst observed   |
+//| post-Filter #7 ship 2026-06-13 when partial-TP poller added a    |
+//| 4th concurrent reader path. Fix: 2026-06-15.                     |
 //+------------------------------------------------------------------+
 void WriteFile(string path, string content)
 {
-    int handle = FileOpen(path, FILE_WRITE|FILE_TXT|FILE_COMMON|FILE_ANSI);
+    int handle = FileOpen(path,
+        FILE_WRITE|FILE_TXT|FILE_COMMON|FILE_ANSI|FILE_SHARE_READ|FILE_SHARE_WRITE);
     if(handle == INVALID_HANDLE)
     {
         Print("[DWX] Failed to write: ", path, " Error: ", GetLastError());
@@ -624,10 +633,14 @@ void WriteFile(string path, string content)
 
 //+------------------------------------------------------------------+
 //| UTILITY: Read string from file                                   |
+//|                                                                  |
+//| FILE_SHARE flags symmetric with WriteFile so concurrent          |
+//| read+write between MT5 and Python backends never blocks.         |
 //+------------------------------------------------------------------+
 string ReadFile(string path)
 {
-    int handle = FileOpen(path, FILE_READ|FILE_TXT|FILE_COMMON|FILE_ANSI);
+    int handle = FileOpen(path,
+        FILE_READ|FILE_TXT|FILE_COMMON|FILE_ANSI|FILE_SHARE_READ|FILE_SHARE_WRITE);
     if(handle == INVALID_HANDLE) return "";
 
     string content = "";
