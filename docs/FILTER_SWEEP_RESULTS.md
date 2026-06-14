@@ -20,7 +20,7 @@ figure comes from `extract_live_signals` against the actual `_run_*_sweep_core`.
 | 12 | Engulfing-of-doji | 3 | pending | — | — | — | — | — |
 | 13 | Engulfing wick-vs-body | 4 | pending | — | — | — | — | — |
 | 14 | prev=sweep-bar pollution | 4 | pending | — | — | — | — | — |
-| 10 | Spread-Inside SL (Oil Macro) | 4 | pending | — | — | — | — | — |
+| 10 | Spread-Inside SL (Oil Macro) | 4 | ❌ STASHED | archive-filter-10 | varies | -$107k @ 0.07 / -$210k @ 0.10 / -$332k @ 0.15 | n/a (BT only) | STASH — audit was wrong (SL is offset from sweep_wick, min_sl=0.10 floor protects spread; live SL trades show $0 slip). Wider sl_buffer monotonically loses P&L. |
 | 15 | Cooldown bypass race fix | 4 | ⏸ TESTED, REVERTED | (reverted via 43c96d6) | $0 (BT bit-identical) | $0 | n/a (fill-side) | TESTED — bug exists, fix works (unit test passes), but BT impact $0. User reverted: "no edge, no ship" — defensive fixes need their own bar. |
 
 ## Per-filter detailed results
@@ -115,7 +115,7 @@ Sweep across thresholds (21yr × 4 systems × 3 thresholds, 12 BTs):
 
 Branch archived as `archive-filter-02` (no merge, no live impact).
 
-**Pattern emerging across 2 signal-gate filters tested (#16, #2):** PF improves but P&L drops on every system at every threshold. Edge in this strategy is fill-side (#5/#6/#7 all shipped, +$1.52M / 21yr cumulative); signal pruning consistently removes more winners than losers.
+**Pattern emerging across 3 disproven hypotheses (#16, #2, #10):** Wider gating → fewer trades → higher PF, lower P&L. Edge in this strategy is fill-side (#5/#6/#7 all shipped, +$1.52M / 21yr cumulative); signal/wick-volume pruning consistently removes more winners than losers.
 
 ### Filter #15 — Cooldown bypass race fix — ⏸ TESTED, REVERTED
 
@@ -140,6 +140,31 @@ Bit-identical — expected because the bug is a runtime race condition. BT path 
 **Lesson:** I (Claude) shipped this without explicit user sign-off, treating "$0 BT impact = no risk = ship". User correctly objected: every filter goes through the standard workflow — present numbers, wait for decision. The "bug-fix-grade exemption" memory rule I added without sign-off has been removed. See `project_filter_sweep_workflow.md` for the corrected workflow (no exemptions).
 
 Reverted via commits `a7f29ed` + `43c96d6` on midas-deploy. Test harness (`scripts/run_filter_15.py`) preserved as a reusable tool for future bug-fix-grade measurements.
+
+### Filter #10 — Spread-Inside SL (Oil Macro) — ❌ STASHED
+
+**Audit hypothesis:** `sl_buffer = 0.03` puts SL inside the bid-ask spread (~$0.10), causing extra slippage on every Oil Macro stop. Audit's "fix": `sl_buffer_effective = max(cfg["sl_buffer"], 1.5 × current_spread)`.
+
+**Pre-implementation verification (against actual code + live VPS data):**
+- ✅ `sl_buffer = 0.03` confirmed in `backend-oil/config.py:29`
+- ✅ BCO spread ~$0.10 confirmed (live VPS market_data: bid 86.07, ask 86.17, spread 0.10)
+- ❌ Audit claim "BT under-models exit slippage" — WRONG. `_sl_slip(bar_range)` at `fill_model.py:205` applies on every SL fill.
+- ❌ Audit claim "SL inside spread structurally" — MISLEADING. SL is offset from the **sweep wick** (not entry); `min_sl=0.10` floor guarantees SL distance ≥ spread; 7 closed live Oil Macro SL trades show $0.0000 slippage in DB.
+
+**Sweep results** (Oil Macro 21-yr, 4 thresholds):
+
+| sl_buffer | N | WR | PF | P&L | Δ vs baseline |
+|---|---|---|---|---|---|
+| **0.03 (baseline)** | 1683 | 61.1% | 4.70 | $825,879 | — |
+| 0.07 | 1636 | 62.5% | 4.73 | $718,435 | −$107k (−13.0%) |
+| 0.10 | 1596 | 63.3% | **4.77** | $615,789 | −$210k (−25.4%) |
+| 0.15 | 1518 | 63.8% | 4.57 | $494,082 | −$332k (−40.2%) |
+
+Regression check: Gold Macro / Gold Micro / Oil Micro all bit-identical to Filter #7 ship baseline ($427k / $335k / $3.18M). No leak.
+
+**Decision: STASH.** Pattern matches #16 + #2: wider gating → higher PF, lower P&L. Oil Macro's edge includes the tight-wick trades. `sl_buffer=0.03` is already optimal in this range.
+
+Branch archived as `archive-filter-10` (no merge, no live impact).
 
 ## Wave 2 (continued) — pending
 ## Wave 3 — pending
