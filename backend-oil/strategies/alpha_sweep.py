@@ -30,9 +30,12 @@ def generate_signals(
     oil_h1: pd.DataFrame,
     oil_m3: pd.DataFrame,
     daily_bias: dict,
+    max_rr_threshold: float | None = None,
 ) -> list[Signal]:
     """Generate Alpha-Sweep signals for Oil."""
     cfg = ALPHA_SWEEP
+    if max_rr_threshold is None:
+        max_rr_threshold = cfg.get("max_rr_threshold", 0.0)
     signals = []
     dates = sorted(set(oil_h1.index.date))
 
@@ -123,6 +126,9 @@ def generate_signals(
                     tpv = entry + ar * cfg["tp_multiplier"]
                     if tpv - entry < risk * 0.8:
                         continue
+                    # Filter #9: R:R upper bound
+                    if max_rr_threshold > 0 and (tpv - entry) / risk > max_rr_threshold:
+                        continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
                         direction="long", risk=risk, strategy="alpha_sweep",
@@ -140,6 +146,9 @@ def generate_signals(
                         continue
                     tpv = entry - ar * cfg["tp_multiplier"]
                     if entry - tpv < risk * 0.8:
+                        continue
+                    # Filter #9: R:R upper bound
+                    if max_rr_threshold > 0 and (entry - tpv) / risk > max_rr_threshold:
                         continue
                     signals.append(Signal(
                         date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,

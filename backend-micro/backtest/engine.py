@@ -28,6 +28,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    max_rr_threshold: float | None = None,
 ) -> BacktestResult:
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
 
@@ -48,6 +49,8 @@ def run_backtest(
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
+    if max_rr_threshold is None:
+        max_rr_threshold = MICRO_ALPHA_SWEEP.get("max_rr_threshold", 0.0)
     if strategies is None:
         strategies = ["micro_alpha_sweep", "mean_rev", "cross_market"]
     # Frontend sends "alpha_sweep" — map to micro variant
@@ -119,7 +122,8 @@ def run_backtest(
 
     if "micro_alpha_sweep" in strategies:
         np.random.seed(seed)
-        all_signals.extend(micro_alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias))
+        all_signals.extend(micro_alpha_sweep.generate_signals(gold_h1, gold_m3, daily_bias,
+                                                                max_rr_threshold=max_rr_threshold))
 
     all_signals.sort(key=lambda x: x.date)
 

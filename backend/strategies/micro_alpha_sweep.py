@@ -43,10 +43,13 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    max_rr_threshold: float | None = None,
 ) -> list[Signal]:
     cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
     close_start = mcfg["market_close_start"]
+    if max_rr_threshold is None:
+        max_rr_threshold = cfg.get("max_rr_threshold", 0.0)
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -179,6 +182,9 @@ def generate_signals(
                             tpv = range_high - tp_buf
                             if tpv - entry < risk * 0.8:
                                 continue
+                            # Filter #9: R:R upper bound
+                            if max_rr_threshold > 0 and (tpv - entry) / risk > max_rr_threshold:
+                                continue
                             signals.append(Signal(
                                 date=gold_m3.index[idx], entry=entry, sl=slv, tp=tpv,
                                 direction="long", risk=risk,
@@ -198,6 +204,9 @@ def generate_signals(
                             tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
                             tpv = range_low + tp_buf
                             if entry - tpv < risk * 0.8:
+                                continue
+                            # Filter #9: R:R upper bound
+                            if max_rr_threshold > 0 and (entry - tpv) / risk > max_rr_threshold:
                                 continue
                             signals.append(Signal(
                                 date=gold_m3.index[idx], entry=entry, sl=slv, tp=tpv,

@@ -12,14 +12,19 @@ def generate_signals(
     gold_h1: pd.DataFrame,
     gold_m3: pd.DataFrame,
     daily_bias: dict,
+    max_rr_threshold: float | None = None,
 ) -> list[Signal]:
     """
     Generate Alpha-Sweep signals.
     gold_h1: H1 candles with session labels (needs 'session_asia', 'session_london' columns or use hour filter)
     gold_m3: M3 candles with bid/ask
     daily_bias: {date: 'bullish'|'bearish'} from previous day close
+    max_rr_threshold: Filter #9 — skip setups where (tp-entry)/risk > threshold (LONG)
+      or (entry-tp)/risk > threshold (SHORT). None or 0 = legacy (no upper bound).
     """
     cfg = ALPHA_SWEEP
+    if max_rr_threshold is None:
+        max_rr_threshold = cfg.get("max_rr_threshold", 0.0)
     signals = []
 
     dates = sorted(set(gold_h1.index.date))
@@ -116,6 +121,10 @@ def generate_signals(
                     if tpv - entry < risk * 0.8:
                         continue
 
+                    # Filter #9: R:R upper bound — skip lottery-ticket geometry
+                    if max_rr_threshold > 0 and (tpv - entry) / risk > max_rr_threshold:
+                        continue
+
                     signals.append(Signal(
                         date=gold_m3.index[idx],
                         entry=entry, sl=slv, tp=tpv,
@@ -138,6 +147,10 @@ def generate_signals(
                     tp_buf = cfg.get("tp_structure_buffer", ar * cfg["tp_multiplier"])
                     tpv = al + tp_buf
                     if entry - tpv < risk * 0.8:
+                        continue
+
+                    # Filter #9: R:R upper bound — skip lottery-ticket geometry
+                    if max_rr_threshold > 0 and (entry - tpv) / risk > max_rr_threshold:
                         continue
 
                     signals.append(Signal(

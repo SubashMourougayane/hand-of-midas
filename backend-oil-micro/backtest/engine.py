@@ -68,10 +68,13 @@ def _hour_past(current: int, target: int) -> bool:
     return 0 < diff <= 12
 
 
-def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict) -> list[Signal]:
+def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dict,
+                     max_rr_threshold: float | None = None) -> list[Signal]:
     """Generate Oil Micro Alpha-Sweep signals using rolling 4hr windows."""
     cfg = MICRO_ALPHA_SWEEP
     close_start = cfg["market_close_start"]
+    if max_rr_threshold is None:
+        max_rr_threshold = cfg.get("max_rr_threshold", 0.0)
     signals = []
 
     dates = sorted(set(oil_h1.index.date))
@@ -193,6 +196,9 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                             tpv = range_high - tp_buf
                             if tpv - entry < risk * 0.8:
                                 continue
+                            # Filter #9: R:R upper bound
+                            if max_rr_threshold > 0 and (tpv - entry) / risk > max_rr_threshold:
+                                continue
                             signals.append(Signal(
                                 date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
                                 direction="long", risk=risk,
@@ -212,6 +218,9 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                             tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
                             tpv = range_low + tp_buf
                             if entry - tpv < risk * 0.8:
+                                continue
+                            # Filter #9: R:R upper bound
+                            if max_rr_threshold > 0 and (entry - tpv) / risk > max_rr_threshold:
                                 continue
                             signals.append(Signal(
                                 date=oil_m3.index[idx], entry=entry, sl=slv, tp=tpv,
@@ -394,6 +403,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    max_rr_threshold: float | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -401,6 +411,7 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction override. None = read from config.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    max_rr_threshold: Filter #9 — skip if R:R > threshold. None/0 = legacy.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -412,6 +423,8 @@ def run_backtest(
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
+    if max_rr_threshold is None:
+        max_rr_threshold = MICRO_ALPHA_SWEEP.get("max_rr_threshold", 0.0)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -455,7 +468,8 @@ def run_backtest(
 
     # Generate signals
     np.random.seed(seed)
-    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias)
+    all_signals = generate_signals(oil_h1_filtered, oil_m3_filtered, daily_bias,
+                                    max_rr_threshold=max_rr_threshold)
     all_signals.sort(key=lambda x: x.date)
 
     # Filter by date range
