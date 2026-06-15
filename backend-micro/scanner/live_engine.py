@@ -691,6 +691,17 @@ def reconcile_orphans():
 
     _log.debug("POSITION", "reconcile_tick", broker_open=len(broker_open))
     if not broker_open:
+        # Issue #16 fix 2026-06-15: smell detector
+        try:
+            db_open = execute(
+                f"SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+                fetch=True
+            )
+            db_open_cnt = db_open[0]["cnt"] if db_open else 0
+            if db_open_cnt > 0:
+                _log.warn("POSITION", "reconcile_empty_but_db_has_open", db_open=db_open_cnt)
+        except Exception as e:
+            _log.exception("POSITION", "reconcile_empty_check_failed", err=str(e))
         return
 
     # Look up ANY system's open positions — see backend-oil-micro for full

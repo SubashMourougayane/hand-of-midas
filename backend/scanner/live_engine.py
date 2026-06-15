@@ -661,6 +661,27 @@ def reconcile_orphans():
 
     _log.debug("POSITION", "reconcile_tick", broker_open=len(broker_open))
     if not broker_open:
+        # Issue #16 fix 2026-06-15: detect file-read race smell.
+        # If DB shows open Gold Macro trades but broker shows none, either:
+        # (a) all closed and exits not yet processed (transient), or
+        # (b) open_orders.json read race / EA stopped writing (bug).
+        # Either way, log warn so the forensic trail exists.
+        try:
+            db_open = execute(
+                """SELECT COUNT(*) as cnt FROM gd_trades
+                   WHERE exit_time IS NULL
+                     AND strategy IN ('alpha_sweep','mean_rev','cross_market')""",
+                fetch=True
+            )
+            db_open_cnt = db_open[0]["cnt"] if db_open else 0
+            if db_open_cnt > 0:
+                _log.warn("POSITION", "reconcile_empty_but_db_has_open",
+                          db_open=db_open_cnt,
+                          note="broker shows 0 trades but DB has open rows — file race or EA issue?")
+            else:
+                _log.debug("POSITION", "reconcile_empty", db_open=0)
+        except Exception as e:
+            _log.exception("POSITION", "reconcile_empty_check_failed", err=str(e))
         return
 
     # Look up ANY system's open positions — see backend-oil-micro for full
