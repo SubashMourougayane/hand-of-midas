@@ -163,6 +163,74 @@ const MarkD = ({ size = 64 }: { size?: number }) => (
   </svg>
 );
 
+/**
+ * MARK E — "Spire" (user-provided concept)
+ * Open rhombus outline (off-white). The top and bottom apex corners
+ * extend OUTWARD into thin tapering spires beyond the rhombus body.
+ * A small filled emerald rhombus sits at the exact geometric center.
+ *
+ * The spires give the mark vertical drama and a sigil-like quality
+ * (compass / heraldic mark) without crossing into ornament. The center
+ * gem holds the alpha. Highest verticality of the five concepts —
+ * stands out at lockup-size and at hero scale; works at 16px because
+ * the spires + rhombus collapse into a single tall diamond glyph.
+ */
+const MarkE = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    {/* Open rhombus body — drawn as four thin strokes that taper at the
+        top and bottom apexes (we use stroke for cleaner small-size rendering
+        than a filled outline path). */}
+    {/* Left edge — bottom-left to top apex (which extends as a spire above) */}
+    <path
+      d="M16 32 L32 18"
+      stroke={TEXT}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="miter"
+    />
+    {/* Right edge — bottom-right to top apex */}
+    <path
+      d="M48 32 L32 18"
+      stroke={TEXT}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="miter"
+    />
+    {/* Bottom-left edge — top-left to bottom apex */}
+    <path
+      d="M16 32 L32 46"
+      stroke={TEXT}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="miter"
+    />
+    {/* Bottom-right edge */}
+    <path
+      d="M48 32 L32 46"
+      stroke={TEXT}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="miter"
+    />
+    {/* TOP SPIRE — extends upward from the top apex */}
+    <path
+      d="M32 18 L32 4"
+      stroke={TEXT}
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+    {/* BOTTOM SPIRE — extends downward from the bottom apex */}
+    <path
+      d="M32 46 L32 60"
+      stroke={TEXT}
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+    {/* Center alpha gem — small filled emerald rhombus */}
+    <path d="M32 28 L36 32 L32 36 L28 32 Z" fill={E} />
+  </svg>
+);
+
 /* ═══════════════════════════════════════════════════════════════════════════
    PRODUCTION CONTEXTS — show each mark in real environments
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -388,6 +456,14 @@ const CONCEPTS = [
       "A cut gem rendered as flat facets — three planes of emerald (deep, mid, light) hinting at how light falls on a precision-cut diamond. No gradient — pure flat color, hedge-fund grade.",
     notes: "Most luxury · Reads as a gemstone · Cleanest at 32px+",
   },
+  {
+    code: "E",
+    name: "Spire",
+    Mark: MarkE,
+    blurb:
+      "An open rhombus outline with the top and bottom apex corners extended outward into thin tapering spires. A small emerald gem sits at the exact geometric center. The spires give the mark vertical drama and a sigil-like quality — heraldic without ornament.",
+    notes: "Highest verticality · Heraldic / compass feel · Spires + rhombus collapse to a tall diamond at 16px",
+  },
 ] as const;
 
 export default function LogoLabPage() {
@@ -554,11 +630,11 @@ export default function LogoLabPage() {
             className="mt-4 max-w-2xl text-[14.5px] leading-[1.7]"
             style={{ color: TEXT_DIM }}
           >
-            Reply with the concept code (A, B, C, or D). I&apos;ll wire it across nav, footer,
+            Reply with the concept code (A, B, C, D, or E). I&apos;ll wire it across nav, footer,
             favicon, and the deck/report/playbook hero in one commit. Or say &ldquo;none&rdquo;
             and I&apos;ll iterate further.
           </p>
-          <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-5">
             {CONCEPTS.map((c) => (
               <div
                 key={c.code}
