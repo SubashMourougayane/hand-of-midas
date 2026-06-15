@@ -450,7 +450,9 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             if last_signal_time.tzinfo is None:
                 last_signal_time = last_signal_time.replace(tzinfo=timezone.utc)
             skip = recent_signal[0].get("skip_reason", "")
-            if recent_signal[0]["taken"] or "order_error" in (skip or "") or "sl_too_close" in (skip or ""):
+            # Issue #19 fix 2026-06-15: replace fragile substring match with startswith.
+            _skip = (skip or "")
+            if recent_signal[0]["taken"] or _skip.startswith("order_error") or _skip.startswith("oanda_error") or _skip == "sl_too_close_to_price":
                 if now < last_signal_time + timedelta(minutes=5):
                     _log.debug("GATE", "cooldown_active", last_signal=last_signal_time.isoformat(), age_seconds=int((now - last_signal_time).total_seconds()), reason="recent_signal")
                     return None  # Cooldown
