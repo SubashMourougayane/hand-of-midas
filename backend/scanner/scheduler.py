@@ -739,6 +739,7 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
 
 def _persist_m3_candles(candles: list[dict]):
     """Save M3 candles to DB for audit trail."""
+    from backend.db import safe_json_dumps
     conn = get_conn()
     try:
         with conn.cursor() as cur:
@@ -747,7 +748,11 @@ def _persist_m3_candles(candles: list[dict]):
                     """INSERT INTO gd_journal (strategy, event_type, price, context)
                        VALUES ('alpha_sweep', 'M3_CANDLE', %s, %s)
                        ON CONFLICT DO NOTHING""",
-                    (c["bid_close"], str(c))
+                    # Issue #21b fix 2026-06-15: was str(c) which produces Python repr
+                    # with single quotes; Postgres JSON rejects them. Use safe_json_dumps
+                    # (handles datetime, Decimal, numpy too) — surfaced after Issue #21
+                    # made the silent failure loud.
+                    (c["bid_close"], safe_json_dumps(c))
                 )
         conn.commit()
     except Exception as e:
