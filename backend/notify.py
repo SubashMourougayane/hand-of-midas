@@ -1,5 +1,12 @@
-"""Telegram notifications for Hand Of Midas."""
+"""Telegram notifications for Hand Of Midas.
+
+Issue #13 fix 2026-06-15: prior `except Exception: pass` swallowed all
+errors silently. If BOT_TOKEN/CHAT_ID were missing or wrong, every alert
+disappeared. Now: log every failure with a short message so debug API
++ logs surface the issue. Misconfigured tokens detected at import time.
+"""
 import os
+import sys
 import threading
 import httpx
 from dotenv import load_dotenv
@@ -10,6 +17,15 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
+# Import-time sanity check — print to stderr if unconfigured.
+if not BOT_TOKEN or not CHAT_ID:
+    print("[NOTIFY] WARNING: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set — Telegram alerts will be no-ops",
+          file=sys.stderr)
+
+# Track failures so spam doesn't drown logs but issues are still visible.
+_failure_count = 0
+_failure_lock = threading.Lock()
+
 
 def send(message: str):
     """Send a Telegram notification (non-blocking)."""
@@ -17,10 +33,28 @@ def send(message: str):
 
 
 def _send(message: str):
+    global _failure_count
+    if not BOT_TOKEN or not CHAT_ID:
+        with _failure_lock:
+            _failure_count += 1
+            if _failure_count <= 3 or _failure_count % 50 == 0:
+                print(f"[NOTIFY] dropped (no token/chat_id, total dropped: {_failure_count}): {message[:80]}",
+                      file=sys.stderr)
+        return
     try:
-        httpx.post(API_URL, data={"chat_id": CHAT_ID, "text": message}, timeout=10)
-    except Exception:
-        pass
+        r = httpx.post(API_URL, data={"chat_id": CHAT_ID, "text": message}, timeout=10)
+        if r.status_code != 200:
+            with _failure_lock:
+                _failure_count += 1
+                if _failure_count <= 3 or _failure_count % 50 == 0:
+                    print(f"[NOTIFY] HTTP {r.status_code} (total fail: {_failure_count}): {r.text[:200]}",
+                          file=sys.stderr)
+    except Exception as e:
+        with _failure_lock:
+            _failure_count += 1
+            if _failure_count <= 3 or _failure_count % 50 == 0:
+                print(f"[NOTIFY] exception (total fail: {_failure_count}): {type(e).__name__}: {str(e)[:200]}",
+                      file=sys.stderr)
 
 
 def signal_taken(strategy: str, direction: str, instrument: str, entry: float, sl: float, tp: float, units: int):
