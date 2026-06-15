@@ -110,10 +110,10 @@ export function SystemMode({ hasPositions }: { hasPositions: boolean }) {
           <span className="text-lg" aria-hidden>{icon}</span>
           <div className="flex flex-col">
             <span className="text-[12px] font-semibold tracking-tight" style={{ color }}>{mode}</span>
-            <span className="text-[11px] text-[var(--color-text-muted)]">{countdown}</span>
+            <span className="text-[12.5px] text-[var(--color-text-dim)]">{countdown}</span>
           </div>
         </div>
-        <span className="num text-[11px] text-[var(--color-text-muted)]">
+        <span className="num text-[12.5px] text-[var(--color-text-dim)]">
           {now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })} IST
         </span>
       </div>
@@ -241,7 +241,7 @@ export function SystemMode({ hasPositions }: { hasPositions: boolean }) {
       </div>
 
       {/* Legend */}
-      <div className="hidden md:flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[10px] text-[var(--color-text-muted)]">
+      <div className="hidden md:flex flex-wrap items-center gap-3 sm:gap-5 mt-2 px-3 text-[11.5px] text-[var(--color-text-dim)]">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-2.5 rounded-sm" style={{ background: "color-mix(in srgb, var(--color-info) 15%, transparent)", border: "1px solid var(--color-info)" }} />
           Alpha-Sweep (9:30 AM – 1:30 AM)

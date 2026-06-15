@@ -28,21 +28,21 @@ export function PageHeader({
   return (
     <header className={cn("flex flex-col gap-1 mb-5 hom-fade-in-up", className)}>
       {breadcrumb ? (
-        <div className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-[0.8px]">
+        <div className="text-[11.5px] font-medium text-[var(--color-text-dim)] uppercase tracking-[1.4px]">
           {breadcrumb}
         </div>
       ) : null}
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {serif ? (
-            <Display size={size} className="leading-none">{title}</Display>
+            <Display size={size} italic className="leading-none">{title}</Display>
           ) : (
-            <h1 className="text-[20px] font-semibold text-[var(--color-text)] leading-tight">
+            <h1 className="text-[22px] font-semibold text-[var(--color-text)] leading-tight">
               {title}
             </h1>
           )}
           {description ? (
-            <p className="text-[12px] text-[var(--color-text-dim)] leading-relaxed">
+            <p className="text-[14.5px] text-[var(--color-text-dim)] leading-relaxed">
               {description}
             </p>
           ) : null}

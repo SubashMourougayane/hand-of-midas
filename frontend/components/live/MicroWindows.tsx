@@ -41,7 +41,7 @@ export function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
         </div>
         <div className="flex items-center gap-2">
           <Badge tone={biasTone} variant="soft">{bias}</Badge>
-          <span className="num text-[11px] text-[var(--color-text-muted)]">{tradesToday}/{maxTrades}</span>
+          <span className="num text-[12.5px] text-[var(--color-text-dim)]">{tradesToday}/{maxTrades}</span>
           {skipReasons.length > 0 && (
             <Badge tone="warn" variant="soft">{skipReasons.join(", ")}</Badge>
           )}
@@ -113,7 +113,7 @@ export function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
               <div className="flex-1 min-w-0">
                 <div className="text-[11px]" style={{ color: textColor }}>{statusText}</div>
                 {w.range > 0 && (
-                  <div className="num text-[10px] text-[var(--color-text-muted)]">
+                  <div className="num text-[11.5px] text-[var(--color-text-dim)]">
                     Range ${w.range.toFixed(0)}{hasSweep && w.sweep_info ? ` · Wick $${w.sweep_info.wick.toFixed(0)}` : ""}
                   </div>
                 )}
@@ -130,7 +130,7 @@ export function MicroWindows({ scan }: { scan: Record<string, unknown> }) {
       </div>
 
       {windows.length === 0 && (
-        <div className="text-center text-[11px] text-[var(--color-text-muted)] py-4">
+        <div className="text-center text-[12.5px] text-[var(--color-text-dim)] py-4">
           No active windows (outside scan hours 04:00–20:00 UTC)
         </div>
       )}

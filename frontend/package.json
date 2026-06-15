@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@fontsource/instrument-serif": "^5.2.8",
     "geist": "^1.7.2",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",

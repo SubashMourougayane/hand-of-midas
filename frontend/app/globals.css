@@ -1,46 +1,50 @@
 @import "tailwindcss";
-@import "@fontsource/instrument-serif/400.css";
-@import "@fontsource/instrument-serif/400-italic.css";
 
 /* ═══════════════════════════════════════════════════════════════════
-   HAND OF MIDAS — OLD-MONEY TRADING DESK
-   Warm-black canvas, brass accent, serif headlines, Geist Sans for UI,
-   Geist Mono + tabular-nums for data. Pronounced motion.
+   HAND OF MIDAS — SLATE + EMERALD INSTITUTIONAL
+   Cool slate canvas, emerald accent, Fraunces display italic headlines,
+   IBM Plex Sans for UI, IBM Plex Mono + tabular-nums for data.
    ═══════════════════════════════════════════════════════════════════ */
 
 @theme {
-  /* Warm-black surfaces (slight green-brown undertone vs neutral grey) */
-  --color-bg:           #0c0a08;
-  --color-surface-1:    #161310;
-  --color-surface-2:    #1f1a15;
-  --color-surface-3:    #2a231c;
-  --color-border:       #2c251d;
-  --color-border-hi:    #3d3327;
+  /* Cool slate surfaces */
+  --color-bg:           #0a0e14;
+  --color-surface-1:    #11161f;
+  --color-surface-2:    #161c25;
+  --color-surface-3:    #1d2430;
+  --color-border:       #1f2733;
+  --color-border-hi:    #2c3645;
 
-  /* Text — warm cream rather than cool grey */
-  --color-text:         #ece5d8;
-  --color-text-dim:     #b5a99a;
-  --color-text-muted:   #80766a;
+  /* Text — cool greys, crisp on slate */
+  --color-text:         #f1f3f6;
+  --color-text-dim:     #c8cdd6;
+  --color-text-muted:   #8c95a4;
 
-  /* Brass accent system (replaces Inter-era yellow) */
-  --color-brass:        #d4a464;
-  --color-brass-hi:     #e8be7e;
-  --color-brass-dim:    #8a6d3f;
-  --color-brass-tint:   rgba(212, 164, 100, 0.10);
+  /* Emerald accent system */
+  --color-accent:       #10b981;
+  --color-accent-hi:    #34d399;
+  --color-accent-dim:   #047857;
+  --color-accent-tint:  rgba(16, 185, 129, 0.10);
 
-  /* Semantic — toned to sit on warm-black without screaming */
-  --color-win:          #5fb675;
-  --color-win-hi:       #7dd494;
-  --color-loss:         #d8595c;
-  --color-loss-hi:      #ec787a;
-  --color-info:         #6fa3c8;
-  --color-warn:         #d4a464;
+  /* Brass kept as a secondary highlight (NOT primary) for editorial gold flourishes */
+  --color-brass:        #10b981;     /* alias to accent for legacy refs */
+  --color-brass-hi:     #34d399;
+  --color-brass-dim:    #047857;
+  --color-brass-tint:   rgba(16, 185, 129, 0.10);
 
-  /* System accents — muted variants of original 4 */
-  --color-sys-gold:        #d4a464;
-  --color-sys-gold-micro:  #c47b3a;
-  --color-sys-oil:         #6fa3c8;
-  --color-sys-oil-micro:   #5b9bb5;
+  /* Semantic */
+  --color-win:          #34d399;
+  --color-win-hi:       #6ee7b7;
+  --color-loss:         #f87171;
+  --color-loss-hi:      #fca5a5;
+  --color-info:         #60a5fa;
+  --color-warn:         #fbbf24;
+
+  /* System accents — distinct cool tones */
+  --color-sys-gold:        #fbbf24;  /* gold = amber */
+  --color-sys-gold-micro:  #f59e0b;
+  --color-sys-oil:         #60a5fa;  /* oil = blue */
+  --color-sys-oil-micro:   #38bdf8;
 
   /* Type scale */
   --text-xs:   11px;
@@ -59,13 +63,13 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   FONTS — Geist (sans + mono) loaded via next/font, Instrument Serif
-   loaded via @fontsource. Body uses Geist; .num uses Geist Mono;
-   .display uses Instrument Serif (italic variants for emphasis).
+   FONTS — IBM Plex Sans (UI), IBM Plex Mono (numbers), Fraunces (display).
+   Wired via next/font in layout.tsx; .num uses Plex Mono; .display uses
+   Fraunces italic with optical-sized weight for editorial-luxe feel.
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  --font-display: "Instrument Serif", "Times New Roman", "Georgia", serif;
+  /* Fraunces fallback — set in layout.tsx via inline style */
 
   /* Legacy aliases — preserve existing CSS / inline styles during migration */
   --bg:         var(--color-bg);
@@ -116,12 +120,35 @@ body {
   letter-spacing: 0;
 }
 
-/* ── Display headlines — Instrument Serif ──────────────── */
+/* ── Display headlines — Fraunces ──────────────── */
 .display {
-  font-family: var(--font-display);
+  font-family: var(--font-display), "Times New Roman", serif;
   font-weight: 400;
-  letter-spacing: -0.01em;
-  line-height: 1.05;
+  letter-spacing: -0.025em;
+  line-height: 1.02;
+  /* Fraunces optical-size axis: dial up at large sizes for editorial richness */
+  font-variation-settings: "opsz" 144, "SOFT" 50, "WONK" 0;
+}
+
+/* ── Scroll-snap (only when the landing page sets html[data-snap]) ─── */
+/* Disabled below 768px (mobile mandatory snap is jittery on touch devices) */
+@media (min-width: 768px) {
+  html[data-snap="true"] {
+    scroll-snap-type: y mandatory;
+    scroll-padding-top: 3.75rem; /* matches sticky nav height */
+    scroll-behavior: smooth;
+  }
+  html[data-snap="true"] .snap-section {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+  /* Honour reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    html[data-snap="true"] {
+      scroll-snap-type: none;
+      scroll-behavior: auto;
+    }
+  }
 }
 
 /* Optional CRT scanlines (off by default, opt-in via body[data-cinematic]) */

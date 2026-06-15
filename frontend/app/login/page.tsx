@@ -137,7 +137,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-5 pt-4 border-t border-[var(--color-border)] text-center text-[10px] text-[var(--color-text-muted)]">
+            <div className="mt-5 pt-4 border-t border-[var(--color-border)] text-center text-[11.5px] text-[var(--color-text-dim)]">
               Hand Of Midas v1.0 — Authorized personnel only
             </div>
           </div>
@@ -146,7 +146,7 @@ export default function LoginPage() {
         <div className="text-center mt-6">
           <Link
             href="/"
-            className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-brass-hi)] transition-colors"
+            className="text-[12.5px] text-[var(--color-text-dim)] hover:text-[var(--color-brass-hi)] transition-colors"
           >
             ← Back to landing
           </Link>

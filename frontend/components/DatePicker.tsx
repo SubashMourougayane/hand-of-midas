@@ -59,7 +59,7 @@ export default function DatePicker({ value, onChange, label }: DatePickerProps) 
 
   return (
     <div className="relative" ref={ref}>
-      {label && <label className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wider block mb-1">{label}</label>}
+      {label && <label className="text-[11.5px] text-[var(--color-text-dim)] uppercase tracking-wider block mb-1">{label}</label>}
       <button
         onClick={() => { setOpen(!open); if (!open && value) { const d = new Date(value); setViewYear(d.getFullYear()); setViewMonth(d.getMonth()); } }}
         className="flex items-center gap-2 bg-[var(--bg)] border border-[var(--border)] text-[var(--color-text)] text-xs px-2.5 py-1.5 w-[150px] hover:border-[var(--color-win)] transition-colors"

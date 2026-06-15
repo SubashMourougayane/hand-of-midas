@@ -28,7 +28,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/", "/login"];
+const PUBLIC_PATHS = ["/", "/login", "/report", "/playbook"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -98,8 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [router]);
 
-  // Don't render protected content until auth check completes
-  if (loading) {
+  // Don't render protected content until auth check completes.
+  // Public pages render immediately; only protected routes block on auth.
+  if (loading && !PUBLIC_PATHS.includes(pathname)) {
     return (
       <AuthContext.Provider value={{ user, loading, login, logout }}>
         <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { TopBar } from "./TopBar";
 import { SectionNav, SectionNavMobile } from "./SectionNav";
 
-const PUBLIC_PATHS = ["/", "/login", "/uikit"];
+const PUBLIC_PATHS = ["/", "/login", "/uikit", "/report", "/playbook"];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();

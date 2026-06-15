@@ -16,23 +16,24 @@ export function TopBar() {
   const { instrument } = useInstrument();
   const sys = INSTRUMENTS[instrument];
   return (
-    <header className="h-[56px] flex-shrink-0 sticky top-0 z-30 flex items-center gap-4 px-4 md:px-5 border-b border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur-md">
+    <header className="h-[60px] flex-shrink-0 sticky top-0 z-30 flex items-center gap-4 px-5 md:px-6 border-b border-[var(--color-border)] bg-[var(--color-bg)]/95 backdrop-blur-md">
       {/* Brand mark — serif wordmark with brass diamond */}
       <Link
         href="/live"
-        className="flex items-center gap-2.5 text-[var(--color-text)] tracking-tight group"
+        className="flex items-center gap-3 text-[var(--color-text)] tracking-tight group"
       >
         <span
-          className="inline-block w-2 h-2 rotate-45 bg-[var(--color-brass)] group-hover:bg-[var(--color-brass-hi)] transition-colors"
+          className="inline-block w-3 h-3 rotate-45 bg-[var(--color-brass)] group-hover:bg-[var(--color-brass-hi)] transition-colors"
+          style={{ boxShadow: "0 0 12px rgba(16,185,129,0.4)" }}
           aria-hidden
         />
-        <span className="display text-[18px] leading-none italic hidden sm:inline">
+        <span className="display text-[19px] leading-none italic hidden sm:inline">
           Hand of Midas
         </span>
       </Link>
 
       {/* Live indicator — pulses when scheduler is up */}
-      <div className="hidden md:flex items-center gap-1.5 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] pl-3 ml-1 border-l border-[var(--color-border)]">
+      <div className="hidden md:flex items-center gap-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] pl-3 ml-1 border-l border-[var(--color-border)]">
         <StatusDot tone="win" pulse size={6} />
         <span>Live</span>
       </div>
@@ -42,8 +43,8 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="hidden md:inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">
-          <span className="text-[var(--color-text-dim)]">{sys.symbol}</span>
+        <span className="hidden md:inline-flex items-center gap-1.5 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">
+          <span className="text-[var(--color-text)]">{sys.symbol}</span>
           <span className="display italic text-[var(--color-brass)]">·</span>
           <span>{SHORT_LABEL[instrument] ?? "—"}</span>
         </span>

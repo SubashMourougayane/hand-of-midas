@@ -32,7 +32,7 @@ export function SweepProximity({ scan }: { scan: ScanStatus | null }) {
   if (!scan || scan.dist_to_bearish === undefined) {
     return (
       <Card surface={1} padded className="mb-4">
-        <div className="text-[11px] text-[var(--color-text-muted)]">Loading sweep proximity…</div>
+        <div className="text-[12.5px] text-[var(--color-text-dim)]">Loading sweep proximity…</div>
       </Card>
     );
   }
@@ -99,7 +99,7 @@ export function SweepProximity({ scan }: { scan: ScanStatus | null }) {
           {scan.skip_reasons && scan.skip_reasons.length > 0 ? (
             <Badge tone="warn" variant="soft">Skip: {scan.skip_reasons.join(", ")}</Badge>
           ) : null}
-          <span className="num text-[10px] text-[var(--color-text-muted)]">UTC {scan.utc_time}</span>
+          <span className="num text-[11.5px] text-[var(--color-text-dim)]">UTC {scan.utc_time}</span>
         </div>
       </div>
 

@@ -86,13 +86,13 @@ export default function LivePage() {
         actions={
           <div className="flex items-center gap-3">
             {state?.scheduler_active ? (
-              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.8px] text-[var(--color-win)]">
+              <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-win)]">
                 <StatusDot tone="win" pulse size={6} />
                 Scheduler active
               </span>
             ) : null}
             {lastUpdateLabel ? (
-              <span className="num text-[10px] text-[var(--color-text-muted)]">
+              <span className="num text-[11.5px] text-[var(--color-text-dim)]">
                 Updated · {lastUpdateLabel}
               </span>
             ) : null}
@@ -195,7 +195,7 @@ export default function LivePage() {
                   <Card.Title>
                     <span className="inline-flex items-center gap-1.5"><TrendingUp size={11} /> Open Positions</span>
                   </Card.Title>
-                  <span className="num text-[11px] text-[var(--color-text-muted)]">
+                  <span className="num text-[12.5px] text-[var(--color-text-dim)]">
                     {(state.db_positions || []).length}
                   </span>
                 </Card.Header>
@@ -203,13 +203,13 @@ export default function LivePage() {
                   <table className="w-full text-[12px]">
                     <thead>
                       <tr>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Side</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Entry</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">SL</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">TP</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Units</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Since</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Side</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Entry</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">SL</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">TP</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Units</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Since</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -226,7 +226,7 @@ export default function LivePage() {
                           <td className="py-2 text-right num text-[var(--color-loss)]">${p.sl?.toFixed(2) || "—"}</td>
                           <td className="py-2 text-right num text-[var(--color-win)]">${p.tp?.toFixed(2) || "—"}</td>
                           <td className="py-2 text-right num">{p.units}</td>
-                          <td className="py-2 num text-[11px] text-[var(--color-text-muted)]">
+                          <td className="py-2 num text-[12.5px] text-[var(--color-text-dim)]">
                             {new Date(p.entry_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </td>
                         </tr>
@@ -243,7 +243,7 @@ export default function LivePage() {
                 <Card.Title>
                   <span className="inline-flex items-center gap-1.5"><Clock size={11} /> Recent Signals</span>
                 </Card.Title>
-                <span className="num text-[11px] text-[var(--color-text-muted)]">
+                <span className="num text-[12.5px] text-[var(--color-text-dim)]">
                   {(state.recent_signals?.length || 0)}
                 </span>
               </Card.Header>
@@ -261,17 +261,17 @@ export default function LivePage() {
                   <table className="w-full text-[12px]">
                     <thead>
                       <tr>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Time</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Dir</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Entry</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Status</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Time</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Dir</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Entry</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(state.recent_signals || []).map((s, i) => (
                         <tr key={i} className="border-t border-[var(--color-border)]/60">
-                          <td className="py-1.5 num text-[11px] text-[var(--color-text-muted)]">
+                          <td className="py-1.5 num text-[12.5px] text-[var(--color-text-dim)]">
                             {s.timestamp ? new Date(s.timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                           </td>
                           <td className="py-1.5">
@@ -286,7 +286,7 @@ export default function LivePage() {
                             {s.taken ? (
                               <Badge tone="win">Taken</Badge>
                             ) : (
-                              <span className="text-[11px] text-[var(--color-text-muted)]">Skip · {s.skip_reason}</span>
+                              <span className="text-[12.5px] text-[var(--color-text-dim)]">Skip · {s.skip_reason}</span>
                             )}
                           </td>
                         </tr>
@@ -304,7 +304,7 @@ export default function LivePage() {
                   <Card.Title>
                     <span className="inline-flex items-center gap-1.5"><TrendingDown size={11} /> Recent Closed Trades</span>
                   </Card.Title>
-                  <span className="num text-[11px] text-[var(--color-text-muted)]">
+                  <span className="num text-[12.5px] text-[var(--color-text-dim)]">
                     {(state.recent_trades || []).length}
                   </span>
                 </Card.Header>
@@ -312,11 +312,11 @@ export default function LivePage() {
                   <table className="w-full text-[12px]">
                     <thead>
                       <tr>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Side</th>
-                        <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">P&L</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Exit</th>
-                        <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Time</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Strategy</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Side</th>
+                        <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">P&L</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Exit</th>
+                        <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Time</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -333,7 +333,7 @@ export default function LivePage() {
                             {(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}${(t.pnl_usd || t.pnl_gbp).toFixed(0)}
                           </td>
                           <td className="py-1.5 text-[11px] uppercase text-[var(--color-warn)]">{t.exit_reason}</td>
-                          <td className="py-1.5 num text-[11px] text-[var(--color-text-muted)]">
+                          <td className="py-1.5 num text-[12.5px] text-[var(--color-text-dim)]">
                             {t.exit_time ? new Date(t.exit_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                           </td>
                         </tr>
@@ -348,23 +348,23 @@ export default function LivePage() {
             <Card>
               <Card.Header>
                 <Card.Title>Trading Schedule</Card.Title>
-                <span className="num text-[11px] text-[var(--color-text-muted)]">UTC</span>
+                <span className="num text-[12.5px] text-[var(--color-text-dim)]">UTC</span>
               </Card.Header>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-3">
                 <Card surface={2} padded>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.6px]" style={{ color: "var(--color-warn)" }}>Cross-Market + Mean-Rev</div>
                   <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">22:00 UTC daily</div>
-                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Checks 6 inter-market signals + dip-buy conditions</div>
+                  <div className="text-[12.5px] text-[var(--color-text-dim)] mt-0.5">Checks 6 inter-market signals + dip-buy conditions</div>
                 </Card>
                 <Card surface={2} padded>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.6px]" style={{ color: "var(--color-info)" }}>Alpha-Sweep</div>
                   <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">08:00–20:00 UTC · every 3 min</div>
-                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Monitors London + NY session for Asia sweep + M3 engulfing</div>
+                  <div className="text-[12.5px] text-[var(--color-text-dim)] mt-0.5">Monitors London + NY session for Asia sweep + M3 engulfing</div>
                 </Card>
                 <Card surface={2} padded>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.6px] text-[var(--color-brass-hi)]">Position Monitor</div>
                   <div className="num text-[12px] text-[var(--color-text-dim)] mt-1">Every 1 min</div>
-                  <div className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Checks SL/TP fills, break-even stops</div>
+                  <div className="text-[12.5px] text-[var(--color-text-dim)] mt-0.5">Checks SL/TP fills, break-even stops</div>
                 </Card>
               </div>
             </Card>

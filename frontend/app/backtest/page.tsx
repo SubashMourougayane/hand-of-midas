@@ -227,7 +227,7 @@ export default function BacktestPage() {
           <DatePicker label="Start" value={startDate} onChange={setStartDate} />
           <DatePicker label="End" value={endDate} onChange={setEndDate} />
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Capital</label>
+            <label className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Capital</label>
             <input
               type="number"
               value={capital}
@@ -236,7 +236,7 @@ export default function BacktestPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Risk %</label>
+            <label className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Risk %</label>
             <input
               type="number"
               step="0.5"
@@ -246,7 +246,7 @@ export default function BacktestPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Strategies</span>
+            <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Strategies</span>
             <div className="flex gap-1.5 flex-wrap">
               {STRATEGIES.map((s) => {
                 const active = selectedStrategies.includes(s.id);
@@ -392,11 +392,11 @@ export default function BacktestPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr>
-                    <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Trades</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">WR</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">PF</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">P&L</th>
+                    <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Strategy</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Trades</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">WR</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">PF</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">P&L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -408,7 +408,7 @@ export default function BacktestPage() {
                       <td className="py-2 text-right num">{s.pf.toFixed(2)}</td>
                       <td className={`py-2 text-right num font-semibold ${s.pnl >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
                         {s.pnl >= 0 ? "+" : ""}${s.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="text-[10px] text-[var(--color-text-muted)] ml-1">({formatINR(s.pnl)})</span>
+                        <span className="text-[11.5px] text-[var(--color-text-dim)] ml-1">({formatINR(s.pnl)})</span>
                       </td>
                     </tr>
                   ))}
@@ -422,7 +422,7 @@ export default function BacktestPage() {
             <Card className="mb-4">
               <Card.Header>
                 <Card.Title>Session breakdown</Card.Title>
-                <span className="text-[11px] text-[var(--color-text-muted)]">by entry time IST</span>
+                <span className="text-[12.5px] text-[var(--color-text-dim)]">by entry time IST</span>
               </Card.Header>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 hom-stagger-children">
                 {SESSIONS.map(({ key, label, time, flag }) => {
@@ -434,7 +434,7 @@ export default function BacktestPage() {
                         <span className="text-base">{flag}</span>
                         <span className="text-[11px] font-semibold uppercase tracking-[0.6px] text-[var(--color-brass-hi)]">{label}</span>
                       </div>
-                      <div className="text-[10px] text-[var(--color-text-muted)] mb-3 num">{time}</div>
+                      <div className="text-[11.5px] text-[var(--color-text-dim)] mb-3 num">{time}</div>
                       <div className="flex flex-col gap-1.5 text-[12px]">
                         <Row label="Trades" value={<span className="num">{s.trades}</span>} />
                         <Row
@@ -474,7 +474,7 @@ export default function BacktestPage() {
           <Card className="mb-4">
             <Card.Header>
               <Card.Title>Equity curve</Card.Title>
-              <span className="text-[11px] text-[var(--color-text-muted)] num">cumulative P&L</span>
+              <span className="text-[12.5px] text-[var(--color-text-dim)] num">cumulative P&L</span>
             </Card.Header>
             <div className="p-3">
               <ResponsiveContainer width="100%" height={220}>
@@ -515,14 +515,14 @@ export default function BacktestPage() {
               <table className="w-full text-[12px]">
                 <thead>
                   <tr>
-                    <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Year</th>
-                    <th className="text-center py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Trades</th>
-                    <th className="text-center py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">WR</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Start</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">End</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">P&L ($)</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium hidden md:table-cell">P&L (₹)</th>
-                    <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Return</th>
+                    <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Year</th>
+                    <th className="text-center py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Trades</th>
+                    <th className="text-center py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">WR</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Start</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">End</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">P&L ($)</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium hidden md:table-cell">P&L (₹)</th>
+                    <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Return</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -553,7 +553,7 @@ export default function BacktestPage() {
           <Card>
             <Card.Header>
               <Card.Title>Trades</Card.Title>
-              <span className="text-[11px] text-[var(--color-text-muted)] num">
+              <span className="text-[12.5px] text-[var(--color-text-dim)] num">
                 {showTrades.toLocaleString()} of {result.trades.length.toLocaleString()}
               </span>
             </Card.Header>
@@ -578,7 +578,7 @@ export default function BacktestPage() {
             ) : null}
           </Card>
 
-          <p className="text-[10px] text-[var(--color-text-muted)] mt-3 num">
+          <p className="text-[11.5px] text-[var(--color-text-dim)] mt-3 num">
             Computed in {(result.duration_ms / 1000).toFixed(1)}s
           </p>
         </>
@@ -589,7 +589,7 @@ export default function BacktestPage() {
             <Skeleton width="60%" height={12} />
             <Skeleton width="80%" height={120} rounded="md" />
           </div>
-          <p className="text-[12px] text-[var(--color-text-muted)] mt-4">
+          <p className="text-[13.5px] text-[var(--color-text-dim)] mt-4">
             No backtest in DB yet. Configure above and Run Backtest.
           </p>
         </Card>
@@ -637,7 +637,7 @@ function BacktestProgress({ instrument, progressMsg }: { instrument: string; pro
         <span className="text-[14px] font-semibold text-[var(--color-text)]">
           Running backtest{dots}
         </span>
-        <span className="num text-[11px] text-[var(--color-text-muted)]">{elapsed}s</span>
+        <span className="num text-[12.5px] text-[var(--color-text-dim)]">{elapsed}s</span>
       </div>
       {progressMsg ? (
         <div className="num text-[12px] text-[var(--color-brass-hi)]">{progressMsg}</div>

@@ -416,7 +416,7 @@ export default function TradesPage() {
         {/* Pagination */}
         {tab === "backtest" && totalPages > 1 ? (
           <Card.Footer>
-            <span className="num text-[11px] text-[var(--color-text-muted)] mr-auto">
+            <span className="num text-[12.5px] text-[var(--color-text-dim)] mr-auto">
               Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, totalTrades)} of {totalTrades.toLocaleString()}
             </span>
             <Button size="sm" variant="ghost" onClick={() => setPage(1)} disabled={page === 1}>«</Button>

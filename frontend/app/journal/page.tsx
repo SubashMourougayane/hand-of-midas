@@ -181,7 +181,7 @@ export default function JournalPage() {
             <span className="text-[16px]" aria-hidden>🌙</span>
             <div className="flex-1">
               <div className="text-[var(--color-warn)] font-medium">Quiet period — newest event is {staleLabel} old</div>
-              <div className="text-[var(--color-text-muted)] text-[11px] leading-relaxed">
+              <div className="text-[12.5px] text-[var(--color-text-dim)] leading-relaxed">
                 Markets may be closed, or no scans have triggered events recently. The list below shows historical activity, not live state.
               </div>
             </div>
@@ -194,25 +194,25 @@ export default function JournalPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 hom-stagger-children">
           <Card padded lift className="hom-stagger">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Events</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Events</span>
               <span className="num text-[20px] font-semibold text-[var(--color-text)]">{liveCounts.total}</span>
             </div>
           </Card>
           <Card padded lift className="hom-stagger">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Entries</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Entries</span>
               <span className="num text-[20px] font-semibold text-[var(--color-win)]">{liveCounts.entries}</span>
             </div>
           </Card>
           <Card padded lift className="hom-stagger">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Exits</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Exits</span>
               <span className="num text-[20px] font-semibold text-[var(--color-loss)]">{liveCounts.exits}</span>
             </div>
           </Card>
           <Card padded lift className="hom-stagger">
             <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Errors</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Errors</span>
               <span className={`num text-[20px] font-semibold ${liveCounts.errors > 0 ? "text-[var(--color-loss)]" : "text-[var(--color-text-muted)]"}`}>{liveCounts.errors}</span>
             </div>
           </Card>
@@ -263,7 +263,7 @@ export default function JournalPage() {
       <Card>
         <Card.Header>
           <Card.Title>{tab === "live" ? "Live Events" : "Backtest Journal"}</Card.Title>
-          <span className="text-[11px] text-[var(--color-text-muted)]">
+          <span className="text-[12.5px] text-[var(--color-text-dim)]">
             {tab === "live"
               ? `${events.length.toLocaleString()} of last 100`
               : `${btTrades.length.toLocaleString()} of last 500`}
@@ -304,7 +304,7 @@ export default function JournalPage() {
                     className="px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 hover:bg-[var(--color-surface-2)]/60 transition-colors"
                   >
                     <span className="flex items-baseline gap-2 sm:min-w-[200px] shrink-0">
-                      <span className="num text-[11px] text-[var(--color-text-muted)]">
+                      <span className="num text-[12.5px] text-[var(--color-text-dim)]">
                         {formatTime(e.timestamp)}
                       </span>
                       {age ? (
@@ -339,7 +339,7 @@ export default function JournalPage() {
                   key={`${t.date}-${t.entry}-${i}`}
                   className="px-3 py-2 flex items-center gap-3 hover:bg-[var(--color-surface-2)]/60 transition-colors"
                 >
-                  <span className="num text-[11px] text-[var(--color-text-muted)] min-w-[110px] shrink-0">
+                  <span className="num text-[12.5px] text-[var(--color-text-dim)] min-w-[110px] shrink-0">
                     {formatBacktestDate(t.date)}
                   </span>
                   <span className="min-w-[60px] shrink-0">{strategyTag(t.strategy)}</span>
@@ -374,7 +374,7 @@ export default function JournalPage() {
                   <span className="text-[11px] uppercase text-[var(--color-warn)] min-w-[80px] shrink-0">
                     {t.status}
                   </span>
-                  <span className="text-[11px] text-[var(--color-text-muted)] truncate hidden md:inline">
+                  <span className="text-[12.5px] text-[var(--color-text-dim)] truncate hidden md:inline">
                     {t.hold_human}
                   </span>
                 </li>

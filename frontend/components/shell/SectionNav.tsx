@@ -40,19 +40,19 @@ export function SectionNav() {
                 href={`${href}${suffix}`}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 h-9 pl-3 pr-2.5 rounded-[4px]",
-                  "text-[12px] font-medium",
+                  "flex items-center gap-3 h-10 pl-3 pr-2.5 rounded-[4px]",
+                  "text-[13.5px] font-medium",
                   "transition-[color,background-color] duration-180 ease-out",
                   active
                     ? "bg-[var(--color-brass-tint)] text-[var(--color-brass-hi)]"
-                    : "text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]",
+                    : "text-[var(--color-text-dim)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]",
                 )}
               >
                 <Icon
-                  size={14}
+                  size={15}
                   className={cn(
                     "transition-colors",
-                    active ? "text-[var(--color-brass)]" : "text-[var(--color-text-muted)]",
+                    active ? "text-[var(--color-brass)]" : "text-[var(--color-text-dim)]",
                   )}
                 />
                 <span>{label}</span>

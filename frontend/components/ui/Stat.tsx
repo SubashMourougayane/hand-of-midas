@@ -35,9 +35,9 @@ const TONE_COLOR: Record<Tone, string> = {
 };
 
 const SIZE: Record<NonNullable<StatProps["size"]>, { value: string; label: string }> = {
-  sm: { value: "text-[16px]", label: "text-[10px]" },
-  md: { value: "text-[20px]", label: "text-[10px]" },
-  lg: { value: "text-[28px]", label: "text-[10px]" },
+  sm: { value: "text-[17px]", label: "text-[11.5px]" },
+  md: { value: "text-[22px]", label: "text-[11.5px]" },
+  lg: { value: "text-[30px]", label: "text-[11.5px]" },
 };
 
 export function Stat({
@@ -60,7 +60,7 @@ export function Stat({
     <div className={cn("flex flex-col gap-1", className)}>
       <span
         className={cn(
-          "uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium",
+          "uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium",
           SIZE[size].label,
         )}
       >
@@ -82,7 +82,7 @@ export function Stat({
         )}
       </span>
       {hint != null ? (
-        <span className="text-[11px] text-[var(--color-text-muted)] leading-tight">{hint}</span>
+        <span className="text-[12.5px] text-[var(--color-text-dim)] leading-tight">{hint}</span>
       ) : null}
     </div>
   );

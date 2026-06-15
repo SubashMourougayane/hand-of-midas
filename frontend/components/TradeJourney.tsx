@@ -184,7 +184,7 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--color-text-muted)] flex-wrap">
+      <div className="flex items-center gap-4 mt-2 text-[11.5px] text-[var(--color-text-dim)] flex-wrap">
         <span className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-[var(--color-brass)]" /> Close</span>
         <span className="flex items-center gap-1.5"><span className="w-3 border-t border-[var(--color-brass-dim)]" /> High/Low</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-0 border-t border-dashed border-[var(--color-info)]" /> Entry</span>

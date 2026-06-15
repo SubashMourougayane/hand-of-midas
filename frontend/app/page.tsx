@@ -1,54 +1,123 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import bt from "@/lib/data/backtest.json";
+import { CountUp } from "@/components/ui/CountUp";
+import { EquityCurve } from "@/components/ui/EquityCurve";
 
-/* ═══════════════════════════════════════════════════════════════════
-   UTILITY COMPONENTS
-   ═══════════════════════════════════════════════════════════════════ */
+type SystemKey = "aggregate" | "gold" | "micro" | "oil" | "oil-micro";
+type CurvePoint = { y: number; e: number; yr_pnl?: number };
+type SystemBlock = {
+  label: string;
+  n: number;
+  wr: number;
+  pf: number | null;
+  pnl: number;
+  max_dd: number;
+  curve: CurvePoint[];
+};
+const data = bt as unknown as Record<SystemKey, SystemBlock>;
 
-function AnimatedNumber({ target, prefix = "", suffix = "", duration = 2000, decimals = 0 }: {
-  target: number; prefix?: string; suffix?: string; duration?: number; decimals?: number;
+const SYSTEMS: { key: SystemKey; short: string; tone: string }[] = [
+  { key: "aggregate", short: "All Systems", tone: "var(--color-brass)" },
+  { key: "gold", short: "Gold Macro", tone: "var(--color-sys-gold)" },
+  { key: "micro", short: "Gold Micro", tone: "var(--color-sys-gold-micro)" },
+  { key: "oil", short: "Oil Macro", tone: "var(--color-sys-oil)" },
+  { key: "oil-micro", short: "Oil Micro", tone: "var(--color-sys-oil-micro)" },
+];
+
+const compactMoney = (v: number) => {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${sign}$${Math.round(abs / 1e3)}k`;
+  return `${sign}$${Math.round(abs)}`;
+};
+
+/** Tween a number then run a custom formatter over it. */
+function CountedFormatted({
+  value,
+  format,
+  duration = 1200,
+  className,
+}: {
+  value: number;
+  format: (n: number) => string;
+  duration?: number;
+  className?: string;
 }) {
-  const [value, setValue] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const animated = useRef(false);
-
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting && !animated.current) {
-        animated.current = true;
-        const start = performance.now();
-        const animate = (now: number) => {
-          const progress = Math.min((now - start) / duration, 1);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          setValue(target * eased);
-          if (progress < 1) requestAnimationFrame(animate);
-        };
-        requestAnimationFrame(animate);
-      }
-    }, { threshold: 0.3 });
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [target, duration]);
-
-  return (
-    <div ref={ref} className="num">
-      {prefix}{decimals > 0 ? value.toFixed(decimals) : Math.round(value).toLocaleString()}{suffix}
-    </div>
-  );
+    if (typeof window === "undefined") return;
+    const reduced =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setDisplay(value);
+      fromRef.current = value;
+      return;
+    }
+    const from = fromRef.current;
+    const to = value;
+    if (from === to) return;
+    const start = performance.now();
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(from + (to - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <span className={className}>{format(display)}</span>;
 }
 
-function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+/** Scroll-triggered reveal — fades + slides in on enter. */
+function Reveal({
+  children,
+  delay = 0,
+  y = 24,
+  className = "",
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  y?: number;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setVisible(true);
-    }, { threshold: 0.1 });
-    if (ref.current) observer.observe(ref.current);
-    return () => observer.disconnect();
+    if (!ref.current) return;
+    const reduced =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+    );
+    io.observe(ref.current);
+    // Failsafe: ensure content is visible even if observer never fires
+    // (e.g. during a fullPage screenshot capture or below-fold print).
+    const t = setTimeout(() => setVisible(true), 1500);
+    return () => {
+      io.disconnect();
+      clearTimeout(t);
+    };
   }, []);
 
   return (
@@ -57,8 +126,9 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
       className={className}
       style={{
         opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(24px)",
-        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ease ${delay}ms`,
+        transform: visible ? "translate3d(0,0,0)" : `translate3d(0, ${y}px, 0)`,
+        transition: `opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms, transform 800ms cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+        willChange: "opacity, transform",
       }}
     >
       {children}
@@ -66,469 +136,722 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
   );
 }
 
-function GoldParticles() {
-  // Deterministic-looking pseudorandom positions, computed once. Pure
-  // Math.random() during render is impure — useState lazy initializer
-  // runs once on mount and stays stable across re-renders.
-  const [particles] = useState(() =>
-    Array.from({ length: 24 }, () => ({
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: 2 + Math.random() * 3,
-      delay: Math.random() * 5,
-      duration: 4 + Math.random() * 4,
-      opacity: 0.15 + Math.random() * 0.25,
-    })),
-  );
+function SystemTabs({
+  value,
+  onChange,
+}: {
+  value: SystemKey;
+  onChange: (k: SystemKey) => void;
+}) {
+  const refs = useRef<Map<SystemKey, HTMLButtonElement>>(new Map());
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+
+  useEffect(() => {
+    const el = refs.current.get(value);
+    if (el) {
+      setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+    }
+  }, [value]);
 
   return (
-    <div className="hide-mobile" style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
-      {particles.map((p, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            left: `${p.x}%`,
-            top: `${p.y}%`,
-            width: p.size,
-            height: p.size,
-            background: "#d4a464",
-            boxShadow: `0 0 ${p.size * 2}px rgba(232, 195, 0, 0.6)`,
-            opacity: p.opacity,
-            animation: `float-candle ${p.duration}s ease-in-out ${p.delay}s infinite`,
-          }}
-        />
-      ))}
+    <div
+      role="tablist"
+      className="relative inline-flex items-center gap-0 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-1)] p-1"
+    >
+      {/* Animated brass background that slides */}
+      <div
+        aria-hidden
+        className="absolute top-1 bottom-1 rounded-full bg-[var(--color-brass)]"
+        style={{
+          left: indicator.left,
+          width: indicator.width,
+          transition: "left 360ms cubic-bezier(0.22, 1, 0.36, 1), width 360ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      />
+      {SYSTEMS.map((s) => {
+        const active = value === s.key;
+        return (
+          <button
+            key={s.key}
+            ref={(el) => {
+              if (el) refs.current.set(s.key, el);
+            }}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(s.key)}
+            className={[
+              "relative z-10 px-4 py-2 text-[11.5px] font-medium uppercase tracking-[0.09em] transition-colors duration-300",
+              active
+                ? "text-[#0a0e14]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]",
+            ].join(" ")}
+          >
+            {s.short}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function LiveTradeFeed() {
-  const trades = [
-    { pair: "XAU/USD", side: "LONG", entry: "2,341.50", pnl: "+$1,847", strat: "Alpha-Sweep" },
-    { pair: "BCO/USD", side: "SHORT", entry: "78.42", pnl: "+$562", strat: "Mean-Rev" },
-    { pair: "XAU/USD", side: "SHORT", entry: "2,368.20", pnl: "+$921", strat: "Cross-Market" },
-    { pair: "BCO/USD", side: "LONG", entry: "76.15", pnl: "+$389", strat: "Alpha-Sweep" },
-    { pair: "XAU/USD", side: "LONG", entry: "2,298.80", pnl: "+$1,204", strat: "Mean-Rev" },
-    { pair: "BCO/USD", side: "SHORT", entry: "81.33", pnl: "+$715", strat: "Cross-Market" },
-    { pair: "XAU/USD", side: "LONG", entry: "2,315.60", pnl: "+$1,093", strat: "Alpha-Sweep" },
-    { pair: "BCO/USD", side: "LONG", entry: "74.88", pnl: "+$428", strat: "Mean-Rev" },
-  ];
-  const doubled = [...trades, ...trades];
-
+function StatBlock({
+  label,
+  children,
+  tone,
+  align = "left",
+}: {
+  label: string;
+  children: React.ReactNode;
+  tone?: string;
+  align?: "left" | "center";
+}) {
   return (
-    <div style={{ overflow: "hidden", position: "relative", margin: "0 auto", maxWidth: 700 }}>
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(90deg, var(--color-bg), transparent)", zIndex: 2 }} />
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 60, background: "linear-gradient(270deg, var(--color-bg), transparent)", zIndex: 2 }} />
-      <div className="trade-feed-scroll" style={{ display: "flex", gap: 16, padding: "12px 0", width: "max-content" }}>
-        {doubled.map((t, i) => (
-          <div key={i} style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
-            background: "var(--color-surface-1)", border: "1px solid #1a1f28", whiteSpace: "nowrap",
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: t.pair.includes("XAU") ? "#d4a464" : "var(--color-info)" }}>{t.pair}</span>
-            <span style={{ fontSize: 10, fontWeight: 600, color: t.side === "LONG" ? "var(--color-win)" : "var(--color-loss)" }}>{t.side}</span>
-            <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{t.entry}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-win)" }}>{t.pnl}</span>
-            <span style={{ fontSize: 9, color: "#6b7280" }}>{t.strat}</span>
-          </div>
-        ))}
+    <div className={align === "center" ? "px-6 py-7 text-center" : "px-6 py-7 text-left"}>
+      <div
+        className="num text-[clamp(28px,3.6vw,40px)] font-semibold leading-none tracking-tight"
+        style={{ color: tone || "var(--color-text)", fontVariantNumeric: "tabular-nums" }}
+      >
+        {children}
+      </div>
+      <div className="mt-3 text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+        {label}
       </div>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   LANDING PAGE
-   ═══════════════════════════════════════════════════════════════════ */
+const SECTION_IDS = ["hero", "performance", "thesis", "edge", "outro"] as const;
+type SectionId = (typeof SECTION_IDS)[number];
+const SECTION_LABELS: Record<SectionId, string> = {
+  hero: "Hand of Midas",
+  performance: "Performance",
+  thesis: "The Thesis",
+  edge: "Edge",
+  outro: "Get Started",
+};
 
 export default function LandingPage() {
-  const router = useRouter();
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [sys, setSys] = useState<SystemKey>("aggregate");
+  const block = data[sys];
 
+  // Subtle parallax on hero scroll
+  const [scrollY, setScrollY] = useState(0);
   useEffect(() => {
-    const handleMouse = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+    const onScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Activate scroll-snap on root only while landing is mounted; cleanup on unmount.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-snap", "true");
+    return () => {
+      document.documentElement.removeAttribute("data-snap");
     };
-    window.addEventListener("mousemove", handleMouse);
-    return () => window.removeEventListener("mousemove", handleMouse);
+  }, []);
+
+  // Track active section for the right-rail indicator.
+  const [active, setActive] = useState<SectionId>("hero");
+  useEffect(() => {
+    const els = SECTION_IDS.map((id) => document.getElementById(id)).filter(
+      Boolean
+    ) as HTMLElement[];
+    if (els.length === 0) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        // Pick the most-visible entry currently intersecting.
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target?.id) {
+          setActive(visible.target.id as SectionId);
+        }
+      },
+      { threshold: [0.4, 0.6, 0.8] }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
   }, []);
 
   return (
-    <div className="landing-page" style={{ background: "var(--color-bg)", minHeight: "100vh", width: "100%", overflow: "hidden" }}>
-
-      {/* Ambient gradient that follows mouse */}
+    <div className="min-h-screen bg-[var(--color-bg)]">
+      {/* Layered backgrounds */}
       <div
-        className="hide-mobile"
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
-          position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
-          background: `radial-gradient(800px circle at ${mousePos.x}px ${mousePos.y}px, rgba(212, 164, 100, 0.04), transparent 60%)`,
+          background:
+            "radial-gradient(1200px circle at 50% 0%, rgba(16,185,129,0.04), transparent 60%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.12]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(60,51,39,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(60,51,39,0.5) 1px,transparent 1px)",
+          backgroundSize: "84px 84px",
+          maskImage:
+            "radial-gradient(ellipse at 50% 30%, black 30%, transparent 75%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse at 50% 30%, black 30%, transparent 75%)",
         }}
       />
 
-      {/* Grid background */}
-      <div style={{
-        position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, opacity: 0.35,
-        backgroundImage: `linear-gradient(rgba(60, 51, 39, 0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(60, 51, 39, 0.4) 1px, transparent 1px)`,
-        backgroundSize: "60px 60px",
-      }} />
-
-      {/* ═══ HERO ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "100px 24px 80px", textAlign: "center" }}>
-        <GoldParticles />
-
-        <FadeIn>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 16px", border: "1px solid var(--color-border)", background: "var(--color-surface-1)", marginBottom: 32 }}>
-            <div className="t-pulse" style={{ width: 6, height: 6, background: "#d4a464" }} />
-            <span style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.12em" }}>No Phantom Fills. Honest Execution Only.</span>
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={100}>
-          <div className="flex items-center justify-center mb-3">
+      {/* ─────── TOP NAV ─────── */}
+      <header
+        className="sticky top-0 z-50 backdrop-blur-md"
+        style={{
+          background: "color-mix(in srgb, var(--color-bg) 94%, transparent)",
+          borderBottom: "1px solid color-mix(in srgb, var(--color-border) 100%, transparent)",
+        }}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
+          <Link href="/" className="group flex items-center gap-3">
             <span
-              className="inline-block w-3 h-3 rotate-45 bg-[var(--color-brass)]"
               aria-hidden
-              style={{ boxShadow: "0 0 18px rgba(212,164,100,0.5)" }}
+              className="inline-block h-3.5 w-3.5 rotate-45 bg-[var(--color-brass)] transition-transform duration-500 group-hover:rotate-[225deg]"
+              style={{ boxShadow: "0 0 14px rgba(16,185,129,0.45)" }}
             />
-          </div>
-          <h1
-            className="landing-hero-title display"
-            style={{
-              fontSize: "clamp(48px, 9vw, 96px)",
-              fontWeight: 400,
-              fontStyle: "italic",
-              letterSpacing: "-0.02em",
-              background: "linear-gradient(135deg, #d4a464, #e8be7e, #d4a464)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              marginBottom: 16,
-              lineHeight: 1.05,
-            }}
-          >
-            Hand of Midas
-          </h1>
-        </FadeIn>
-
-        <FadeIn delay={200}>
-          <p className="landing-hero-subtitle" style={{ fontSize: "clamp(14px, 2vw, 20px)", color: "var(--color-text-muted)", maxWidth: 600, margin: "0 auto 12px", lineHeight: 1.6 }}>
-            Everything it touches turns to gold.
-          </p>
-          <p style={{ fontSize: 13, color: "#6b7280", maxWidth: 500, margin: "0 auto" }}>
-            Fixed SL/TP. No trailing stops. No phantom fills.
-            <br />
-            <span style={{ color: "var(--color-text)" }}>Gold + Oil — 20 years validated.</span>
-          </p>
-        </FadeIn>
-
-        <FadeIn delay={250}>
-          <div style={{ margin: "40px auto 0", maxWidth: 700, position: "relative" }}>
-            <LiveTradeFeed />
-          </div>
-        </FadeIn>
-
-        <FadeIn delay={350}>
-          <div className="landing-cta-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 40, flexWrap: "wrap" }}>
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                background: "linear-gradient(135deg, #d4a464, #a8804f)", color: "#000", border: "none",
-                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                display: "inline-flex", alignItems: "center", gap: 8, transition: "transform 0.2s, box-shadow 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(212, 164, 100, 0.3)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
+            <span
+              className="text-[19px] italic tracking-tight text-[var(--color-text)]"
+              style={{ fontFamily: "var(--font-display), serif" }}
             >
-              Enter Dashboard &rarr;
-            </button>
-            <button
-              onClick={() => window.open("/midas-report.html", "_blank")}
-              style={{
-                background: "transparent", color: "var(--color-win)", border: "1px solid var(--color-win)55",
-                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--color-win)"; e.currentTarget.style.background = "var(--color-win)10"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--color-win)55"; e.currentTarget.style.background = "transparent"; }}
+              Hand of Midas
+            </span>
+          </Link>
+          <nav className="flex items-center gap-2 text-[14px]">
+            <Link
+              href="/playbook"
+              className="rounded-full px-4 py-2 font-medium text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-surface-1)] hover:text-[var(--color-text)]"
             >
-              Midas Backtest Report
-            </button>
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                background: "transparent", color: "#d4a464", border: "1px solid #d4a46455",
-                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                display: "inline-flex", alignItems: "center", gap: 8, transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#d4a464"; e.currentTarget.style.background = "#d4a46410"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "#d4a46455"; e.currentTarget.style.background = "transparent"; }}
+              Strategy
+            </Link>
+            <Link
+              href="/report"
+              className="rounded-full px-4 py-2 font-medium text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-surface-1)] hover:text-[var(--color-text)]"
+            >
+              Performance
+            </Link>
+            <Link
+              href="/login"
+              className="ml-2 rounded-full border border-[var(--color-brass)]/50 px-5 py-2 font-semibold text-[var(--color-brass)] transition hover:border-[var(--color-brass)] hover:bg-[var(--color-brass)]/10"
             >
               Login
-            </button>
-          </div>
-        </FadeIn>
-      </section>
-
-      {/* ═══ STATS TICKER ═══ */}
-      <section style={{ position: "relative", zIndex: 1, borderTop: "1px solid #1a1f28", borderBottom: "1px solid #1a1f28", padding: "32px 24px", background: "#0c0e14" }}>
-        <div className="landing-stats-ticker" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", maxWidth: 1100, margin: "0 auto", gap: 0 }}>
-          {[
-            { value: 640000, prefix: "$", label: "Total P&L", sub: "20yr combined", color: "#d4a464" },
-            { value: 2084, prefix: "", label: "Total Trades", sub: "Gold + Oil", color: "var(--color-info)" },
-            { value: 65.4, suffix: "%", label: "Win Rate", sub: "Honest fills only", color: "var(--color-win)", decimals: 1 },
-            { value: 4.50, suffix: "x", label: "Profit Factor", sub: "Combined strategies", color: "#d4a464", decimals: 2 },
-            { value: 20, suffix: "yr", label: "Backtested", sub: "2006-2026", color: "var(--color-info)" },
-          ].map(({ value, prefix, suffix, label, sub, color, decimals }) => (
-            <div key={label} style={{ textAlign: "center", padding: "16px 12px", borderRight: "1px solid #1a1f28" }}>
-              <div style={{ fontSize: "clamp(20px, 3vw, 28px)", fontWeight: 800, color }}>
-                <AnimatedNumber target={value} prefix={prefix || ""} suffix={suffix || ""} decimals={decimals || 0} />
-              </div>
-              <div style={{ fontSize: 10, color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{label}</div>
-              <div style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>{sub}</div>
-            </div>
-          ))}
+            </Link>
+          </nav>
         </div>
-      </section>
+      </header>
 
-      {/* ═══ INSTRUMENTS ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", maxWidth: 1100, margin: "0 auto" }}>
-        <FadeIn>
-          <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 8, letterSpacing: "-0.01em", textAlign: "center" }}>
-            Two Markets. One Engine.
-          </h3>
-          <p style={{ fontSize: 14, color: "var(--color-text-muted)", textAlign: "center", maxWidth: 500, margin: "0 auto 48px" }}>
-            Commodities-focused algorithmic trading on the world's most liquid instruments.
-          </p>
-        </FadeIn>
+      {/* ─────── SECTION RAIL (right edge dots) ─────── */}
+      <nav
+        aria-label="Page sections"
+        className="pointer-events-none fixed right-5 top-1/2 z-40 hidden -translate-y-1/2 md:block"
+      >
+        <ul className="pointer-events-auto flex flex-col gap-3">
+          {SECTION_IDS.map((id) => {
+            const isActive = active === id;
+            return (
+              <li key={id}>
+                <a
+                  href={`#${id}`}
+                  aria-label={SECTION_LABELS[id]}
+                  aria-current={isActive ? "true" : undefined}
+                  className="group relative flex items-center"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document
+                      .getElementById(id)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  <span
+                    className="absolute right-7 whitespace-nowrap rounded-full bg-[var(--color-surface-1)]/95 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--color-text-dim)] opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
+                    style={{ border: "1px solid var(--color-border)" }}
+                  >
+                    {SECTION_LABELS[id]}
+                  </span>
+                  <span
+                    className="block transition-all duration-300 ease-out"
+                    style={{
+                      width: isActive ? 22 : 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: isActive
+                        ? "var(--color-brass)"
+                        : "color-mix(in srgb, var(--color-text-muted) 60%, transparent)",
+                    }}
+                  />
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
 
-        <FadeIn delay={100}>
-          <div className="landing-instruments-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20, maxWidth: 800, margin: "0 auto" }}>
-            {/* Gold card */}
-            <div style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, transparent)" }} />
-              <div style={{ fontSize: 32, marginBottom: 16 }}>&#x1F947;</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a464", marginBottom: 4 }}>XAU/USD</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 20 }}>Gold — The king of commodities</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)" }}>1,238</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>63.2%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#d4a464" }}>3.83</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>$325K</div>
-                </div>
+      {/* ─────── HERO ─────── */}
+      <section
+        id="hero"
+        className="snap-section relative z-10 flex min-h-[calc(100vh-3.75rem)] items-center"
+      >
+        <div className="mx-auto w-full max-w-6xl px-6 py-12 text-center">
+          <div
+            style={{
+              transform: `translateY(${scrollY * 0.18}px)`,
+              willChange: "transform",
+            }}
+          >
+            <Reveal y={12}>
+              <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface-1)]/70 px-4 py-1.5 backdrop-blur">
+                <span
+                  aria-hidden
+                  className="relative flex h-1.5 w-1.5"
+                >
+                  <span className="absolute inset-0 animate-ping rounded-full bg-[var(--color-brass)] opacity-60" />
+                  <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--color-brass)]" />
+                </span>
+                <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
+                  Quantitative Commodities · Live since June 2026
+                </span>
               </div>
-            </div>
+            </Reveal>
 
-            {/* Oil card */}
-            <div style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "32px 24px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, var(--color-info), transparent)" }} />
-              <div style={{ fontSize: 32, marginBottom: 16 }}>&#x1F6E2;&#xFE0F;</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-info)", marginBottom: 4 }}>BCO/USD</div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 20 }}>Brent Crude Oil — Black gold</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Trades</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)" }}>846</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Win Rate</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>74.0%</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Profit Factor</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-info)" }}>7.95</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 9, color: "#6b7280", textTransform: "uppercase" }}>Total P&L</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-win)" }}>$315K</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </FadeIn>
-      </section>
+            <Reveal delay={120} y={32}>
+              <h1
+                className="mx-auto max-w-4xl"
+                style={{
+                  fontFamily: "var(--font-display), serif",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                  fontSize: "clamp(56px, 9.2vw, 112px)",
+                  lineHeight: 0.98,
+                  letterSpacing: "-0.03em",
+                  background:
+                    "linear-gradient(135deg,#10b981 0%,#34d399 38%,#047857 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  textWrap: "balance",
+                }}
+              >
+                Hand of Midas
+              </h1>
+            </Reveal>
 
-      {/* ═══ STRATEGY BREAKDOWN ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", borderTop: "1px solid #1a1f28", background: "#0c0e14" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <FadeIn>
-            <h3 style={{ fontSize: "clamp(24px, 4vw, 36px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 8, textAlign: "center", letterSpacing: "-0.01em" }}>
-              Three Strategies. Zero Phantom Fills.
-            </h3>
-            <p style={{ fontSize: 14, color: "var(--color-text-muted)", textAlign: "center", maxWidth: 550, margin: "0 auto 48px" }}>
-              Each strategy uses fixed SL/TP with honest bar-level fill logic. No trailing stop tricks.
-            </p>
-          </FadeIn>
+            <Reveal delay={220} y={20}>
+              <p className="mx-auto mt-7 max-w-2xl text-[18px] leading-[1.6] text-[var(--color-text-dim)] md:text-[20px]">
+                A quantitative trading system for Gold and Brent Crude.
+                <br />
+                Four engines.{" "}
+                <span className="text-[var(--color-text)]">
+                  One thesis: Asia consolidation, swept and faded.
+                </span>
+              </p>
+            </Reveal>
 
-          <FadeIn delay={100}>
-            <div className="landing-features-row" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-              {[
-                {
-                  name: "Alpha-Sweep",
-                  pf: "3.40",
-                  color: "#d4a464",
-                  desc: "Liquidity sweep detection at key levels. Enters on sweep confirmation with structure break. High conviction, fewer trades.",
-                  conditions: ["Liquidity sweep at HTF level", "Market structure shift", "Fair value gap entry", "Fixed 2:1 R:R"],
-                },
-                {
-                  name: "Mean-Rev",
-                  pf: "2.80",
-                  color: "var(--color-win)",
-                  desc: "Mean reversion at statistical extremes. RSI + Bollinger Band deviation with momentum confirmation for reversal entries.",
-                  conditions: ["RSI(14) < 25 or > 75", "Price outside 2.5 std BB", "Momentum divergence", "Fixed 1.5:1 R:R"],
-                },
-                {
-                  name: "Cross-Market",
-                  pf: "2.10",
-                  color: "var(--color-info)",
-                  desc: "Gold-Oil correlation regime trades. Exploits temporary decorrelation between XAU and BCO for convergence plays.",
-                  conditions: ["Correlation breakdown detected", "Regime shift confirmation", "Spread divergence > 2 std", "Fixed 1.8:1 R:R"],
-                },
-              ].map(({ name, pf, color, desc, conditions }) => (
-                <div key={name} style={{ background: "var(--color-surface-1)", border: "1px solid #1a1f28", padding: "28px 22px", position: "relative" }}>
-                  <div style={{ position: "absolute", top: 0, left: 0, width: 3, height: "100%", background: color }} />
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f2f5" }}>{name}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color, padding: "2px 8px", border: `1px solid ${color}40`, background: `${color}10` }}>PF {pf}</span>
+            {/* Headline numbers */}
+            <Reveal delay={340} y={32}>
+              <div className="mx-auto mt-14 grid max-w-3xl grid-cols-1 gap-px border-y border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-3">
+                <div className="bg-[var(--color-bg)] px-6 py-7">
+                  <div
+                    className="num font-semibold tracking-tight"
+                    style={{
+                      color: "var(--color-brass)",
+                      fontSize: "clamp(34px,4.5vw,46px)",
+                      lineHeight: 1,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    <CountedFormatted
+                      value={4742466}
+                      duration={2000}
+                      format={(v) => `$${(v / 1e6).toFixed(2)}M`}
+                    />
                   </div>
-                  <p style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.6, marginBottom: 16 }}>{desc}</p>
-                  <div style={{ borderTop: "1px solid #1a1f28", paddingTop: 12 }}>
-                    {conditions.map((c, i) => (
-                      <div key={i} style={{ fontSize: 11, color: "#6b7280", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ color, fontSize: 8 }}>&#x25CF;</span>
-                        {c}
-                      </div>
-                    ))}
+                  <div className="mt-3 text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    21-yr Backtest P&amp;L
                   </div>
                 </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ═══ KEY DIFFERENTIATOR ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "60px 24px", borderTop: "1px solid #1a1f28" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto" }}>
-          <FadeIn>
-            <div style={{
-              background: "var(--color-surface-1)", border: "1px solid var(--color-border)", padding: "40px 32px",
-              position: "relative", overflow: "hidden",
-            }}>
-              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "linear-gradient(90deg, #d4a464, var(--color-win), var(--color-info))" }} />
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 11, color: "#d4a464", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: 16 }}>
-                  The Midas Difference
+                <div className="bg-[var(--color-bg)] px-6 py-7">
+                  <div
+                    className="num font-semibold tracking-tight text-[var(--color-text)]"
+                    style={{
+                      fontSize: "clamp(34px,4.5vw,46px)",
+                      lineHeight: 1,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    <CountUp value={71.6} suffix="%" decimals={1} duration={1600} />
+                  </div>
+                  <div className="mt-3 text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Win Rate · 10,479 Trades
+                  </div>
                 </div>
-                <h4 style={{ fontSize: "clamp(18px, 3vw, 24px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 16, lineHeight: 1.4 }}>
-                  No trailing stops. No phantom fills.<br />Fixed SL/TP. Honest fills only.
-                </h4>
-                <p style={{ fontSize: 13, color: "var(--color-text-muted)", lineHeight: 1.7, maxWidth: 550, margin: "0 auto" }}>
-                  Most backtests show inflated results because they fill trailing stops at impossible intra-bar prices.
-                  Hand Of Midas uses only fixed stop-loss and take-profit levels, filled at the bar's actual OHLC prices.
-                  What you see in backtest is what you get in live.
-                </p>
+                <div className="bg-[var(--color-bg)] px-6 py-7">
+                  <div
+                    className="num font-semibold tracking-tight"
+                    style={{
+                      color: "var(--color-brass)",
+                      fontSize: "clamp(34px,4.5vw,46px)",
+                      lineHeight: 1,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    <CountUp value={4.6} suffix="x" decimals={1} duration={1800} />
+                  </div>
+                  <div className="mt-3 text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Avg Profit Factor
+                  </div>
+                </div>
               </div>
-            </div>
-          </FadeIn>
+            </Reveal>
+
+            <Reveal delay={460} y={16}>
+              <div className="mt-12 flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  href="/report"
+                  className="group inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-[#0a0e14] transition hover:translate-y-[-1px]"
+                  style={{ boxShadow: "0 10px 32px rgba(16,185,129,0.18)" }}
+                >
+                  View Performance
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">
+                    →
+                  </span>
+                </Link>
+                <Link
+                  href="/playbook"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--color-brass)]/35 px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-[var(--color-brass)] transition hover:border-[var(--color-brass)] hover:bg-[var(--color-brass)]/10"
+                >
+                  Read the Playbook
+                </Link>
+              </div>
+            </Reveal>
+          </div>
         </div>
       </section>
 
-      {/* ═══ ARCHITECTURE OVERVIEW ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", borderTop: "1px solid #1a1f28", background: "#0c0e14" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <FadeIn>
-            <h3 style={{ fontSize: "clamp(20px, 3vw, 28px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 40, textAlign: "center" }}>
-              How It Works
-            </h3>
-          </FadeIn>
-
-          <FadeIn delay={100}>
-            <div className="landing-arch-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              {[
-                { step: "01", title: "Data Pipeline", desc: "20 years of H1 OHLCV data for Gold and Oil. Self-updating CSV pipeline appends new bars hourly from OANDA.", color: "#d4a464" },
-                { step: "02", title: "Signal Engine", desc: "Three independent strategy engines scan every bar. Fixed entry conditions — no ML, no curve-fitting, no optimization.", color: "var(--color-win)" },
-                { step: "03", title: "Honest Fills", desc: "Bar-level fill simulation: SL/TP checked against actual High/Low. No intra-bar assumptions. What backtests show is real.", color: "var(--color-info)" },
-                { step: "04", title: "OANDA Execution", desc: "Live execution via OANDA REST API. Fixed SL/TP set at order time. No modifications, no trailing. Pure set-and-forget.", color: "#ff6b6b" },
-              ].map(({ step, title, desc, color }) => (
-                <div key={step} style={{ padding: "24px 20px", background: "var(--color-surface-1)", border: "1px solid #1a1f28", borderTop: `2px solid ${color}` }}>
-                  <div style={{ fontSize: 11, color, fontWeight: 700, marginBottom: 8, letterSpacing: "0.1em" }}>{step}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f2f5", marginBottom: 8 }}>{title}</div>
-                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.6 }}>{desc}</div>
-                </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ═══ CTA FOOTER ═══ */}
-      <section style={{ position: "relative", zIndex: 1, padding: "80px 24px", textAlign: "center", borderTop: "1px solid #1a1f28" }}>
-        <FadeIn>
-          <h3 style={{ fontSize: "clamp(20px, 3vw, 28px)", color: "#f0f2f5", fontWeight: 700, marginBottom: 12 }}>
-            Login to start trading
-          </h3>
-          <p style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 32 }}>
-            Live on OANDA demo. Validated over 20 years. Zero phantom fills.
+      {/* ─────── INTERACTIVE PERFORMANCE ─────── */}
+      <section
+        id="performance"
+        className="snap-section relative z-10 flex min-h-[calc(100vh-3.75rem)] items-center"
+      >
+        <div className="mx-auto w-full max-w-6xl px-6 py-12">
+        <Reveal>
+          <div className="mb-3 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[var(--color-brass)]">
+            Per-System Performance
+          </div>
+          <h2
+            className="max-w-3xl"
+            style={{
+              fontFamily: "var(--font-display), serif",
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: "clamp(32px,4.6vw,52px)",
+              letterSpacing: "-0.02em",
+              lineHeight: 1.05,
+              textWrap: "balance",
+            }}
+          >
+            Four engines. Independently measured.
+          </h2>
+          <p className="mt-5 max-w-2xl text-[16.5px] leading-[1.7] text-[var(--color-text-dim)]">
+            Two markets — Gold and Brent Crude — each trades on two timeframes: a
+            once-daily session sweep and a rolling four-hour micro structure. Same
+            thesis, four expressions, twenty-one years of receipts.
           </p>
-        </FadeIn>
+        </Reveal>
 
-        <FadeIn delay={100}>
-          <div className="landing-cta-buttons" style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                background: "linear-gradient(135deg, #d4a464, #a8804f)", color: "#000", border: "none",
-                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                display: "inline-flex", alignItems: "center", gap: 8, transition: "transform 0.2s, box-shadow 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(212, 164, 100, 0.3)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
-            >
-              Login &rarr;
-            </button>
-            <button
-              onClick={() => router.push("/login")}
-              style={{
-                background: "transparent", color: "var(--color-text-muted)", border: "1px solid var(--color-border)",
-                padding: "14px 36px", fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--color-info)"; e.currentTarget.style.color = "var(--color-info)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--color-border)"; e.currentTarget.style.color = "var(--color-text-muted)"; }}
-            >
-              View Backtests
-            </button>
+        <Reveal delay={140}>
+          <div className="mt-10 flex justify-start">
+            <SystemTabs value={sys} onChange={setSys} />
           </div>
-        </FadeIn>
+        </Reveal>
 
-        <FadeIn delay={300}>
-          <div style={{ marginTop: 60, paddingTop: 40, borderTop: "1px solid #1a1f28" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 18 }}>&#x1F91A;</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#d4a464", letterSpacing: "0.08em" }}>HAND OF MIDAS</span>
+        <Reveal delay={220}>
+          <div className="mt-8 overflow-hidden rounded-[2px] border border-[var(--color-border)] bg-[var(--color-surface-1)]">
+            {/* Stat strip */}
+            <div className="grid grid-cols-2 divide-x divide-[var(--color-border)] sm:grid-cols-4">
+              <StatBlock label="Total P&L" tone="var(--color-brass)">
+                <CountedFormatted value={block.pnl} duration={1100} format={compactMoney} />
+              </StatBlock>
+              <StatBlock label="Profit Factor">
+                {block.pf != null ? (
+                  <CountUp value={block.pf} suffix="x" decimals={2} duration={1100} />
+                ) : (
+                  <span className="text-[var(--color-text-muted)]">—</span>
+                )}
+              </StatBlock>
+              <StatBlock label="Win Rate" tone="var(--color-win)">
+                <CountUp value={block.wr} suffix="%" decimals={1} duration={1100} />
+              </StatBlock>
+              <StatBlock label="Trades">
+                <CountUp value={block.n} duration={1100} />
+              </StatBlock>
             </div>
-            <p style={{ fontSize: 11, color: "#6b7280" }}>
-              Built with honest fills. Validated without phantom trades. Ready for live.
+
+            {/* Curve */}
+            <div className="border-t border-[var(--color-border)]/70 bg-[var(--color-bg)]/40 px-6 py-7 sm:px-10 sm:py-9">
+              <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+                <div>
+                  <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
+                    Cumulative P&amp;L · {block.label}
+                  </div>
+                  <div
+                    className="mt-1 text-[15px] text-[var(--color-text)]"
+                    style={{ fontFamily: "var(--font-display), serif", fontStyle: "italic" }}
+                  >
+                    Across 21 years of out-of-sample data
+                  </div>
+                </div>
+                <div className="text-[11.5px] text-[var(--color-text-dim)]">
+                  Hover the curve for any year
+                </div>
+              </div>
+              {block.curve.length > 0 && (
+                <EquityCurve data={block.curve} triggerKey={sys} height={240} />
+              )}
+            </div>
+          </div>
+        </Reveal>
+        </div>
+      </section>
+
+      {/* ─────── HOW IT WORKS ─────── */}
+      <section
+        id="thesis"
+        className="snap-section relative z-10 flex min-h-[calc(100vh-3.75rem)] items-center border-t border-[var(--color-border)] bg-[#070a10]"
+      >
+        <div className="mx-auto w-full max-w-6xl px-6 py-12">
+          <Reveal>
+            <div className="mb-3 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[var(--color-brass)]">
+              The Thesis
+            </div>
+            <h2
+              className="max-w-3xl"
+              style={{
+                fontFamily: "var(--font-display), serif",
+                fontStyle: "italic",
+                fontWeight: 400,
+                fontSize: "clamp(32px,4.6vw,52px)",
+                letterSpacing: "-0.02em",
+                lineHeight: 1.05,
+                textWrap: "balance",
+              }}
+            >
+              Liquidity sweeps the asleep, then reverses.
+            </h2>
+            <p className="mt-5 max-w-2xl text-[16.5px] leading-[1.7] text-[var(--color-text-dim)]">
+              Asia hours form a tight range while Western markets sleep. When London
+              opens, price often runs that range&apos;s extremes to harvest stops — and
+              then turns. We trade the turn, not the run.
             </p>
-            <p style={{ fontSize: 10, color: "#4b5563", marginTop: 8 }}>
-              Gold + Oil Algorithmic Trading Engine
+          </Reveal>
+
+          <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                step: "01",
+                title: "Range Forms",
+                body: "We measure Asia&apos;s session high and low. A rangebound block while the West sleeps.",
+              },
+              {
+                step: "02",
+                title: "Sweep Detected",
+                body: "Price punches through the range to clear stops, then closes back inside. A failed breakout.",
+              },
+              {
+                step: "03",
+                title: "Engulfing Confirms",
+                body: "Three-minute engulfing candle in the reversal direction. Now we have a setup.",
+              },
+              {
+                step: "04",
+                title: "Enter, Manage, Exit",
+                body: "Fixed stop. Half-position banked at half-target. Runner trails toward the structure exit.",
+              },
+            ].map((s, i) => (
+              <Reveal key={s.step} delay={120 + i * 100}>
+                <div
+                  className="group relative h-full overflow-hidden rounded-[2px] border border-[var(--color-border)] bg-[var(--color-surface-1)] p-7 transition-all duration-500 hover:border-[var(--color-brass)]/40"
+                  style={{
+                    transition: "transform 500ms cubic-bezier(0.22,1,0.36,1), border-color 500ms",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-4px)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+                >
+                  <div
+                    aria-hidden
+                    className="absolute inset-x-0 top-0 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent 0%, var(--color-brass) 50%, transparent 100%)",
+                      opacity: 0.5,
+                    }}
+                  />
+                  <div className="text-[12px] font-semibold tracking-[0.2em] text-[var(--color-brass)]">
+                    {s.step}
+                  </div>
+                  <div
+                    className="mt-3 text-[24px] leading-tight text-[var(--color-text)]"
+                    style={{ fontFamily: "var(--font-display), serif", fontStyle: "italic" }}
+                  >
+                    {s.title}
+                  </div>
+                  <p
+                    className="mt-3 text-[14.5px] leading-[1.65] text-[var(--color-text-dim)]"
+                    dangerouslySetInnerHTML={{ __html: s.body }}
+                  />
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─────── EDGE ATTRIBUTION ─────── */}
+      <section
+        id="edge"
+        className="snap-section relative z-10 flex min-h-[calc(100vh-3.75rem)] items-center border-t border-[var(--color-border)]"
+      >
+        <div className="mx-auto w-full max-w-5xl px-6 py-12">
+          <Reveal>
+            <div className="mb-3 text-[11.5px] font-semibold uppercase tracking-[0.22em] text-[var(--color-brass)]">
+              Edge Attribution
+            </div>
+            <h2
+              className="max-w-3xl"
+              style={{
+                fontFamily: "var(--font-display), serif",
+                fontStyle: "italic",
+                fontWeight: 400,
+                fontSize: "clamp(32px,4.6vw,52px)",
+                letterSpacing: "-0.02em",
+                lineHeight: 1.05,
+                textWrap: "balance",
+              }}
+            >
+              Where the edge lives.
+            </h2>
+          </Reveal>
+
+          <div className="mt-14 grid grid-cols-1 gap-px overflow-hidden rounded-[2px] bg-[var(--color-border)] md:grid-cols-3">
+            {[
+              {
+                title: "Directional bias",
+                body: "Yesterday&apos;s daily candle gates today&apos;s side. We don&apos;t fade conviction; we fade exhaustion.",
+              },
+              {
+                title: "Fill management",
+                body: "Half off at break-even·five. Trail behind structure on the runner. The biggest gains come not from picking — but from holding.",
+              },
+              {
+                title: "Drawdown discipline",
+                body: "Three losses cuts position in half. Five losses pauses the system entirely. The book recovers before it scales.",
+              },
+            ].map((c, i) => (
+              <Reveal key={c.title} delay={i * 100}>
+                <div className="h-full bg-[var(--color-bg)] p-9 transition-colors duration-500 hover:bg-[var(--color-surface-1)]">
+                  <div
+                    className="mb-4 text-[24px] text-[var(--color-text)]"
+                    style={{ fontFamily: "var(--font-display), serif", fontStyle: "italic" }}
+                  >
+                    {c.title}
+                  </div>
+                  <p
+                    className="text-[15px] leading-[1.7] text-[var(--color-text-dim)]"
+                    dangerouslySetInnerHTML={{ __html: c.body }}
+                  />
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─────── CTA + FOOTER (combined into one snap section) ─────── */}
+      <section
+        id="outro"
+        className="snap-section relative z-10 flex min-h-[calc(100vh-3.75rem)] flex-col border-t border-[var(--color-border)] bg-[#070a10]"
+      >
+        <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+          <Reveal>
+            <h2
+              className="mx-auto max-w-2xl"
+              style={{
+                fontFamily: "var(--font-display), serif",
+                fontStyle: "italic",
+                fontWeight: 400,
+                fontSize: "clamp(32px,4.4vw,48px)",
+                letterSpacing: "-0.02em",
+                lineHeight: 1.05,
+                textWrap: "balance",
+              }}
+            >
+              The numbers are public. The system is live.
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-[16.5px] leading-[1.7] text-[var(--color-text-dim)]">
+              Read the playbook. Audit the performance. Reach out if it interests you.
             </p>
-            <p style={{ fontSize: 10, color: "#6b7280", marginTop: 12 }}>
-              Contact: <a href="mailto:subashtrades.in@gmail.com" style={{ color: "var(--color-info)", textDecoration: "none" }}>subashtrades.in@gmail.com</a>
+          </Reveal>
+          <Reveal delay={120}>
+            <div className="mt-10 flex flex-wrap justify-center gap-3">
+              <Link
+                href="/report"
+                className="group inline-flex items-center gap-2 rounded-full bg-[var(--color-brass)] px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-[#0a0e14] transition hover:translate-y-[-1px]"
+                style={{ boxShadow: "0 10px 32px rgba(16,185,129,0.18)" }}
+              >
+                View Full Performance
+                <span className="transition-transform duration-300 group-hover:translate-x-1">
+                  →
+                </span>
+              </Link>
+              <Link
+                href="/playbook"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-brass)]/35 px-7 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-[var(--color-brass)] transition hover:border-[var(--color-brass)] hover:bg-[var(--color-brass)]/10"
+              >
+                Strategy Playbook
+              </Link>
+            </div>
+          </Reveal>
+        </div>
+
+        {/* Inline footer (kept inside #outro so the section snaps as a single unit) */}
+        <footer className="relative z-10 border-t border-[var(--color-border)]/70">
+          <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-6 py-6 md:flex-row md:items-center">
+            <div className="flex items-center gap-2.5">
+              <span aria-hidden className="inline-block h-2 w-2 rotate-45 bg-[var(--color-brass)]" />
+              <span
+                className="text-[14px] italic text-[var(--color-text-dim)]"
+                style={{ fontFamily: "var(--font-display), serif" }}
+              >
+                Hand of Midas — by Subash Mourougayane
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-5 text-[13px] text-[var(--color-text-dim)]">
+              <Link href="/playbook" className="transition-colors hover:text-[var(--color-text)]">
+                Playbook
+              </Link>
+              <Link href="/report" className="transition-colors hover:text-[var(--color-text)]">
+                Performance
+              </Link>
+              <Link href="/login" className="transition-colors hover:text-[var(--color-text)]">
+                Login
+              </Link>
+              <a
+                href="mailto:subashtrades.in@gmail.com"
+                className="transition-colors hover:text-[var(--color-text)]"
+              >
+                Contact
+              </a>
+            </div>
+          </div>
+          <div className="border-t border-[var(--color-border)]/40">
+            <p className="mx-auto max-w-6xl px-6 py-3 text-[11.5px] leading-[1.6] text-[var(--color-text-muted)]">
+              Backtest results are based on simulated execution against historical OHLC data
+              with modeled spread and slippage. Past performance does not guarantee future returns.
+              Live trading commenced June 2026.
             </p>
           </div>
-        </FadeIn>
+        </footer>
       </section>
     </div>
   );

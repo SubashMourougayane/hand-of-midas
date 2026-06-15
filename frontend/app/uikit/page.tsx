@@ -91,27 +91,27 @@ export default function UIKitPage() {
         <Tabs.Panel value="design" className="flex flex-col gap-5">
           <Card padded>
             <div className="flex flex-col gap-2 mb-3">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Display</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Display</span>
               <Display size="xl" italic>Hand of Midas</Display>
               <Display size="md">Trades · Today's positions</Display>
               <p className="text-[12px] text-[var(--color-text-dim)]">Instrument Serif · for page titles, hero copy, narrative numbers.</p>
             </div>
             <div className="hom-rule my-4" />
             <div className="flex flex-col gap-2">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">UI / Body — Geist Sans</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">UI / Body — Geist Sans</span>
               <p className="text-[14px] text-[var(--color-text)]">The quick brown fox jumped over the lazy dog. <span className="text-[var(--color-text-dim)]">— body copy</span></p>
               <span className="text-[11px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Section / Label</span>
               <p className="text-[12px] text-[var(--color-text-dim)]">Buttons, navigation, table headers, breadcrumbs.</p>
             </div>
             <div className="hom-rule my-4" />
             <div className="flex flex-col gap-2">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Data — Geist Mono · tabular-nums</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Data — Geist Mono · tabular-nums</span>
               <p className="num text-[14px]">$4,197.42  +£124.80  −$420.00  61.1%  +2.0R  4d 12h 03m</p>
             </div>
           </Card>
 
           <Card padded>
-            <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] mb-3 block">Palette</span>
+            <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] mb-3 block">Palette</span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Swatch name="Brass" cssVar="--color-brass" hex="#d4a464" />
               <Swatch name="Brass hi" cssVar="--color-brass-hi" hex="#e8be7e" />
@@ -125,7 +125,7 @@ export default function UIKitPage() {
           </Card>
 
           <Card padded>
-            <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] mb-3 block">Live ticker (marquee)</span>
+            <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] mb-3 block">Live ticker (marquee)</span>
             <MarqueeTicker speed={48}>
               <span className="num text-[12px]"><span className="text-[var(--color-text-muted)]">XAU/USD </span>$4,197.42 <span className="text-[var(--color-win)]">+0.12%</span></span>
               <span className="num text-[12px]"><span className="text-[var(--color-text-muted)]">BCO/USD </span>$86.42 <span className="text-[var(--color-loss)]">−0.34%</span></span>
@@ -138,7 +138,7 @@ export default function UIKitPage() {
 
           <Card padded>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)]">Animated stat</span>
+              <span className="text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)]">Animated stat</span>
               <Button size="sm" variant="ghost" onClick={() => setPnl(Math.random() * 25000)}>
                 Randomize
               </Button>
@@ -306,7 +306,7 @@ function Swatch({ name, cssVar, hex }: { name: string; cssVar: string; hex: stri
       />
       <div className="flex flex-col leading-tight">
         <span className="text-[12px] text-[var(--color-text)]">{name}</span>
-        <span className="num text-[10px] text-[var(--color-text-muted)]">{hex}</span>
+        <span className="num text-[11.5px] text-[var(--color-text-dim)]">{hex}</span>
       </div>
     </div>
   );

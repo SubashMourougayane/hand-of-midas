@@ -146,7 +146,7 @@ export function SystemSwitcher() {
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />
                     <span>{SHORT_LABEL[key]}</span>
                   </span>
-                  <span className="num text-[10px] text-[var(--color-text-muted)]">{sys.symbol}</span>
+                  <span className="num text-[11.5px] text-[var(--color-text-dim)]">{sys.symbol}</span>
                 </button>
               );
             })}

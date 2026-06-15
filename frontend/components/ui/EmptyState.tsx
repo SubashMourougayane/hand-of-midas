@@ -21,7 +21,7 @@ export function EmptyState({ icon, title, description, action, className }: Empt
       {icon ? <div className="text-[var(--color-text-muted)] mb-1">{icon}</div> : null}
       <p className="text-[13px] font-medium text-[var(--color-text)]">{title}</p>
       {description ? (
-        <p className="text-[12px] text-[var(--color-text-muted)] max-w-xs leading-relaxed">
+        <p className="text-[13.5px] text-[var(--color-text-dim)] max-w-xs leading-relaxed">
           {description}
         </p>
       ) : null}

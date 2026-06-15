@@ -39,9 +39,9 @@ export default function SettingsPage() {
             <table className="w-full text-[12px]">
               <thead>
                 <tr>
-                  <th className="text-left py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Strategy</th>
-                  <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Risk %</th>
-                  <th className="text-right py-2 text-[10px] uppercase tracking-[0.8px] text-[var(--color-text-muted)] font-medium">Max Position</th>
+                  <th className="text-left py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Strategy</th>
+                  <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Risk %</th>
+                  <th className="text-right py-2 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-text-dim)] font-medium">Max Position</th>
                 </tr>
               </thead>
               <tbody>
