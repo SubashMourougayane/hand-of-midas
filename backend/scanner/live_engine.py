@@ -716,8 +716,19 @@ def reconcile_orphans():
         tp = float(pos.get("tp") or 0)
         lot_size = units / 100.0  # gold: 1 lot = 100 oz
 
-        trade_ref = f"GD-AL-orphan-{broker_id[-8:]}"
-        _log.warn("POSITION", "orphan_detected", broker_id=broker_id, side=side, units=units, entry=entry_price, sl=sl, tp=tp, comment=comment, trade_ref=trade_ref)
+        # Issue #24 fix 2026-06-15: parse strategy from broker comment if present.
+        # comment format from place_market_order: "{strategy}|{trade_ref}"
+        # If comment missing or unparseable, default to alpha_sweep (which is
+        # the only strategy currently running in production).
+        parsed_strategy = "alpha_sweep"
+        if "|" in comment:
+            cand = comment.split("|", 1)[0].strip()
+            if cand in ("alpha_sweep", "mean_rev", "cross_market"):
+                parsed_strategy = cand
+        # Map strategy → ref prefix (matches f"GD-{strategy[:2].upper()}-..." gen)
+        ref_prefix = "GD-" + parsed_strategy[:2].upper()
+        trade_ref = f"{ref_prefix}-orphan-{broker_id[-8:]}"
+        _log.warn("POSITION", "orphan_detected", broker_id=broker_id, side=side, units=units, entry=entry_price, sl=sl, tp=tp, comment=comment, trade_ref=trade_ref, strategy=parsed_strategy)
 
         try:
             inserted = execute(
@@ -728,7 +739,7 @@ def reconcile_orphans():
                    VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'live', %s)
                    ON CONFLICT (oanda_trade_id) WHERE oanda_trade_id IS NOT NULL DO NOTHING
                    RETURNING id""",
-                (trade_ref, "alpha_sweep", side, entry_price,
+                (trade_ref, parsed_strategy, side, entry_price,
                  sl, tp, lot_size, units, broker_id),
                 fetch=True
             )
