@@ -750,8 +750,14 @@ def _persist_m3_candles(candles: list[dict]):
                     (c["bid_close"], str(c))
                 )
         conn.commit()
-    except:
-        conn.rollback()
+    except Exception as e:
+        # Issue #21 fix 2026-06-15: was bare `except:` — M3 audit failures invisible.
+        # Audit trail is forensic-only (not trade-affecting), so still swallow,
+        # but log so a stuck DB / schema drift surfaces.
+        try: conn.rollback()
+        except Exception: pass
+        try: _log.exception("AUDIT", "m3_candle_persist_failed", err=str(e))
+        except Exception: pass
     finally:
         conn.close()
 
