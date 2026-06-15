@@ -55,10 +55,17 @@ def _log_journal(trade_ref: str, strategy: str, event_type: str, price: float = 
 
 
 def _log_journal_safe(trade_ref: str, strategy: str, event_type: str, price: float = None, context: dict = None):
-    """Best-effort journal write — NEVER raises."""
+    """Best-effort journal write — NEVER raises.
+    Issue #15 fix 2026-06-15: also emit structured _log.exception.
+    """
     try:
         _log_journal(trade_ref, strategy, event_type, price, context)
     except Exception as e:
+        try:
+            _log.exception("JOURNAL", "log_journal_failed",
+                           trade_ref=trade_ref, event_type=event_type, err=str(e))
+        except Exception:
+            pass
         print(f"  [MICRO] _log_journal {event_type} swallowed exception: {e}")
 
 
