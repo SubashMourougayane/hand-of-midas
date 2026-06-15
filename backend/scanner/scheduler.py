@@ -832,7 +832,12 @@ def daily_recon_job():
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
     _log.info("SYSTEM", "daily_recon_start", yesterday=str(yesterday))
     try:
-        stats = daily_recon_stats("GD-%", "alpha_sweep", yesterday)
+        # Issue #3 fix 2026-06-15: was "GD-%" which matched GD-MI- (Gold Micro).
+        # Now scoped via strategies kwarg to gold-macro strategies only.
+        stats = daily_recon_stats(
+            "GD-%", "alpha_sweep", yesterday,
+            strategies=["alpha_sweep", "mean_rev", "cross_market"],
+        )
         _log.info("SYSTEM", "daily_recon_stats", yesterday=str(yesterday), stats=str(stats))
         notify.daily_recon("Gold Macro", str(yesterday), **stats)
     except Exception as e:

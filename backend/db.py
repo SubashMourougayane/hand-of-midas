@@ -159,12 +159,19 @@ def safe_json_dumps(ctx):
 # Daily reconciliation report builder
 # =============================================================================
 
-def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date):
+def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date,
+                       strategies: list = None):
     """Build daily reconciliation stats for a single system.
 
     trade_ref_pattern: SQL LIKE pattern (e.g., 'OIL-MI-%')
-    strategy_pattern: SQL = match (e.g., 'micro_alpha_sweep_oil')
+    strategy_pattern: SQL = match (e.g., 'micro_alpha_sweep_oil') for journal events
     target_date: date object — typically yesterday
+    strategies: optional list of strategy values to scope the trades query.
+        When provided, restricts gd_trades count/pnl to rows whose `strategy`
+        column is in this list (in ADDITION to the trade_ref LIKE).
+        Issue #3 fix 2026-06-15: Gold Macro previously called with "GD-%"
+        which matched Gold Micro (GD-MI-). Pass strategies=['alpha_sweep',
+        'mean_rev', 'cross_market'] to scope correctly.
 
     Returns dict with: total_trades, orphans_adopted, db_insert_failed,
     journal_errors, net_pnl. Used by the 00:00 UTC daily recon notify call.
@@ -178,13 +185,24 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
     day_start = datetime.combine(target_date, time.min, tzinfo=_tz.utc)
     day_end = day_start + timedelta(days=1)
 
-    rows = execute(
-        """SELECT COUNT(*)::int AS cnt, COALESCE(SUM(pnl_usd), 0)::float AS pnl
-           FROM gd_trades
-           WHERE trade_ref LIKE %s
-             AND entry_time >= %s AND entry_time < %s""",
-        (trade_ref_pattern, day_start, day_end), fetch=True
-    )
+    if strategies:
+        placeholders = ",".join(["%s"] * len(strategies))
+        rows = execute(
+            f"""SELECT COUNT(*)::int AS cnt, COALESCE(SUM(pnl_usd), 0)::float AS pnl
+               FROM gd_trades
+               WHERE trade_ref LIKE %s
+                 AND strategy IN ({placeholders})
+                 AND entry_time >= %s AND entry_time < %s""",
+            (trade_ref_pattern, *strategies, day_start, day_end), fetch=True
+        )
+    else:
+        rows = execute(
+            """SELECT COUNT(*)::int AS cnt, COALESCE(SUM(pnl_usd), 0)::float AS pnl
+               FROM gd_trades
+               WHERE trade_ref LIKE %s
+                 AND entry_time >= %s AND entry_time < %s""",
+            (trade_ref_pattern, day_start, day_end), fetch=True
+        )
     total = rows[0]["cnt"] if rows else 0
     pnl = float(rows[0]["pnl"] or 0) if rows else 0.0
 
