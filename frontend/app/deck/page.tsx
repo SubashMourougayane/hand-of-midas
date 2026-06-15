@@ -99,6 +99,57 @@ const Lead = ({ children, className = "" }: { children: React.ReactNode; classNa
   </p>
 );
 
+/* ─────── Animated counter (matches /robustness) ─────── */
+
+function CountUp({
+  to,
+  format,
+  duration = 1800,
+}: {
+  to: number;
+  format: (v: number) => string;
+  duration?: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [v, setV] = useState(0);
+  const fired = useRef(false);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const reduced =
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setV(to);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !fired.current) {
+          fired.current = true;
+          const start = performance.now();
+          const tick = (now: number) => {
+            const t = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            setV(to * eased);
+            if (t < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    io.observe(ref.current);
+    return () => io.disconnect();
+  }, [to, duration]);
+
+  return (
+    <span ref={ref} className="num" style={{ fontVariantNumeric: "tabular-nums" }}>
+      {format(v)}
+    </span>
+  );
+}
+
 /* ─────── Stat block ─────── */
 
 const Stat = ({
@@ -106,11 +157,14 @@ const Stat = ({
   label,
   hint,
   tone = "default",
+  animate,
 }: {
   value: string;
   label: string;
   hint?: string;
   tone?: "default" | "brass";
+  /** When provided, animates from 0 → animate.to and applies animate.format to render. */
+  animate?: { to: number; format: (v: number) => string };
 }) => (
   <div className="bg-[var(--color-bg)] px-6 py-7">
     <div
@@ -122,7 +176,7 @@ const Stat = ({
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      {value}
+      {animate ? <CountUp to={animate.to} format={animate.format} /> : value}
     </div>
     <div className="mt-3 text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
       {label}
@@ -217,10 +271,28 @@ export default function DeckPage() {
             </Reveal>
             <Reveal delay={340}>
               <div className="mt-12 grid grid-cols-2 gap-px border-y border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-4">
-                <Stat value="71.6%" label="Win rate (21 yr)" tone="brass" />
-                <Stat value="10,479" label="Trades" />
-                <Stat value="$226k" label="Avg / yr · $5k base" tone="brass" />
-                <Stat value="< 2%" label="Max intra-yr DD" />
+                <Stat
+                  value="71.6%"
+                  label="Win rate (21 yr)"
+                  tone="brass"
+                  animate={{ to: 71.6, format: (v) => `${v.toFixed(1)}%` }}
+                />
+                <Stat
+                  value="10,479"
+                  label="Trades"
+                  animate={{ to: 10479, format: (v) => Math.round(v).toLocaleString() }}
+                />
+                <Stat
+                  value="$226k"
+                  label="Avg / yr · $5k base"
+                  tone="brass"
+                  animate={{ to: 226, format: (v) => `$${Math.round(v)}k` }}
+                />
+                <Stat
+                  value="< 2%"
+                  label="Max intra-yr DD"
+                  animate={{ to: 1.8, format: (v) => `< ${v.toFixed(1)}%` }}
+                />
               </div>
             </Reveal>
             <Reveal delay={460}>
@@ -339,10 +411,10 @@ export default function DeckPage() {
               <div className="mt-12 overflow-hidden rounded-[2px] border border-[var(--color-border)] bg-[var(--color-surface-1)]">
                 <div className="grid grid-cols-1 gap-px bg-[var(--color-border)] sm:grid-cols-2 lg:grid-cols-4">
                   {[
-                    { name: "Gold Macro", n: 2239, wr: "65.5%", pf: "3.51", pnl: "$425k" },
-                    { name: "Gold Micro", n: 1916, wr: "74.5%", pf: "4.43", pnl: "$335k" },
-                    { name: "Oil Macro", n: 1683, wr: "61.1%", pf: "4.70", pnl: "$826k" },
-                    { name: "Oil Micro", n: 4641, wr: "77.2%", pf: "5.73", pnl: "$3.16M" },
+                    { name: "Gold Macro", n: 2239, wr: "65.5%", pf: "3.51", pnlValue: 425, pnlFmt: (v: number) => `$${Math.round(v)}k` },
+                    { name: "Gold Micro", n: 1916, wr: "74.5%", pf: "4.43", pnlValue: 335, pnlFmt: (v: number) => `$${Math.round(v)}k` },
+                    { name: "Oil Macro", n: 1683, wr: "61.1%", pf: "4.70", pnlValue: 826, pnlFmt: (v: number) => `$${Math.round(v)}k` },
+                    { name: "Oil Micro", n: 4641, wr: "77.2%", pf: "5.73", pnlValue: 3.16, pnlFmt: (v: number) => `$${v.toFixed(2)}M` },
                   ].map((s) => (
                     <div key={s.name} className="bg-[var(--color-bg)] p-6">
                       <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
@@ -352,7 +424,7 @@ export default function DeckPage() {
                         className="num mt-3 text-[28px] font-semibold tracking-tight text-[var(--color-brass)]"
                         style={{ fontVariantNumeric: "tabular-nums" }}
                       >
-                        {s.pnl}
+                        <CountUp to={s.pnlValue} format={s.pnlFmt} />
                       </div>
                       <div className="mt-2 text-[11.5px] text-[var(--color-text-muted)]">
                         {s.n} trades · WR {s.wr} · PF {s.pf}
@@ -367,7 +439,7 @@ export default function DeckPage() {
                         Aggregate · all 4 systems
                       </div>
                       <div className="num mt-2 text-[36px] font-semibold tracking-tight text-[var(--color-brass)]">
-                        $4.74M
+                        <CountUp to={4.74} format={(v) => `$${v.toFixed(2)}M`} duration={2200} />
                       </div>
                       <div className="mt-1 text-[12px] text-[var(--color-text-muted)]">
                         10,479 trades · 71.6% win rate · max intra-year drawdown under 2%
@@ -506,10 +578,30 @@ export default function DeckPage() {
 
             <Reveal delay={240}>
               <div className="mt-12 grid grid-cols-2 gap-px border-y border-[var(--color-border)] bg-[var(--color-border)] sm:grid-cols-4">
-                <Stat value="436" label="Commits" hint="Single-person history" />
-                <Stat value="25+" label="Filter sweeps run" hint="4 shipped · 21 stashed" />
-                <Stat value="24" label="Audit-class bugs caught" hint="Found pessimistically · 20 fixed" />
-                <Stat value="< 2%" label="Max intra-year DD" hint="Across all 21 years" />
+                <Stat
+                  value="436"
+                  label="Commits"
+                  hint="Single-person history"
+                  animate={{ to: 436, format: (v) => Math.round(v).toLocaleString() }}
+                />
+                <Stat
+                  value="25+"
+                  label="Filter sweeps run"
+                  hint="4 shipped · 21 stashed"
+                  animate={{ to: 25, format: (v) => `${Math.round(v)}+` }}
+                />
+                <Stat
+                  value="24"
+                  label="Audit-class bugs caught"
+                  hint="Found pessimistically · 20 fixed"
+                  animate={{ to: 24, format: (v) => `${Math.round(v)}` }}
+                />
+                <Stat
+                  value="< 2%"
+                  label="Max intra-year DD"
+                  hint="Across all 21 years"
+                  animate={{ to: 1.8, format: (v) => `< ${v.toFixed(1)}%` }}
+                />
               </div>
             </Reveal>
 
