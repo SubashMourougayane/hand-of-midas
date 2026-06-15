@@ -181,7 +181,15 @@ def _parse_mt5_time(time_str):
         server_dt = datetime.strptime(time_str, "%Y.%m.%d %H:%M:%S")
         utc_dt = server_dt - timedelta(hours=MT5_SERVER_OFFSET_HOURS)
         return utc_dt.replace(tzinfo=timezone.utc)
-    except:
+    except Exception as e:
+        # Issue #23 fix 2026-06-15: was bare except + silent fallback to now().
+        # If EA ever sends garbage, log so it's visible. Function currently
+        # has no callers but retain backward-compat (caller may rely on
+        # never-None return, so we still return now() — but loudly).
+        try:
+            from scanner import _log
+            _log.warn("BROKER", "mt5_time_parse_failed", input=str(time_str)[:100], err=str(e))
+        except Exception: pass
         return datetime.now(timezone.utc)
 
 
