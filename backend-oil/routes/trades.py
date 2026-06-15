@@ -11,8 +11,9 @@ router = APIRouter()
 @router.get("/trades")
 def get_trades(limit: int = Query(200, le=500)):
     """Get live oil trades."""
+    # Issue #5 fix 2026-06-15: was 'OIL-%' which matched OIL-MI- (Oil Micro).
     rows = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE 'OIL-%' ORDER BY exit_time DESC LIMIT %s",
+        "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL AND strategy = 'alpha_sweep_oil' ORDER BY exit_time DESC LIMIT %s",
         (limit,), fetch=True
     )
     if not rows:

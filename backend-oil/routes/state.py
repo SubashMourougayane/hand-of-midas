@@ -16,10 +16,11 @@ def get_state():
     account = get_account_summary()
     positions = get_open_trades(instrument="BCO_USD")
 
-    # DB positions (open Oil trades)
+    # DB positions (open Oil-Macro trades).
+    # Issue #5 fix 2026-06-15: was 'OIL-%%' which matched OIL-MI- (Oil Micro).
     db_positions = execute(
         "SELECT trade_ref, strategy, side, entry_price, sl_price as sl, tp_price as tp, units, entry_time "
-        "FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'OIL-%%' ORDER BY entry_time DESC",
+        "FROM gd_trades WHERE exit_time IS NULL AND strategy = 'alpha_sweep_oil' ORDER BY entry_time DESC",
         fetch=True
     )
 
@@ -41,10 +42,10 @@ def get_state():
         fetch=True
     )
 
-    # Recent closed trades
+    # Recent closed Oil-Macro trades.
     recent_trades = execute(
         "SELECT trade_ref, strategy, side, pnl_gbp, pnl_usd, exit_reason, exit_time "
-        "FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE 'OIL-%%' ORDER BY exit_time DESC LIMIT 10",
+        "FROM gd_trades WHERE exit_time IS NOT NULL AND strategy = 'alpha_sweep_oil' ORDER BY exit_time DESC LIMIT 10",
         fetch=True
     )
 
