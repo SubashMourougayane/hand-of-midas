@@ -4,6 +4,7 @@ import { SystemSwitcher } from "./SystemSwitcher";
 import { UserMenu } from "./UserMenu";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { useInstrument, INSTRUMENTS } from "@/lib/instrument";
+import { SpireMark } from "@/components/brand/SpireMark";
 
 const SHORT_LABEL: Record<string, string> = {
   gold: "Gold Macro",
@@ -22,11 +23,7 @@ export function TopBar() {
         href="/live"
         className="flex items-center gap-3 text-[var(--color-text)] tracking-tight group"
       >
-        <span
-          className="inline-block w-3 h-3 rotate-45 bg-[var(--color-brass)] group-hover:bg-[var(--color-brass-hi)] transition-colors"
-          style={{ boxShadow: "0 0 12px rgba(16,185,129,0.4)" }}
-          aria-hidden
-        />
+        <SpireMark size={20} aria-label="Hand of Midas" className="transition-transform duration-500 group-hover:rotate-[10deg]" />
         <span className="display text-[19px] leading-none italic hidden sm:inline">
           Hand of Midas
         </span>

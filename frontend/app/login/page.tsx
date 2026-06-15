@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, Button, Display } from "@/components/ui";
+import { SpireMark } from "@/components/brand/SpireMark";
 
 export default function LoginPage() {
   const { login, user } = useAuth();
@@ -50,12 +51,10 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-[400px] hom-fade-in-up">
         {/* Brand header */}
-        <div className="text-center mb-9">
-          <span
-            className="inline-block w-3 h-3 rotate-45 bg-[var(--color-brass)] mb-4"
-            aria-hidden
-            style={{ boxShadow: "0 0 18px rgba(212,164,100,0.5)" }}
-          />
+        <div className="text-center mb-9 flex flex-col items-center">
+          <div className="mb-4">
+            <SpireMark size={48} animate aria-label="Hand of Midas" />
+          </div>
           <Display size="lg" italic className="text-[var(--color-brass-hi)]">
             Hand of Midas
           </Display>

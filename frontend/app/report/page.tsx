@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import bt from "@/lib/data/backtest.json";
 import { CountUp } from "@/components/ui/CountUp";
 import { EquityCurve } from "@/components/ui/EquityCurve";
+import { SpireMark } from "@/components/brand/SpireMark";
 
 type SystemKey = "aggregate" | "gold" | "micro" | "oil" | "oil-micro";
 type CurvePoint = { y: number; e: number; yr_pnl?: number };
@@ -345,11 +346,7 @@ export default function ReportPage() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link href="/" className="group flex items-center gap-3">
-            <span
-              aria-hidden
-              className="inline-block h-3.5 w-3.5 rotate-45 bg-[var(--color-brass)] transition-transform duration-500 group-hover:rotate-[225deg]"
-              style={{ boxShadow: "0 0 14px rgba(16,185,129,0.45)" }}
-            />
+            <SpireMark size={22} className="transition-transform duration-500 group-hover:rotate-[20deg]" />
             <span
               className="text-[19px] italic tracking-tight"
               style={{ fontFamily: "var(--font-display), serif" }}

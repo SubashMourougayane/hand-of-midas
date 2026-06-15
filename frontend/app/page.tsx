@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import bt from "@/lib/data/backtest.json";
 import { CountUp } from "@/components/ui/CountUp";
 import { EquityCurve } from "@/components/ui/EquityCurve";
+import { SpireMark } from "@/components/brand/SpireMark";
 
 type SystemKey = "aggregate" | "gold" | "micro" | "oil" | "oil-micro";
 type CurvePoint = { y: number; e: number; yr_pnl?: number };
@@ -308,11 +309,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <Link href="/" className="group flex items-center gap-3">
-            <span
-              aria-hidden
-              className="inline-block h-3.5 w-3.5 rotate-45 bg-[var(--color-brass)] transition-transform duration-500 group-hover:rotate-[225deg]"
-              style={{ boxShadow: "0 0 14px rgba(16,185,129,0.45)" }}
-            />
+            <SpireMark size={22} className="transition-transform duration-500 group-hover:rotate-[20deg]" />
             <span
               className="text-[19px] italic tracking-tight text-[var(--color-text)]"
               style={{ fontFamily: "var(--font-display), serif" }}
@@ -425,6 +422,12 @@ export default function LandingPage() {
                 <span className="text-[11px] font-medium uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
                   Quantitative Commodities · Live since June 2026
                 </span>
+              </div>
+            </Reveal>
+
+            <Reveal delay={80} y={20}>
+              <div className="mb-6 flex justify-center">
+                <SpireMark size={88} animate aria-label="Hand of Midas" />
               </div>
             </Reveal>
 
@@ -830,7 +833,7 @@ export default function LandingPage() {
         <footer className="relative z-10 border-t border-[var(--color-border)]/70">
           <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-6 py-6 md:flex-row md:items-center">
             <div className="flex items-center gap-2.5">
-              <span aria-hidden className="inline-block h-2 w-2 rotate-45 bg-[var(--color-brass)]" />
+              <SpireMark size={14} compact />
               <span
                 className="text-[14px] italic text-[var(--color-text-dim)]"
                 style={{ fontFamily: "var(--font-display), serif" }}

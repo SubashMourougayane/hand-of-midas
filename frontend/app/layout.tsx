@@ -36,7 +36,21 @@ export const metadata: Metadata = {
   title: "Hand Of Midas",
   description: "Quantitative Commodities Trading",
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◆</text></svg>",
+    // Spire mark as SVG favicon. Uses %23 in URL-encoded hex colors.
+    icon: {
+      url:
+        "data:image/svg+xml;utf8," +
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'>" +
+          "<path d='M16 32 L32 18' stroke='%23F1F3F6' stroke-width='2.6' stroke-linecap='round'/>" +
+          "<path d='M48 32 L32 18' stroke='%23F1F3F6' stroke-width='2.6' stroke-linecap='round'/>" +
+          "<path d='M16 32 L32 46' stroke='%23F1F3F6' stroke-width='2.6' stroke-linecap='round'/>" +
+          "<path d='M48 32 L32 46' stroke='%23F1F3F6' stroke-width='2.6' stroke-linecap='round'/>" +
+          "<path d='M32 18 L32 4' stroke='%23F1F3F6' stroke-width='1.8' stroke-linecap='round'/>" +
+          "<path d='M32 46 L32 60' stroke='%23F1F3F6' stroke-width='1.8' stroke-linecap='round'/>" +
+          "<path d='M32 28 L36 32 L32 36 L28 32 Z' fill='%2310B981'/>" +
+        "</svg>",
+      type: "image/svg+xml",
+    },
   },
 };
 
