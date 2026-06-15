@@ -329,8 +329,11 @@ def check_open_positions():
                         f"{streak} cycles. DWX EA may not be writing closed_orders.json. "
                         f"Investigate."
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    # Issue #14 fix 2026-06-15
+                    _log.exception("NOTIFY", "exit_ambiguous_alert_failed",
+                                   trade_ref=trade["trade_ref"], err=str(e))
+                    _exit_ambiguous_streak[oanda_id] = streak - 1
             continue
 
         if details.get("state") != "CLOSED":
