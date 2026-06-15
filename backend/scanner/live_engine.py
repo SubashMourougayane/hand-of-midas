@@ -184,9 +184,15 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             print(f"  [{strategy}] SKIP: SL ${sl_price:.2f} too close to bid ${current_bid:.2f}")
             return None
 
-    # Check if there's already an open Macro position (one at a time)
+    # Check if there's already an open Gold-Macro position (one at a time).
+    # NOTE: previously used `LIKE 'GD-AS-%'` which never matched (refs are
+    # GD-AL-/GD-ME-/GD-CR-) — guard was dead, allowing re-entries on the
+    # same setup. Fixed 2026-06-15 after 3 fills on one Asia sweep.
+    # Scope: gold-macro strategies only (exclude micro_*, alpha_sweep_oil).
     open_macro = execute(
-        "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
+        """SELECT COUNT(*) as cnt FROM gd_trades
+           WHERE exit_time IS NULL
+             AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market')""",
         fetch=True
     )
     if open_macro and open_macro[0]["cnt"] > 0:

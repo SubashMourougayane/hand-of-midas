@@ -455,9 +455,12 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     _log.debug("GATE", "cooldown_active", last_signal=last_signal_time.isoformat(), age_seconds=int((now - last_signal_time).total_seconds()), reason="recent_signal")
                     return None  # Cooldown
 
-        # One position at a time
+        # One Gold-Macro position at a time. See live_engine.py — same fix
+        # for the dead `GD-AS-` LIKE pattern that was letting duplicates through.
         open_macro = execute(
-            "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'GD-AS-%%'",
+            """SELECT COUNT(*) as cnt FROM gd_trades
+               WHERE exit_time IS NULL
+                 AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market')""",
             fetch=True
         )
         if open_macro and open_macro[0]["cnt"] > 0:
