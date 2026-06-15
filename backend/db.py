@@ -223,3 +223,27 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
         "exit_ambiguous": count_event("EXIT_AMBIGUOUS"),
         "net_pnl": pnl,
     }
+
+
+
+def is_sweep_consumed(system: str, target_date, sweep_key: str) -> bool:
+    """Issue #9: persistent sweep blacklist (replaces in-memory _traded_sweeps_*).
+
+    Returns True if the sweep_key was already consumed by `system` on `target_date`.
+    `system` is one of 'gold-macro' / 'gold-micro' / 'oil-macro' / 'oil-micro'.
+    """
+    rows = execute(
+        "SELECT 1 FROM gd_traded_sweeps WHERE system = %s AND date = %s AND sweep_key = %s LIMIT 1",
+        (system, target_date, sweep_key), fetch=True
+    )
+    return bool(rows)
+
+
+def mark_sweep_consumed(system: str, target_date, sweep_key: str) -> None:
+    """Insert sweep_key into the blacklist. Idempotent via UNIQUE constraint."""
+    execute(
+        """INSERT INTO gd_traded_sweeps (system, date, sweep_key)
+           VALUES (%s, %s, %s)
+           ON CONFLICT (system, date, sweep_key) DO NOTHING""",
+        (system, target_date, sweep_key)
+    )

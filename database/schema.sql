@@ -114,6 +114,20 @@ CREATE TABLE IF NOT EXISTS gd_signals (
     trade_ref VARCHAR(50)
 );
 
+-- Issue #9 fix 2026-06-15: persist sweep blacklist across restarts.
+-- Was an in-memory set per service; a process restart between an SL'd trade
+-- and a re-firing engulfing on the same sweep allowed re-entry on same wick.
+-- system: 'gold-macro' | 'gold-micro' | 'oil-macro' | 'oil-micro'
+CREATE TABLE IF NOT EXISTS gd_traded_sweeps (
+    id SERIAL PRIMARY KEY,
+    system VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    sweep_key VARCHAR(80) NOT NULL,
+    consumed_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (system, date, sweep_key)
+);
+CREATE INDEX IF NOT EXISTS idx_traded_sweeps_lookup ON gd_traded_sweeps (system, date);
+
 -- Journal events
 CREATE TABLE IF NOT EXISTS gd_journal (
     id SERIAL PRIMARY KEY,

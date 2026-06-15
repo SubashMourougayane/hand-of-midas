@@ -258,6 +258,11 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             break
 
         sweep_key = f"{sweep_ts}_{sweep_dir}"
+        # Issue #9 fix 2026-06-15: persistent blacklist for restart safety.
+        if sweep_key not in _traded_sweeps_oil["keys"] and not dry_run:
+            from backend.db import is_sweep_consumed
+            if is_sweep_consumed("oil-macro", today, sweep_key):
+                _traded_sweeps_oil["keys"].add(sweep_key)
         if sweep_key in _traded_sweeps_oil["keys"]:
             if not dry_run:
                 _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
@@ -368,12 +373,20 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
                     },
                 )
             _traded_sweeps_oil["keys"].add(sweep_key)
+            if not dry_run:
+                from backend.db import mark_sweep_consumed
+                try: mark_sweep_consumed("oil-macro", today, sweep_key)
+                except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
             trades_today += 1
             break  # One engulfing per sweep
         else:
             # No engulfing found — consume only if window expired
             if now >= window_end:
                 _traded_sweeps_oil["keys"].add(sweep_key)
+                if not dry_run:
+                    from backend.db import mark_sweep_consumed
+                    try: mark_sweep_consumed("oil-macro", today, sweep_key)
+                    except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
             if not dry_run:
                 _log.debug("GATE", "no_engulfing", direction=sweep_dir, sweep_wick=sweep_wick, m3_bars_checked=len(relevant_m3), expired=(now >= window_end), bias=bias)
 

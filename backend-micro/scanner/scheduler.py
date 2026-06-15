@@ -337,7 +337,12 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
 
             # Dedup: once a sweep is consumed (traded, SL'd, or no engulfing), never re-fire that day.
             # Matches backtest traded_sweeps behavior. Persists across 3-min scan cycles.
+            # Issue #9 fix 2026-06-15: also DB-backed for restart safety.
             sweep_key = f"{bar['timestamp']}_{sweep_dir}"
+            if sweep_key not in _traded_sweeps["keys"] and not dry_run:
+                from backend.db import is_sweep_consumed
+                if is_sweep_consumed("gold-micro", today, sweep_key):
+                    _traded_sweeps["keys"].add(sweep_key)
             if sweep_key in _traded_sweeps["keys"]:
                 if not dry_run:
                     _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
@@ -385,6 +390,10 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                     _log.debug("GATE", "engulfing_window_too_few_m3", sweep_key=sweep_key, m3_count=len(relevant_m3), window_end=window_end.isoformat(), expired=(now >= window_end))
                 if now >= window_end:
                     _traded_sweeps["keys"].add(sweep_key)
+                    if not dry_run:
+                        from backend.db import mark_sweep_consumed
+                        try: mark_sweep_consumed("gold-micro", today, sweep_key)
+                        except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
                 continue
 
             for j in range(2, len(relevant_m3)):
@@ -463,7 +472,11 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
                     # must NOT retry the same sweep. Pre-marking it breaks the
                     # orphan-trade cascade pattern (see
                     # docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md).
+                    # Issue #9 fix 2026-06-15: also persist to DB for restart safety.
                     _traded_sweeps["keys"].add(sweep_key)
+                    from backend.db import mark_sweep_consumed
+                    try: mark_sweep_consumed("gold-micro", today, sweep_key)
+                    except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
                     _daily_state["trades"] += 1  # Optimistic — rolled back if signal skipped
                     _log.info("SIGNAL", "fired", direction=direction, entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, range_high=range_high, range_low=range_low)
 
@@ -502,6 +515,10 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
             else:
                 if now >= window_end:
                     _traded_sweeps["keys"].add(sweep_key)
+                    if not dry_run:
+                        from backend.db import mark_sweep_consumed
+                        try: mark_sweep_consumed("gold-micro", today, sweep_key)
+                        except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
 
             # If trade was placed, exit scan_bars loop
             if trade_placed_this_cycle:
