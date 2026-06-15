@@ -96,8 +96,10 @@ def _get_risk_multiplier(dd_state: dict) -> float:
     mult = 1.0
     if dd_state["consecutive_losses"] >= 3:
         mult = 0.5
+    # SCOPE: Oil-Macro only — exclude Oil Micro (OIL-MI-) trades.
+    # Issue #2 fix 2026-06-15: 'OIL-%' matched OIL-AS- AND OIL-MI-, polluted equity-MA.
     rows = execute(
-        "SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE 'OIL-%%' ORDER BY exit_time DESC LIMIT 20",
+        "SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND strategy = 'alpha_sweep_oil' ORDER BY exit_time DESC LIMIT 20",
         fetch=True
     )
     if len(rows) >= 20:

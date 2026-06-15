@@ -95,10 +95,15 @@ def _get_risk_multiplier(dd_state: dict) -> float:
     mult = 1.0
     if dd_state["consecutive_losses"] >= 3:
         mult = 0.5
-    # Equity MA check: current equity vs mean of last 20 post-trade equity values
-    # Use OANDA NAV as current equity proxy, compare against rolling average
+    # Equity MA check: current equity vs mean of last 20 post-trade equity values.
+    # Use OANDA NAV as current equity proxy, compare against rolling average.
+    # SCOPE: Gold-Macro only — exclude Gold Micro / Oil Macro / Oil Micro trades.
+    # Issue #2 fix 2026-06-15: prior query had no scope filter, polluted by all systems.
     rows = execute(
-        "SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT 20",
+        """SELECT pnl_usd FROM gd_trades
+           WHERE exit_time IS NOT NULL
+             AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market')
+           ORDER BY exit_time DESC LIMIT 20""",
         fetch=True
     )
     if len(rows) >= 20:
