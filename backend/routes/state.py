@@ -68,7 +68,7 @@ def get_state():
     # trade_ref prefix is insufficient because Gold Micro also uses 'GD-'.
     open_trades = execute(
         "SELECT * FROM gd_trades WHERE exit_time IS NULL "
-        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market') "
         "ORDER BY entry_time DESC",
         fetch=True
     )
@@ -88,7 +88,7 @@ def get_state():
     # Recent closed trades (last 5) — same Gold Macro filter
     recent_trades = execute(
         "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL "
-        "AND strategy IN ('alpha_sweep', 'mean_reversion', 'cross_market') "
+        "AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market') "
         "ORDER BY exit_time DESC LIMIT 5",
         fetch=True
     )

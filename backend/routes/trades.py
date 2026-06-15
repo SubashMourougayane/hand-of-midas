@@ -91,8 +91,17 @@ def get_trades(
     result: Optional[str] = Query(None),  # 'win' or 'loss'
     limit: int = Query(100, le=500),
 ):
-    """Get closed trades from DB with optional filters. Only returns Macro trades (GD-AL-)."""
-    sql = "SELECT * FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE 'GD-AL-%%' AND exit_reason != 'ORPHAN_CLEANUP'"
+    """Get closed trades from DB with optional filters. Returns Gold-Macro trades only.
+
+    Issue #4 fix 2026-06-15: prior LIKE 'GD-AL-%' silently dropped mean_rev (GD-ME-)
+    and cross_market (GD-CR-) trades. Now scoped via strategy IN-list.
+    """
+    sql = (
+        "SELECT * FROM gd_trades "
+        "WHERE exit_time IS NOT NULL "
+        "AND strategy IN ('alpha_sweep', 'mean_rev', 'cross_market') "
+        "AND exit_reason != 'ORPHAN_CLEANUP'"
+    )
     params = []
 
     if strategy:
