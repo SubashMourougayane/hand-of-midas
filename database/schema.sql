@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS gd_dd_state (
 INSERT INTO gd_dd_state (id) VALUES (1) ON CONFLICT DO NOTHING;
 INSERT INTO gd_dd_state (id) VALUES (2) ON CONFLICT DO NOTHING;  -- Oil DD state
 INSERT INTO gd_dd_state (id) VALUES (3) ON CONFLICT DO NOTHING;  -- Micro DD state (equity from broker directly)
+INSERT INTO gd_dd_state (id) VALUES (4) ON CONFLICT DO NOTHING;  -- Oil Micro DD state (Issue #18 fix 2026-06-15)
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (
