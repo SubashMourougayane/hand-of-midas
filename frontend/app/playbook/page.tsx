@@ -463,6 +463,18 @@ export default function PlaybookPage() {
               Performance
             </Link>
             <Link
+              href="/deck"
+              className="rounded-full px-4 py-2 font-medium text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-surface-1)] hover:text-[var(--color-text)]"
+            >
+              Deck
+            </Link>
+            <Link
+              href="/robustness"
+              className="rounded-full px-4 py-2 font-medium text-[var(--color-text-dim)] transition-colors hover:bg-[var(--color-surface-1)] hover:text-[var(--color-text)]"
+            >
+              Robustness
+            </Link>
+            <Link
               href="/login"
               className="ml-2 rounded-full border border-[var(--color-brass)]/50 px-5 py-2 font-semibold text-[var(--color-brass)] transition hover:border-[var(--color-brass)] hover:bg-[var(--color-brass)]/10"
             >

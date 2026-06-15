@@ -28,7 +28,7 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/", "/login", "/report", "/playbook"];
+const PUBLIC_PATHS = ["/", "/login", "/report", "/playbook", "/deck", "/robustness"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
