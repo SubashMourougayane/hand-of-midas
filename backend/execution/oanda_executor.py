@@ -75,16 +75,35 @@ def get_account_summary() -> dict:
 
 
 def _get_gbp_usd_rate() -> float:
-    """Fetch current GBP/USD rate from OANDA for currency conversion."""
+    """Fetch current GBP/USD rate from OANDA for currency conversion.
+
+    Issue #11 fix 2026-06-15: log every fallback hit to 1.33 so silent failures
+    are visible. (Currently broker is JustMarkets/MT5 with USD account so this
+    path is dead, but if we ever switch back to OANDA GBP account, fallback
+    misuse will now be loud.)
+    """
     data = _request("GET", f"/accounts/{OANDA_ACCOUNT}/pricing?instruments=GBP_USD")
     if "error" in data:
+        try:
+            from scanner import _log
+            _log.warn("BROKER", "gbp_usd_rate_fallback", reason="api_error", err=str(data.get("error"))[:200], rate=1.33)
+        except Exception: pass
         return 1.33  # fallback
     prices = data.get("prices", [])
     if not prices:
+        try:
+            from scanner import _log
+            _log.warn("BROKER", "gbp_usd_rate_fallback", reason="empty_prices", rate=1.33)
+        except Exception: pass
         return 1.33
     p = prices[0]
     bid = float(p["bids"][0]["price"]) if p.get("bids") else 1.33
     ask = float(p["asks"][0]["price"]) if p.get("asks") else 1.33
+    if not p.get("bids") or not p.get("asks"):
+        try:
+            from scanner import _log
+            _log.warn("BROKER", "gbp_usd_rate_fallback", reason="missing_bid_or_ask", rate=(bid+ask)/2)
+        except Exception: pass
     return (bid + ask) / 2
 
 
