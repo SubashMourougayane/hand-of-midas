@@ -351,13 +351,27 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
         return {"success": False, "error": "Timeout waiting for EA response"}
 
     if response.get("success"):
+        # Issue #7 fix 2026-06-15: validate EA response before treating as success.
+        # Prior code defaulted ticket=0 / price=0 silently, allowing malformed
+        # EA replies to persist trades with fill_price=0, oanda_trade_id="0".
+        # That breaks dedup queries (multiple trades with id="0" collide) and
+        # P&L calculations (entry @ $0).
+        ticket = response.get("ticket")
+        price = response.get("price")
+        if not ticket or float(ticket) <= 0 or not price or float(price) <= 0:
+            _log.error("BROKER", "place_market_order_malformed_response",
+                       instrument=instrument, ticket=ticket, price=price,
+                       full_response=str(response))
+            return {
+                "success": False,
+                "error": f"EA reported success but malformed: ticket={ticket} price={price}",
+            }
         _log.info("BROKER", "place_market_order_filled", instrument=instrument,
-                  trade_id=str(response.get("ticket", 0)), fill_price=response.get("price", 0),
-                  units=volume)
+                  trade_id=str(ticket), fill_price=price, units=volume)
         return {
             "success": True,
-            "fill_price": response.get("price", 0),
-            "trade_id": str(response.get("ticket", 0)),
+            "fill_price": price,
+            "trade_id": str(ticket),
             "units": volume,
             "time": datetime.now(timezone.utc).isoformat(),
         }
