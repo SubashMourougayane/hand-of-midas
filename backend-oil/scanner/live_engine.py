@@ -32,6 +32,22 @@ from scanner import _log
 _exit_ambiguous_streak: dict = {}
 _EXIT_AMBIGUOUS_ALERT_CYCLES = 5
 
+# Per-trade MAX_HOLD market-closed defer state — see backend/scanner/live_engine.py
+# for the canonical comment. Notify ONCE on first defer, subsequent failures
+# stay silent, eventual successful close labels reason "MAX_HOLD (deferred)".
+_max_hold_deferred: dict = {}
+_MARKET_CLOSED_HINTS = ("market closed", "market is closed", "trade is disabled", "trade disabled")
+_MARKET_CLOSED_RETCODES = {10018}
+
+
+def _is_market_closed_error(result: dict) -> bool:
+    if not result:
+        return False
+    err = (result.get("error") or "").lower()
+    if any(hint in err for hint in _MARKET_CLOSED_HINTS):
+        return True
+    return result.get("retcode") in _MARKET_CLOSED_RETCODES
+
 # Filter #6: post-BE high-water-mark per trade. Keyed by oanda_trade_id.
 # For LONG: tracks highest bid seen since BE armed.
 # For SHORT: tracks lowest ask seen since BE armed.
@@ -274,6 +290,8 @@ def check_open_positions():
                     print(f"  [OIL MAX HOLD] {trade['trade_ref']} held {bars_held:.0f} bars — force closing")
                     result = close_trade(oanda_id)
                     if result.get("success"):
+                        was_deferred = _max_hold_deferred.pop(oanda_id, False)
+                        exit_reason = "MAX_HOLD (deferred)" if was_deferred else "MAX_HOLD"
                         gbp_usd = _get_gbp_usd_rate()
                         close_price = result.get("close_price", 0)
                         entry_price = float(trade["entry_price"])
@@ -286,15 +304,27 @@ def check_open_positions():
                         close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, close_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl, pnl_usd)
                         _post_be_hwm.pop(trade.get("oanda_trade_id"), None)  # Filter #6: clean up trail HWM
                         _log_journal(trade["trade_ref"], "alpha_sweep_oil", "EXIT_FILLED", result["close_price"], {
-                            "reason": "MAX_HOLD", "bars_held": int(bars_held),
+                            "reason": exit_reason, "bars_held": int(bars_held),
                             "pnl_gbp": realized_pl, "pnl_usd": pnl_usd,
                         })
-                        notify.trade_closed(trade["trade_ref"], "BCO_USD", "MAX_HOLD", realized_pl, pnl_usd)
+                        notify.trade_closed(trade["trade_ref"], "BCO_USD", exit_reason, realized_pl, pnl_usd)
+                    elif _is_market_closed_error(result):
+                        already_notified = _max_hold_deferred.get(oanda_id, False)
+                        _max_hold_deferred[oanda_id] = True
+                        _log.warn("EXIT", "max_hold_deferred", trade_ref=trade["trade_ref"], oanda_id=oanda_id,
+                            bars_held=int(bars_held), error=result.get("error"), retcode=result.get("retcode"),
+                            first_notify=not already_notified)
+                        if not already_notified:
+                            _log_journal(trade["trade_ref"], "alpha_sweep_oil", "MAX_HOLD_DEFERRED", None, {
+                                "reason": "market_closed", "bars_held": int(bars_held),
+                                "error": result.get("error"), "retcode": result.get("retcode"),
+                            })
+                            notify.max_hold_deferred(trade["trade_ref"], "BCO_USD")
                     else:
                         _log_journal(trade["trade_ref"], "alpha_sweep_oil", "CLOSE_FAILED", None, {
                             "reason": "MAX_HOLD", "error": result.get("error", "Unknown"),

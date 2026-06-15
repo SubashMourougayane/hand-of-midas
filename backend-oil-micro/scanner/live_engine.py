@@ -23,6 +23,20 @@ from scanner import _log
 
 _price_extremes = {}
 
+# Per-trade MAX_HOLD market-closed defer state. See backend/scanner/live_engine.py.
+_max_hold_deferred: dict = {}
+_MARKET_CLOSED_HINTS = ("market closed", "market is closed", "trade is disabled", "trade disabled")
+_MARKET_CLOSED_RETCODES = {10018}
+
+
+def _is_market_closed_error(result: dict) -> bool:
+    if not result:
+        return False
+    err = (result.get("error") or "").lower()
+    if any(hint in err for hint in _MARKET_CLOSED_HINTS):
+        return True
+    return result.get("retcode") in _MARKET_CLOSED_RETCODES
+
 
 def _get_gbp_usd_rate():
     """Oil account is USD — no conversion needed."""
@@ -298,6 +312,8 @@ def check_open_positions():
                     print(f"  [OIL-MICRO MAX HOLD] {trade['trade_ref']} held {bars_held:.0f} bars — force closing")
                     result = close_trade(oanda_id)
                     if result.get("success"):
+                        was_deferred = _max_hold_deferred.pop(oanda_id, False)
+                        exit_reason = "MAX_HOLD (deferred)" if was_deferred else "MAX_HOLD"
                         gbp_usd = _get_gbp_usd_rate()
                         close_price = result.get("close_price", 0)
                         entry_price = float(trade["entry_price"])
@@ -310,14 +326,26 @@ def check_open_positions():
                         close_time = result.get("time", datetime.now(timezone.utc).isoformat())
                         execute(
                             "UPDATE gd_trades SET exit_time=%s, exit_price=%s, pnl_gbp=%s, pnl_usd=%s, exit_reason=%s WHERE trade_ref=%s",
-                            (close_time, close_price, realized_pl, pnl_usd, "MAX_HOLD", trade["trade_ref"])
+                            (close_time, close_price, realized_pl, pnl_usd, exit_reason, trade["trade_ref"])
                         )
                         _update_dd_after_exit(realized_pl)
-                        _log.info("EXIT", "detected", ref=trade["trade_ref"], reason="MAX_HOLD", fill=close_price, pnl_usd=pnl_usd, bars_held=int(bars_held), source="max_hold")
+                        _log.info("EXIT", "detected", ref=trade["trade_ref"], reason=exit_reason, fill=close_price, pnl_usd=pnl_usd, bars_held=int(bars_held), source="max_hold")
                         _log_journal(trade["trade_ref"], trade["strategy"], "EXIT_FILLED", close_price, {
-                            "reason": "MAX_HOLD", "bars_held": int(bars_held), "pnl_usd": pnl_usd,
+                            "reason": exit_reason, "bars_held": int(bars_held), "pnl_usd": pnl_usd,
                         })
-                        notify.trade_closed(trade["trade_ref"], "BCO_USD", "MAX_HOLD", realized_pl, pnl_usd)
+                        notify.trade_closed(trade["trade_ref"], "BCO_USD", exit_reason, realized_pl, pnl_usd)
+                    elif _is_market_closed_error(result):
+                        already_notified = _max_hold_deferred.get(oanda_id, False)
+                        _max_hold_deferred[oanda_id] = True
+                        _log.warn("EXIT", "max_hold_deferred", ref=trade["trade_ref"], oanda_id=oanda_id,
+                            bars_held=int(bars_held), error=result.get("error"), retcode=result.get("retcode"),
+                            first_notify=not already_notified)
+                        if not already_notified:
+                            _log_journal(trade["trade_ref"], trade["strategy"], "MAX_HOLD_DEFERRED", None, {
+                                "reason": "market_closed", "bars_held": int(bars_held),
+                                "error": result.get("error"), "retcode": result.get("retcode"),
+                            })
+                            notify.max_hold_deferred(trade["trade_ref"], "BCO_USD")
                     else:
                         _log.error("BROKER", "max_hold_close_failed", ref=trade["trade_ref"], oanda_id=oanda_id, err=result.get("error", "Unknown"))
                         _log_journal(trade["trade_ref"], trade["strategy"], "CLOSE_FAILED", None, {

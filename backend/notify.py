@@ -113,6 +113,18 @@ def error(message: str):
     send(f"⚠️ <b>ERROR</b>\n{message}")
 
 
+def max_hold_deferred(trade_ref: str, instrument: str):
+    """Fired ONCE per trade when MAX_HOLD close fails because the broker
+    market is closed. Subsequent same-cause retries are silent — the
+    eventual successful close fires trade_closed(reason='MAX_HOLD (deferred)')
+    so the user gets a paired open/close pair."""
+    send(
+        f"ℹ️ <b>MAX_HOLD DEFERRED</b>\n"
+        f"{trade_ref}\n"
+        f"{instrument} market closed — will close on reopen."
+    )
+
+
 def orphan_adopted(trade_ref: str, broker_id: str, instrument: str, side: str,
                    units: int, entry_price: float, sl: float, tp: float):
     """Alert when the orphan reconciler adopts an untracked broker position.

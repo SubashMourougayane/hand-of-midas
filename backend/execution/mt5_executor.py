@@ -441,6 +441,7 @@ def close_trade(trade_id):
         "close_price": response.get("close_price", 0),
         "realized_pl": response.get("profit", 0),
         "error": response.get("comment", "") if not response.get("success") else None,
+        "retcode": response.get("retcode"),
     }
 
 
