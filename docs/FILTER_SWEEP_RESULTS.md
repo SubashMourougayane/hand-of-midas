@@ -354,3 +354,42 @@ Edge is in **how trades are managed once entered** — earlier BE protection, pa
 - **One outstanding fill-side bug:** Gold Micro `market_close=21-22 UTC` inheritance from Oil — worth +$27k / 21yr (+11.5% Gold Micro PF). Deferred; not part of audit list.
 
 Branch archives preserved on origin: `archive-filter-{02,03,04,09,10,12,13,14,16}` (9 stashed signal filters), `archive-filter-15` semantics live in commits `08a3b15`/`2d4b48e` reverted via `a7f29ed`/`43c96d6`.
+
+
+---
+
+## Filter #25 — Bias source (prior_day vs intraday)  ❌ STASHED
+
+**Date:** 2026-06-15
+**Branch:** `filter/25-bias-source` (preserved, NOT merged)
+**Commit:** `e8f6be2`
+**Hypothesis:** Replace yesterday's daily-candle bias with today's intraday data. Three variants tested: `asia` (00-08 UTC of trade day), `pre_session` (21:00 prev → 08:00 trade day), `lookahead_today` (full daily — cheating, ceiling).
+
+### 21yr backtest results (real `run_backtest()` per system)
+
+| System | prior_day baseline | asia (Δ vs base) | pre_session (Δ vs base) | lookahead (ceiling) |
+|---|---|---|---|---|
+| **Gold Macro** | N=2242 PF=3.53 P&L=$427,598 DD=$3,410 | N=1714 PF=3.70 **−$131k** DD+$851 | N=1781 PF=3.59 **−$116k** DD−$933 | N=2016 PF=4.84 +$178k |
+| **Gold Micro** | N=1963 PF=4.52 P&L=$361,660 DD=$3,144 | N=1809 PF=5.48 **+$27k** DD−$1,861 | N=1833 PF=5.41 **+$30k** DD−$1,768 | N=1737 PF=6.49 +$77k |
+| **Oil Macro** | N=1683 PF=4.70 P&L=$825,879 DD=$5,003 | N=1358 PF=4.56 **−$237k** DD−$1,681 | N=1380 PF=4.55 **−$217k** DD−$1,114 | N=1594 PF=8.73 +$825k |
+| **Oil Micro** | N=4644 PF=5.76 P&L=$3,177,780 DD=$8,057 | N=4312 PF=6.17 −$22k DD+$367 | N=4347 PF=6.26 +$51k DD+$1,124 | N=3990 PF=13.07 +$1.28M |
+
+### Verdict
+
+- **Gold Macro:** STASH. Both intraday variants lose $116-131k/21yr. PF improvement is illusory (fewer trades on same losing book).
+- **Gold Micro:** SHIPPABLE — but stashed at user's call. pre_session would have added +$30k, PF 4.52→5.41, DD −56%.
+- **Oil Macro:** STASH. Worst impact: −$237k/21yr. PF actually decreases.
+- **Oil Micro:** Marginal +$51k (+1.6%) on pre_session. Within noise; not worth live↔backtest divergence cost.
+
+**Outcome: STASHED across all 4 systems** (user decision 2026-06-15).
+
+### Pattern explanation
+
+Macro strategies (3-min scan, full-day window) use intraday bias as a **weaker** signal than yesterday's full daily candle → fewer trades, less edge. Micros (rolling 4hr scan) have a time horizon closer to the intraday bias source → small but consistent improvement. The lookahead column shows up to **+100% P&L** is possible if bias were perfectly known — confirming the bias filter has real edge but our information-causal variants only capture a fraction.
+
+### Status of running tally
+
+Cumulative shipped (4 filters): +$1.547M / 21yr (Filter #5 + #6 Oil Macro + #7 + Gold Micro market_close).
+Cumulative disproven (10 filters): #2, #3, #10, #13, #14, #16 + replay-tested filters + #15 ship+revert + **#25 (this one)**.
+
+Per the workflow rule "no auto-ship", #25 stays on `filter/25-bias-source` for record. Re-run anytime via `python3 scripts/run_filter_25_bias_source.py`.
