@@ -70,6 +70,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    bias_source: str = "prior_day",  # Filter #25 sweep
 ) -> BacktestResult:
     """be_trigger_pct: BE trigger fraction. None = read from ALPHA_SWEEP config (post-#5: 0.35).
     trail_after_be_pct: post-BE trail. None = read from config. Filter #6 shipped Oil Macro only (0.50).
@@ -95,33 +96,71 @@ def run_backtest(
 
     # Daily bias — Combined V1+V2 (matches live scheduler and other 3 systems)
     daily_bias = {}
-    for i in range(1, len(oil_d)):
-        # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session, so its
-        # .date() is one day before the session. Trade-date = bar.date() + 1; oil_d[i-1]
-        # represents (trade_date - 1) session = true yesterday's bias. See parity audit
-        # 2026-06-12 (drift bug #6): without the +1, BT used today's session as yesterday
-        # AND silently skipped trade-dates with no matching .date() key.
-        d = (oil_d.index[i] + pd.Timedelta(days=1)).date()
-        prev_range = oil_d["mid_high"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]
-        if prev_range <= 0:
-            daily_bias[d] = "neutral"
-            continue
-        body_pct = abs(oil_d["mid_close"].iat[i - 1] - oil_d["mid_open"].iat[i - 1]) / prev_range
-        close_position = (oil_d["mid_close"].iat[i - 1] - oil_d["mid_low"].iat[i - 1]) / prev_range
-        v1_bias = "neutral"
-        if body_pct >= 0.4:
-            v1_bias = "bullish" if oil_d["mid_close"].iat[i - 1] > oil_d["mid_open"].iat[i - 1] else "bearish"
-        v2_bias = "neutral"
-        if close_position >= 0.8:
-            v2_bias = "bullish"
-        elif close_position <= 0.2:
-            v2_bias = "bearish"
-        if v1_bias == "bearish" or v2_bias == "bearish":
-            daily_bias[d] = "bearish"
-        elif v1_bias == "bullish" or v2_bias == "bullish":
-            daily_bias[d] = "bullish"
+
+    # Filter #25 sweep: pre-compute partial-day OHLC from H1 for asia/pre_session variants.
+    asia_ohlc: dict = {}
+    pre_session_ohlc: dict = {}
+    if bias_source in ("asia", "pre_session"):
+        h1_idx = oil_h1.index
+        cal_dates = h1_idx.normalize()
+        hours = h1_idx.hour
+        td = cal_dates + pd.to_timedelta((hours >= 21).astype(int), unit="D")
+        td_dates = td.date
+        from collections import defaultdict
+        def _build(mask_arr):
+            buckets = defaultdict(list)
+            for j in range(len(h1_idx)):
+                if not mask_arr[j]: continue
+                buckets[td_dates[j]].append(j)
+            out = {}
+            for d_, idxs in buckets.items():
+                if not idxs: continue
+                o = (oil_h1["bid_open"].iat[idxs[0]] + oil_h1["ask_open"].iat[idxs[0]]) / 2
+                c = (oil_h1["bid_close"].iat[idxs[-1]] + oil_h1["ask_close"].iat[idxs[-1]]) / 2
+                highs = [(oil_h1["bid_high"].iat[k] + oil_h1["ask_high"].iat[k]) / 2 for k in idxs]
+                lows = [(oil_h1["bid_low"].iat[k] + oil_h1["ask_low"].iat[k]) / 2 for k in idxs]
+                out[d_] = (o, max(highs), min(lows), c)
+            return out
+        if bias_source == "asia":
+            asia_mask = (cal_dates.date == td_dates) & (hours < 8)
+            asia_ohlc = _build(asia_mask)
         else:
-            daily_bias[d] = "neutral"
+            pre_mask = ((hours >= 21) | (hours < 8))
+            pre_session_ohlc = _build(pre_mask)
+
+    def _bias_from_ohlc(o, h, l, c):
+        rng = h - l
+        if rng <= 0: return "neutral"
+        body_pct = abs(c - o) / rng
+        v1 = "neutral"
+        if body_pct >= 0.4:
+            v1 = "bullish" if c > o else "bearish"
+        cp = (c - l) / rng
+        v2 = "neutral"
+        if cp >= 0.8: v2 = "bullish"
+        elif cp <= 0.2: v2 = "bearish"
+        if v1 == "bearish" or v2 == "bearish": return "bearish"
+        if v1 == "bullish" or v2 == "bullish": return "bullish"
+        return "neutral"
+
+    for i in range(1, len(oil_d)):
+        d = (oil_d.index[i] + pd.Timedelta(days=1)).date()
+        if bias_source == "prior_day":
+            o = oil_d["mid_open"].iat[i - 1]; h = oil_d["mid_high"].iat[i - 1]
+            l = oil_d["mid_low"].iat[i - 1]; c = oil_d["mid_close"].iat[i - 1]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "lookahead_today":
+            o = oil_d["mid_open"].iat[i]; h = oil_d["mid_high"].iat[i]
+            l = oil_d["mid_low"].iat[i]; c = oil_d["mid_close"].iat[i]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "asia":
+            ohlc = asia_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
+        elif bias_source == "pre_session":
+            ohlc = pre_session_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
+        else:
+            raise ValueError(f"Unknown bias_source: {bias_source}")
 
     # Generate signals
     np.random.seed(seed)

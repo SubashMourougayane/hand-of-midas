@@ -29,6 +29,7 @@ def run_backtest(
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
     disable_market_close: bool | None = None,
+    bias_source: str = "prior_day",  # Filter #25 sweep
 ) -> BacktestResult:
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
 
@@ -77,32 +78,70 @@ def run_backtest(
     gold_50ma_dict = {}
     gold_close_dict = {}
 
-    for i in range(1, len(gold_d)):
-        # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session,
-        # so trade-date = bar.date() + 1day; oil_d[i-1] = true yesterday's bar. See parity audit
-        # 2026-06-12 (drift bug #6).
-        d = (gold_d.index[i] + pd.Timedelta(days=1)).date()
-        prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
-        if prev_range > 0:
-            # Combined V1+V2: EITHER body% OR close-position triggers directional
-            body_pct = abs(gold_d["mid_close"].iat[i - 1] - gold_d["mid_open"].iat[i - 1]) / prev_range
-            v1_bias = "neutral"
-            if body_pct >= 0.4:
-                v1_bias = "bullish" if gold_d["mid_close"].iat[i - 1] > gold_d["mid_open"].iat[i - 1] else "bearish"
-            close_position = (gold_d["mid_close"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]) / prev_range
-            v2_bias = "neutral"
-            if close_position >= 0.8:
-                v2_bias = "bullish"
-            elif close_position <= 0.2:
-                v2_bias = "bearish"
-            if v1_bias == "bearish" or v2_bias == "bearish":
-                daily_bias[d] = "bearish"
-            elif v1_bias == "bullish" or v2_bias == "bullish":
-                daily_bias[d] = "bullish"
-            else:
-                daily_bias[d] = "neutral"
+    # Filter #25 sweep: pre-compute partial-day OHLC from H1 for asia/pre_session
+    asia_ohlc: dict = {}
+    pre_session_ohlc: dict = {}
+    if bias_source in ("asia", "pre_session"):
+        h1_idx = gold_h1.index
+        cal_dates = h1_idx.normalize()
+        hours = h1_idx.hour
+        td = cal_dates + pd.to_timedelta((hours >= 21).astype(int), unit="D")
+        td_dates = td.date
+        from collections import defaultdict
+        def _build(mask_arr):
+            buckets = defaultdict(list)
+            for j in range(len(h1_idx)):
+                if not mask_arr[j]: continue
+                buckets[td_dates[j]].append(j)
+            out = {}
+            for d_, idxs in buckets.items():
+                if not idxs: continue
+                o = (gold_h1["bid_open"].iat[idxs[0]] + gold_h1["ask_open"].iat[idxs[0]]) / 2
+                c = (gold_h1["bid_close"].iat[idxs[-1]] + gold_h1["ask_close"].iat[idxs[-1]]) / 2
+                highs = [(gold_h1["bid_high"].iat[k] + gold_h1["ask_high"].iat[k]) / 2 for k in idxs]
+                lows = [(gold_h1["bid_low"].iat[k] + gold_h1["ask_low"].iat[k]) / 2 for k in idxs]
+                out[d_] = (o, max(highs), min(lows), c)
+            return out
+        if bias_source == "asia":
+            asia_mask = (cal_dates.date == td_dates) & (hours < 8)
+            asia_ohlc = _build(asia_mask)
         else:
-            daily_bias[d] = "neutral"
+            pre_mask = ((hours >= 21) | (hours < 8))
+            pre_session_ohlc = _build(pre_mask)
+
+    def _bias_from_ohlc(o, h, l, c):
+        rng = h - l
+        if rng <= 0: return "neutral"
+        body_pct = abs(c - o) / rng
+        v1 = "neutral"
+        if body_pct >= 0.4:
+            v1 = "bullish" if c > o else "bearish"
+        cp = (c - l) / rng
+        v2 = "neutral"
+        if cp >= 0.8: v2 = "bullish"
+        elif cp <= 0.2: v2 = "bearish"
+        if v1 == "bearish" or v2 == "bearish": return "bearish"
+        if v1 == "bullish" or v2 == "bullish": return "bullish"
+        return "neutral"
+
+    for i in range(1, len(gold_d)):
+        d = (gold_d.index[i] + pd.Timedelta(days=1)).date()
+        if bias_source == "prior_day":
+            o = gold_d["mid_open"].iat[i - 1]; h = gold_d["mid_high"].iat[i - 1]
+            l = gold_d["mid_low"].iat[i - 1]; c = gold_d["mid_close"].iat[i - 1]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "lookahead_today":
+            o = gold_d["mid_open"].iat[i]; h = gold_d["mid_high"].iat[i]
+            l = gold_d["mid_low"].iat[i]; c = gold_d["mid_close"].iat[i]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "asia":
+            ohlc = asia_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
+        elif bias_source == "pre_session":
+            ohlc = pre_session_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
+        else:
+            raise ValueError(f"Unknown bias_source: {bias_source}")
         if not np.isnan(gold_50ma_vals[i]):
             gold_50ma_dict[d] = gold_50ma_vals[i]
         gold_close_dict[d] = gold_d["mid_close"].iat[i]

@@ -82,6 +82,7 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    bias_source: str = "prior_day",  # Filter #25 sweep: prior_day | asia | pre_session | lookahead_today
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -115,6 +116,73 @@ def run_backtest(
     gold_50ma_dict = {}
     gold_close_dict = {}
 
+    # Filter #25 sweep: pre-compute partial-day OHLC from H1 for asia/pre_session variants.
+    # H1 timestamps in OANDA are at the *start* of the hour (xx:00). With dailyAlignment=21,
+    # the trade-day session "T+1" runs from `T 21:00` to `(T+1) 21:00`. Asia covers
+    # `(T+1) 00:00 → (T+1) 08:00`. Pre-session covers `T 21:00 → (T+1) 08:00` (full overnight).
+    asia_ohlc: dict = {}        # keyed by trade_date
+    pre_session_ohlc: dict = {} # keyed by trade_date
+    if bias_source in ("asia", "pre_session"):
+        h1 = gold_h1
+        h1_idx = h1.index
+        # Group H1 bars by trade_date_assigned. trade_date_assigned for an H1 bar at hour H of
+        # calendar date C: if H >= 21, it belongs to trade_date C+1; else trade_date C.
+        cal_dates = h1_idx.normalize()
+        hours = h1_idx.hour
+        # trade_date for each row
+        td = cal_dates + pd.to_timedelta((hours >= 21).astype(int), unit="D")
+        td_dates = td.date  # numpy array of date objects
+        # Asia mask: hour in 0..7 of trade-date (so cal_date == trade-date AND hour < 8)
+        asia_mask = (cal_dates.date == td_dates) & (hours < 8)
+        # Pre-session mask: from prev-cal-date 21:00 to trade-date 08:00 → all rows where trade_date assignment != neutral
+        # Simpler: pre_session = prev-cal-date hour>=21 OR trade-date hour<8
+        pre_mask = ((hours >= 21) | (hours < 8))
+
+        # Build dict: trade_date -> (open, high, low, close)
+        from collections import defaultdict
+        def _build(mask_arr):
+            buckets = defaultdict(list)
+            for j in range(len(h1_idx)):
+                if not mask_arr[j]:
+                    continue
+                buckets[td_dates[j]].append(j)
+            out = {}
+            for d_, idxs in buckets.items():
+                if not idxs:
+                    continue
+                ohlc_open = (h1["bid_open"].iat[idxs[0]] + h1["ask_open"].iat[idxs[0]]) / 2
+                ohlc_close = (h1["bid_close"].iat[idxs[-1]] + h1["ask_close"].iat[idxs[-1]]) / 2
+                # high/low from the slice
+                highs = [(h1["bid_high"].iat[k] + h1["ask_high"].iat[k]) / 2 for k in idxs]
+                lows = [(h1["bid_low"].iat[k] + h1["ask_low"].iat[k]) / 2 for k in idxs]
+                out[d_] = (ohlc_open, max(highs), min(lows), ohlc_close)
+            return out
+
+        if bias_source == "asia":
+            asia_ohlc = _build(asia_mask)
+        else:
+            pre_session_ohlc = _build(pre_mask)
+
+    def _bias_from_ohlc(o, h, l, c):
+        rng = h - l
+        if rng <= 0:
+            return "neutral"
+        body_pct = abs(c - o) / rng
+        v1 = "neutral"
+        if body_pct >= 0.4:
+            v1 = "bullish" if c > o else "bearish"
+        cp = (c - l) / rng
+        v2 = "neutral"
+        if cp >= 0.8:
+            v2 = "bullish"
+        elif cp <= 0.2:
+            v2 = "bearish"
+        if v1 == "bearish" or v2 == "bearish":
+            return "bearish"
+        if v1 == "bullish" or v2 == "bullish":
+            return "bullish"
+        return "neutral"
+
     for i in range(1, len(gold_d)):
         # OANDA daily bars use dailyAlignment=21 convention: a bar with timestamp T 21:00
         # represents the trading session T 21:00 → (T+1) 21:00, so .date() of the timestamp
@@ -122,27 +190,28 @@ def run_backtest(
         # expecting "yesterday's session bias." Therefore: trade_date = bar_index[i].date() + 1day,
         # using oil_d[i-1] (which represents (trade_date - 1) session = TRUE yesterday).
         d = (gold_d.index[i] + pd.Timedelta(days=1)).date()
-        prev_range = gold_d["mid_high"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]
-        if prev_range > 0:
-            # Combined V1+V2 bias: EITHER body% OR close-position triggers directional
-            body_pct = abs(gold_d["mid_close"].iat[i - 1] - gold_d["mid_open"].iat[i - 1]) / prev_range
-            v1_bias = "neutral"
-            if body_pct >= 0.4:
-                v1_bias = "bullish" if gold_d["mid_close"].iat[i - 1] > gold_d["mid_open"].iat[i - 1] else "bearish"
-            close_position = (gold_d["mid_close"].iat[i - 1] - gold_d["mid_low"].iat[i - 1]) / prev_range
-            v2_bias = "neutral"
-            if close_position >= 0.8:
-                v2_bias = "bullish"
-            elif close_position <= 0.2:
-                v2_bias = "bearish"
-            if v1_bias == "bearish" or v2_bias == "bearish":
-                daily_bias[d] = "bearish"
-            elif v1_bias == "bullish" or v2_bias == "bullish":
-                daily_bias[d] = "bullish"
-            else:
-                daily_bias[d] = "neutral"
+
+        if bias_source == "prior_day":
+            o = gold_d["mid_open"].iat[i - 1]
+            h = gold_d["mid_high"].iat[i - 1]
+            l = gold_d["mid_low"].iat[i - 1]
+            c = gold_d["mid_close"].iat[i - 1]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "lookahead_today":
+            o = gold_d["mid_open"].iat[i]
+            h = gold_d["mid_high"].iat[i]
+            l = gold_d["mid_low"].iat[i]
+            c = gold_d["mid_close"].iat[i]
+            daily_bias[d] = _bias_from_ohlc(o, h, l, c)
+        elif bias_source == "asia":
+            ohlc = asia_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
+        elif bias_source == "pre_session":
+            ohlc = pre_session_ohlc.get(d)
+            daily_bias[d] = _bias_from_ohlc(*ohlc) if ohlc else "neutral"
         else:
-            daily_bias[d] = "neutral"
+            raise ValueError(f"Unknown bias_source: {bias_source}")
+
         if not np.isnan(gold_50ma_vals[i]):
             gold_50ma_dict[d] = gold_50ma_vals[i]
         gold_close_dict[d] = gold_d["mid_close"].iat[i]
