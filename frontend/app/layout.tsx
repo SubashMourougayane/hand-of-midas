@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import InstrumentProvider from "@/components/InstrumentProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AppShell } from "@/components/shell/AppShell";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +22,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body className="min-h-full flex">
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable} h-full`}
+      style={{
+        // Geist's variable -> Tailwind v4 theme tokens. Inline so the @theme
+        // tokens resolve to the right CSS variable name on first paint.
+        ["--font-sans" as string]: "var(--font-geist-sans)",
+        ["--font-mono" as string]: "var(--font-geist-mono)",
+      }}
+    >
+      <body className="min-h-full">
         <AuthProvider>
-          <InstrumentProvider>{children}</InstrumentProvider>
+          <InstrumentProvider>
+            <AppShell>{children}</AppShell>
+          </InstrumentProvider>
         </AuthProvider>
       </body>
     </html>

@@ -1,9 +1,21 @@
 "use client";
-import { useState, useEffect } from "react";
-import Sidebar from "@/components/Sidebar";
+import { useEffect, useMemo, useState } from "react";
 import TradeJourney from "@/components/TradeJourney";
 import { formatINR } from "@/lib/format";
 import { useInstrument } from "@/lib/instrument";
+import { client, type ServiceKey } from "@/lib/client";
+import {
+  PageHeader,
+  Card,
+  Stat,
+  Tabs,
+  Table,
+  Badge,
+  Button,
+  Sheet,
+  EmptyState,
+  type Column,
+} from "@/components/ui";
 
 interface LiveTrade {
   trade_ref: string; strategy: string; side: string;
@@ -19,255 +31,432 @@ interface BacktestTrade {
   risk: number; r_mult: number; equity_after: number; bars_held?: number;
 }
 
+interface Stats {
+  total?: number;
+  win_rate?: number;
+  total_pnl?: number;
+  avg_win?: number;
+  avg_loss?: number;
+}
+
+const PER_PAGE = 50;
+
+const STRATEGY_META: Record<string, { label: string; color: string }> = {
+  alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
+  micro_alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
+  micro_alpha_sweep_oil: { label: "Alpha", color: "var(--color-info)" },
+  mean_rev: { label: "MRev", color: "var(--color-win)" },
+  cross_market: { label: "Cross", color: "var(--color-warn)" },
+};
+
+function strategyBadge(strategy: string) {
+  const key = Object.keys(STRATEGY_META).find((k) => strategy.includes(k)) ?? "cross_market";
+  const meta = STRATEGY_META[key];
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: meta.color }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: meta.color }} aria-hidden />
+      {meta.label}
+    </span>
+  );
+}
+
+function formatLiveDate(iso?: string) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit", month: "short",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function formatBacktestDate(iso: string) {
+  // "2006-04-13T21:00:00+00:00" -> "13 Apr 2006"
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function TradesPage() {
-  const { apiBase, instrument } = useInstrument();
-  const API_BASE = apiBase;
-  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
+  const { instrument } = useInstrument();
+  const svc = instrument as ServiceKey;
   const [tab, setTab] = useState<"live" | "backtest">("backtest");
+  const [filter, setFilter] = useState({ strategy: "", side: "", result: "", year: "" });
+  const [page, setPage] = useState(1);
   const [liveTrades, setLiveTrades] = useState<LiveTrade[]>([]);
   const [btTrades, setBtTrades] = useState<BacktestTrade[]>([]);
-  const [stats, setStats] = useState<Record<string, number>>({});
-  const [filter, setFilter] = useState({ strategy: "", side: "", result: "", year: "" });
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [stats, setStats] = useState<Stats>({});
   const [totalPages, setTotalPages] = useState(1);
   const [totalTrades, setTotalTrades] = useState(0);
-  const perPage = 50;
-  const [selectedTrade, setSelectedTrade] = useState<BacktestTrade | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<BacktestTrade | LiveTrade | null>(null);
 
-  const fetchTrades = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filter.strategy) params.set("strategy", filter.strategy === "alpha_sweep" ? "micro_alpha_sweep" : filter.strategy);
-      if (filter.side) params.set("side", filter.side);
-      if (filter.result) params.set("result", filter.result.toUpperCase());
-
-      if (tab === "live") {
-        params.set("limit", "200");
-        const res = await fetch(`${API_BASE}/api/${prefix}/trades?${params}`);
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = await res.json();
-        setLiveTrades(data.trades || data || []);
-        setStats(data.stats || {});
-      } else {
-        if (filter.year) params.set("year", filter.year);
-        params.set("page", String(page));
-        params.set("per_page", String(perPage));
-        const res = await fetch(`${API_BASE}/api/${prefix}/trades/backtest?${params}`);
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = await res.json();
-        setBtTrades(data.trades || []);
-        setTotalPages(data.pages || 1);
-        setTotalTrades(data.total || 0);
-        setStats(data.stats || {});
-      }
-    } catch {
-      setTimeout(fetchTrades, 3000);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchTrades(); }, [tab, filter, page, apiBase, instrument]);
+  // Reset to page 1 whenever the underlying query changes
   useEffect(() => { setPage(1); }, [filter, tab, instrument]);
 
-  const stratColor = (s: string) => s.includes("alpha_sweep") ? "#4fc3f7" : s === "mean_rev" ? "#00e87b" : "#ffd54f";
-  const stratLabel = (s: string) => s.includes("alpha_sweep") ? "ALPHA" : s === "mean_rev" ? "MREV" : "CROSS";
+  // Fetch
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      const params: Record<string, unknown> = {};
+      if (filter.strategy) {
+        params.strategy = filter.strategy === "alpha_sweep" ? "micro_alpha_sweep" : filter.strategy;
+      }
+      if (filter.side) params.side = filter.side;
+      if (filter.result) params.result = filter.result.toUpperCase();
+      try {
+        if (tab === "live") {
+          params.limit = 200;
+          const data = await client(svc).trades<{ trades?: LiveTrade[]; stats?: Stats }>({ ...params });
+          if (cancelled) return;
+          setLiveTrades(Array.isArray(data) ? data as LiveTrade[] : (data?.trades ?? []));
+          setStats(((data as { stats?: Stats })?.stats ?? {}) as Stats);
+        } else {
+          params.source = "backtest";
+          if (filter.year) params.year = filter.year;
+          params.page = page;
+          params.per_page = PER_PAGE;
+          const data = await client(svc).trades<{ trades?: BacktestTrade[]; stats?: Stats; pages?: number; total?: number }>({ ...params });
+          if (cancelled) return;
+          setBtTrades(data?.trades ?? []);
+          setTotalPages(data?.pages ?? 1);
+          setTotalTrades(data?.total ?? 0);
+          setStats((data?.stats ?? {}) as Stats);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveTrades([]);
+          setBtTrades([]);
+          setStats({});
+        }
+      }
+      if (!cancelled) setLoading(false);
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [tab, filter, page, svc]);
+
+  // Close detail sheet when service changes (data is now stale)
+  useEffect(() => { setSelected(null); }, [svc]);
+
+  const liveCols: Column<LiveTrade>[] = useMemo(() => [
+    {
+      key: "date",
+      header: "When",
+      cell: (t) => <span className="num text-[var(--color-text-muted)]">{formatLiveDate(t.exit_time || t.entry_time)}</span>,
+    },
+    { key: "strategy", header: "Strategy", cell: (t) => strategyBadge(t.strategy) },
+    {
+      key: "side",
+      header: "Side",
+      cell: (t) => <Badge tone={t.side === "LONG" ? "win" : "loss"} variant="soft">{t.side}</Badge>,
+    },
+    {
+      key: "entry",
+      header: "Entry",
+      align: "right",
+      cell: (t) => <span className="num">${t.entry_price.toFixed(2)}</span>,
+    },
+    {
+      key: "exit",
+      header: "Exit",
+      align: "right",
+      cell: (t) => <span className="num text-[var(--color-text-dim)]">{t.exit_price ? `$${t.exit_price.toFixed(2)}` : "—"}</span>,
+    },
+    {
+      key: "pnl",
+      header: "P&L",
+      align: "right",
+      cell: (t) => {
+        const v = t.pnl_usd ?? t.pnl_gbp ?? 0;
+        return (
+          <span className={`num font-semibold ${v >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+            {v >= 0 ? "+" : ""}{v.toFixed(0)}
+          </span>
+        );
+      },
+    },
+    {
+      key: "exitReason",
+      header: "Reason",
+      cell: (t) => <span className="text-[11px] text-[var(--color-warn)] uppercase">{t.exit_reason ?? "—"}</span>,
+      hideOnMobile: true,
+    },
+    {
+      key: "units",
+      header: "Units",
+      align: "right",
+      cell: (t) => <span className="num text-[var(--color-text-dim)]">{t.units}</span>,
+      hideOnMobile: true,
+    },
+  ], []);
+
+  const btCols: Column<BacktestTrade>[] = useMemo(() => [
+    {
+      key: "date",
+      header: "Date",
+      cell: (t) => <span className="num text-[var(--color-text-muted)]">{formatBacktestDate(t.date)}</span>,
+    },
+    { key: "strategy", header: "Strategy", cell: (t) => strategyBadge(t.strategy) },
+    {
+      key: "side",
+      header: "Side",
+      cell: (t) => <Badge tone={t.direction === "LONG" ? "win" : "loss"} variant="soft">{t.direction}</Badge>,
+    },
+    {
+      key: "entry",
+      header: "Entry",
+      align: "right",
+      cell: (t) => <span className="num">${t.entry.toFixed(0)}</span>,
+    },
+    {
+      key: "exit",
+      header: "Exit",
+      align: "right",
+      cell: (t) => <span className="num text-[var(--color-text-dim)]">${t.exit_price.toFixed(0)}</span>,
+    },
+    {
+      key: "pnl",
+      header: "P&L",
+      align: "right",
+      cell: (t) => (
+        <span className={`num font-semibold ${t.pnl_sized >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+          {t.pnl_sized >= 0 ? "+" : ""}${t.pnl_sized.toFixed(0)}
+        </span>
+      ),
+    },
+    {
+      key: "r",
+      header: "R",
+      align: "right",
+      cell: (t) => (
+        <span
+          className={`num text-[11px] ${
+            t.r_mult > 0 ? "text-[var(--color-win)]" : t.r_mult < 0 ? "text-[var(--color-loss)]" : "text-[var(--color-text-muted)]"
+          }`}
+        >
+          {t.r_mult > 0 ? "+" : ""}{t.r_mult.toFixed(1)}R
+        </span>
+      ),
+      hideOnMobile: true,
+    },
+    {
+      key: "exitReason",
+      header: "Exit",
+      cell: (t) => <span className="text-[11px] text-[var(--color-warn)] uppercase">{t.status}</span>,
+      hideOnMobile: true,
+    },
+    {
+      key: "hold",
+      header: "Held",
+      cell: (t) => <span className="text-[11px] text-[var(--color-text-dim)]">{t.hold_human}</span>,
+      hideOnMobile: true,
+    },
+  ], []);
+
+  // Type-narrowing for the Sheet content
+  const selectedBacktest = selected && "pnl_sized" in selected ? selected as BacktestTrade : null;
+
+  const totalPnl = stats.total_pnl ?? 0;
 
   return (
-    <>
-      <Sidebar />
-      <main className="flex-1 p-3 sm:p-6 overflow-auto pt-14 md:pt-6">
-        <h1 className="text-xl font-bold text-[var(--text)] mb-1">TRADES</h1>
-        <p className="text-xs text-[var(--text-dim)] mb-4">Trade history — live execution and backtested results</p>
+    <div className="p-3 sm:p-6 max-w-[1280px] mx-auto">
+      <PageHeader
+        title="Trades"
+        description="Live execution and backtested results"
+        actions={
+          <Tabs.Root value={tab} onValueChange={(v) => setTab(v as "live" | "backtest")}>
+            <Tabs.List>
+              <Tabs.Trigger value="live">Live</Tabs.Trigger>
+              <Tabs.Trigger value="backtest">Backtest</Tabs.Trigger>
+            </Tabs.List>
+          </Tabs.Root>
+        }
+      />
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-4">
-          <button onClick={() => setTab("live")}
-            className={`text-xs px-4 py-1.5 border ${tab === "live" ? "border-[var(--green)] text-[var(--green)] bg-[var(--green-dim)]" : "border-[var(--border)] text-[var(--text-dim)]"}`}>
-            LIVE
-          </button>
-          <button onClick={() => setTab("backtest")}
-            className={`text-xs px-4 py-1.5 border ${tab === "backtest" ? "border-[var(--blue)] text-[var(--blue)] bg-[#4da6ff10]" : "border-[var(--border)] text-[var(--text-dim)]"}`}>
-            BACKTEST
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <select value={filter.strategy} onChange={(e) => setFilter({ ...filter, strategy: e.target.value })}
-            className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+      {/* Filter bar */}
+      <Card padded surface={1} className="mb-4">
+        <div className="flex gap-2 flex-wrap items-center">
+          <select
+            value={filter.strategy}
+            onChange={(e) => setFilter({ ...filter, strategy: e.target.value })}
+            aria-label="Filter by strategy"
+          >
             <option value="">All Strategies</option>
             <option value="alpha_sweep">Alpha-Sweep</option>
             <option value="micro_alpha_sweep">Micro Alpha-Sweep</option>
             <option value="mean_rev">Mean-Rev</option>
             <option value="cross_market">Cross-Market</option>
           </select>
-          <select value={filter.side} onChange={(e) => setFilter({ ...filter, side: e.target.value })}
-            className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+          <select
+            value={filter.side}
+            onChange={(e) => setFilter({ ...filter, side: e.target.value })}
+            aria-label="Filter by side"
+          >
             <option value="">All Sides</option>
-            <option value="LONG">LONG</option>
-            <option value="SHORT">SHORT</option>
+            <option value="LONG">Long</option>
+            <option value="SHORT">Short</option>
           </select>
-          <select value={filter.result} onChange={(e) => setFilter({ ...filter, result: e.target.value })}
-            className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+          <select
+            value={filter.result}
+            onChange={(e) => setFilter({ ...filter, result: e.target.value })}
+            aria-label="Filter by result"
+          >
             <option value="">All Results</option>
             <option value="WIN">Winners</option>
             <option value="LOSS">Losers</option>
           </select>
-          {tab === "backtest" && (
-            <select value={filter.year} onChange={(e) => setFilter({ ...filter, year: e.target.value })}
-              className="bg-[var(--bg)] border border-[var(--border)] text-[var(--text)] text-xs px-2 py-1.5">
+          {tab === "backtest" ? (
+            <select
+              value={filter.year}
+              onChange={(e) => setFilter({ ...filter, year: e.target.value })}
+              aria-label="Filter by year"
+            >
               <option value="">All Years</option>
-              {Array.from({ length: 21 }, (_, i) => 2006 + i).map(y => (
+              {Array.from({ length: 21 }, (_, i) => 2006 + i).map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
-          )}
+          ) : null}
+          {(filter.strategy || filter.side || filter.result || filter.year) ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setFilter({ strategy: "", side: "", result: "", year: "" })}
+            >
+              Reset
+            </Button>
+          ) : null}
         </div>
+      </Card>
 
-        {/* Stats */}
-        {stats.total > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
-            <div className="t-panel p-3">
-              <div className="text-[9px] text-[var(--text-dim)] uppercase">Trades</div>
-              <div className="text-lg font-bold">{stats.total}</div>
-            </div>
-            <div className="t-panel p-3">
-              <div className="text-[9px] text-[var(--text-dim)] uppercase">Win Rate</div>
-              <div className="text-lg font-bold">{((stats.win_rate || 0) * 100).toFixed(1)}%</div>
-            </div>
-            <div className="t-panel p-3">
-              <div className="text-[9px] text-[var(--text-dim)] uppercase">Total P&L</div>
-              <div className={`text-lg font-bold ${(stats.total_pnl || 0) >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                ${(stats.total_pnl || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </div>
-              <div className="text-[10px] text-[var(--text-dim)]">{formatINR(stats.total_pnl || 0)}</div>
-            </div>
-            <div className="t-panel p-3">
-              <div className="text-[9px] text-[var(--text-dim)] uppercase">Avg Win</div>
-              <div className="text-lg font-bold text-[var(--green)]">${(stats.avg_win || 0).toFixed(0)}</div>
-              <div className="text-[10px] text-[var(--text-dim)]">{formatINR(stats.avg_win || 0)}</div>
-            </div>
-            <div className="t-panel p-3">
-              <div className="text-[9px] text-[var(--text-dim)] uppercase">Avg Loss</div>
-              <div className="text-lg font-bold text-[var(--red)]">${(stats.avg_loss || 0).toFixed(0)}</div>
-              <div className="text-[10px] text-[var(--text-dim)]">{formatINR(stats.avg_loss || 0)}</div>
-            </div>
-          </div>
-        )}
+      {/* Stats row */}
+      {stats.total && stats.total > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4 hom-stagger-children">
+          <Card padded lift className="hom-stagger">
+            <Stat label="Trades" value={stats.total} animate mono />
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <Stat
+              label="Win rate"
+              value={(stats.win_rate ?? 0) * 100}
+              animate
+              decimals={1}
+              suffix="%"
+              tone={(stats.win_rate ?? 0) > 0.5 ? "win" : "neutral"}
+            />
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <Stat
+              label="Total P&L"
+              value={totalPnl}
+              animate
+              prefix={totalPnl >= 0 ? "+$" : "-$"}
+              decimals={0}
+              tone={totalPnl >= 0 ? "win" : "loss"}
+              hint={<span className="num">{formatINR(totalPnl)}</span>}
+            />
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <Stat
+              label="Avg win"
+              value={stats.avg_win ?? 0}
+              animate
+              prefix="+$"
+              tone="win"
+              hint={<span className="num">{formatINR(stats.avg_win ?? 0)}</span>}
+            />
+          </Card>
+          <Card padded lift className="hom-stagger">
+            <Stat
+              label="Avg loss"
+              value={Math.abs(stats.avg_loss ?? 0)}
+              animate
+              prefix="-$"
+              tone="loss"
+              hint={<span className="num">{formatINR(stats.avg_loss ?? 0)}</span>}
+            />
+          </Card>
+        </div>
+      ) : null}
 
-        {/* Trade Journey (when a backtest trade is selected) */}
-        {selectedTrade && (
-          <TradeJourney
-            date={selectedTrade.date}
-            strategy={selectedTrade.strategy}
-            direction={selectedTrade.direction}
-            entry={selectedTrade.entry}
-            sl={selectedTrade.sl}
-            tp={selectedTrade.tp}
-            exit_price={selectedTrade.exit_price}
-            pnl={selectedTrade.pnl_sized}
-            bars_held={selectedTrade.bars_held || 10}
-            status={selectedTrade.status}
-            hold_human={selectedTrade.hold_human}
-            onClose={() => setSelectedTrade(null)}
-          />
-        )}
-
-        {/* Trade Table */}
-        <div className="t-panel p-3 sm:p-4">
-          {loading ? (
-            <p className="text-xs text-[var(--text-dim)]">Loading...</p>
-          ) : tab === "live" && liveTrades.length === 0 ? (
-            <p className="text-xs text-[var(--text-dim)]">No live trades yet. First signal at 22:00 UTC (daily) or 08:00-10:30 UTC (London).</p>
-          ) : tab === "backtest" && btTrades.length === 0 ? (
-            <p className="text-xs text-[var(--text-dim)]">No backtest results in DB. Run a backtest first from the Backtest page.</p>
+      {/* Trade table */}
+      <Card>
+        <div className="p-3">
+          {tab === "live" ? (
+            <Table<LiveTrade>
+              columns={liveCols}
+              rows={liveTrades}
+              rowKey={(r) => r.trade_ref}
+              loading={loading}
+              loadingRows={5}
+              emptyState={
+                <EmptyState
+                  title="No live trades yet"
+                  description="First signal at 22:00 UTC (daily) or 08:00–10:30 UTC (London)."
+                />
+              }
+            />
           ) : (
-            <div className="overflow-x-auto max-h-[600px]">
-              <table className="w-full text-[11px]">
-                <thead className="sticky top-0 bg-[var(--panel)]">
-                  <tr className="text-[var(--text-dim)]">
-                    <th className="text-left py-1">Date</th>
-                    <th className="text-left">Strategy</th>
-                    <th className="text-left">Side</th>
-                    <th className="text-right">Entry</th>
-                    <th className="text-right">Exit</th>
-                    <th className="text-right">P&L</th>
-                    {tab === "backtest" && <th className="text-right">R</th>}
-                    <th className="text-left">Exit</th>
-                    <th className="text-left">{tab === "backtest" ? "Hold" : "Units"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tab === "live" && liveTrades.map((t) => (
-                    <tr key={t.trade_ref} className="border-t border-[var(--border)] hover:bg-[var(--panel-alt)]">
-                      <td className="py-1 text-[var(--text-dim)]">
-                        {t.exit_time ? new Date(t.exit_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
-                      </td>
-                      <td><span style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span></td>
-                      <td className={t.side === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{t.side}</td>
-                      <td className="text-right">${t.entry_price.toFixed(2)}</td>
-                      <td className="text-right">{t.exit_price ? `$${t.exit_price.toFixed(2)}` : "—"}</td>
-                      <td className={`text-right font-semibold ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                        ${(t.pnl_usd || t.pnl_gbp) >= 0 ? "+" : ""}{(t.pnl_usd || t.pnl_gbp).toFixed(0)}
-                      </td>
-                      <td className="text-[var(--yellow)]">{t.exit_reason}</td>
-                      <td>{t.units}</td>
-                    </tr>
-                  ))}
-                  {tab === "backtest" && btTrades.map((t, i) => (
-                    <tr key={i} onClick={() => setSelectedTrade(t)}
-                      className={`border-t border-[var(--border)] hover:bg-[var(--panel-alt)] cursor-pointer ${selectedTrade?.date === t.date && selectedTrade?.entry === t.entry ? "bg-[var(--panel-alt)]" : ""}`}>
-                      <td className="py-1 text-[var(--text-dim)]">{t.date}</td>
-                      <td><span style={{ color: stratColor(t.strategy) }}>{stratLabel(t.strategy)}</span></td>
-                      <td className={t.direction === "LONG" ? "text-[var(--green)]" : "text-[var(--red)]"}>{t.direction}</td>
-                      <td className="text-right">${t.entry.toFixed(0)}</td>
-                      <td className="text-right">${t.exit_price.toFixed(0)}</td>
-                      <td className={`text-right font-semibold ${t.pnl_sized >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                        ${t.pnl_sized >= 0 ? "+" : ""}{t.pnl_sized.toFixed(0)}
-                        <span className="text-[9px] text-[var(--text-dim)] ml-0.5">({formatINR(t.pnl_sized)})</span>
-                      </td>
-                      <td className="text-right">{t.r_mult > 0 ? "+" : ""}{t.r_mult.toFixed(1)}R</td>
-                      <td className="text-[var(--yellow)]">{t.status}</td>
-                      <td>{t.hold_human}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {/* Pagination */}
-          {tab === "backtest" && totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--border)]">
-              <span className="text-[10px] text-[var(--text-dim)]">
-                Showing {(page-1)*perPage + 1}–{Math.min(page*perPage, totalTrades)} of {totalTrades} trades
-              </span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage(1)} disabled={page === 1}
-                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
-                  «
-                </button>
-                <button onClick={() => setPage(page - 1)} disabled={page === 1}
-                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
-                  ‹
-                </button>
-                <span className="px-3 py-1 text-xs font-bold text-[var(--text)] bg-[var(--bg)] border border-[var(--border)]">
-                  {page} / {totalPages}
-                </span>
-                <button onClick={() => setPage(page + 1)} disabled={page === totalPages}
-                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
-                  ›
-                </button>
-                <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
-                  className="px-2 py-1 text-xs border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-30">
-                  »
-                </button>
-              </div>
-            </div>
+            <Table<BacktestTrade>
+              columns={btCols}
+              rows={btTrades}
+              rowKey={(r, i) => `${r.date}-${r.entry}-${i}`}
+              loading={loading}
+              loadingRows={8}
+              onRowClick={(r) => setSelected(r)}
+              emptyState={
+                <EmptyState
+                  title="No backtest results in DB"
+                  description="Run a backtest first from the Backtest page."
+                />
+              }
+            />
           )}
         </div>
-      </main>
-    </>
+
+        {/* Pagination */}
+        {tab === "backtest" && totalPages > 1 ? (
+          <Card.Footer>
+            <span className="num text-[11px] text-[var(--color-text-muted)] mr-auto">
+              Showing {(page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, totalTrades)} of {totalTrades.toLocaleString()}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setPage(1)} disabled={page === 1}>«</Button>
+            <Button size="sm" variant="ghost" onClick={() => setPage(page - 1)} disabled={page === 1}>‹</Button>
+            <span className="num text-[12px] px-2 text-[var(--color-text)] font-medium">
+              {page} / {totalPages}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setPage(page + 1)} disabled={page === totalPages}>›</Button>
+            <Button size="sm" variant="ghost" onClick={() => setPage(totalPages)} disabled={page === totalPages}>»</Button>
+          </Card.Footer>
+        ) : null}
+      </Card>
+
+      {/* Trade detail sheet (backtest only — has TradeJourney chart) */}
+      <Sheet
+        open={!!selectedBacktest}
+        onClose={() => setSelected(null)}
+        side="right"
+        width={720}
+        title={selectedBacktest ? `${selectedBacktest.direction} · ${formatBacktestDate(selectedBacktest.date)}` : ""}
+      >
+        {selectedBacktest ? (
+          <div className="p-3">
+            <TradeJourney
+              date={selectedBacktest.date}
+              strategy={selectedBacktest.strategy}
+              direction={selectedBacktest.direction}
+              entry={selectedBacktest.entry}
+              sl={selectedBacktest.sl}
+              tp={selectedBacktest.tp}
+              exit_price={selectedBacktest.exit_price}
+              pnl={selectedBacktest.pnl_sized}
+              bars_held={selectedBacktest.bars_held || 10}
+              status={selectedBacktest.status}
+              hold_human={selectedBacktest.hold_human}
+              onClose={() => setSelected(null)}
+            />
+          </div>
+        ) : null}
+      </Sheet>
+    </div>
   );
 }

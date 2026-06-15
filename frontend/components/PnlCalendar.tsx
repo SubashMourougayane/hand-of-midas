@@ -19,8 +19,9 @@ export default function PnlCalendar({ trades }: { trades: Trade[] }) {
   const maxPnl = Math.max(...Object.values(dailyPnl).map(Math.abs), 1);
   const getColor = (pnl: number) => {
     const intensity = Math.min(Math.abs(pnl) / maxPnl, 1);
-    if (pnl > 0) return `rgba(0, 232, 123, ${0.25 + intensity * 0.6})`;
-    if (pnl < 0) return `rgba(255, 62, 62, ${0.25 + intensity * 0.6})`;
+    // Win: #5fb675, Loss: #d8595c (matching --color-win/--color-loss)
+    if (pnl > 0) return `rgba(95, 182, 117, ${0.25 + intensity * 0.6})`;
+    if (pnl < 0) return `rgba(216, 89, 92, ${0.25 + intensity * 0.6})`;
     return "transparent";
   };
 
@@ -47,15 +48,15 @@ export default function PnlCalendar({ trades }: { trades: Trade[] }) {
   const canGoForward = yearIdx < years.length - 1;
 
   return (
-    <div className="t-panel p-4 relative" ref={containerRef}>
+    <div className="rounded-[5px] bg-[var(--color-surface-1)] border border-[var(--color-border)] p-4 relative" ref={containerRef}>
       {/* Tooltip */}
       {tooltip && (
-        <div className="absolute z-50 pointer-events-none px-2 py-1 text-[10px] font-semibold whitespace-nowrap"
+        <div className="absolute z-50 pointer-events-none px-2 py-1 num text-[10px] font-semibold whitespace-nowrap rounded"
           style={{
             left: tooltip.x, top: tooltip.y,
             transform: "translate(-50%, -100%)",
-            background: "#181c24", border: "1px solid #252a33",
-            color: tooltip.text.includes("+") ? "#00e87b" : "#ff3e3e",
+            background: "var(--color-surface-3)", border: "1px solid var(--color-border-hi)",
+            color: tooltip.text.includes("+") ? "var(--color-win)" : "var(--color-loss)",
           }}>
           {tooltip.text}
         </div>
@@ -64,19 +65,19 @@ export default function PnlCalendar({ trades }: { trades: Trade[] }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-dim)]">DAILY P&L CALENDAR</span>
-          <span className="text-[10px] font-bold" style={{ color: periodPnl >= 0 ? "#00e87b" : "#ff3e3e" }}>
-            {periodPnl >= 0 ? "+" : ""}${periodPnl.toFixed(0)} ({formatINR(periodPnl)})
+          <span className="text-[11px] uppercase tracking-[0.8px] font-semibold text-[var(--color-text-muted)]">Daily P&L Calendar</span>
+          <span className={`num text-[11px] font-semibold ${periodPnl >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
+            {periodPnl >= 0 ? "+" : ""}${periodPnl.toFixed(0)} <span className="text-[var(--color-text-muted)]">({formatINR(periodPnl)})</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => canGoBack && setViewYear(years[yearIdx - 1])} disabled={!canGoBack}
-            className="w-5 h-5 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-20">
+            className="w-5 h-5 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-brass-hi)] disabled:opacity-20 transition-colors">
             <ChevronLeft size={12} />
           </button>
-          <span className="text-xs font-bold text-[var(--text)]">{activeYear}</span>
+          <span className="num text-[12px] font-semibold text-[var(--color-text)]">{activeYear}</span>
           <button onClick={() => canGoForward && setViewYear(years[yearIdx + 1])} disabled={!canGoForward}
-            className="w-5 h-5 flex items-center justify-center text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-20">
+            className="w-5 h-5 flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-brass-hi)] disabled:opacity-20 transition-colors">
             <ChevronRight size={12} />
           </button>
         </div>
@@ -114,8 +115,8 @@ export default function PnlCalendar({ trades }: { trades: Trade[] }) {
             const dateStr = `${month}-${String(dayNum).padStart(2, "0")}`;
             cells.push(
               <div key={dayNum}
-                className="w-full aspect-square flex items-center justify-center cursor-pointer"
-                style={{ background: hasTrade ? getColor(pnl) : "#0d1117", border: "1px solid #1a1f2b" }}
+                className="w-full aspect-square flex items-center justify-center cursor-pointer rounded-[2px]"
+                style={{ background: hasTrade ? getColor(pnl) : "var(--color-surface-2)", border: "1px solid var(--color-border)" }}
                 onMouseEnter={(e) => {
                   if (!hasTrade) return;
                   const rect = (e.target as HTMLElement).getBoundingClientRect();
@@ -127,22 +128,25 @@ export default function PnlCalendar({ trades }: { trades: Trade[] }) {
                   });
                 }}
                 onMouseLeave={() => setTooltip(null)}>
-                {hasTrade && <span className="text-[6px] font-bold text-white">{dayNum}</span>}
+                {hasTrade && <span className="num text-[7px] font-semibold text-white">{dayNum}</span>}
               </div>
             );
           }
 
           return (
-            <div key={month} className="p-2" style={{ background: "#0a0d12", border: `1px solid ${monthPnl >= 0 ? "#00e87b22" : "#ff3e3e22"}` }}>
+            <div key={month} className="p-2 rounded-[4px]" style={{
+              background: "var(--color-bg)",
+              border: `1px solid ${monthPnl >= 0 ? "color-mix(in srgb, var(--color-win) 18%, transparent)" : "color-mix(in srgb, var(--color-loss) 18%, transparent)"}`,
+            }}>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[8px] font-bold text-[var(--text)]">{fmtMonth(month)}</span>
-                <span className="text-[9px] font-bold" style={{ color: monthPnl >= 0 ? "#00e87b" : "#ff3e3e" }}>
+                <span className="text-[10px] font-semibold text-[var(--color-text)]">{fmtMonth(month)}</span>
+                <span className={`num text-[10px] font-semibold ${monthPnl >= 0 ? "text-[var(--color-win)]" : "text-[var(--color-loss)]"}`}>
                   {monthPnl >= 0 ? "+" : ""}${monthPnl.toFixed(0)}
                 </span>
               </div>
               <div className="grid grid-cols-5 gap-[1px] mb-0.5">
                 {["M", "T", "W", "T", "F"].map((d, i) => (
-                  <span key={d + i} className="text-[5px] text-center text-[var(--text-dim)]">{d}</span>
+                  <span key={d + i} className="text-[7px] text-center text-[var(--color-text-muted)]">{d}</span>
                 ))}
               </div>
               <div className="grid grid-cols-5 gap-[1px]">

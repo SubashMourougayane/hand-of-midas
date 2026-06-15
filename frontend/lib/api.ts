@@ -1,3 +1,12 @@
+/**
+ * Legacy domain types shared across pages and components.
+ *
+ * The runtime functions that used to live here (runBacktest,
+ * getLatestBacktest) are now methods on MidasClient in lib/client.ts.
+ * Pages and components import the types from here directly; the live
+ * client re-exports them from lib/client.ts for convenience.
+ */
+
 export interface Trade {
   date: string;
   year: number;
@@ -83,76 +92,6 @@ export interface BacktestRequest {
   risk_pct: number;
 }
 
-export const API_BASE_GOLD = "";
-export const API_BASE_OIL = "";
-
-export async function runBacktest(
-  req: BacktestRequest,
-  apiBase: string,
-  instrument: string = "gold",
-  onProgress?: (msg: string) => void,
-): Promise<BacktestResult> {
-  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
-  const res = await fetch(`${apiBase}/api/${prefix}/backtest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
-  });
-  if (!res.ok) throw new Error(`Backtest failed: ${res.status}`);
-
-  // Both Macro and Micro now run in background threads.
-  // Try SSE first (Micro), fall back to polling (both).
-  if (res.headers.get("content-type")?.includes("text/event-stream")) {
-    const reader = res.body?.getReader();
-    if (reader) {
-      const decoder = new TextDecoder();
-      let completed = false;
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const text = decoder.decode(value, { stream: true });
-          for (const line of text.split("\n")) {
-            if (line.startsWith("data: ")) {
-              try {
-                const payload = JSON.parse(line.slice(6));
-                if (payload.type === "progress" && onProgress) onProgress(payload.message);
-                else if (payload.type === "done") completed = true;
-                else if (payload.type === "error") throw new Error(payload.message);
-              } catch (e) {
-                if (e instanceof Error && e.message !== "Unexpected end of JSON input") throw e;
-              }
-            }
-          }
-          if (completed) break;
-        }
-      } catch {
-        // SSE disconnected — fall through to polling
-      }
-      if (completed) {
-        // Load from DB (retry for save to complete)
-        for (let i = 0; i < 10; i++) {
-          const latest = await getLatestBacktest(apiBase, instrument);
-          if (latest) return latest as unknown as BacktestResult;
-          await new Promise(r => setTimeout(r, 3000));
-          if (onProgress) onProgress("Saving to database...");
-        }
-        throw new Error("Backtest completed but results not found in DB");
-      }
-    }
-  }
-
-  // Poll for results (works for both Macro and Micro — may take 10+ min on VPS)
-  if (onProgress) onProgress("Running backtest...");
-  for (let i = 0; i < 180; i++) {
-    await new Promise(r => setTimeout(r, 5000));
-    if (onProgress) onProgress(`Running backtest... (${Math.floor((i + 1) * 5 / 60)}m ${((i + 1) * 5) % 60}s elapsed)`);
-    const poll = await getLatestBacktest(apiBase, instrument);
-    if (poll) return poll as unknown as BacktestResult;
-  }
-  throw new Error("Backtest timed out (15 minutes). Check server logs.");
-}
-
 export interface LatestBacktestResponse {
   stats: BacktestStats;
   trades: Trade[];
@@ -162,12 +101,4 @@ export interface LatestBacktestResponse {
   duration_ms: number;
   config: BacktestRequest;
   created_at: string;
-}
-
-export async function getLatestBacktest(apiBase: string, instrument: string = "gold"): Promise<LatestBacktestResponse | null> {
-  const prefix = instrument === "oil" ? "oil" : instrument === "micro" ? "micro" : instrument === "oil-micro" ? "oil-micro" : "gold";
-  const res = await fetch(`${apiBase}/api/${prefix}/backtest/latest`);
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.result === null ? null : data;
 }
