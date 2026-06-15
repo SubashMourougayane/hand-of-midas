@@ -154,6 +154,17 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
         _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": "units_too_small", "equity": equity_usd, "risk_mult": risk_mult})
         return None
 
+    # Defense-in-depth: open-position guard at execute_signal layer.
+    # Same pattern as Gold Macro fix 2026-06-15.
+    open_oil_macro = execute(
+        "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE 'OIL-AS-%%'",
+        fetch=True
+    )
+    if open_oil_macro and open_oil_macro[0]["cnt"] > 0:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="position_already_open")
+        print(f"  [OIL] SKIP: already have open Oil-Macro position")
+        return None
+
     oanda_units = units if direction == "long" else -units
     _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
