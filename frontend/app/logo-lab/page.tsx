@@ -232,6 +232,140 @@ const MarkE = ({ size = 64 }: { size?: number }) => (
 );
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATED VARIANTS
+   Each animated mark loops continuously via SVG SMIL — no JS state, no React
+   re-renders. SMIL has the best browser support for stroke-dashoffset draws
+   and pulses, and is GPU-accelerated. Each animation respects the static
+   composition; nothing moves AROUND, only the construction itself reveals
+   and resets.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** A · Convergence — vectors draw inward, then rhombus + alpha gem appear. */
+const MarkA_Anim = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    <path d="M14 50 L32 8" stroke={TEXT} strokeWidth="1.4" strokeLinecap="round" opacity={0.92}
+      strokeDasharray="50" strokeDashoffset="50">
+      <animate attributeName="stroke-dashoffset" values="50;0;0;50" keyTimes="0;0.4;0.85;1" dur="3.6s" repeatCount="indefinite" />
+    </path>
+    <path d="M50 50 L32 8" stroke={TEXT} strokeWidth="1.4" strokeLinecap="round" opacity={0.92}
+      strokeDasharray="50" strokeDashoffset="50">
+      <animate attributeName="stroke-dashoffset" values="50;0;0;50" keyTimes="0;0.4;0.85;1" dur="3.6s" begin="0.15s" repeatCount="indefinite" />
+    </path>
+    <path d="M32 8 L50 32 L32 56 L14 32 Z" stroke={E} strokeWidth="1.2" strokeLinejoin="miter" opacity={0}>
+      <animate attributeName="opacity" values="0;0;0.65;0.65;0" keyTimes="0;0.3;0.5;0.85;1" dur="3.6s" repeatCount="indefinite" />
+    </path>
+    <rect x="29" y="29" width="6" height="6" fill={E} transform="rotate(45 32 32)" opacity={0}>
+      <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.55;0.7;0.85;1" dur="3.6s" repeatCount="indefinite" />
+    </rect>
+  </svg>
+);
+
+/** B · Apex — rhombus outline draws clockwise, then alpha dot pulses. */
+const MarkB_Anim = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    <line x1="32" y1="14" x2="32" y2="50" stroke={TEXT_DIM} strokeWidth="0.4" opacity={0.25} />
+    <line x1="16" y1="32" x2="48" y2="32" stroke={TEXT_DIM} strokeWidth="0.4" opacity={0.25} />
+    <path d="M32 10 L52 32 L32 54 L12 32 Z" stroke={E} strokeWidth="1.4" strokeLinejoin="miter" fill="none"
+      strokeDasharray="125" strokeDashoffset="125">
+      <animate attributeName="stroke-dashoffset" values="125;0;0;125" keyTimes="0;0.45;0.9;1" dur="4s" repeatCount="indefinite" />
+    </path>
+    <circle cx="32" cy="32" r="2.2" fill={E}>
+      <animate attributeName="r" values="2.2;3.2;2.2" keyTimes="0;0.5;1" dur="2.4s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="1;0.6;1" keyTimes="0;0.5;1" dur="2.4s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="32" cy="32" r="1" fill={E_HI} />
+  </svg>
+);
+
+/** C · Reversal — top half draws (down-move), bottom half draws back (reversal up). */
+const MarkC_Anim = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    <path d="M14 32 L32 12" stroke={TEXT} strokeWidth="1.6" strokeLinecap="round"
+      strokeDasharray="30" strokeDashoffset="30">
+      <animate attributeName="stroke-dashoffset" values="30;0;0;30" keyTimes="0;0.3;0.85;1" dur="3.4s" repeatCount="indefinite" />
+    </path>
+    <path d="M50 32 L32 12" stroke={TEXT} strokeWidth="1.6" strokeLinecap="round"
+      strokeDasharray="30" strokeDashoffset="30">
+      <animate attributeName="stroke-dashoffset" values="30;0;0;30" keyTimes="0;0.3;0.85;1" dur="3.4s" begin="0.1s" repeatCount="indefinite" />
+    </path>
+    <path d="M14 32 L32 52" stroke={E} strokeWidth="1.6" strokeLinecap="round"
+      strokeDasharray="30" strokeDashoffset="30">
+      <animate attributeName="stroke-dashoffset" values="30;30;0;0;30" keyTimes="0;0.35;0.6;0.85;1" dur="3.4s" repeatCount="indefinite" />
+    </path>
+    <path d="M50 32 L32 52" stroke={E} strokeWidth="1.6" strokeLinecap="round"
+      strokeDasharray="30" strokeDashoffset="30">
+      <animate attributeName="stroke-dashoffset" values="30;30;0;0;30" keyTimes="0;0.4;0.65;0.85;1" dur="3.4s" repeatCount="indefinite" />
+    </path>
+    <circle cx="32" cy="32" r="2" fill={E_HI} opacity={0}>
+      <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.5;0.65;0.85;1" dur="3.4s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+);
+
+/** D · Plinth — facets fade in sequentially (left, right, body), like a gem catching light. */
+const MarkD_Anim = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    <path d="M32 10 L52 32 L32 54 L12 32 Z" fill={E_DIM} opacity={0}>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.25;0.85;1" dur="4s" repeatCount="indefinite" />
+    </path>
+    <path d="M32 10 L52 32 L32 32 Z" fill={E} opacity={0}>
+      <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.25;0.45;0.85;1" dur="4s" repeatCount="indefinite" />
+    </path>
+    <path d="M32 10 L32 32 L12 32 Z" fill={E_HI} opacity={0}>
+      <animate attributeName="opacity" values="0;0;0;0.85;0.85;0" keyTimes="0;0.25;0.45;0.6;0.85;1" dur="4s" repeatCount="indefinite" />
+    </path>
+    <path d="M32 10 L32 54 M12 32 L52 32" stroke={SLATE} strokeWidth="0.6" opacity={0}>
+      <animate attributeName="opacity" values="0;0;0;0;1;1;0" keyTimes="0;0.25;0.45;0.6;0.7;0.85;1" dur="4s" repeatCount="indefinite" />
+    </path>
+    <circle cx="32" cy="32" r="1.6" fill={SLATE} opacity={0}>
+      <animate attributeName="opacity" values="0;0;0;0;1;1;0" keyTimes="0;0.25;0.45;0.6;0.7;0.85;1" dur="4s" repeatCount="indefinite" />
+    </circle>
+  </svg>
+);
+
+/** E · Spire — body draws in, spires extend outward, gem materializes at center.
+ *  The spires "reach" outward like a sigil being inscribed. */
+const MarkE_Anim = ({ size = 64 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 64 64" fill="none" aria-hidden>
+    {/* Body edges — draw inward toward apexes */}
+    <path d="M16 32 L32 18" stroke={TEXT} strokeWidth="2" strokeLinecap="round"
+      strokeDasharray="22" strokeDashoffset="22">
+      <animate attributeName="stroke-dashoffset" values="22;0;0;22" keyTimes="0;0.3;0.85;1" dur="3.8s" repeatCount="indefinite" />
+    </path>
+    <path d="M48 32 L32 18" stroke={TEXT} strokeWidth="2" strokeLinecap="round"
+      strokeDasharray="22" strokeDashoffset="22">
+      <animate attributeName="stroke-dashoffset" values="22;0;0;22" keyTimes="0;0.3;0.85;1" dur="3.8s" begin="0.08s" repeatCount="indefinite" />
+    </path>
+    <path d="M16 32 L32 46" stroke={TEXT} strokeWidth="2" strokeLinecap="round"
+      strokeDasharray="22" strokeDashoffset="22">
+      <animate attributeName="stroke-dashoffset" values="22;0;0;22" keyTimes="0;0.3;0.85;1" dur="3.8s" begin="0.16s" repeatCount="indefinite" />
+    </path>
+    <path d="M48 32 L32 46" stroke={TEXT} strokeWidth="2" strokeLinecap="round"
+      strokeDasharray="22" strokeDashoffset="22">
+      <animate attributeName="stroke-dashoffset" values="22;0;0;22" keyTimes="0;0.3;0.85;1" dur="3.8s" begin="0.24s" repeatCount="indefinite" />
+    </path>
+    {/* Top spire — extends OUT after body completes */}
+    <path d="M32 18 L32 4" stroke={TEXT} strokeWidth="1.4" strokeLinecap="round"
+      strokeDasharray="14" strokeDashoffset="14">
+      <animate attributeName="stroke-dashoffset" values="14;14;0;0;14" keyTimes="0;0.35;0.5;0.85;1" dur="3.8s" repeatCount="indefinite" />
+    </path>
+    {/* Bottom spire */}
+    <path d="M32 46 L32 60" stroke={TEXT} strokeWidth="1.4" strokeLinecap="round"
+      strokeDasharray="14" strokeDashoffset="14">
+      <animate attributeName="stroke-dashoffset" values="14;14;0;0;14" keyTimes="0;0.35;0.5;0.85;1" dur="3.8s" repeatCount="indefinite" />
+    </path>
+    {/* Center alpha gem — pulses gently after appearing */}
+    <path d="M32 28 L36 32 L32 36 L28 32 Z" fill={E} opacity={0}>
+      <animate attributeName="opacity" values="0;0;0;1;1;0" keyTimes="0;0.4;0.55;0.65;0.85;1" dur="3.8s" repeatCount="indefinite" />
+    </path>
+    {/* Subtle gem glow */}
+    <path d="M32 28 L36 32 L32 36 L28 32 Z" fill={E_HI} opacity={0}>
+      <animate attributeName="opacity" values="0;0;0;0;0.5;0;0" keyTimes="0;0.4;0.55;0.65;0.7;0.85;1" dur="3.8s" repeatCount="indefinite" />
+    </path>
+  </svg>
+);
+
+/* ═══════════════════════════════════════════════════════════════════════════
    PRODUCTION CONTEXTS — show each mark in real environments
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -428,41 +562,116 @@ const CONCEPTS = [
     code: "A",
     name: "Convergence",
     Mark: MarkA,
+    MarkAnim: MarkA_Anim,
     blurb:
       "Two vectors meet at the diamond apex. The rhombus emerges from their intersection — the form is half-implied, half-drawn. The center alpha-mark is the precise moment of meeting.",
     notes: "Most negative-space driven · Strong at large sizes · Apex is the focal point",
+    philosophy: {
+      represents:
+        "The instant of convergence. Two opposing forces — a buyer and a seller, an algorithm and a market — meeting at a single price-time coordinate. The rhombus that emerges is the trade.",
+      construction:
+        "Two thin vectors on 60° axes ascend from the bottom-left and bottom-right of the canvas to a shared apex. Their crossing implies (but does not fully draw) a rhombus — the viewer's eye completes the form. A 6×6 emerald square rotated 45° sits at the exact intersection center.",
+      brand_fit:
+        "Rewards close reading. At a glance it's a quiet diamond; at attention it's two vectors completing each other. Mirrors the strategy itself: the entry only exists because two forces met.",
+      tradeoffs:
+        "Rich at hero size; needs at least 24px to read both vectors clearly. The implied-rhombus negative-space trick weakens below 16px where strokes thicken relative to gaps.",
+      use_when:
+        "You want a mark that says 'we trade the meeting' literally. Deck covers, hero panels, animated load states.",
+      animation:
+        "Vectors draw inward toward the apex, the rhombus appears, then the alpha-square materializes at center — the construction unfolds in 3.6 seconds and resets.",
+    },
   },
   {
     code: "B",
     name: "Apex",
     Mark: MarkB,
+    MarkAnim: MarkB_Anim,
     blurb:
       "A precise rhombus outline with the convergence axes drawn faintly through center. The single emerald dot at the geometric center is the alpha point. Closest to a coat-of-arms / private-bank seal.",
     notes: "Most institutional · Reads as a seal · Scales perfectly to 16px",
+    philosophy: {
+      represents:
+        "Authority. The mark of an institution that has done the work and stamped its signature. The rhombus is a closed system; the dot is the proof of edge.",
+      construction:
+        "A single emerald rhombus path with miter joins at the apexes (no rounded corners — institutional crispness). Two ultra-faint guide lines (0.4px stroke at 25% opacity) cross the center vertically and horizontally, suggesting the convergence axes without dominating. A 2.2px emerald dot with a 1px lighter inner sits at exact geometric center.",
+      brand_fit:
+        "Reads as Bridgewater, Lansdowne, Citadel — the kind of mark you'd see embossed on a fund report or a private-bank passport. Restrained. Doesn't beg for attention.",
+      tradeoffs:
+        "Less narrative than C or E. The faint guides are the only nod to 'why' — a viewer who doesn't lean in just sees a diamond. Strongest at 16px because the form is already minimal.",
+      use_when:
+        "You want institutional gravity over storytelling. Favicon, footer, official documents, watermarks.",
+      animation:
+        "The rhombus outline draws clockwise from the top apex over 4 seconds, then the center dot pulses — once it's drawn, the dot continues to pulse subtly forever. The seal is being inscribed, then certified.",
+    },
   },
   {
     code: "C",
     name: "Reversal",
     Mark: MarkC,
+    MarkAnim: MarkC_Anim,
     blurb:
       "Top half drawn in off-white (the move up); bottom half in emerald (the reversal). The diamond is split by direction. The emerald midpoint is the moment the trade flips.",
     notes: "Strongest concept-to-brief · Tells the story · Two-tone, slightly more visual energy",
+    philosophy: {
+      represents:
+        "The strategy itself, rendered as form. Asia sweeps the high (off-white move up), reaches its limit at the apex, then reverses (emerald move down). The mark is a price chart of one trade.",
+      construction:
+        "Two off-white strokes ascending from bottom-left and bottom-right to a shared top apex (the sweep). Two emerald strokes descending from those same edges to the bottom apex (the reversal). The four strokes form a complete rhombus through color — the diamond exists, but is read as 'up then down' rather than 'one shape.' A 2px emerald-light circle sits at the geometric center where the directions invert.",
+      brand_fit:
+        "The most concept-true mark. Anyone briefed on the strategy will recognize it as their own thesis encoded into geometry. For investor pitches where you're explaining the edge, the logo carries half the explanation already.",
+      tradeoffs:
+        "Two-tone has marginally more visual energy — slightly less restrained than B or D. A few institutional buyers will read it as 'energetic' rather than 'precise.' At small sizes the color split is subtle; at hero it's the whole story.",
+      use_when:
+        "Investor decks, narrative content (/playbook, /deck), the 'tell me how this works' parts of the site.",
+      animation:
+        "Top-half strokes draw inward (the sweep happens), pause briefly at apex, then the bottom-half emerald strokes draw outward (the reversal). Loop emphasizes that the strategy is a two-stroke cycle, not a one-shot.",
+    },
   },
   {
     code: "D",
     name: "Plinth",
     Mark: MarkD,
+    MarkAnim: MarkD_Anim,
     blurb:
       "A cut gem rendered as flat facets — three planes of emerald (deep, mid, light) hinting at how light falls on a precision-cut diamond. No gradient — pure flat color, hedge-fund grade.",
     notes: "Most luxury · Reads as a gemstone · Cleanest at 32px+",
+    philosophy: {
+      represents:
+        "Capital made geometric. A cut gemstone — the most ancient symbol of stored, transformed value. Midas's touch frozen as a polished form.",
+      construction:
+        "A solid filled rhombus in deep emerald (#047857) with two foreground planes: top-right facet in primary emerald (#10B981), top-left facet in light emerald (#34D399) at 85% opacity. Inner cross-lines drawn in slate (#0A0E14) at 0.6px define the facet edges. A 1.6px slate dot punches the center as the gem's culet.",
+      brand_fit:
+        "Most overtly luxurious of the five. Reads as 'precious commodity' — direct nod to Midas mythology and the Gold + Brent product. Closest to actual jewelry-house typography in feel (Tiffany, Cartier).",
+      tradeoffs:
+        "Three-tone composition needs ≥24px to render the facets cleanly. At 16px favicon size the facet details lose definition; the form survives but loses its 'cut gem' identity. Most contrast-dependent of the five.",
+      use_when:
+        "Hero-only environments where the mark gets ≥48px of canvas. Deck covers, homepage, brand films. Pair with B for favicon usage.",
+      animation:
+        "Body fills first (emerald base), then the right-facet emerald appears, then the left-facet light-emerald, then the slate cross-lines and culet dot — the gem is being cut, faceted, and finished in 4 seconds. Like watching a diamond emerge from rough.",
+    },
   },
   {
     code: "E",
     name: "Spire",
     Mark: MarkE,
+    MarkAnim: MarkE_Anim,
     blurb:
       "An open rhombus outline with the top and bottom apex corners extended outward into thin tapering spires. A small emerald gem sits at the exact geometric center. The spires give the mark vertical drama and a sigil-like quality — heraldic without ornament.",
     notes: "Highest verticality · Heraldic / compass feel · Spires + rhombus collapse to a tall diamond at 16px",
+    philosophy: {
+      represents:
+        "An axis. A vertical line that runs through the trade — connecting the deep past (history of price) to the deep future (the run that follows reversal) — pierced through a diamond at the center, where the trade lives. The spires are not decoration; they are the longer truth the trade is a snapshot of. Most heraldic of the five — the kind of mark you'd see on a flag, a compass face, or a coat-of-arms — which is exactly the register a sophisticated investor reads as 'institutional, intentional, designed.'",
+      construction:
+        "The rhombus body is built from four 2px off-white strokes meeting at four apexes. The top and bottom apexes extend outward as 1.4px strokes — thinner than the body, so they read as a continuation rather than a duplication. Total vertical extent (top spire tip to bottom spire tip) is exactly 56px in a 64px viewBox; the rhombus body occupies the middle 28px. The aspect ratio (spires : body : spires) approximates 1:2:1 — a vertical golden-section feel without invoking the literal ratio. The center alpha gem is a small filled emerald rhombus (8px wide × 8px tall), echoing the parent shape — the mark contains itself, like a stamp inside a stamp.",
+      brand_fit:
+        "The most distinctive of the five. A/B/D all live in the broader 'diamond' visual lexicon — passable but indistinct against dozens of other fund marks. C tells the strategy story but reads more 'product-y' than 'institutional.' E does something the others don't: it adds a vertical signature. The spires give it a sigil quality — the kind of mark that survives being shrunk to a Twitter avatar AND stamped on a leather-bound report. It's the only one that says 'we are not a generic quant fund' without being loud about it. Looks deliberate, not ornamental — every line has a job. The spires are the aspect ratio of the brand voice itself: tall, narrow, focused, with a quiet center.",
+      tradeoffs:
+        "The vertical proportion means it doesn't pair as cleanly with very wide wordmarks at small sizes — at 14px next to a long phrase like 'Quantitative Commodities' it becomes a vertical accent that competes for attention. The fix is intentional spacing (3-4px gap) which the lockup mocks demonstrate. At 16px favicon it collapses into a tall narrow diamond glyph that is recognizable but loses spire detail; at 24px+ all three components (top spire, body, bottom spire, gem) read clearly. Slightly more 'design-forward' than the others — needs the brand voice (Fraunces italic, slate + emerald palette) to land as institutional rather than fashion-house.",
+      use_when:
+        "Anywhere you'd put a primary brand mark and want it to be remembered. Hero of /deck and /playbook, footer signature, top of fund reports, watermarks. The favicon should still use a simplified 1-color version (just rhombus + gem, no spires) for sub-20px usage. This concept's natural job is to be 'the logo' — the image people associate with the brand 6 months later when they see it again on a different surface.",
+      animation:
+        "The four body edges draw inward toward the apexes in a staggered sequence (8ms offsets — the body assembles itself in ~1.1s). After the body completes, both spires extend outward simultaneously — top reaching up, bottom reaching down — over 0.5s. Then the center gem materializes (200ms fade-in) with a brief emerald-light glow that fades to the static gem. The total cycle is 3.8 seconds and reads as: 'the trade forms (body), the longer axis becomes visible (spires), the alpha is captured (gem).' The animation tells the same story as the static mark, just in time. It's the only one of the five animations that has a narrative arc rather than a loop — body → spires → gem is a three-act sequence.",
+    },
   },
 ] as const;
 
@@ -587,7 +796,70 @@ export default function LogoLabPage() {
                 </div>
               </div>
 
-              {/* Hero + scale */}
+              {/* Static vs animated comparison */}
+              <div
+                className="grid grid-cols-1 gap-5 lg:grid-cols-2"
+              >
+                <div
+                  className="relative overflow-hidden rounded-[2px] border"
+                  style={{ borderColor: BORDER, background: SLATE }}
+                >
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-[0.08]"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(rgba(60,51,39,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(60,51,39,0.5) 1px,transparent 1px)",
+                      backgroundSize: "60px 60px",
+                    }}
+                  />
+                  <div className="relative flex h-72 items-center justify-center">
+                    <c.Mark size={140} />
+                  </div>
+                  <div
+                    className="relative flex items-baseline justify-between border-t px-7 py-4"
+                    style={{ borderColor: BORDER }}
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: TEXT_MUTED }}>
+                      Static
+                    </div>
+                    <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: TEXT_MUTED }}>
+                      {c.code}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="relative overflow-hidden rounded-[2px] border"
+                  style={{ borderColor: BORDER, background: SLATE }}
+                >
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 opacity-[0.08]"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(rgba(60,51,39,0.5) 1px,transparent 1px),linear-gradient(90deg,rgba(60,51,39,0.5) 1px,transparent 1px)",
+                      backgroundSize: "60px 60px",
+                    }}
+                  />
+                  <div className="relative flex h-72 items-center justify-center">
+                    <c.MarkAnim size={140} />
+                  </div>
+                  <div
+                    className="relative flex items-baseline justify-between border-t px-7 py-4"
+                    style={{ borderColor: BORDER }}
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: E }}>
+                      ⏵ Animated · loops
+                    </div>
+                    <div className="text-[10px] uppercase tracking-[0.22em]" style={{ color: TEXT_MUTED }}>
+                      {c.code}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hero + scale (static contexts) */}
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
                 <Hero Mark={c.Mark} name={`Hand of Midas`} code={c.code} />
                 <SizeScale Mark={c.Mark} />
@@ -601,6 +873,87 @@ export default function LogoLabPage() {
 
               {/* Deck cover full width */}
               <DeckMock Mark={c.Mark} />
+
+              {/* Design philosophy */}
+              <div
+                className="rounded-[2px] border p-9 md:p-11"
+                style={{ borderColor: BORDER, background: SLATE_2 }}
+              >
+                <div
+                  className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+                  style={{ color: E }}
+                >
+                  Design philosophy · {c.name}
+                </div>
+                <div className="mt-7 grid grid-cols-1 gap-7 md:grid-cols-2">
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      What it represents
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.represents}
+                    </p>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      Geometric construction
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.construction}
+                    </p>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      Brand fit
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.brand_fit}
+                    </p>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      Tradeoffs
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.tradeoffs}
+                    </p>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      When to use
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.use_when}
+                    </p>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[14px] italic"
+                      style={{ fontFamily: "var(--font-display), serif", color: TEXT }}
+                    >
+                      Animation logic
+                    </div>
+                    <p className="mt-2 text-[14px] leading-[1.7]" style={{ color: TEXT_DIM }}>
+                      {c.philosophy.animation}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </section>
           ))}
         </div>
