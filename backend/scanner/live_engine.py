@@ -59,11 +59,30 @@ def _log_journal_safe(trade_ref: str, strategy: str, event_type: str, price: flo
 
 
 def _get_dd_state() -> dict:
-    """Load DD protection state from DB."""
+    """Load DD protection state from DB.
+
+    Issue #12 fix 2026-06-15: row id=1 is initialized in schema.sql. If it's
+    missing, the schema is broken — fail loudly rather than silently fall back
+    to {equity: 5000} which doesn't match any real account. The fallback was
+    masking schema integrity issues.
+    """
     rows = execute("SELECT * FROM gd_dd_state WHERE id = 1", fetch=True)
     if rows:
         return dict(rows[0])
-    return {"consecutive_losses": 0, "pause_counter": 0, "equity": 5000, "peak_equity": 5000}
+    # Schema integrity failure — alert + fail-closed
+    _log.error("SYSTEM", "dd_state_row_missing", id=1,
+               note="gd_dd_state row id=1 not found — schema broken or row deleted")
+    # Self-heal: insert default row, return it. Caller continues with sane state.
+    try:
+        execute("INSERT INTO gd_dd_state (id, consecutive_losses, pause_counter, equity, peak_equity) VALUES (1, 0, 0, 0, 0) ON CONFLICT (id) DO NOTHING")
+        rows = execute("SELECT * FROM gd_dd_state WHERE id = 1", fetch=True)
+        if rows:
+            return dict(rows[0])
+    except Exception as e:
+        _log.exception("SYSTEM", "dd_state_self_heal_failed", err=str(e))
+    # Last resort — return zeros so DD logic doesn't crash but trades will
+    # all skip on equity_too_low (Issue #6's $100 floor).
+    return {"consecutive_losses": 0, "pause_counter": 0, "equity": 0, "peak_equity": 0}
 
 
 def _update_dd_state(consecutive_losses: int, pause_counter: int, equity: float, peak_equity: float):
