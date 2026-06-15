@@ -162,6 +162,11 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
         return None
     equity_usd = acct.get("nav_usd", acct.get("nav", float(dd_state["equity"])))
+    # Issue #6 fix 2026-06-15: sanity floor — refuse to size if equity < $100.
+    if equity_usd is None or equity_usd < 100:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="equity_too_low")
+        print(f"  [{strategy}] SKIP: equity ${equity_usd} below $100 floor")
+        return None
 
     sl_distance = abs(entry_price - sl_price)
     if sl_distance <= 0:

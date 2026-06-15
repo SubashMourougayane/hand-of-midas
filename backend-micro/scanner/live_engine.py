@@ -139,7 +139,16 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="account_summary_failed")
         _log_journal(trade_ref, strategy, "ORDER_FAILED", entry_price, {"error": "account_summary unavailable"})
         return None
-    equity_usd = acct.get("nav_usd") or acct.get("nav") or acct.get("balance", 10000)
+    # Issue #6 fix 2026-06-15: prior `or` chain fell back to hardcoded 10000
+    # silently if nav_usd/nav/balance were all 0 (e.g., margin event, broker
+    # reconnect storm). That could size a position 5x larger than reality.
+    # Now: prefer dd_state.equity (tracked) as fallback; sanity-floor at $100.
+    equity_usd = acct.get("nav_usd") or acct.get("nav") or acct.get("balance") or float(dd_state["equity"])
+    if equity_usd is None or equity_usd < 100:
+        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="equity_too_low")
+        _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": "equity_too_low", "equity": equity_usd})
+        print(f"  [MICRO] SKIP: equity ${equity_usd} below $100 floor — refusing to size trade")
+        return None
     risk_mult = _get_risk_multiplier(dd_state, equity_usd)
 
     sl_distance = abs(entry_price - sl_price)
