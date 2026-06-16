@@ -25,6 +25,9 @@ import os
 import sys
 import json
 import time
+import platform
+import socket
+import subprocess
 import importlib
 from datetime import datetime, timezone
 
@@ -35,6 +38,44 @@ from backend.notify import send as tg_send
 
 OUT_DIR = os.path.join(ROOT, "scripts/output")
 os.makedirs(OUT_DIR, exist_ok=True)
+
+# Atomic write of partial JSON after each system, plus per-cell append-only log.
+# If sweep crashes mid-run we lose at most one system's progress.
+JSON_PATH = os.path.join(OUT_DIR, "filter_27_results.json")
+JSONL_PATH = os.path.join(OUT_DIR, "filter_27_results.jsonl")  # append-only per-cell
+
+
+def _save_json_atomic(path: str, obj: dict) -> None:
+    """Write JSON via temp + rename (atomic) so an interrupted save can't
+    leave a half-written file."""
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=2, default=str)
+    os.replace(tmp, path)
+
+
+def _append_jsonl(path: str, row: dict) -> None:
+    """Append a single completed-cell row. Easy to tail / parse mid-run."""
+    with open(path, "a") as f:
+        f.write(json.dumps(row, default=str) + "\n")
+
+
+def _git_rev() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+
+def _git_branch() -> str:
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=ROOT, stderr=subprocess.DEVNULL
+        ).decode().strip()
+    except Exception:
+        return "unknown"
 
 
 SYSTEMS = [
@@ -158,39 +199,89 @@ def main():
     print(f"  Baseline = market entry, current production")
     print()
 
+    sweep_started = datetime.now(timezone.utc)
     results = {
         "filter": 27,
         "name": "Limit-order entry sweep",
-        "generated": datetime.now(timezone.utc).isoformat(),
+        "generated": sweep_started.isoformat(),
+        "metadata": {
+            "git_branch": _git_branch(),
+            "git_commit": _git_rev(),
+            "host": socket.gethostname(),
+            "platform": platform.platform(),
+            "python": sys.version.split()[0],
+            "sweep_started_utc": sweep_started.isoformat(),
+            "sweep_finished_utc": None,
+            "elapsed_total_s": None,
+            "n_systems": len(SYSTEMS),
+            "n_variants": len(VARIANTS),
+            "n_total_bts": len(SYSTEMS) * len(VARIANTS),
+            "json_path": JSON_PATH,
+            "jsonl_path": JSONL_PATH,
+            "console_log": "/tmp/filter_27_run.log",
+        },
         "systems": {s["key"]: {"label": s["label"], "variants": {}} for s in SYSTEMS},
     }
+
+    # Truncate the per-cell jsonl on a fresh run (don't accumulate stale rows)
+    if os.path.exists(JSONL_PATH):
+        os.remove(JSONL_PATH)
+
+    # Initial header dump so consumers can read metadata before any cells finish.
+    _save_json_atomic(JSON_PATH, results)
+    print(f"  metadata: branch={results['metadata']['git_branch']} "
+          f"commit={results['metadata']['git_commit'][:8]} "
+          f"host={results['metadata']['host']}")
+    print(f"  intermediate save: after each system → {JSON_PATH}")
+    print(f"  per-cell append: {JSONL_PATH}")
 
     total_runs = len(SYSTEMS) * len(VARIANTS)
     run_idx = 0
 
     for s in SYSTEMS:
+        sys_started = time.time()
         print(f"\n[{s['label']}]")
         for v in VARIANTS:
             run_idx += 1
+            cell_started = datetime.now(timezone.utc)
             print(f"  ({run_idx:>3}/{total_runs}) {v['name']:<24}...", end=" ", flush=True)
             try:
                 r = run_one(s["label"], s["pkg"], v["kwargs"])
             except Exception as e:
+                err_row = {"error": str(e), "exc_type": type(e).__name__}
                 print(f"FAIL: {type(e).__name__}: {e}")
-                results["systems"][s["key"]]["variants"][v["name"]] = {"error": str(e)}
+                results["systems"][s["key"]]["variants"][v["name"]] = err_row
+                _append_jsonl(JSONL_PATH, {
+                    "system": s["key"], "variant": v["name"],
+                    "started_utc": cell_started.isoformat(),
+                    **err_row,
+                })
                 continue
             print(
                 f"N={r['n']:>4}  fill={r['fill_rate']:>5.1f}%  "
                 f"WR={r['wr']:>5.1f}%  PF={fmt_pf(r['pf']):>5}  "
                 f"P&L=${r['pnl']:>+10,.0f}  miss={r['missed']:>3}  "
-                f"({r['elapsed_s']:.0f}s)"
+                f"wwl={r['wwl']:>3}(info)  ({r['elapsed_s']:.0f}s)"
             )
             results["systems"][s["key"]]["variants"][v["name"]] = r
+            _append_jsonl(JSONL_PATH, {
+                "system": s["key"], "variant": v["name"],
+                "started_utc": cell_started.isoformat(),
+                **r,
+            })
+        # Intermediate save after each system completes — worst-case loss is one
+        # system's progress (~75 min) instead of the whole 5.2hr sweep.
+        sys_elapsed = time.time() - sys_started
+        results["metadata"][f"system_{s['key']}_elapsed_s"] = round(sys_elapsed, 1)
+        _save_json_atomic(JSON_PATH, results)
+        print(f"  ✓ {s['label']} done in {sys_elapsed/60:.1f}min — saved partial JSON")
 
-    json_path = os.path.join(OUT_DIR, "filter_27_results.json")
-    with open(json_path, "w") as f:
-        json.dump(results, f, indent=2, default=str)
-    print(f"\n✓ wrote {json_path}")
+    sweep_finished = datetime.now(timezone.utc)
+    results["metadata"]["sweep_finished_utc"] = sweep_finished.isoformat()
+    results["metadata"]["elapsed_total_s"] = round((sweep_finished - sweep_started).total_seconds(), 1)
+    _save_json_atomic(JSON_PATH, results)
+    print(f"\n✓ final JSON written: {JSON_PATH}")
+    print(f"  total wall-clock: {(sweep_finished - sweep_started).total_seconds() / 60:.1f}min")
 
     # Per-system summary: top-10 by ΔP&L vs baseline
     print()
