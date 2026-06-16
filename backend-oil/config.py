@@ -41,6 +41,14 @@ ALPHA_SWEEP = {
     "scan_start": 8,
     "scan_end": 20,
     "max_trades_per_day": 3,
+    # Filter #27 shipped 2026-06-16 (Oil Macro variant ttl15_B_loose):
+    # PF 4.70→5.43, +$180,178 21yr (+21.8%). Yearly slice 18/21 up, 2.2% loss/gain.
+    # Place limit at engulfing-close (no slippage offset baked in), 15min TTL,
+    # fill on any wick touch. See docs/FILTER_27_LIMIT_ORDER_RESEARCH.md.
+    "entry_mode": "limit",
+    "limit_offset_pct": "engulf_close",
+    "limit_ttl_bars": 5,            # 15 min on M3
+    "limit_fill_strict": False,
 }
 
 # Position Sizing
