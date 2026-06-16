@@ -43,6 +43,15 @@ MICRO_ALPHA_SWEEP = {
     # at that hour. BT 21-yr: PF 4.40→4.52, P&L +$26.8k (+8.0%), N +42.
     # Oil Micro keeps the block (regresses without it per prior audit).
     "disable_market_close": True,
+    # Filter #27 shipped 2026-06-16 (Gold Micro variant ttl15_C10_loose):
+    # PF 4.52→5.35, +$28,438 21yr (+7.9%). Yearly slice 15/21 up, 18% loss/gain
+    # ratio, no recent-regime tilt. Place limit at signal.entry − 10% × risk
+    # (LONG; +10% × risk for SHORT), 15min TTL, fill on any wick touch.
+    # See docs/FILTER_27_LIMIT_ORDER_RESEARCH.md.
+    "entry_mode": "limit",
+    "limit_offset_pct": -0.10,
+    "limit_ttl_bars": 5,
+    "limit_fill_strict": False,
 }
 
 STRATEGY_RISK = {"micro_alpha_sweep": 4.0, "mean_rev": 3.0, "cross_market": 2.0}
