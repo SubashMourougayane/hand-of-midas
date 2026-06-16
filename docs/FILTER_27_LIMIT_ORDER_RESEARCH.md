@@ -496,38 +496,161 @@ Each commit:
 
 ### 11.4 — Live limit-order infrastructure (separate ship)
 
-Sized as a separate ship per [[feedback-no-auto-ship]] and the original plan (§D in `~/.claude/plans/piped-hopping-biscuit.md`). Tonight's scope is limited to BT defaults; live wiring is the next session's work.
+Mirrors the Filter #27 BT logic to live execution for the 3 shipped systems (Oil Macro, Oil Micro, Gold Micro). Gold Macro stays on market entry. The protocol per the filter sweep framework is: BT defines the precision logic (steps 1–4 above), live mirrors it 1:1 reading from the same config keys (step 5). One source of truth, zero parallel implementations.
 
-Pieces:
+#### 11.4.0 Inventory of current live state (read 2026-06-16)
 
-1. **`mt5_executor.place_limit_order()`** — new function alongside `place_market_order`. DWX command form:
-   ```
-   OPEN_PENDING|<symbol>|<BUY_LIMIT|SELL_LIMIT>|<lots>|<price>|<sl>|<tp>|<comment>
-   ```
+Before any change, inventory of where market orders live in production:
 
-2. **DWX EA verification.** Read `mql5/DWX_Server.mq5` and confirm:
-   - It handles `BUY_LIMIT` / `SELL_LIMIT` order types
-   - It writes `last_response.json` on placement (with broker-assigned ticket)
-   - It writes `closed_orders.json` on fill OR cancellation
-   - If EA lacks limit support, scope expands to EA changes (mql5 edit + recompile)
+- **`backend/execution/mt5_executor.py`**: `place_market_order(instrument, units, sl, tp, comment)` (line 321). Used by all 4 services via `from backend.execution import place_market_order`. DWX command: `OPEN|<symbol>|<BUY|SELL>|<lots>|<price=0>|<sl>|<tp>|<comment>`.
+- **`mql5/DWX_Server.mq5`**: `ProcessCommand` (line 258) handles `OPEN`, `MODIFY`, `CLOSE`, `CLOSE_ALL`, `CLOSE_PARTIAL`. **Does NOT handle pending orders.** `ExecuteOpen` (line 340) sets `request.action = TRADE_ACTION_DEAL` (immediate market). No `BUY_LIMIT` / `SELL_LIMIT` support exists.
+- **`mql5/DWX_Server.mq5` `WriteOpenOrders`** (line 143) iterates `PositionsTotal()` only — pending orders (`OrdersTotal()`) are not written to `open_orders.json`. Python's reconciler is therefore blind to pending orders unless we add a new file.
+- **`mql5/DWX_Server.mq5` `OnTradeTransaction`** (line 684) only logs `DEAL_ENTRY_OUT` / `DEAL_ENTRY_INOUT` (exit deals). Entry deals are tracked via `WriteOpenOrders`. **Pending-order placement / cancellation events are not logged anywhere by the EA.**
+- **Live engines** (`backend/scanner/live_engine.py:278`, `backend-micro/scanner/live_engine.py:244`, `backend-oil/scanner/live_engine.py:203`, `backend-oil-micro/scanner/live_engine.py:220`): all call `place_market_order(...)` unconditionally with no `entry_mode` branching.
+- **`backend/scanner/scheduler.py` and siblings**: schedulers do not read any `entry_mode` config key and have no per-order timer infrastructure. APScheduler is used for periodic scans (`alpha_sweep_poll`, `position_monitor`, `daily_recon`) but not per-trade jobs.
 
-3. **Scheduler integration** in each `backend-{system}/scanner/scheduler.py`:
-   - Read `entry_mode` from config
-   - Branch order placement: market path stays for systems not shipping #27, limit path for shipped systems
-   - Compute `limit_price` per variant rule (mirror engine logic)
+#### 11.4.1 Design constraints
 
-4. **TTL cancel timer.** A new APScheduler job per pending order that fires at `entry_time + TTL_seconds` and issues `CLOSE_PENDING|<ticket>` to DWX. If cancellation arrives after broker has filled, the OnTradeTransaction reconciler must adopt the trade (existing path).
+- **Don't break the market-order path.** Gold Macro (and any future non-#27 system) keeps placing market orders. Existing `place_market_order` callers continue to work unchanged.
+- **Same compute logic in BT and live.** The exact `limit_price` formula in `backend/backtest/engine.py` (and siblings) — `signal.entry`, engulfing close, or `signal.entry ± offset_pct × signal.risk` — must be replicated in the scheduler, ideally by extracting it to a shared helper that both the BT engine and the scheduler call.
+- **TTL cancellation must be reliable.** If a limit doesn't fill in 15min and we don't cancel, broker may fill it minutes later at a stale price = phantom trade outside our intended setup. APScheduler date-trigger job per pending order is the cleanest mechanism.
+- **Cancel-fill race must be handled.** If we send `CLOSE_PENDING` while broker fills the same second, OnTradeTransaction will fire `DEAL_ENTRY_IN` and the existing orphan reconciler adopts. We must not double-process: the limit-placement record in DB plus the orphan-adopted record must merge by `oanda_trade_id`.
+- **DB schema lives without a new column.** A pending-order record can use the existing `gd_trades` row pattern: insert with `entry_time = NULL` (or a sentinel) and `oanda_trade_id = <ticket>`, update to `entry_time = NOW()` on fill, delete or mark `exit_reason = 'LIMIT_TTL_EXPIRED'` on cancel. Avoids schema migration.
+- **Real money flow gate.** First live deploy is dry-run for 24h on one system before any real-money switch.
 
-5. **Journal events.** Three new event types:
-   - `LIMIT_PLACED` (with limit_price, ttl_seconds)
-   - `LIMIT_FILLED` (with fill_price, time-to-fill)
-   - `LIMIT_TTL_EXPIRED` (with broker-cancelled flag)
+#### 11.4.2 Required changes (file-by-file)
 
-6. **Telegram strings.** New messages for the above, parallel to existing `trade_filled` etc.
+**A. DWX EA (`mql5/DWX_Server.mq5`) — add pending-order primitives.**
 
-7. **Live regression / dry-run.** Before enabling on a real-money system, run for 24h in dry-run mode logging what *would* have been a limit; compare to actual market fills. Per the audit-then-ship pattern.
+1. `ProcessCommand`: handle 2 new actions:
+   - `OPEN_PENDING|<symbol>|<BUY_LIMIT|SELL_LIMIT>|<volume>|<price>|<sl>|<tp>|<comment>` → `ExecuteOpenPending(...)`. Builds an `MqlTradeRequest` with `action = TRADE_ACTION_PENDING`, `type = ORDER_TYPE_BUY_LIMIT` or `ORDER_TYPE_SELL_LIMIT`, sets `price` to the limit, `expiration_type = ORDER_TIME_SPECIFIED`, `expiration = TimeCurrent() + ttl_seconds`. Returns ticket via `last_response.json`.
+   - `CANCEL_PENDING|<ticket>` → `ExecuteCancelPending(...)`. Builds `MqlTradeRequest` with `action = TRADE_ACTION_REMOVE`, `order = ticket`. Returns `last_response.json` with success/failure.
 
-8. **Per-system staged rollout.** Per [[feedback-selective-ship-pattern]], enable one system at a time, watch for 5+ live trades each, then move to the next. Order: Oil Micro first (largest BT edge), then Oil Macro, then Gold Micro, then Gold Macro.
+2. **New file `pending_orders.json`** written every poll cycle alongside `open_orders.json`. Iterates `OrdersTotal()` (pending orders, not `PositionsTotal`). Same JSON shape as `open_orders.json` plus `expiration_time`, `order_type`. Lets Python reconciler see pending orders.
+
+3. **OnTradeTransaction**: add a branch for `TRADE_TRANSACTION_ORDER_DELETE` — logs cancellations to a new `cancelled_orders.json` so Python knows the limit expired without filling. Existing `closed_orders.json` covers the case where the limit fills and then the position closes.
+
+**B. `backend/execution/mt5_executor.py` — add `place_limit_order` + `cancel_pending_order`.**
+
+```python
+def place_limit_order(instrument, units, limit_price, sl, tp, ttl_seconds, comment):
+    """Place a pending limit order. units sign = direction; ttl_seconds = how long
+    the order stays alive before broker auto-cancels (matched by our APScheduler
+    cancel-job too as belt-and-suspenders).
+    """
+    # Same volume → lots conversion as place_market_order
+    # cmd: OPEN_PENDING|<symbol>|<BUY_LIMIT|SELL_LIMIT>|<lots>|<price>|<sl>|<tp>|<comment>
+    # snapshot bid/ask at send time (slippage attribution)
+    # _send_command, parse response, return {success, ticket, expiration_time, ...}
+
+def cancel_pending_order(ticket):
+    """Cancel a pending limit by ticket. Idempotent — a ticket that's already
+    filled/cancelled returns success=False with a clear retcode that the caller
+    can ignore."""
+    # cmd: CANCEL_PENDING|<ticket>
+    # _send_command, parse response, return {success, error}
+```
+
+Plus a small util `compute_limit_price(direction, signal_entry, signal_risk, df_at_bar_idx, limit_offset_pct) → float` that mirrors the BT engine's logic exactly. Extract this into `backend/execution/limit_price.py` so both BT engine and live scheduler import the same function. **This is the precision-mirror requirement.**
+
+**C. `backend/scanner/live_engine.py` and siblings — branch on `entry_mode`.**
+
+Replace each of the 4 `place_market_order(...)` call sites with:
+
+```python
+cfg = ALPHA_SWEEP  # or MICRO_ALPHA_SWEEP
+entry_mode = cfg.get("entry_mode", "market")
+
+if entry_mode == "limit":
+    # Read limit-order kwargs from config (same source-of-truth as BT)
+    limit_offset_pct = cfg["limit_offset_pct"]
+    limit_ttl_bars = cfg["limit_ttl_bars"]
+    ttl_seconds = limit_ttl_bars * 180  # M3 = 180s/bar
+
+    # Compute limit_price using the SAME helper the BT engine uses.
+    # signal_entry / signal_risk come from the strategy's signal generator;
+    # we need the engulfing M3 bar's bid_close / ask_close for the "B" variant.
+    # Fetch via get_candles(instrument, "M3", 1) at signal time.
+    limit_price = compute_limit_price(
+        direction=direction,
+        signal_entry=entry_price,
+        signal_risk=risk,
+        engulf_close_ask=current_ask,  # from get_current_price
+        engulf_close_bid=current_bid,
+        limit_offset_pct=limit_offset_pct,
+    )
+
+    result = place_limit_order(
+        instrument=instrument,
+        units=oanda_units,
+        limit_price=limit_price,
+        sl=sl_price,
+        tp=tp_price,
+        ttl_seconds=ttl_seconds,
+        comment=f"{strategy}|{trade_ref}",
+    )
+    # Persist as pending in gd_trades with a `pending` mode flag, schedule cancel timer
+    # (belt-and-suspenders: broker has its own expiration, but we cancel client-side too)
+else:
+    result = place_market_order(...)  # unchanged path
+```
+
+**D. APScheduler cancel timer per pending order.**
+
+When a limit is placed:
+1. Insert into `gd_trades` with `mode='pending'`, `entry_time=NULL`, `oanda_trade_id=<ticket>`, `entry_price = limit_price` (the intended limit, not the actual fill).
+2. Schedule a one-shot APScheduler job: `id=f"cancel_pending_{ticket}"`, `trigger='date'`, `run_date=now+ttl_seconds+5s` (5s grace beyond broker's own expiration).
+3. Job calls `cancel_pending_order(ticket)`, then queries DB:
+   - If `gd_trades` row for this trade_ref shows `entry_time IS NOT NULL` → broker already filled, ignore (cancel will fail with retcode-already-executed).
+   - Else update row to `exit_time=NOW(), exit_reason='LIMIT_TTL_EXPIRED'`. Journal `LIMIT_TTL_EXPIRED`. Telegram once.
+
+A separate `pending_order_monitor_job` runs every 30s to detect fills the EA reported via OnTradeTransaction's `DEAL_ENTRY_IN` deals or via `pending_orders.json` disappearing. When a fill is detected:
+1. Update `gd_trades` row: `entry_time=<deal_time>, entry_price=<actual_fill_price>, mode='live'`.
+2. Cancel the pending APScheduler cancel job (it's no longer needed).
+3. Journal `LIMIT_FILLED` with fill_price + time-to-fill.
+4. Telegram via `notify.trade_filled`.
+
+**E. Journal events.**
+
+Three new event types added to the existing journal pattern in `live_engine.py`:
+- `LIMIT_PLACED` — fields: `limit_price`, `ttl_seconds`, `oanda_id` (broker ticket), `signal_entry` (for slippage attribution).
+- `LIMIT_FILLED` — fields: `limit_price`, `actual_fill`, `time_to_fill_s`, `oanda_id`.
+- `LIMIT_TTL_EXPIRED` — fields: `limit_price`, `ttl_seconds`, `cancel_method` ('client'|'broker'|'race-with-fill'), `oanda_id`.
+
+**F. Telegram messages.**
+
+New messages in `backend/notify.py`:
+- `notify.limit_placed(trade_ref, instrument, direction, limit_price, ttl_seconds)` — "📋 LIMIT PLACED — {trade_ref} — {instrument} {direction} @ {limit_price}, TTL {ttl_seconds}s"
+- `notify.limit_ttl_expired(trade_ref, instrument, limit_price)` — "⏱ LIMIT EXPIRED — {trade_ref} — {instrument} did not fill at {limit_price}"
+- Existing `notify.trade_filled(...)` already covers the fill case; reuse it.
+
+#### 11.4.3 Dry-run gate
+
+Before flipping any system to live limit orders, run for **24h in shadow mode**:
+
+1. Add `LIMIT_DRY_RUN=true` env var. When set, the new code path **logs what it would do** (calls `compute_limit_price`, logs the intended limit_price, logs "DRY_RUN: would place limit") but **still calls `place_market_order`** for the actual broker order.
+2. After 24h, query the journal for all `LIMIT_DRY_RUN_INTENT` events and pair them with the actual market fills that happened. Calculate: "if we had used limit orders, how many would have filled?" — gives a real fill-rate number, vs the BT's optimistic 86-98%.
+3. Only flip `LIMIT_DRY_RUN=false` for one system at a time, watching it for 5+ trades before enabling the next.
+
+#### 11.4.4 Per-system staged rollout
+
+Per [[feedback-selective-ship-pattern]]:
+
+1. **Oil Macro first.** Cleanest yearly slice (18/21 up, 2.2% loss/gain). Lower trade frequency = safer to monitor.
+2. **Gold Micro second.** Mid-frequency, mid-risk.
+3. **Oil Micro last.** Highest trade frequency = highest blast radius if anything is wrong with the cancel-timer or fill-detection path. Wait for 5+ clean live limit fills on Oil Macro and Gold Micro before flipping.
+4. **Gold Macro stays market.** Yearly slice rejected the variant; do not deploy.
+
+#### 11.4.5 Acceptance criteria before live ship
+
+The live limit-order code is shippable when:
+1. ✅ DWX EA compiled and pending-order commands tested in MT5 strategy tester (place + cancel + fill scenarios).
+2. ✅ `compute_limit_price` helper extracted, called by both BT engine and scheduler, has a unit test that asserts they produce identical numbers for the same input.
+3. ✅ A live trade in dry-run mode produces a `LIMIT_DRY_RUN_INTENT` journal event with limit_price within $0.05 of what the BT engine would compute for the same signal.
+4. ✅ Telegram dry-run alert fires with the right message format.
+5. ✅ Cancel timer fires correctly (verified via a synthetic pending order on a strike that won't fill).
+6. ✅ Cancel-fill race tested: place a limit that fills 1 second before TTL; assert that the cancel command returns the broker's "already filled" retcode and the DB row reflects the fill.
+7. ✅ User explicit sign-off per [[feedback-no-auto-ship]] before flipping `LIMIT_DRY_RUN=false`.
 
 ### 11.5 — Filter #28 research (later, post-#27 ship)
 
