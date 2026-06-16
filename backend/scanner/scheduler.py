@@ -819,8 +819,10 @@ def heartbeat_job():
         )
         trade_count = trades_today[0]["cnt"] if trades_today else 0
 
-        # Open positions
-        open_pos = execute("SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL", fetch=True)
+        # Open positions — Filter #27: exclude pending limits (they're not yet
+        # actual positions; reporting them as "open" would inflate the daily count).
+        open_pos = execute("SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL "
+                           "AND oanda_trade_id IS NOT NULL AND COALESCE(mode, 'live') != 'pending'", fetch=True)
         open_count = open_pos[0]["cnt"] if open_pos else 0
 
         # Convert to IST

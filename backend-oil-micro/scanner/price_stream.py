@@ -31,8 +31,11 @@ def _on_tick(bid: float, ask: float):
     global _latest_price
     _latest_price = {"bid": bid, "ask": ask, "mid": (bid + ask) / 2}
 
+    # Filter #27: exclude mode='pending' rows — pending limits have no broker
+    # position yet, so SL/TP/BE checks against current price would be meaningless.
     open_trades = execute(
-        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        f"AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
     if not open_trades:
