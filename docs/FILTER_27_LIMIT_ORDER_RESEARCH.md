@@ -423,14 +423,19 @@ Filter #27 is doing tactic #1. The other tactics are queued or deferred.
 | BT engine refactor | Committed `e15586b`, baseline-equivalent on all 4 systems |
 | Atomic save / metadata | Committed `eeaabb3` |
 | `fill_rate` bug fix | Committed `1049eda` |
-| Research doc (this file) | Committed `e93df57`, then updated with yearly slices |
+| Research doc (this file) | Committed `e93df57`, updated with yearly slices `0fba4e0`, design `bb7c95b` |
 | Per-system top variant identified | Yes, see §6 |
 | Yearly slices on all 4 systems | **Done. 3 ship (Oil Macro, Oil Micro, Gold Micro), 1 stashes (Gold Macro)** |
-| BT defaults ship per system | Pending (next step) |
-| Slippage attribution logging (microsec + bid/ask snapshot) | Pending (next step) |
-| Live limit-order infrastructure | Not started — separate ship after BT defaults land |
+| Slippage attribution logging (μs + bid/ask snapshot) | Committed `33eafab` |
+| BT defaults shipped per system (3 systems, Gold Macro stashed) | Committed `4796ec9`, `4fad436`, `ed025fc` — all verified to-the-cent |
+| Live phase 1 (helper extract + 4-engine refactor + executor primitives + notify) | Committed `f974690` |
+| Live phase 2 (DWX EA pending-order primitives — needs MetaEditor recompile) | Committed `fcfa8e9` |
+| Live phase 3a (dry-run scaffolding × 3 engines) | Committed `5f4667d` |
+| Live phase 3b defensive filter (Oil Macro reconciler queries) | Committed `b998a43` |
+| Live phase 3b real path + monitor (Oil Macro) | Committed `17d7a69` |
+| Live phase 3b real path + monitor (Gold Micro + Oil Micro) | Committed `0a98382` |
 | Filter #28 (first-15-min gate) | Not started, research candidate |
-| Branch state | `filter/27-limit-order-sweep`, NOT pushed (per [[feedback-no-auto-ship]]) |
+| Branch state | `filter/27-limit-order-sweep` at `0a98382`, NOT pushed |
 
 ### Cumulative ship math
 
