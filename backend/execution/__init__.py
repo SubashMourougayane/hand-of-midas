@@ -15,6 +15,8 @@ if EXECUTOR == "mt5":
         get_open_trades,
         get_candles,
         place_market_order,
+        place_limit_order,
+        cancel_pending_order,
         modify_stop_loss,
         close_trade,
         close_partial_trade,
@@ -36,6 +38,14 @@ else:
     def close_partial_trade(*args, **kwargs):
         """Filter #7 — only implemented in MT5 path. OANDA executor is legacy."""
         return {"success": False, "error": "close_partial_trade not implemented for OANDA executor"}
+
+    def place_limit_order(*args, **kwargs):
+        """Filter #27 — only implemented in MT5 path. OANDA executor is legacy."""
+        return {"success": False, "error": "place_limit_order not implemented for OANDA executor"}
+
+    def cancel_pending_order(*args, **kwargs):
+        """Filter #27 — only implemented in MT5 path. OANDA executor is legacy."""
+        return {"success": False, "error": "cancel_pending_order not implemented for OANDA executor"}
 
     def is_connected():
         return True

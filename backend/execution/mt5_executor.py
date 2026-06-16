@@ -415,6 +415,150 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
         }
 
 
+def place_limit_order(instrument, units, limit_price, sl=None, tp=None,
+                      ttl_seconds=900, comment=""):
+    """Filter #27: place a pending limit order via DWX command file.
+
+    The order sits at limit_price for at most ttl_seconds. Broker auto-cancels
+    after expiration; client-side APScheduler cancel-job is also wired as
+    belt-and-suspenders. Fill is detected via OnTradeTransaction's DEAL_ENTRY_IN
+    event (writes closed_orders.json — no, writes open_orders.json on next
+    poll cycle since the position is now live).
+
+    Args:
+        instrument: Internal name (e.g., "XAU_USD")
+        units: Positive for BUY_LIMIT, negative for SELL_LIMIT
+        limit_price: trigger price for the pending order
+        sl: stop loss price (0 / None = no SL on the pending; broker will set
+            it once the limit fills)
+        tp: take profit price (0 / None = no TP)
+        ttl_seconds: how long the limit lives before broker auto-cancels.
+            Default 900s (15min) matches Filter #27's ttl15 winning variant.
+        comment: passes through to DWX → broker order comment.
+            Caller passes "{strategy}|{trade_ref}" so broker logs / open_orders
+            preserve our trace identity.
+
+    Returns:
+        dict with keys:
+            success (bool)
+            ticket (str) — broker-assigned pending-order ticket if success
+            limit_price (float) — echoed back from EA
+            expiration_time (str ISO UTC) — when broker will auto-cancel
+            time (str ISO UTC) — when our send completed
+            error (str) — only on failure
+    """
+    symbol = _mt5_symbol(instrument)
+    order_type = "BUY_LIMIT" if units > 0 else "SELL_LIMIT"
+    volume = abs(units)
+
+    # Same volume → lots conversion as place_market_order. Mirror exactly so
+    # parity tests on size match.
+    if "XAU" in symbol:
+        lots = volume / 100.0
+    elif "BRENT" in symbol or "BCO" in symbol:
+        lots = volume / 1000.0
+    else:
+        lots = volume / 100000.0
+    lots = round(max(lots, 0.01), 2)
+
+    sl_price = sl if sl else 0
+    tp_price = tp if tp else 0
+
+    # Slippage attribution: snapshot bid/ask at send time so post-hoc analysis
+    # can compare limit_price vs market price at send vs eventual fill.
+    snapshot_send = get_current_price(instrument)
+    snapshot_send_bid = snapshot_send["bid"] if snapshot_send else None
+    snapshot_send_ask = snapshot_send["ask"] if snapshot_send else None
+
+    _log.info("BROKER", "place_limit_order_start", instrument=instrument, symbol=symbol,
+              type=order_type, units=volume, lots=lots, limit_price=limit_price,
+              sl=sl_price, tp=tp_price, ttl_seconds=ttl_seconds, comment=comment,
+              snap_bid=snapshot_send_bid, snap_ask=snapshot_send_ask)
+
+    # DWX command shape (added to mql5/DWX_Server.mq5 alongside OPEN):
+    #   OPEN_PENDING|<symbol>|<BUY_LIMIT|SELL_LIMIT>|<lots>|<price>|<sl>|<tp>|<ttl_seconds>|<comment>
+    cmd = (
+        f"OPEN_PENDING|{symbol}|{order_type}|{lots}|{limit_price}|"
+        f"{sl_price}|{tp_price}|{ttl_seconds}|{comment}"
+    )
+    response = _send_command(cmd, timeout=10)
+    if not response:
+        _log.error("BROKER", "place_limit_order_timeout", instrument=instrument,
+                   units=volume, limit_price=limit_price)
+        return {"success": False, "error": "Timeout waiting for EA response"}
+
+    if response.get("success"):
+        ticket = response.get("ticket")
+        # Echo the limit price the EA actually placed (broker may round to tick).
+        echoed_price = response.get("price", limit_price)
+        if not ticket or float(ticket) <= 0:
+            _log.error("BROKER", "place_limit_order_malformed_response",
+                       instrument=instrument, ticket=ticket, full_response=str(response))
+            return {
+                "success": False,
+                "error": f"EA reported success but malformed: ticket={ticket}",
+            }
+        _log.info("BROKER", "place_limit_order_placed", instrument=instrument,
+                  ticket=str(ticket), limit_price=echoed_price,
+                  expiration=response.get("expiration"), units=volume)
+        return {
+            "success": True,
+            "ticket": str(ticket),
+            "limit_price": echoed_price,
+            "expiration_time": response.get("expiration"),
+            "units": volume,
+            "time": datetime.now(timezone.utc).isoformat(),
+        }
+    else:
+        _log.error("BROKER", "place_limit_order_failed", instrument=instrument,
+                   limit_price=limit_price, retcode=response.get("retcode"),
+                   comment=response.get("comment", "Unknown"))
+        return {
+            "success": False,
+            "error": f"retcode={response.get('retcode')}: {response.get('comment', 'Unknown')}",
+        }
+
+
+def cancel_pending_order(ticket):
+    """Filter #27: cancel a pending limit order by ticket.
+
+    Idempotent: if the broker already filled or cancelled, returns
+    success=False with a clear retcode that the caller (the APScheduler
+    cancel-job) treats as a no-op rather than an error.
+
+    Args:
+        ticket: broker pending-order ticket as returned by place_limit_order
+
+    Returns:
+        dict with success / error / retcode
+    """
+    _log.info("BROKER", "cancel_pending_order_start", ticket=str(ticket))
+
+    cmd = f"CANCEL_PENDING|{ticket}"
+    response = _send_command(cmd, timeout=10)
+    if not response:
+        _log.error("BROKER", "cancel_pending_order_timeout", ticket=str(ticket))
+        return {"success": False, "error": "Timeout"}
+
+    if response.get("success"):
+        _log.info("BROKER", "cancel_pending_order_ok", ticket=str(ticket))
+        return {"success": True}
+    else:
+        # Common harmless cases: order already filled (DEAL_ENTRY_IN already
+        # fired before our cancel arrived), or order already auto-cancelled
+        # by broker on TTL expiration. Caller decides whether to treat as
+        # error based on retcode.
+        retcode = response.get("retcode")
+        comment = response.get("comment", "Unknown")
+        _log.warn("BROKER", "cancel_pending_order_failed", ticket=str(ticket),
+                  retcode=retcode, comment=comment)
+        return {
+            "success": False,
+            "retcode": retcode,
+            "error": f"retcode={retcode}: {comment}",
+        }
+
+
 def modify_stop_loss(trade_id, new_sl, new_tp=None):
     """Modify the stop loss (and optionally TP) of an existing position."""
     tp_price = new_tp if new_tp else 0

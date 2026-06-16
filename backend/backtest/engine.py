@@ -13,6 +13,7 @@ from backend.strategies.base import Signal
 from backend.strategies import alpha_sweep, mean_rev, cross_market
 from backend.strategies.dd_protection import DDState, should_skip_signal, get_risk_multiplier, update_after_trade
 from backend.execution.fill_model import execute_trade, TradeResult
+from backend.execution.limit_price import compute_limit_price
 from backend.config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK
 
 # Module-level data cache — loaded once, reused across requests
@@ -271,25 +272,19 @@ def run_backtest(
 
         # Filter #27 — compute limit_price per variant (only for alpha_sweep
         # since mean_rev/cross_market are daily-bar strategies, not M3-engulfing).
+        # Uses the shared compute_limit_price helper so live scheduler computes
+        # IDENTICAL prices for the same inputs. See backend/execution/limit_price.py.
         use_limit = (entry_mode == "limit" and signal.strategy == "alpha_sweep" and limit_ttl_bars > 0)
         limit_price = None
         if use_limit:
-            if limit_offset_pct == "engulf_close":
-                # Level B: engulfing close, no slippage offset baked in
-                if signal.direction == "long":
-                    limit_price = df["ask_close"].iat[bar_idx]
-                else:
-                    limit_price = df["bid_close"].iat[bar_idx]
-            elif limit_offset_pct == 0.0:
-                # Level A: signal.entry verbatim (includes baseline slippage offset)
-                limit_price = signal.entry
-            else:
-                # Level C: pullback into structure by offset_pct × risk
-                # offset_pct is negative (-0.10/-0.20/-0.30) meaning "below entry for LONG"
-                if signal.direction == "long":
-                    limit_price = signal.entry + limit_offset_pct * signal.risk
-                else:
-                    limit_price = signal.entry - limit_offset_pct * signal.risk
+            limit_price = compute_limit_price(
+                direction=signal.direction,
+                signal_entry=signal.entry,
+                signal_risk=signal.risk,
+                engulf_close_ask=df["ask_close"].iat[bar_idx],
+                engulf_close_bid=df["bid_close"].iat[bar_idx],
+                limit_offset_pct=limit_offset_pct,
+            )
 
         # Filter #27: count this as a signal that reached execute_trade
         # (post-gates). Used as denominator for fill_rate.

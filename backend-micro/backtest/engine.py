@@ -13,6 +13,7 @@ from backend.backtest.engine import (
 from backend.strategies import micro_alpha_sweep, mean_rev, cross_market
 from backend.strategies.dd_protection import DDState, should_skip_signal, get_risk_multiplier, update_after_trade
 from backend.execution.fill_model import execute_trade
+from backend.execution.limit_price import compute_limit_price
 from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK, MICRO_ALPHA_SWEEP
 
 
@@ -234,22 +235,19 @@ def run_backtest(
         else:
             ptp_at, ptp_sz, p_arms = 0.0, 0.0, False
 
-        # Filter #27 — compute limit_price per variant (only on micro_alpha_sweep)
+        # Filter #27 — compute limit_price per variant (only on micro_alpha_sweep).
+        # Uses the shared helper for live↔BT parity. See backend/execution/limit_price.py.
         use_limit = (entry_mode == "limit" and signal.strategy == "micro_alpha_sweep" and limit_ttl_bars > 0)
         limit_price = None
         if use_limit:
-            if limit_offset_pct == "engulf_close":
-                if signal.direction == "long":
-                    limit_price = df["ask_close"].iat[bar_idx]
-                else:
-                    limit_price = df["bid_close"].iat[bar_idx]
-            elif limit_offset_pct == 0.0:
-                limit_price = signal.entry
-            else:
-                if signal.direction == "long":
-                    limit_price = signal.entry + limit_offset_pct * signal.risk
-                else:
-                    limit_price = signal.entry - limit_offset_pct * signal.risk
+            limit_price = compute_limit_price(
+                direction=signal.direction,
+                signal_entry=signal.entry,
+                signal_risk=signal.risk,
+                engulf_close_ask=df["ask_close"].iat[bar_idx],
+                engulf_close_bid=df["bid_close"].iat[bar_idx],
+                limit_offset_pct=limit_offset_pct,
+            )
 
         # Filter #27: count post-gates as a signal that reached execute_trade
         if signal.strategy == "micro_alpha_sweep":

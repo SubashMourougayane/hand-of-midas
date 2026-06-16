@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data.cache import load_candles
 from strategies.alpha_sweep import generate_signals, Signal
 from execution.fill_model import execute_trade, TradeResult
+from backend.execution.limit_price import compute_limit_price
 from config import YEARLY_CAPITAL, RISK_PCT, MAX_UNITS, STRATEGY_RISK, ALPHA_SWEEP
 from dataclasses import dataclass, field
 
@@ -214,22 +215,19 @@ def run_backtest(
         except KeyError:
             continue
 
-        # Filter #27 — compute limit_price per variant (Oil Macro = always alpha_sweep_oil)
+        # Filter #27 — compute limit_price per variant (Oil Macro = always alpha_sweep_oil).
+        # Uses the shared helper for live↔BT parity. See backend/execution/limit_price.py.
         use_limit = (entry_mode == "limit" and limit_ttl_bars > 0)
         limit_price = None
         if use_limit:
-            if limit_offset_pct == "engulf_close":
-                if signal.direction == "long":
-                    limit_price = oil_m3["ask_close"].iat[bar_idx]
-                else:
-                    limit_price = oil_m3["bid_close"].iat[bar_idx]
-            elif limit_offset_pct == 0.0:
-                limit_price = signal.entry
-            else:
-                if signal.direction == "long":
-                    limit_price = signal.entry + limit_offset_pct * signal.risk
-                else:
-                    limit_price = signal.entry - limit_offset_pct * signal.risk
+            limit_price = compute_limit_price(
+                direction=signal.direction,
+                signal_entry=signal.entry,
+                signal_risk=signal.risk,
+                engulf_close_ask=oil_m3["ask_close"].iat[bar_idx],
+                engulf_close_bid=oil_m3["bid_close"].iat[bar_idx],
+                limit_offset_pct=limit_offset_pct,
+            )
 
         # Filter #27: count signals reaching execute_trade
         _filter27_total_local += 1

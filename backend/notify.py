@@ -125,6 +125,39 @@ def max_hold_deferred(trade_ref: str, instrument: str):
     )
 
 
+def limit_placed(trade_ref: str, instrument: str, direction: str,
+                 limit_price: float, ttl_seconds: int):
+    """Filter #27 live: pending limit order placed at broker.
+
+    Fires once per trade_ref when scheduler successfully places the pending
+    order. The lifecycle pair closes with either:
+    - `trade_filled` (broker filled — switches to live position)
+    - `limit_ttl_expired` (TTL hit, cancelled, never filled)
+    """
+    fmt = ".2f" if "XAU" in instrument else ".4f"
+    send(
+        f"📋 <b>LIMIT PLACED</b>\n"
+        f"{trade_ref}\n"
+        f"{instrument} {direction.upper()} @ ${limit_price:{fmt}} (limit)\n"
+        f"TTL: {ttl_seconds}s — fills on touch or cancels."
+    )
+
+
+def limit_ttl_expired(trade_ref: str, instrument: str, limit_price: float):
+    """Filter #27 live: pending limit didn't fill within TTL.
+
+    Fires when the APScheduler cancel-job runs and the broker confirms the
+    order was cancelled (not filled). If the broker filled in-flight,
+    `trade_filled` fires instead — this method does NOT fire on race.
+    """
+    fmt = ".2f" if "XAU" in instrument else ".4f"
+    send(
+        f"⏱ <b>LIMIT EXPIRED</b>\n"
+        f"{trade_ref}\n"
+        f"{instrument} did not fill at ${limit_price:{fmt}} — cancelled."
+    )
+
+
 def orphan_adopted(trade_ref: str, broker_id: str, instrument: str, side: str,
                    units: int, entry_price: float, sl: float, tp: float):
     """Alert when the orphan reconciler adopts an untracked broker position.
