@@ -67,6 +67,7 @@ void OnTimer()
 {
     WriteMarketData();
     WriteOpenOrders();
+    WritePendingOrders();
     ReadCommands();
 
     // Write account info every 2 seconds
@@ -183,6 +184,70 @@ void WriteOpenOrders()
     json += "}";
 
     WriteFile(g_folder + "/open_orders.json", json);
+}
+
+//+------------------------------------------------------------------+
+//| Filter #27: write pending limit orders to pending_orders.json    |
+//+------------------------------------------------------------------+
+//| Iterates OrdersTotal() (NOT PositionsTotal — those are filled    |
+//| positions tracked by WriteOpenOrders). Pending limits sit here    |
+//| until they fill (move to PositionsTotal) or cancel (disappear).  |
+//| Python uses this to detect TTL-expiring pending orders pre-cancel |
+//| and to reconcile fills (a ticket that was in pending_orders.json  |
+//| then appears in open_orders.json = fill detected).                |
+//+------------------------------------------------------------------+
+void WritePendingOrders()
+{
+    string json = "{";
+    int total = OrdersTotal();
+    bool first = true;
+
+    for(int i = 0; i < total; i++)
+    {
+        ulong ticket = OrderGetTicket(i);
+        if(ticket == 0) continue;
+
+        long magic = OrderGetInteger(ORDER_MAGIC);
+        if(magic != InpMagic) continue;  // Filter to OUR orders only
+
+        if(!first) json += ",";
+        first = false;
+
+        string symbol = OrderGetString(ORDER_SYMBOL);
+        double volume = OrderGetDouble(ORDER_VOLUME_CURRENT);
+        double price = OrderGetDouble(ORDER_PRICE_OPEN);
+        double sl = OrderGetDouble(ORDER_SL);
+        double tp = OrderGetDouble(ORDER_TP);
+        long orderType = OrderGetInteger(ORDER_TYPE);
+        datetime setupTime = (datetime)OrderGetInteger(ORDER_TIME_SETUP);
+        datetime expiration = (datetime)OrderGetInteger(ORDER_TIME_EXPIRATION);
+        string comment = OrderGetString(ORDER_COMMENT);
+
+        string typeStr = "UNKNOWN";
+        if(orderType == ORDER_TYPE_BUY_LIMIT)       typeStr = "BUY_LIMIT";
+        else if(orderType == ORDER_TYPE_SELL_LIMIT) typeStr = "SELL_LIMIT";
+        else if(orderType == ORDER_TYPE_BUY_STOP)   typeStr = "BUY_STOP";
+        else if(orderType == ORDER_TYPE_SELL_STOP)  typeStr = "SELL_STOP";
+
+        json += StringFormat(
+            "\"%d\":{\"symbol\":\"%s\",\"type\":\"%s\",\"volume\":%.2f,"
+            "\"price\":%.5f,\"sl\":%.5f,\"tp\":%.5f,"
+            "\"setup_time\":\"%s\",\"expiration\":\"%s\","
+            "\"magic\":%d,\"comment\":\"%s\"}",
+            ticket,
+            symbol,
+            typeStr,
+            volume,
+            price, sl, tp,
+            TimeToString(setupTime, TIME_DATE|TIME_SECONDS),
+            TimeToString(expiration, TIME_DATE|TIME_SECONDS),
+            magic,
+            comment
+        );
+    }
+    json += "}";
+
+    WriteFile(g_folder + "/pending_orders.json", json);
 }
 
 //+------------------------------------------------------------------+
@@ -327,6 +392,37 @@ void ProcessCommand(string cmd, string filename)
             ExecuteClosePartial(ticket, volumeLots);
         }
     }
+    else if(action == "OPEN_PENDING" && n >= 9)
+    {
+        // Filter #27: place a pending limit order.
+        // OPEN_PENDING|SYMBOL|BUY_LIMIT|SELL_LIMIT|VOLUME|PRICE|SL|TP|TTL_SECONDS|COMMENT
+        // Broker auto-cancels at TimeCurrent() + ttl_seconds via ORDER_TIME_SPECIFIED
+        // expiration. Python's APScheduler also fires CANCEL_PENDING at TTL+5s as
+        // belt-and-suspenders.
+        string symbol = parts[1];
+        string type = parts[2];
+        double volume = StringToDouble(parts[3]);
+        double price = StringToDouble(parts[4]);
+        double sl = StringToDouble(parts[5]);
+        double tp = StringToDouble(parts[6]);
+        int ttl_seconds = (int)StringToInteger(parts[7]);
+        // Comment may itself contain '|' (e.g., "strategy|trade_ref"). Re-join
+        // parts[8..n-1] like OPEN does to preserve full original comment.
+        string comment = "";
+        if(n >= 9)
+        {
+            comment = parts[8];
+            for(int i = 9; i < n; i++) comment = comment + "|" + parts[i];
+        }
+        ExecuteOpenPending(symbol, type, volume, price, sl, tp, ttl_seconds, comment);
+    }
+    else if(action == "CANCEL_PENDING" && n >= 2)
+    {
+        // Filter #27: cancel a pending limit order by ticket. Idempotent.
+        // CANCEL_PENDING|TICKET
+        ulong ticket = (ulong)StringToInteger(parts[1]);
+        ExecuteCancelPending(ticket);
+    }
     else
     {
         Print("[DWX] Unknown command: ", action);
@@ -382,6 +478,97 @@ void ExecuteOpen(string symbol, string type, double volume, double price, double
         Print("[DWX] Order opened: ", symbol, " ", type, " ", volume, " @ ", result.price, " ticket=", result.order);
     else
         Print("[DWX] Order FAILED: ", symbol, " retcode=", result.retcode, " ", result.comment);
+}
+
+//+------------------------------------------------------------------+
+//| Filter #27: place a pending limit order with TTL expiration       |
+//+------------------------------------------------------------------+
+void ExecuteOpenPending(string symbol, string type, double volume, double price,
+                       double sl, double tp, int ttl_seconds, string comment)
+{
+    MqlTradeRequest request = {};
+    MqlTradeResult result = {};
+
+    request.action = TRADE_ACTION_PENDING;
+    request.symbol = symbol;
+    request.volume = volume;
+    request.price = price;
+    request.sl = sl;
+    request.tp = tp;
+    request.deviation = 20;
+    request.magic = InpMagic;
+    request.comment = comment;
+    request.type_filling = ORDER_FILLING_RETURN;
+    // Broker-side TTL: order auto-cancels at this time. Python's APScheduler
+    // also fires CANCEL_PENDING at TTL+5s as belt-and-suspenders.
+    request.type_time = ORDER_TIME_SPECIFIED;
+    request.expiration = (datetime)(TimeCurrent() + ttl_seconds);
+
+    if(type == "BUY_LIMIT")
+        request.type = ORDER_TYPE_BUY_LIMIT;
+    else if(type == "SELL_LIMIT")
+        request.type = ORDER_TYPE_SELL_LIMIT;
+    else
+    {
+        WriteFile(g_folder + "/last_response.json",
+            StringFormat("{\"success\":false,\"error\":\"Unknown pending type: %s\"}", type));
+        Print("[DWX] OPEN_PENDING rejected: unknown type ", type);
+        return;
+    }
+
+    bool success = OrderSend(request, result);
+
+    string response = StringFormat(
+        "{\"success\":%s,\"ticket\":%d,\"price\":%.5f,\"volume\":%.2f,"
+        "\"expiration\":\"%s\",\"retcode\":%d,\"comment\":\"%s\"}",
+        success ? "true" : "false",
+        result.order,
+        result.price,
+        result.volume,
+        TimeToString(request.expiration, TIME_DATE|TIME_SECONDS),
+        result.retcode,
+        result.comment
+    );
+
+    WriteFile(g_folder + "/last_response.json", response);
+
+    if(success)
+        Print("[DWX] Pending placed: ", symbol, " ", type, " ", volume,
+              " @ ", price, " ttl=", ttl_seconds, "s ticket=", result.order);
+    else
+        Print("[DWX] Pending FAILED: ", symbol, " retcode=", result.retcode, " ", result.comment);
+}
+
+//+------------------------------------------------------------------+
+//| Filter #27: cancel a pending limit order. Idempotent.             |
+//+------------------------------------------------------------------+
+void ExecuteCancelPending(ulong ticket)
+{
+    MqlTradeRequest request = {};
+    MqlTradeResult result = {};
+
+    request.action = TRADE_ACTION_REMOVE;
+    request.order = ticket;
+
+    bool success = OrderSend(request, result);
+
+    string response = StringFormat(
+        "{\"success\":%s,\"ticket\":%d,\"retcode\":%d,\"comment\":\"%s\"}",
+        success ? "true" : "false",
+        ticket,
+        result.retcode,
+        result.comment
+    );
+
+    WriteFile(g_folder + "/last_response.json", response);
+
+    if(success)
+        Print("[DWX] Pending cancelled: ticket=", ticket);
+    else
+        // Common harmless cases: order already filled, already cancelled, already
+        // expired by broker. Python caller treats by retcode, not as a hard error.
+        Print("[DWX] CANCEL_PENDING failed (often harmless): ticket=", ticket,
+              " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
@@ -686,6 +873,71 @@ void OnTradeTransaction(
     const MqlTradeRequest& request,
     const MqlTradeResult& result)
 {
+    // Filter #27: capture pending-order cancellations (TTL expired or manual
+    // cancel). Without this Python doesn't know whether a missing pending
+    // order filled or expired — it can only see "the ticket is no longer in
+    // pending_orders.json". Writing cancelled_orders.json gives us a positive
+    // signal to journal LIMIT_TTL_EXPIRED.
+    if(trans.type == TRADE_TRANSACTION_ORDER_DELETE && trans.order != 0)
+    {
+        // Pull from history: HistoryOrderSelect populates the readers
+        if(HistoryOrderSelect(trans.order))
+        {
+            long magic = HistoryOrderGetInteger(trans.order, ORDER_MAGIC);
+            if(magic == InpMagic)
+            {
+                long stateRaw = HistoryOrderGetInteger(trans.order, ORDER_STATE);
+                long reasonRaw = HistoryOrderGetInteger(trans.order, ORDER_REASON);
+                // Only log if the order was CANCELLED or EXPIRED — not if it was
+                // filled (that becomes a position; we don't double-log here).
+                // ORDER_STATE_FILLED means the order became a position — skip.
+                // ORDER_STATE_CANCELED / ORDER_STATE_EXPIRED are the cases we want.
+                if(stateRaw == ORDER_STATE_CANCELED || stateRaw == ORDER_STATE_EXPIRED)
+                {
+                    string symbol = HistoryOrderGetString(trans.order, ORDER_SYMBOL);
+                    double volume = HistoryOrderGetDouble(trans.order, ORDER_VOLUME_INITIAL);
+                    double price = HistoryOrderGetDouble(trans.order, ORDER_PRICE_OPEN);
+                    long orderType = HistoryOrderGetInteger(trans.order, ORDER_TYPE);
+                    datetime setupTime = (datetime)HistoryOrderGetInteger(trans.order, ORDER_TIME_SETUP);
+                    datetime doneTime = (datetime)HistoryOrderGetInteger(trans.order, ORDER_TIME_DONE);
+                    string comment = HistoryOrderGetString(trans.order, ORDER_COMMENT);
+
+                    string typeStr = "UNKNOWN";
+                    if(orderType == ORDER_TYPE_BUY_LIMIT)       typeStr = "BUY_LIMIT";
+                    else if(orderType == ORDER_TYPE_SELL_LIMIT) typeStr = "SELL_LIMIT";
+                    else if(orderType == ORDER_TYPE_BUY_STOP)   typeStr = "BUY_STOP";
+                    else if(orderType == ORDER_TYPE_SELL_STOP)  typeStr = "SELL_STOP";
+
+                    string stateStr = (stateRaw == ORDER_STATE_CANCELED) ? "CANCELED" : "EXPIRED";
+
+                    string entry_json = StringFormat(
+                        "{\"ticket\":\"%d\",\"symbol\":\"%s\",\"type\":\"%s\","
+                        "\"volume\":%.2f,\"price\":%.5f,"
+                        "\"setup_time\":\"%s\",\"done_time\":\"%s\","
+                        "\"state\":\"%s\",\"reason_code\":%d,"
+                        "\"magic\":%d,\"comment\":\"%s\"}",
+                        trans.order,
+                        symbol,
+                        typeStr,
+                        volume,
+                        price,
+                        TimeToString(setupTime, TIME_DATE|TIME_SECONDS),
+                        TimeToString(doneTime, TIME_DATE|TIME_SECONDS),
+                        stateStr,
+                        (int)reasonRaw,
+                        magic,
+                        comment
+                    );
+
+                    AppendCancelledOrder(entry_json);
+                    Print("[DWX] PENDING ", stateStr, ": ticket=", trans.order,
+                          " ", symbol, " ", typeStr, " @ ", price);
+                }
+            }
+        }
+        return;  // ORDER_DELETE handled — don't fall through to DEAL_ADD logic
+    }
+
     // We only care about completed deals that close a position
     if(trans.type != TRADE_TRANSACTION_DEAL_ADD) return;
     if(trans.deal == 0) return;
@@ -837,4 +1089,65 @@ void AppendClosedOrder(string entry_json)
 
     WriteFile(path, newJson);
 }
+
+//+------------------------------------------------------------------+
+//| Filter #27: Append a cancelled-order entry to cancelled_orders.json |
+//| Same shape and trim semantics as AppendClosedOrder. Separate file  |
+//| so Python's poller can distinguish FILLED-and-then-closed (closed_  |
+//| orders.json) from CANCELLED-without-fill (cancelled_orders.json).   |
+//+------------------------------------------------------------------+
+void AppendCancelledOrder(string entry_json)
+{
+    string path = g_folder + "/cancelled_orders.json";
+    string existing = ReadFile(path);
+
+    string newJson;
+    if(StringLen(existing) < 5)
+    {
+        newJson = "[" + entry_json + "]";
+    }
+    else
+    {
+        string trimmed = existing;
+        StringTrimLeft(trimmed);
+        StringTrimRight(trimmed);
+        if(StringGetCharacter(trimmed, 0) == '[')
+            trimmed = StringSubstr(trimmed, 1);
+        int lastBracket = StringLen(trimmed) - 1;
+        if(lastBracket >= 0 && StringGetCharacter(trimmed, lastBracket) == ']')
+            trimmed = StringSubstr(trimmed, 0, lastBracket);
+        StringTrimLeft(trimmed);
+        StringTrimRight(trimmed);
+
+        int count = 0;
+        int searchPos = 0;
+        while(true)
+        {
+            int found = StringFind(trimmed, "{\"ticket\"", searchPos);
+            if(found < 0) break;
+            count++;
+            searchPos = found + 1;
+        }
+        while(count >= 200)
+        {
+            int firstStart = StringFind(trimmed, "{\"ticket\"", 0);
+            int secondStart = StringFind(trimmed, "{\"ticket\"", firstStart + 1);
+            if(secondStart < 0) break;
+            trimmed = StringSubstr(trimmed, secondStart);
+            StringTrimLeft(trimmed);
+            if(StringGetCharacter(trimmed, 0) == ',')
+                trimmed = StringSubstr(trimmed, 1);
+            StringTrimLeft(trimmed);
+            count--;
+        }
+
+        if(StringLen(trimmed) > 0)
+            newJson = "[" + trimmed + "," + entry_json + "]";
+        else
+            newJson = "[" + entry_json + "]";
+    }
+
+    WriteFile(path, newJson);
+}
+
 //+------------------------------------------------------------------+
