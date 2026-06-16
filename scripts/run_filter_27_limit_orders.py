@@ -157,13 +157,18 @@ def run_one(sys_label: str, pkg_dir: str, kwargs: dict) -> dict:
     n = len(trades)
     missed = getattr(result, "missed_signals", 0)
     wwl = getattr(result, "would_have_won_count", 0)
-    total_signals = getattr(result, "total_signals", n + missed)
-    fill_rate = (n / total_signals * 100) if total_signals > 0 else 0.0
+    total_signals = getattr(result, "total_signals", 0)
+    filled_signals = getattr(result, "filled_signals", 0)  # alpha_sweep-scoped
+    # fill_rate is alpha_sweep-only: filled vs total (filled + missed).
+    # n includes mean_rev + cross_market trades too on Gold Macro/Micro,
+    # so we use filled_signals (the alpha_sweep filled count) as numerator.
+    fill_rate = (filled_signals / total_signals * 100) if total_signals > 0 else 0.0
 
     if n == 0:
         return {
             "label": sys_label, "n": 0, "wr": 0.0, "pf": 0.0, "pnl": 0.0,
-            "missed": missed, "wwl": wwl, "total_signals": total_signals,
+            "missed": missed, "wwl": wwl,
+            "total_signals": total_signals, "filled_signals": filled_signals,
             "fill_rate": fill_rate, "elapsed_s": elapsed,
         }
     wins = [t for t in trades if t.pnl_sized > 0]
@@ -181,6 +186,7 @@ def run_one(sys_label: str, pkg_dir: str, kwargs: dict) -> dict:
         "missed": missed,
         "wwl": wwl,
         "total_signals": total_signals,
+        "filled_signals": filled_signals,
         "fill_rate": fill_rate,
         "elapsed_s": elapsed,
     }

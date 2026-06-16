@@ -273,6 +273,7 @@ class BacktestResult:
     missed_signals: int = 0
     would_have_won_count: int = 0
     total_signals: int = 0
+    filled_signals: int = 0
 
 
 def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True,
@@ -537,10 +538,11 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None
     position_exit_time = None
-    # Filter #27 accumulators
+    # Filter #27 accumulators (micro_alpha_sweep_oil; Oil Micro is single-strategy)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
     _filter27_total_local = 0
+    _filter27_filled_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date()
@@ -645,6 +647,9 @@ def run_backtest(
                 _filter27_wwl_local += 1
             continue
 
+        # Filter #27: filled
+        _filter27_filled_local += 1
+
         pnl_dollar = result["pnl_per_unit"] * units
         equity += pnl_dollar
         equity = max(equity, 0)
@@ -706,5 +711,6 @@ def run_backtest(
     result_obj.missed_signals = _filter27_missed_local
     result_obj.would_have_won_count = _filter27_wwl_local
     result_obj.total_signals = _filter27_total_local
+    result_obj.filled_signals = _filter27_filled_local
 
     return result_obj

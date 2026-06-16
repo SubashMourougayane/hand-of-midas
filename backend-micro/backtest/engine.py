@@ -162,10 +162,11 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None  # For cooldown tracking
     position_exit_time = None  # One-at-a-time: when current position exits (C9 fix)
-    # Filter #27 accumulators
+    # Filter #27 accumulators (micro_alpha_sweep scope only)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
     _filter27_total_local = 0
+    _filter27_filled_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -290,6 +291,10 @@ def run_backtest(
         daily_pnl += pnl_dollar
         last_signal_time = signal.date  # Update cooldown tracker
 
+        # Filter #27: count filled micro_alpha_sweep trades (denominator-pair)
+        if signal.strategy == "micro_alpha_sweep":
+            _filter27_filled_local += 1
+
         # Track when this position exits (for one-at-a-time rule)
         bar_seconds = 180 if signal.timeframe == "M3" else 86400  # 3min or 1day
         position_exit_time = signal.date + timedelta(seconds=result.bars_held * bar_seconds)
@@ -345,9 +350,10 @@ def run_backtest(
                 worst_dd = year_dd
         result_obj.max_drawdown_pct = float(worst_dd * 100)
 
-    # Filter #27 stats
+    # Filter #27 stats — micro_alpha_sweep-scoped
     result_obj.missed_signals = _filter27_missed_local
     result_obj.would_have_won_count = _filter27_wwl_local
     result_obj.total_signals = _filter27_total_local
+    result_obj.filled_signals = _filter27_filled_local
 
     return result_obj

@@ -70,9 +70,12 @@ class BacktestResult:
     losses: int = 0
     # Filter #27 — limit-order entry stats. would_have_won_count is INFORMATIONAL
     # LOOKAHEAD; do not use it to rank variants in ship decisions.
+    # All counters scoped to alpha_sweep strategy (mean_rev + cross_market are
+    # daily-bar strategies, limit-order logic doesn't apply to them).
     missed_signals: int = 0
     would_have_won_count: int = 0
-    total_signals: int = 0  # filled + missed
+    total_signals: int = 0   # alpha_sweep signals reaching execute_trade (filled + missed)
+    filled_signals: int = 0  # alpha_sweep signals that produced a trade (= total_signals - missed_signals)
 
 
 def run_backtest(
@@ -205,10 +208,11 @@ def run_backtest(
     trades: list[BacktestTrade] = []
     current_year = None
     last_signal_time = None
-    # Filter #27 accumulators
+    # Filter #27 accumulators (alpha_sweep scope only)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
     _filter27_total_local = 0
+    _filter27_filled_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -330,6 +334,10 @@ def run_backtest(
         update_after_trade(state, pnl_dollar)
         last_signal_time = signal.date
 
+        # Filter #27: count filled alpha_sweep trades (denominator-pair to total_signals)
+        if signal.strategy == "alpha_sweep":
+            _filter27_filled_local += 1
+
         # Hold time string
         if signal.strategy == "alpha_sweep":
             hold_str = f"{result.bars_held * 3}min" if result.bars_held < 20 else f"{result.bars_held * 3 / 60:.1f}hrs"
@@ -383,9 +391,12 @@ def run_backtest(
                 worst_dd = year_dd
         result_obj.max_drawdown_pct = float(worst_dd * 100)
 
-    # Filter #27 stats — populated regardless of trades count
+    # Filter #27 stats — populated regardless of trades count.
+    # All counters are alpha_sweep-scoped; mean_rev / cross_market trades
+    # are NOT included so fill_rate = filled_signals / total_signals is correct.
     result_obj.missed_signals = _filter27_missed_local
     result_obj.would_have_won_count = _filter27_wwl_local
     result_obj.total_signals = _filter27_total_local
+    result_obj.filled_signals = _filter27_filled_local
 
     return result_obj
