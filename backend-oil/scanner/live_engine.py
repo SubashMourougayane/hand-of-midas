@@ -330,8 +330,15 @@ def check_open_positions():
     """
     Monitor open Oil positions — detect OANDA-side closures, enforce max hold.
     """
+    # Filter #27: pending-limit rows have mode='pending' and oanda_trade_id set
+    # to the pending TICKET (not a position id). They MUST be excluded from
+    # the position-reconciler — otherwise we'd treat the pending ticket as a
+    # missing OANDA position and try to detect SL/TP exit reasons against a
+    # price that hasn't filled yet. Pending rows are handled by
+    # pending_order_monitor_job (separate path).
     open_db_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE 'OIL-%%'",
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        "AND trade_ref LIKE 'OIL-%%' AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
 
@@ -501,9 +508,14 @@ def _update_dd_after_exit(realized_pl_gbp: float, pnl_usd: float):
 
 
 def check_alpha_sweep_breakeven():
-    """Scheduler fallback: check break-even for Oil trades (stream is primary)."""
+    """Scheduler fallback: check break-even for Oil trades (stream is primary).
+
+    Filter #27: COALESCE excludes mode='pending' rows. BE check on a
+    not-yet-filled limit would corrupt the BE state machine.
+    """
     open_trades = execute(
-        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND strategy='alpha_sweep_oil' AND oanda_trade_id IS NOT NULL",
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL AND strategy='alpha_sweep_oil' "
+        "AND oanda_trade_id IS NOT NULL AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
 
@@ -658,9 +670,12 @@ def check_alpha_sweep_partial_tp():
     if partial_at <= 0 or partial_sz <= 0:
         return  # filter off
 
+    # Filter #27: exclude mode='pending' rows — partial-TP requires a filled
+    # position, not a not-yet-triggered limit.
     open_trades = execute(
         "SELECT * FROM gd_trades WHERE exit_time IS NULL AND strategy='alpha_sweep_oil' "
-        "AND oanda_trade_id IS NOT NULL AND COALESCE(partial_done, FALSE) = FALSE",
+        "AND oanda_trade_id IS NOT NULL AND COALESCE(partial_done, FALSE) = FALSE "
+        "AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
     _log.debug("POSITION", "partial_check_tick", open=len(open_trades) if open_trades else 0,
@@ -782,8 +797,13 @@ def reconcile_orphans():
     if not broker_open:
         # Issue #16 fix 2026-06-15: smell detector
         try:
+            # Filter #27: exclude pending limits from "DB-open" smell count.
+            # Pending rows correctly have no broker position (broker has a
+            # pending order, not a position). Counting them here triggers
+            # false-alarm "reconcile_empty_but_db_has_open" warnings.
             db_open = execute(
-                "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND strategy = 'alpha_sweep_oil'",
+                "SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL "
+                "AND strategy = 'alpha_sweep_oil' AND COALESCE(mode, 'live') != 'pending'",
                 fetch=True
             )
             db_open_cnt = db_open[0]["cnt"] if db_open else 0
@@ -795,9 +815,13 @@ def reconcile_orphans():
 
     # Look up ANY system's open positions — see backend-oil-micro for full
     # rationale. June 11: cross-system pollution caused Telegram spam.
+    # Filter #27: exclude pending limits — their oanda_trade_id is a pending
+    # ticket, not a position, so the orphan reconciler must NOT try to match
+    # it against `broker_open` (which only contains filled positions).
     db_open_rows = execute(
         "SELECT oanda_trade_id FROM gd_trades "
-        "WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL",
+        "WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        "AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
     db_open_ids = {str(r["oanda_trade_id"]) for r in (db_open_rows or [])}
