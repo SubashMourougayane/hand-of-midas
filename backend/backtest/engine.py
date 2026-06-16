@@ -68,6 +68,11 @@ class BacktestResult:
     total_trades: int = 0
     wins: int = 0
     losses: int = 0
+    # Filter #27 — limit-order entry stats. would_have_won_count is INFORMATIONAL
+    # LOOKAHEAD; do not use it to rank variants in ship decisions.
+    missed_signals: int = 0
+    would_have_won_count: int = 0
+    total_signals: int = 0  # filled + missed
 
 
 def run_backtest(
@@ -82,6 +87,10 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    entry_mode: str | None = None,
+    limit_offset_pct: float | None = None,
+    limit_ttl_bars: int | None = None,
+    limit_fill_strict: bool | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -89,6 +98,15 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    entry_mode: Filter #27. None/"market" (default) = legacy market-entry baseline.
+      "limit" = simulate limit orders at limit_price for limit_ttl_bars M3 bars.
+    limit_offset_pct: Filter #27. Used only when entry_mode="limit".
+      0.0 = level A (signal.entry verbatim, includes baseline slippage offset).
+      "engulf_close" sentinel = level B (engulfing bar's bid/ask close, no slip).
+      -0.10 / -0.20 / -0.30 = level C (pullback into structure; sign flipped for SHORT).
+    limit_ttl_bars: Filter #27. 1 / 2 / 5 = 3min / 6min / 15min.
+    limit_fill_strict: Filter #27. True = require touch+close beyond limit
+      (sustained, pessimistic). False = wick touch only (optimistic).
     """
     from backend.config import ALPHA_SWEEP
     if partial_tp_at_pct is None:
@@ -97,6 +115,14 @@ def run_backtest(
         partial_tp_size = ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = ALPHA_SWEEP.get("partial_arms_be", False)
+    if entry_mode is None:
+        entry_mode = ALPHA_SWEEP.get("entry_mode", "market")
+    if limit_offset_pct is None:
+        limit_offset_pct = ALPHA_SWEEP.get("limit_offset_pct", 0.0)
+    if limit_ttl_bars is None:
+        limit_ttl_bars = ALPHA_SWEEP.get("limit_ttl_bars", 0)
+    if limit_fill_strict is None:
+        limit_fill_strict = ALPHA_SWEEP.get("limit_fill_strict", False)
     if strategies is None:
         strategies = ["alpha_sweep", "mean_rev", "cross_market"]
 
@@ -179,6 +205,10 @@ def run_backtest(
     trades: list[BacktestTrade] = []
     current_year = None
     last_signal_time = None
+    # Filter #27 accumulators
+    _filter27_missed_local = 0
+    _filter27_wwl_local = 0
+    _filter27_total_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -235,6 +265,33 @@ def run_backtest(
         else:
             ptp_at, ptp_sz, p_arms = 0.0, 0.0, False
 
+        # Filter #27 — compute limit_price per variant (only for alpha_sweep
+        # since mean_rev/cross_market are daily-bar strategies, not M3-engulfing).
+        use_limit = (entry_mode == "limit" and signal.strategy == "alpha_sweep" and limit_ttl_bars > 0)
+        limit_price = None
+        if use_limit:
+            if limit_offset_pct == "engulf_close":
+                # Level B: engulfing close, no slippage offset baked in
+                if signal.direction == "long":
+                    limit_price = df["ask_close"].iat[bar_idx]
+                else:
+                    limit_price = df["bid_close"].iat[bar_idx]
+            elif limit_offset_pct == 0.0:
+                # Level A: signal.entry verbatim (includes baseline slippage offset)
+                limit_price = signal.entry
+            else:
+                # Level C: pullback into structure by offset_pct × risk
+                # offset_pct is negative (-0.10/-0.20/-0.30) meaning "below entry for LONG"
+                if signal.direction == "long":
+                    limit_price = signal.entry + limit_offset_pct * signal.risk
+                else:
+                    limit_price = signal.entry - limit_offset_pct * signal.risk
+
+        # Filter #27: count this as a signal that reached execute_trade
+        # (post-gates). Used as denominator for fill_rate.
+        if signal.strategy == "alpha_sweep":
+            _filter27_total_local += 1
+
         result = execute_trade(
             df=df,
             bar_start=bar_idx,
@@ -250,9 +307,23 @@ def run_backtest(
             partial_tp_at_pct=ptp_at,
             partial_tp_size=ptp_sz,
             partial_arms_be=p_arms,
+            entry_mode="limit" if use_limit else "market",
+            limit_price=limit_price,
+            limit_ttl_bars=limit_ttl_bars if use_limit else 0,
+            limit_fill_strict=limit_fill_strict if use_limit else False,
         )
 
         if result is None:
+            continue
+
+        # Filter #27: missed limit order — count it, do NOT advance cooldown
+        # or position_exit_time, do NOT append to trades list.
+        if not result.filled:
+            result_missed_count = 1
+            result_would_have_won = 1 if result.would_have_won else 0
+            # Stash on the local accumulator dicts below at end of loop.
+            _filter27_missed_local += result_missed_count
+            _filter27_wwl_local += result_would_have_won
             continue
 
         pnl_dollar = result.pnl_per_unit * units
@@ -311,5 +382,10 @@ def run_backtest(
             if year_dd < worst_dd:
                 worst_dd = year_dd
         result_obj.max_drawdown_pct = float(worst_dd * 100)
+
+    # Filter #27 stats — populated regardless of trades count
+    result_obj.missed_signals = _filter27_missed_local
+    result_obj.would_have_won_count = _filter27_wwl_local
+    result_obj.total_signals = _filter27_total_local
 
     return result_obj

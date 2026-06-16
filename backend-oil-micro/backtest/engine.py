@@ -268,11 +268,18 @@ class BacktestResult:
     total_trades: int = 0
     wins: int = 0
     losses: int = 0
+    # Filter #27 — limit-order entry stats. would_have_won_count is INFORMATIONAL
+    # LOOKAHEAD; do not use it to rank variants in ship decisions.
+    missed_signals: int = 0
+    would_have_won_count: int = 0
+    total_signals: int = 0
 
 
 def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_even=True,
                    be_trigger_pct=0.5, trail_after_be_pct=0.0,
-                   partial_tp_at_pct=0.0, partial_tp_size=0.0, partial_arms_be=False):
+                   partial_tp_at_pct=0.0, partial_tp_size=0.0, partial_arms_be=False,
+                   entry_mode="market", limit_price=None, limit_ttl_bars=0,
+                   limit_fill_strict=False):
     """Simple fill model for Oil Micro — walks M3 bars.
 
     be_trigger_pct: fraction of distance to TP that triggers BE move.
@@ -283,6 +290,43 @@ def _execute_trade(df, bar_start, entry, sl, tp, direction, max_bars, use_break_
       of position at `entry + partial_tp_at_pct × (tp − entry)`. 0.0 = off.
     partial_arms_be: Variant B. Partial fire also arms BE on that bar.
     """
+    # Filter #27: limit-order entry pre-walk. Mirrors backend/execution/fill_model.py.
+    if entry_mode == "limit" and limit_ttl_bars > 0 and limit_price is not None:
+        fill_bar_idx = None
+        ttl_end = min(bar_start + limit_ttl_bars, len(df) - 1)
+        for fb in range(bar_start + 1, ttl_end + 1):
+            if direction == "long":
+                bid_low = df["bid_low"].iat[fb] if "bid_low" in df.columns else df["mid_low"].iat[fb]
+                bid_close = df["bid_close"].iat[fb] if "bid_close" in df.columns else df["mid_close"].iat[fb]
+                touched = bid_low <= limit_price
+                sustained = bid_close <= limit_price
+            else:
+                ask_high = df["ask_high"].iat[fb] if "ask_high" in df.columns else df["mid_high"].iat[fb]
+                ask_close = df["ask_close"].iat[fb] if "ask_close" in df.columns else df["mid_close"].iat[fb]
+                touched = ask_high >= limit_price
+                sustained = ask_close >= limit_price
+            if touched and (sustained if limit_fill_strict else True):
+                fill_bar_idx = fb
+                break
+        if fill_bar_idx is None:
+            # Lookahead: would have won if filled at limit?
+            rng_state = np.random.get_state()
+            try:
+                hypo = _execute_trade(df, ttl_end, limit_price, sl, tp, direction, max_bars,
+                    use_break_even=use_break_even, be_trigger_pct=be_trigger_pct,
+                    trail_after_be_pct=trail_after_be_pct,
+                    partial_tp_at_pct=partial_tp_at_pct, partial_tp_size=partial_tp_size,
+                    partial_arms_be=partial_arms_be, entry_mode="market")
+            finally:
+                np.random.set_state(rng_state)
+            wwl = bool((hypo is not None) and (hypo.get("pnl_per_unit", 0) > 0))
+            return {"exit_price": limit_price, "pnl_per_unit": 0.0,
+                    "exit_reason": "missed_unfilled", "bars_held": 0,
+                    "filled": False, "would_have_won": wwl}
+        # Filled — set entry and bar_start to fill bar
+        entry = limit_price
+        bar_start = fill_bar_idx
+
     use_partial = (partial_tp_at_pct > 0 and partial_tp_size > 0)
     partial_target = entry + (tp - entry) * partial_tp_at_pct
     partial_done = False
@@ -394,6 +438,10 @@ def run_backtest(
     partial_tp_at_pct: float | None = None,
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
+    entry_mode: str | None = None,
+    limit_offset_pct=None,
+    limit_ttl_bars: int | None = None,
+    limit_fill_strict: bool | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -401,6 +449,8 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction override. None = read from config.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    entry_mode/limit_offset_pct/limit_ttl_bars/limit_fill_strict: Filter #27.
+      See backend/backtest/engine.py for full semantics.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -412,6 +462,14 @@ def run_backtest(
         partial_tp_size = MICRO_ALPHA_SWEEP.get("partial_tp_size", 0.0)
     if partial_arms_be is None:
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
+    if entry_mode is None:
+        entry_mode = MICRO_ALPHA_SWEEP.get("entry_mode", "market")
+    if limit_offset_pct is None:
+        limit_offset_pct = MICRO_ALPHA_SWEEP.get("limit_offset_pct", 0.0)
+    if limit_ttl_bars is None:
+        limit_ttl_bars = MICRO_ALPHA_SWEEP.get("limit_ttl_bars", 0)
+    if limit_fill_strict is None:
+        limit_fill_strict = MICRO_ALPHA_SWEEP.get("limit_fill_strict", False)
     np.random.seed(seed)
 
     data = _get_cached_data()
@@ -479,6 +537,10 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None
     position_exit_time = None
+    # Filter #27 accumulators
+    _filter27_missed_local = 0
+    _filter27_wwl_local = 0
+    _filter27_total_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date()
@@ -533,6 +595,26 @@ def run_backtest(
         except KeyError:
             continue
 
+        # Filter #27 — compute limit_price per variant (Oil Micro = always micro_alpha_sweep_oil)
+        use_limit = (entry_mode == "limit" and limit_ttl_bars > 0)
+        limit_price = None
+        if use_limit:
+            if limit_offset_pct == "engulf_close":
+                if signal.direction == "long":
+                    limit_price = oil_m3["ask_close"].iat[bar_idx]
+                else:
+                    limit_price = oil_m3["bid_close"].iat[bar_idx]
+            elif limit_offset_pct == 0.0:
+                limit_price = signal.entry
+            else:
+                if signal.direction == "long":
+                    limit_price = signal.entry + limit_offset_pct * signal.risk
+                else:
+                    limit_price = signal.entry - limit_offset_pct * signal.risk
+
+        # Filter #27: count signals reaching execute_trade
+        _filter27_total_local += 1
+
         result = _execute_trade(
             df=oil_m3,
             bar_start=bar_idx,
@@ -547,9 +629,20 @@ def run_backtest(
             partial_tp_at_pct=partial_tp_at_pct,
             partial_tp_size=partial_tp_size,
             partial_arms_be=partial_arms_be,
+            entry_mode="limit" if use_limit else "market",
+            limit_price=limit_price,
+            limit_ttl_bars=limit_ttl_bars if use_limit else 0,
+            limit_fill_strict=limit_fill_strict if use_limit else False,
         )
 
         if result is None:
+            continue
+
+        # Filter #27: missed limit order — count, do NOT advance cooldown/position_exit_time
+        if not result.get("filled", True):
+            _filter27_missed_local += 1
+            if result.get("would_have_won"):
+                _filter27_wwl_local += 1
             continue
 
         pnl_dollar = result["pnl_per_unit"] * units
@@ -608,5 +701,10 @@ def run_backtest(
             if year_dd < worst_dd:
                 worst_dd = year_dd
         result_obj.max_drawdown_pct = float(worst_dd * 100)
+
+    # Filter #27 stats
+    result_obj.missed_signals = _filter27_missed_local
+    result_obj.would_have_won_count = _filter27_wwl_local
+    result_obj.total_signals = _filter27_total_local
 
     return result_obj

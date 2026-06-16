@@ -29,6 +29,10 @@ def run_backtest(
     partial_tp_size: float | None = None,
     partial_arms_be: bool | None = None,
     disable_market_close: bool | None = None,
+    entry_mode: str | None = None,
+    limit_offset_pct=None,
+    limit_ttl_bars: int | None = None,
+    limit_fill_strict: bool | None = None,
 ) -> BacktestResult:
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
 
@@ -38,6 +42,8 @@ def run_backtest(
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides. None = read from
       config (.get with default 0.0 = legacy single-leg).
     partial_arms_be: Filter #7 Variant B override. None = read from config.
+    entry_mode/limit_offset_pct/limit_ttl_bars/limit_fill_strict: Filter #27.
+      See backend/backtest/engine.py for full semantics.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -51,6 +57,14 @@ def run_backtest(
         partial_arms_be = MICRO_ALPHA_SWEEP.get("partial_arms_be", False)
     if disable_market_close is None:
         disable_market_close = MICRO_ALPHA_SWEEP.get("disable_market_close", False)
+    if entry_mode is None:
+        entry_mode = MICRO_ALPHA_SWEEP.get("entry_mode", "market")
+    if limit_offset_pct is None:
+        limit_offset_pct = MICRO_ALPHA_SWEEP.get("limit_offset_pct", 0.0)
+    if limit_ttl_bars is None:
+        limit_ttl_bars = MICRO_ALPHA_SWEEP.get("limit_ttl_bars", 0)
+    if limit_fill_strict is None:
+        limit_fill_strict = MICRO_ALPHA_SWEEP.get("limit_fill_strict", False)
     if strategies is None:
         strategies = ["micro_alpha_sweep", "mean_rev", "cross_market"]
     # Frontend sends "alpha_sweep" — map to micro variant
@@ -148,6 +162,10 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None  # For cooldown tracking
     position_exit_time = None  # One-at-a-time: when current position exits (C9 fix)
+    # Filter #27 accumulators
+    _filter27_missed_local = 0
+    _filter27_wwl_local = 0
+    _filter27_total_local = 0
 
     for signal in all_signals:
         trade_date = signal.date.date() if hasattr(signal.date, "date") else signal.date
@@ -215,6 +233,27 @@ def run_backtest(
         else:
             ptp_at, ptp_sz, p_arms = 0.0, 0.0, False
 
+        # Filter #27 — compute limit_price per variant (only on micro_alpha_sweep)
+        use_limit = (entry_mode == "limit" and signal.strategy == "micro_alpha_sweep" and limit_ttl_bars > 0)
+        limit_price = None
+        if use_limit:
+            if limit_offset_pct == "engulf_close":
+                if signal.direction == "long":
+                    limit_price = df["ask_close"].iat[bar_idx]
+                else:
+                    limit_price = df["bid_close"].iat[bar_idx]
+            elif limit_offset_pct == 0.0:
+                limit_price = signal.entry
+            else:
+                if signal.direction == "long":
+                    limit_price = signal.entry + limit_offset_pct * signal.risk
+                else:
+                    limit_price = signal.entry - limit_offset_pct * signal.risk
+
+        # Filter #27: count post-gates as a signal that reached execute_trade
+        if signal.strategy == "micro_alpha_sweep":
+            _filter27_total_local += 1
+
         result = execute_trade(
             df=df,
             bar_start=bar_idx,
@@ -230,9 +269,20 @@ def run_backtest(
             partial_tp_at_pct=ptp_at,
             partial_tp_size=ptp_sz,
             partial_arms_be=p_arms,
+            entry_mode="limit" if use_limit else "market",
+            limit_price=limit_price,
+            limit_ttl_bars=limit_ttl_bars if use_limit else 0,
+            limit_fill_strict=limit_fill_strict if use_limit else False,
         )
 
         if result is None:
+            continue
+
+        # Filter #27: missed limit order — count, do NOT advance cooldown/position_exit_time
+        if not result.filled:
+            _filter27_missed_local += 1
+            if result.would_have_won:
+                _filter27_wwl_local += 1
             continue
 
         pnl_dollar = result.pnl_per_unit * units
@@ -294,5 +344,10 @@ def run_backtest(
             if year_dd < worst_dd:
                 worst_dd = year_dd
         result_obj.max_drawdown_pct = float(worst_dd * 100)
+
+    # Filter #27 stats
+    result_obj.missed_signals = _filter27_missed_local
+    result_obj.would_have_won_count = _filter27_wwl_local
+    result_obj.total_signals = _filter27_total_local
 
     return result_obj

@@ -21,8 +21,10 @@ import numpy as np
 class TradeResult:
     pnl_per_unit: float
     bars_held: int
-    exit_reason: str  # 'sl', 'tp', 'expired', 'condition_exit'
+    exit_reason: str  # 'sl', 'tp', 'expired', 'condition_exit', 'missed_unfilled'
     exit_price: float
+    filled: bool = True
+    would_have_won: Optional[bool] = None  # Filter #27 informational lookahead — None when filled
 
 
 def execute_trade(
@@ -40,6 +42,10 @@ def execute_trade(
     partial_tp_at_pct: float = 0.0,
     partial_tp_size: float = 0.0,
     partial_arms_be: bool = False,
+    entry_mode: str = "market",
+    limit_price: Optional[float] = None,
+    limit_ttl_bars: int = 0,
+    limit_fill_strict: bool = False,
 ) -> Optional[TradeResult]:
     """
     Walk bar-by-bar from bar_start+1, checking exits.
@@ -71,7 +77,74 @@ def execute_trade(
     partial_arms_be: Variant B. If True, partial TP firing also arms BE
       immediately (SL ratchets to entry+slip on the partial bar) regardless
       of be_trigger_pct. Variant A (False) keeps BE on its original schedule.
+
+    entry_mode: Filter #27. "market" (default) is byte-identical to legacy
+      behavior — entry passed in is used as-is. "limit" walks bar_start+1
+      through bar_start+limit_ttl_bars looking for a fill at limit_price.
+    limit_price: target price for the limit order (ignored if entry_mode=market).
+      LONG fills when bid_low <= limit_price; SHORT fills when ask_high >= limit_price.
+    limit_ttl_bars: how many M3 bars after the engulfing bar the limit lives.
+      1 / 2 / 5 = 3min / 6min / 15min. 0 = market.
+    limit_fill_strict: when True, additionally requires the bar's close to be
+      beyond the limit (LONG: bid_close <= limit_price; SHORT: ask_close >= limit_price).
+      Pessimistic mode — addresses the M3-wick parity tax (1-second touches that
+      a real broker can't fill). When False, any wick touch counts.
+
+    Filter #27 miss return: TradeResult(0.0, 0, "missed_unfilled", limit_price,
+      filled=False, would_have_won=<bool>). would_have_won is INFORMATIONAL
+      LOOKAHEAD — must NEVER be used in ship-decision ranking. It runs the
+      exit-walk hypothetically with entry=limit_price starting at the bar
+      after TTL expiry, and reports whether that simulated trade would have
+      profited. Use only for slicing/diagnostics in the runner, never as a
+      ranking signal.
     """
+    # Filter #27: limit-order entry pre-walk. On fill, mutate entry/bar_start
+    # and fall through to legacy exit logic. On miss, return synthetic result.
+    if entry_mode == "limit" and limit_ttl_bars > 0 and limit_price is not None:
+        fill_bar_idx = None
+        ttl_end = min(bar_start + limit_ttl_bars, len(df) - 1)
+        for fb in range(bar_start + 1, ttl_end + 1):
+            if direction == "long":
+                bid_low = df["bid_low"].iat[fb]
+                bid_close = df["bid_close"].iat[fb]
+                touched = bid_low <= limit_price
+                sustained = bid_close <= limit_price
+            else:
+                ask_high = df["ask_high"].iat[fb]
+                ask_close = df["ask_close"].iat[fb]
+                touched = ask_high >= limit_price
+                sustained = ask_close >= limit_price
+            fill_ok = touched and (sustained if limit_fill_strict else True)
+            if fill_ok:
+                fill_bar_idx = fb
+                break
+        if fill_bar_idx is None:
+            # TTL expired without fill. Compute would_have_won (lookahead) by
+            # running the exit-walk hypothetically starting at the bar after
+            # TTL with entry=limit_price. NEVER use this in ship ranking.
+            wwl_pnl = _hypothetical_exit_walk(
+                df, ttl_end, limit_price, sl, tp, direction, max_bars,
+                use_break_even, be_trigger_pct, trail_after_be_pct,
+                partial_tp_at_pct, partial_tp_size, partial_arms_be,
+            )
+            return TradeResult(
+                pnl_per_unit=0.0,
+                bars_held=0,
+                exit_reason="missed_unfilled",
+                exit_price=limit_price,
+                filled=False,
+                would_have_won=bool(wwl_pnl > 0) if wwl_pnl is not None else False,
+            )
+        # Filled. Apply slippage on the fill bar's range so parity-tax
+        # accounting is symmetric with market-order baseline.
+        if direction == "long":
+            br_fill = df["bid_high"].iat[fill_bar_idx] - df["bid_low"].iat[fill_bar_idx]
+            entry = limit_price + _sl_slip(br_fill) * 0.2  # LONG pays slip up
+        else:
+            br_fill = df["ask_high"].iat[fill_bar_idx] - df["ask_low"].iat[fill_bar_idx]
+            entry = limit_price - _sl_slip(br_fill) * 0.2  # SHORT pays slip down
+        bar_start = fill_bar_idx  # legacy walk continues from here
+
     use_partial = (partial_tp_at_pct > 0 and partial_tp_size > 0)
     partial_target = entry + (tp - entry) * partial_tp_at_pct  # signed; works for both sides
     partial_done = False
@@ -219,3 +292,36 @@ def execute_trade(
 def _sl_slip(bar_range: float) -> float:
     """Slippage on SL fills — same formula as entry slippage."""
     return 0.03 + bar_range * 0.003 + np.random.uniform(0, 0.02)
+
+
+def _hypothetical_exit_walk(
+    df, bar_start: int, entry: float, sl: float, tp: float,
+    direction: str, max_bars: int,
+    use_break_even: bool, be_trigger_pct: float, trail_after_be_pct: float,
+    partial_tp_at_pct: float, partial_tp_size: float, partial_arms_be: bool,
+) -> Optional[float]:
+    """Filter #27 informational lookahead. Runs the same exit logic as
+    execute_trade() but returns only pnl_per_unit (or None on no-data).
+    Used to compute would_have_won for missed limit orders. NEVER use the
+    output for ship-decision ranking — it's lookahead by definition.
+
+    Implemented as a delegating call to execute_trade() with entry_mode="market"
+    so the logic stays in one place. Suppresses NumPy random state side
+    effects by snapshotting + restoring.
+    """
+    rng_state = np.random.get_state()
+    try:
+        result = execute_trade(
+            df=df, bar_start=bar_start, entry=entry, sl=sl, tp=tp,
+            direction=direction, max_bars=max_bars, strategy="lookahead",
+            use_break_even=use_break_even,
+            be_trigger_pct=be_trigger_pct,
+            trail_after_be_pct=trail_after_be_pct,
+            partial_tp_at_pct=partial_tp_at_pct,
+            partial_tp_size=partial_tp_size,
+            partial_arms_be=partial_arms_be,
+            entry_mode="market",
+        )
+    finally:
+        np.random.set_state(rng_state)
+    return result.pnl_per_unit if result is not None else None
