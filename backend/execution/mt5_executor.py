@@ -349,8 +349,20 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
     sl_price = sl if sl else 0
     tp_price = tp if tp else 0
 
+    # Filter #27 slippage attribution: snapshot bid/ask from market_data.json AT order_placing.
+    # Lets us decompose slippage post-hoc into (1) calc-error vs (2) network/queue latency
+    # vs (3) market-move during roundtrip. snapshot_send.bid/ask is what we THOUGHT the
+    # price was when we sent the order; fill_price is what we actually got. The gap is
+    # all of (latency + market-move + spread cost). Compare to strategy's calc_entry to
+    # isolate calc-error.
+    snapshot_send = get_current_price(instrument)
+    snapshot_send_bid = snapshot_send["bid"] if snapshot_send else None
+    snapshot_send_ask = snapshot_send["ask"] if snapshot_send else None
+    snapshot_send_time = snapshot_send.get("time") if snapshot_send else None
+
     _log.info("BROKER", "place_market_order_start", instrument=instrument, symbol=symbol,
-              type=order_type, units=volume, lots=lots, sl=sl_price, tp=tp_price, comment=comment)
+              type=order_type, units=volume, lots=lots, sl=sl_price, tp=tp_price, comment=comment,
+              snap_bid=snapshot_send_bid, snap_ask=snapshot_send_ask, snap_time=snapshot_send_time)
 
     cmd = f"OPEN|{symbol}|{order_type}|{lots}|{price}|{sl_price}|{tp_price}|{comment}"
     response = _send_command(cmd, timeout=10)
@@ -374,8 +386,18 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
                 "success": False,
                 "error": f"EA reported success but malformed: ticket={ticket} price={price}",
             }
+        # Filter #27 slippage attribution: snapshot bid/ask AT fill (post-roundtrip)
+        # so we can also distinguish "broker price moved during 638ms" from "the bid/ask
+        # we saw at send was already stale". snap_at_fill - snap_at_send = market move
+        # during the roundtrip; fill_price - snap_at_fill ≈ spread cost; calc_entry -
+        # snap_at_send = strategy calc-error. Each component logged separately.
+        snapshot_fill = get_current_price(instrument)
+        snap_fill_bid = snapshot_fill["bid"] if snapshot_fill else None
+        snap_fill_ask = snapshot_fill["ask"] if snapshot_fill else None
         _log.info("BROKER", "place_market_order_filled", instrument=instrument,
-                  trade_id=str(ticket), fill_price=price, units=volume)
+                  trade_id=str(ticket), fill_price=price, units=volume,
+                  snap_send_bid=snapshot_send_bid, snap_send_ask=snapshot_send_ask,
+                  snap_fill_bid=snap_fill_bid, snap_fill_ask=snap_fill_ask)
         return {
             "success": True,
             "fill_price": price,
@@ -385,7 +407,8 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
         }
     else:
         _log.error("BROKER", "place_market_order_failed", instrument=instrument,
-                   retcode=response.get("retcode"), comment=response.get("comment", "Unknown"))
+                   retcode=response.get("retcode"), comment=response.get("comment", "Unknown"),
+                   snap_send_bid=snapshot_send_bid, snap_send_ask=snapshot_send_ask)
         return {
             "success": False,
             "error": f"retcode={response.get('retcode')}: {response.get('comment', 'Unknown')}",

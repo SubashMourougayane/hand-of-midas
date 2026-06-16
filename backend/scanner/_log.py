@@ -50,7 +50,7 @@ def _emit(level: str, category: str, msg: str, fields: dict) -> None:
     try:
         if _LEVELS.get(level, 0) < _THRESHOLD:
             return
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
         # Column-aligned for human-scan; widths chosen so the longest level
         # (DEBUG, 5 chars) and longest category (POSITION, 8 chars) fit.
         head = f"{ts} | {level:<5} | {category:<8} | {SERVICE_NAME} | {msg}"
