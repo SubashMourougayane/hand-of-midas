@@ -13,7 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backend.execution import (
-    get_current_price, place_market_order,
+    get_current_price, place_market_order, place_limit_order,
+    cancel_pending_order,
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details,
 )
@@ -201,18 +202,13 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
 
     # Filter #27: compute the limit_price the BT engine would use for this signal,
     # using the SAME helper. Whether we ACT on it depends on entry_mode + LIMIT_DRY_RUN.
-    # Dry-run scaffolding (this commit): always log the intended limit, fall through
-    # to market. Real-limit path lands in a follow-up commit gated by LIMIT_DRY_RUN=false.
     cfg_entry_mode = ALPHA_SWEEP.get("entry_mode", "market")
     if cfg_entry_mode == "limit":
         # Live needs the engulfing-bar bid/ask close. We only have the strategy's
-        # entry_price + risk in this scope. signal-generator passes those via
-        # entry_price (which already includes the slippage offset for variant A).
-        # For variant B (engulf_close) we'd need the actual bid/ask close of the
-        # engulfing bar — call get_current_price() as a proxy. NOTE: this proxy
-        # introduces a tiny live↔BT drift on variant B (live samples the latest
-        # tick, BT samples the engulfing-bar's exact close); will be tightened
-        # by passing the bar OHLC through `context` in a later commit.
+        # entry_price + risk in this scope. For variant B (engulf_close) we
+        # call get_current_price() as a proxy. NOTE: tiny live↔BT drift on
+        # variant B (live samples the latest tick; BT samples the engulfing-bar's
+        # exact close). Tightened by passing bar OHLC via context in a later commit.
         limit_offset_pct = ALPHA_SWEEP.get("limit_offset_pct", 0.0)
         limit_ttl_bars = ALPHA_SWEEP.get("limit_ttl_bars", 5)
         ttl_seconds = limit_ttl_bars * 180  # M3 = 180s/bar
@@ -234,10 +230,9 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
             intended_limit = None
 
         # Dry-run gate. Default ON (LIMIT_DRY_RUN unset = "true") so we don't
-        # accidentally place a live limit before the operator opts in. When
-        # flipped OFF (set LIMIT_DRY_RUN=false), this branch routes to the real
-        # place_limit_order path (added in the follow-up commit).
+        # accidentally place a live limit before the operator explicitly opts in.
         dry_run = os.environ.get("LIMIT_DRY_RUN", "true").lower() == "true"
+
         if intended_limit is not None:
             _log.info("BROKER", "limit_intent_computed",
                       direction=direction, intended_limit=intended_limit,
@@ -253,15 +248,84 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
                 "dry_run": dry_run,
                 "actual_path": "market_order" if dry_run else "limit_order_pending",
             })
+
             if not dry_run:
-                # Real limit-order path — NOT IMPLEMENTED in this commit.
-                # When the follow-up commit lands, this branch calls
-                # place_limit_order(...) and returns trade_ref before falling
-                # through to the market path below. Until then, log a clear
-                # warning so flipping the flag prematurely is loud, not silent.
-                _log.warn("BROKER", "limit_dry_run_disabled_but_real_path_not_implemented",
-                          trade_ref=trade_ref,
-                          note="LIMIT_DRY_RUN=false but real limit path not yet committed; falling through to market")
+                # REAL LIMIT PATH — places the pending order and returns trade_ref.
+                # The pending_order_monitor_job (scheduler.py, every 30s) handles
+                # fill detection and TTL-cancel reconciliation. Broker's own
+                # ORDER_TIME_SPECIFIED expiration auto-cancels at TTL.
+                _log.info("BROKER", "limit_order_placing", direction=direction,
+                          units=units, limit_price=intended_limit, sl=sl_price,
+                          tp=tp_price, ttl_seconds=ttl_seconds, trade_ref=trade_ref)
+                print(f"  [OIL] Placing {direction.upper()} {units} barrels @ LIMIT "
+                      f"${intended_limit:.4f}, SL={sl_price:.4f}, TP={tp_price:.4f}, "
+                      f"TTL={ttl_seconds}s")
+                limit_result = place_limit_order(
+                    instrument="BCO_USD",
+                    units=oanda_units,
+                    limit_price=intended_limit,
+                    sl=sl_price,
+                    tp=tp_price,
+                    ttl_seconds=ttl_seconds,
+                    comment=f"alpha_sweep_oil|{trade_ref}",
+                )
+                if not limit_result.get("success"):
+                    error = limit_result.get("error", "Unknown")
+                    _log.error("BROKER", "limit_order_failed", direction=direction,
+                               units=units, err=error, trade_ref=trade_ref)
+                    _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                                taken=False, skip_reason=f"limit_order_error: {error}")
+                    _log_journal(trade_ref, strategy, "LIMIT_ORDER_FAILED", entry_price,
+                                 {"error": error, "instrument": "BCO_USD",
+                                  "intended_limit": intended_limit})
+                    print(f"  [OIL] Limit order FAILED: {error}")
+                    return None
+
+                # Limit accepted by broker. Persist as pending row.
+                # mode='pending' => excluded from reconciler queries (commit b998a43);
+                # one-at-a-time guard still counts it (intentional).
+                pending_ticket = limit_result["ticket"]
+                _log.info("BROKER", "limit_order_placed", direction=direction,
+                          units=units, limit_price=limit_result.get("limit_price", intended_limit),
+                          ticket=pending_ticket, expiration=limit_result.get("expiration_time"),
+                          trade_ref=trade_ref)
+                try:
+                    execute(
+                        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time,
+                           entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+                           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'pending', %s)""",
+                        (trade_ref, strategy, direction.upper(), intended_limit, sl_price,
+                         tp_price, units / 1000.0, units, pending_ticket)
+                    )
+                except Exception as e:
+                    # Limit is on broker. DB insert failed → orphan-protection kicks
+                    # in via daily recon. Do NOT cancel — we'd lose the limit and
+                    # potentially miss a fill while the recon catches up.
+                    _log.exception("DB", "pending_insert_failed_orphan_risk",
+                                   trade_ref=trade_ref, oanda_id=pending_ticket,
+                                   limit_price=intended_limit, err=str(e))
+                    print(f"  [OIL] DB INSERT FAILED (limit is pending on broker!): {e}")
+                    try:
+                        _log_journal(trade_ref, strategy, "DB_INSERT_FAILED",
+                                     intended_limit, {"error": str(e),
+                                                       "oanda_id": pending_ticket,
+                                                       "kind": "pending"})
+                    except Exception:
+                        pass
+
+                _log_journal_safe(trade_ref, strategy, "LIMIT_PLACED", intended_limit, {
+                    "instrument": "BCO_USD", "units": units, "sl": sl_price, "tp": tp_price,
+                    "ticket": pending_ticket, "ttl_seconds": ttl_seconds,
+                    "expiration": limit_result.get("expiration_time"),
+                    "risk_mult": risk_mult, "risk_pct": risk_pct, "equity_usd": equity_usd,
+                })
+                try:
+                    notify.limit_placed(trade_ref, "BCO_USD", direction,
+                                        intended_limit, ttl_seconds)
+                except Exception as e:
+                    print(f"  [OIL] notify.limit_placed swallowed exception: {e}")
+                print(f"  [OIL] LIMIT PLACED: ticket={pending_ticket} @ ${intended_limit:.4f}")
+                return trade_ref  # ALWAYS return trade_ref — pending exists on broker
 
     _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
@@ -890,3 +954,165 @@ def reconcile_orphans():
             print(f"  [OIL] reconcile_orphans: notify failed: {e}")
 
         print(f"  [OIL] ORPHAN ADOPTED: {trade_ref} (broker {broker_id}) — investigate logs")
+
+
+# ---- Filter #27: pending-order monitor ----
+# Periodic job (scheduler.py runs it every 30s) that reconciles each
+# mode='pending' DB row against three EA-written files:
+#   - DWX/pending_orders.json   (currently-pending limits)
+#   - DWX/open_orders.json      (filled positions)
+#   - DWX/cancelled_orders.json (recent cancellations from OnTradeTransaction)
+# State machine for each pending row:
+#   - ticket in pending_orders.json   → still pending, do nothing
+#   - ticket in open_orders.json      → broker filled → flip mode='live',
+#                                       update entry_time + entry_price
+#                                       to actual broker fill
+#   - ticket in cancelled_orders.json → TTL expired or manual cancel →
+#                                       mark exit_time + LIMIT_TTL_EXPIRED
+#   - ticket in NONE of the three     → orphan / file race; leave for
+#                                       daily recon. Don't change DB row.
+
+import json as _json  # local import to avoid top-of-file change
+
+
+def _read_dwx_json(filename: str):
+    """Read a DWX JSON file (best-effort, returns None on any error)."""
+    from backend.execution.mt5_executor import DWX_DIR  # late import to keep cycle-free
+    import os.path
+    path = os.path.join(DWX_DIR, filename)
+    try:
+        with open(path, "r") as f:
+            return _json.load(f)
+    except Exception:
+        return None
+
+
+def pending_order_monitor():
+    """Filter #27 periodic reconciler for mode='pending' rows.
+
+    Runs every 30s via APScheduler. Idempotent — safe to run repeatedly. A
+    fill detected on iteration N+1 is the same fill as on iteration N (DB
+    has already been updated to mode='live'); the loop simply finds no
+    pending rows for that ticket on iteration N+1.
+
+    Race awareness:
+    - Cancel-vs-fill race: if a limit fills the same instant our cancel
+      command arrives, the broker may report success on the fill (writes
+      to closed_orders.json eventually) AND fail the cancel (already
+      filled). We detect via open_orders.json — that is the authoritative
+      "is it a position now?" signal.
+    - File-write race: DWX EA writes pending_orders.json + open_orders.json
+      every poll cycle (~25ms). Reading them between two writes can show
+      a ticket in NEITHER file briefly (during the transition tick). We
+      handle this by treating that case as "orphan, leave DB row alone"
+      — next iteration (30s later) will see a stable state.
+    """
+    pending_db = execute(
+        "SELECT * FROM gd_trades WHERE exit_time IS NULL "
+        "AND strategy='alpha_sweep_oil' AND COALESCE(mode, 'live') = 'pending'",
+        fetch=True
+    )
+    if not pending_db:
+        return
+
+    pending_file = _read_dwx_json("pending_orders.json") or {}
+    open_file = _read_dwx_json("open_orders.json") or {}
+    cancelled_file = _read_dwx_json("cancelled_orders.json") or []
+    # cancelled_orders.json is a JSON array of dicts; normalize to set of tickets
+    cancelled_tickets = set()
+    if isinstance(cancelled_file, list):
+        for entry in cancelled_file:
+            try:
+                cancelled_tickets.add(str(entry.get("ticket", "")))
+            except Exception:
+                continue
+
+    pending_tickets = {str(k) for k in pending_file.keys()} if isinstance(pending_file, dict) else set()
+    open_tickets = {str(k) for k in open_file.keys()} if isinstance(open_file, dict) else set()
+
+    _log.debug("POSITION", "pending_monitor_tick",
+               db_pending=len(pending_db), pending_file=len(pending_tickets),
+               open_file=len(open_tickets), cancelled_file=len(cancelled_tickets))
+
+    for row in pending_db:
+        ticket = str(row["oanda_trade_id"])
+        trade_ref = row["trade_ref"]
+        intended_limit = float(row["entry_price"])
+
+        if ticket in pending_tickets:
+            # Still pending. Nothing to do.
+            continue
+
+        if ticket in open_tickets:
+            # Broker filled. Pull the actual fill price + time from open_orders.json.
+            fill_info = open_file.get(ticket, {})
+            actual_fill = float(fill_info.get("open_price", intended_limit))
+            broker_open_time = fill_info.get("open_time", "")
+            try:
+                execute(
+                    "UPDATE gd_trades SET mode='live', entry_price=%s WHERE oanda_trade_id=%s "
+                    "AND COALESCE(mode, 'live') = 'pending'",
+                    (actual_fill, ticket)
+                )
+            except Exception as e:
+                _log.exception("DB", "pending_monitor_fill_update_failed",
+                               trade_ref=trade_ref, ticket=ticket, err=str(e))
+                continue
+            time_to_fill = "unknown"  # broker_open_time is server-time; precise math defered
+            _log.info("BROKER", "limit_filled", trade_ref=trade_ref, ticket=ticket,
+                      intended_limit=intended_limit, actual_fill=actual_fill,
+                      broker_open_time=broker_open_time)
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_FILLED", actual_fill, {
+                "instrument": "BCO_USD", "ticket": ticket,
+                "intended_limit": intended_limit, "actual_fill": actual_fill,
+                "broker_open_time": broker_open_time, "time_to_fill": time_to_fill,
+            })
+            try:
+                notify.trade_filled(trade_ref, "BCO_USD", row["side"].lower(),
+                                    actual_fill, row["units"],
+                                    float(row["sl_price"]),
+                                    float(row["tp_price"]) if row["tp_price"] else 0)
+            except Exception as e:
+                _log.exception("BROKER", "limit_filled_notify_failed",
+                               trade_ref=trade_ref, err=str(e))
+            print(f"  [OIL] LIMIT FILLED: {trade_ref} ticket={ticket} @ ${actual_fill:.4f}")
+            continue
+
+        if ticket in cancelled_tickets:
+            # TTL expired or manual cancel. Mark closed.
+            try:
+                execute(
+                    "UPDATE gd_trades SET exit_time=NOW(), exit_reason='LIMIT_TTL_EXPIRED' "
+                    "WHERE oanda_trade_id=%s AND COALESCE(mode, 'live') = 'pending'",
+                    (ticket,)
+                )
+            except Exception as e:
+                _log.exception("DB", "pending_monitor_expire_update_failed",
+                               trade_ref=trade_ref, ticket=ticket, err=str(e))
+                continue
+            _log.info("BROKER", "limit_ttl_expired", trade_ref=trade_ref,
+                      ticket=ticket, intended_limit=intended_limit)
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_TTL_EXPIRED",
+                              intended_limit, {
+                                  "instrument": "BCO_USD", "ticket": ticket,
+                                  "intended_limit": intended_limit,
+                              })
+            try:
+                notify.limit_ttl_expired(trade_ref, "BCO_USD", intended_limit)
+            except Exception as e:
+                _log.exception("BROKER", "limit_ttl_notify_failed",
+                               trade_ref=trade_ref, err=str(e))
+            print(f"  [OIL] LIMIT EXPIRED: {trade_ref} ticket={ticket} @ ${intended_limit:.4f}")
+            continue
+
+        # Orphan: ticket not in any of the 3 files. Could be:
+        # - DWX file-write race (EA hasn't written yet for this tick)
+        # - Broker auto-cancelled the order on TTL but EA missed the
+        #   ORDER_DELETE event (unlikely but possible)
+        # - Manual broker-side intervention
+        # Leave the DB row alone for now. Next 30s iteration will recheck.
+        # Daily recon will surface persistent orphans.
+        _log.warn("POSITION", "pending_monitor_orphan",
+                  trade_ref=trade_ref, ticket=ticket,
+                  note="ticket not in pending/open/cancelled files; leaving DB row "
+                       "for next iteration / daily recon")

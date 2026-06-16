@@ -17,7 +17,7 @@ def _parse_ts(ts_str: str) -> datetime:
     return datetime.fromisoformat(cleaned)
 
 from config import ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULFING_TOLERANCE
-from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, check_alpha_sweep_partial_tp, reconcile_orphans, _log_journal, _log_journal_safe
+from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, check_alpha_sweep_partial_tp, reconcile_orphans, pending_order_monitor, _log_journal, _log_journal_safe
 from scanner import _log
 
 scheduler = BackgroundScheduler(timezone="UTC")
@@ -414,14 +414,31 @@ def daily_recon_job():
         _log_journal_safe("SYSTEM", "alpha_sweep_oil", "ERROR", None, {"error": str(e), "job": "daily_recon"})
 
 
+def pending_order_monitor_job():
+    """Filter #27: every 30s, reconcile mode='pending' DB rows against the
+    DWX EA's pending/open/cancelled JSON files. See live_engine.pending_order_monitor
+    for the full state machine. Wrapped in try/except so a transient file race
+    or DB hiccup never crashes the scheduler."""
+    try:
+        pending_order_monitor()
+    except Exception as e:
+        _log.exception("SYSTEM", "pending_order_monitor_crashed", err=str(e))
+
+
 def start_scheduler():
     _log.info("SYSTEM", "service_starting", service="oil-macro")
     scheduler.add_job(london_session_job, "cron", minute="*/3", hour="8-19", id="oil_alpha_sweep_poll")
     scheduler.add_job(position_monitor_job, "cron", minute="*", id="oil_position_monitor")
+    # Filter #27 pending-limit reconciler. Every 30s — inside the broker's TTL
+    # window so we detect fills + expirations promptly without burning CPU. The
+    # job is a no-op when no mode='pending' rows exist.
+    scheduler.add_job(pending_order_monitor_job, "interval", seconds=30, id="oil_pending_order_monitor")
     scheduler.add_job(daily_recon_job, "cron", hour=0, minute=5, id="oil_daily_recon")
     scheduler.start()
-    _log.info("SYSTEM", "service_started", service="oil-macro", jobs=["alpha_sweep_poll@*/3min","position_monitor@1min","daily_recon@00:05"])
-    print("Oil scheduler started: Alpha-Sweep poll (08-20 UTC) + Position monitor + orphan reconciler (1min) + Daily recon (00:05 UTC)")
+    _log.info("SYSTEM", "service_started", service="oil-macro",
+              jobs=["alpha_sweep_poll@*/3min", "position_monitor@1min",
+                    "pending_order_monitor@30s", "daily_recon@00:05"])
+    print("Oil scheduler started: Alpha-Sweep poll (08-20 UTC) + Position monitor + orphan reconciler (1min) + Pending-order monitor (30s, Filter #27) + Daily recon (00:05 UTC)")
 
 
 def stop_scheduler():
