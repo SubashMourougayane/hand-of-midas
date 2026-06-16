@@ -17,6 +17,7 @@ from backend.execution import (
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details,
 )
+from backend.execution.limit_price import compute_limit_price
 
 def _get_gbp_usd_rate():
     """Oil account is USD — no conversion needed."""
@@ -197,6 +198,71 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
         return None
 
     oanda_units = units if direction == "long" else -units
+
+    # Filter #27: compute the limit_price the BT engine would use for this signal,
+    # using the SAME helper. Whether we ACT on it depends on entry_mode + LIMIT_DRY_RUN.
+    # Dry-run scaffolding (this commit): always log the intended limit, fall through
+    # to market. Real-limit path lands in a follow-up commit gated by LIMIT_DRY_RUN=false.
+    cfg_entry_mode = ALPHA_SWEEP.get("entry_mode", "market")
+    if cfg_entry_mode == "limit":
+        # Live needs the engulfing-bar bid/ask close. We only have the strategy's
+        # entry_price + risk in this scope. signal-generator passes those via
+        # entry_price (which already includes the slippage offset for variant A).
+        # For variant B (engulf_close) we'd need the actual bid/ask close of the
+        # engulfing bar — call get_current_price() as a proxy. NOTE: this proxy
+        # introduces a tiny live↔BT drift on variant B (live samples the latest
+        # tick, BT samples the engulfing-bar's exact close); will be tightened
+        # by passing the bar OHLC through `context` in a later commit.
+        limit_offset_pct = ALPHA_SWEEP.get("limit_offset_pct", 0.0)
+        limit_ttl_bars = ALPHA_SWEEP.get("limit_ttl_bars", 5)
+        ttl_seconds = limit_ttl_bars * 180  # M3 = 180s/bar
+        risk_distance = abs(entry_price - sl_price)
+        live_price = get_current_price("BCO_USD")
+        engulf_ask = live_price["ask"] if live_price else entry_price
+        engulf_bid = live_price["bid"] if live_price else entry_price
+        try:
+            intended_limit = compute_limit_price(
+                direction=direction,
+                signal_entry=entry_price,
+                signal_risk=risk_distance,
+                engulf_close_ask=engulf_ask,
+                engulf_close_bid=engulf_bid,
+                limit_offset_pct=limit_offset_pct,
+            )
+        except Exception as e:
+            _log.exception("BROKER", "compute_limit_price_failed", trade_ref=trade_ref, err=str(e))
+            intended_limit = None
+
+        # Dry-run gate. Default ON (LIMIT_DRY_RUN unset = "true") so we don't
+        # accidentally place a live limit before the operator opts in. When
+        # flipped OFF (set LIMIT_DRY_RUN=false), this branch routes to the real
+        # place_limit_order path (added in the follow-up commit).
+        dry_run = os.environ.get("LIMIT_DRY_RUN", "true").lower() == "true"
+        if intended_limit is not None:
+            _log.info("BROKER", "limit_intent_computed",
+                      direction=direction, intended_limit=intended_limit,
+                      entry_price=entry_price, sl_price=sl_price, risk=risk_distance,
+                      offset_pct=str(limit_offset_pct), ttl_seconds=ttl_seconds,
+                      dry_run=dry_run, trade_ref=trade_ref)
+            _log_journal_safe(trade_ref, strategy, "LIMIT_DRY_RUN_INTENT", intended_limit, {
+                "instrument": "BCO_USD",
+                "intended_limit": intended_limit,
+                "entry_price": entry_price,
+                "ttl_seconds": ttl_seconds,
+                "offset_pct": str(limit_offset_pct),
+                "dry_run": dry_run,
+                "actual_path": "market_order" if dry_run else "limit_order_pending",
+            })
+            if not dry_run:
+                # Real limit-order path — NOT IMPLEMENTED in this commit.
+                # When the follow-up commit lands, this branch calls
+                # place_limit_order(...) and returns trade_ref before falling
+                # through to the market path below. Until then, log a clear
+                # warning so flipping the flag prematurely is loud, not silent.
+                _log.warn("BROKER", "limit_dry_run_disabled_but_real_path_not_implemented",
+                          trade_ref=trade_ref,
+                          note="LIMIT_DRY_RUN=false but real limit path not yet committed; falling through to market")
+
     _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
 

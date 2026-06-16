@@ -19,6 +19,7 @@ from backend.execution import (
 from backend.db import execute, safe_json_dumps
 from backend import notify
 from config import STRATEGY_RISK, MAX_UNITS, MICRO_ALPHA_SWEEP, DD_STATE_ID, TRADE_REF_PREFIX, DD_PROTECTION
+from backend.execution.limit_price import compute_limit_price
 from scanner import _log
 
 _price_extremes = {}
@@ -214,6 +215,54 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
         return None
 
     oanda_units = units if direction == "long" else -units
+
+    # Filter #27: dry-run scaffolding. See backend-oil/scanner/live_engine.py for
+    # the canonical comment. Logs intended limit_price + LIMIT_DRY_RUN_INTENT
+    # journal event; falls through to market order. Real-limit path lands in a
+    # follow-up commit.
+    cfg_entry_mode = MICRO_ALPHA_SWEEP.get("entry_mode", "market")
+    if cfg_entry_mode == "limit":
+        limit_offset_pct = MICRO_ALPHA_SWEEP.get("limit_offset_pct", 0.0)
+        limit_ttl_bars = MICRO_ALPHA_SWEEP.get("limit_ttl_bars", 5)
+        ttl_seconds = limit_ttl_bars * 180
+        risk_distance = abs(entry_price - sl_price)
+        live_price = get_current_price("BCO_USD")
+        engulf_ask = live_price["ask"] if live_price else entry_price
+        engulf_bid = live_price["bid"] if live_price else entry_price
+        try:
+            intended_limit = compute_limit_price(
+                direction=direction,
+                signal_entry=entry_price,
+                signal_risk=risk_distance,
+                engulf_close_ask=engulf_ask,
+                engulf_close_bid=engulf_bid,
+                limit_offset_pct=limit_offset_pct,
+            )
+        except Exception as e:
+            _log.exception("BROKER", "compute_limit_price_failed", trade_ref=trade_ref, err=str(e))
+            intended_limit = None
+
+        dry_run = os.environ.get("LIMIT_DRY_RUN", "true").lower() == "true"
+        if intended_limit is not None:
+            _log.info("BROKER", "limit_intent_computed",
+                      direction=direction, intended_limit=intended_limit,
+                      entry_price=entry_price, sl_price=sl_price, risk=risk_distance,
+                      offset_pct=str(limit_offset_pct), ttl_seconds=ttl_seconds,
+                      dry_run=dry_run, trade_ref=trade_ref)
+            _log_journal_safe(trade_ref, strategy, "LIMIT_DRY_RUN_INTENT", intended_limit, {
+                "instrument": "BCO_USD",
+                "intended_limit": intended_limit,
+                "entry_price": entry_price,
+                "ttl_seconds": ttl_seconds,
+                "offset_pct": str(limit_offset_pct),
+                "dry_run": dry_run,
+                "actual_path": "market_order" if dry_run else "limit_order_pending",
+            })
+            if not dry_run:
+                _log.warn("BROKER", "limit_dry_run_disabled_but_real_path_not_implemented",
+                          trade_ref=trade_ref,
+                          note="LIMIT_DRY_RUN=false but real limit path not yet committed; falling through to market")
+
     _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref)
     print(f"  [OIL-MICRO] Placing {direction.upper()} {units} barrels @ market, SL={sl_price:.4f}, TP={tp_price:.4f}")
 
