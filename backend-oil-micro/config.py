@@ -39,6 +39,14 @@ MICRO_ALPHA_SWEEP = {
     "max_trades_per_day": 3,
     "market_close_start": 21,
     "market_close_end": 22,
+    # Filter #27 shipped 2026-06-16 (Oil Micro variant ttl15_C10_loose):
+    # PF 5.76→7.56, +$534,162 21yr (+16.8%). Yearly slice 18/21 up, 6.8% loss/gain.
+    # Place limit at signal.entry − 10% × risk (LONG; +10% × risk for SHORT),
+    # 15min TTL, fill on any wick touch. See docs/FILTER_27_LIMIT_ORDER_RESEARCH.md.
+    "entry_mode": "limit",
+    "limit_offset_pct": -0.10,
+    "limit_ttl_bars": 5,
+    "limit_fill_strict": False,
 }
 
 STRATEGY_RISK = {"micro_alpha_sweep_oil": 4.0}
