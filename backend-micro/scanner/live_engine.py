@@ -12,7 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from backend.execution import (
-    get_current_price, place_market_order,
+    get_current_price, place_market_order, place_limit_order,
+    cancel_pending_order,
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details,
 )
@@ -240,15 +241,13 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     oanda_units = units if direction == "long" else -units
 
-    # Filter #27: dry-run scaffolding. See backend-oil/scanner/live_engine.py for
-    # the canonical comment. Logs intended limit_price + LIMIT_DRY_RUN_INTENT
-    # journal event; falls through to market order. Real-limit path lands in a
-    # follow-up commit.
+    # Filter #27: limit-order entry path. Mirrors Oil Macro at
+    # backend-oil/scanner/live_engine.py (canonical implementation).
     cfg_entry_mode = MICRO_ALPHA_SWEEP.get("entry_mode", "market")
     if cfg_entry_mode == "limit":
         limit_offset_pct = MICRO_ALPHA_SWEEP.get("limit_offset_pct", 0.0)
         limit_ttl_bars = MICRO_ALPHA_SWEEP.get("limit_ttl_bars", 5)
-        ttl_seconds = limit_ttl_bars * 180
+        ttl_seconds = limit_ttl_bars * 180  # M3 = 180s/bar
         risk_distance = abs(entry_price - sl_price)
         live_price = get_current_price("XAU_USD")
         engulf_ask = live_price["ask"] if live_price else entry_price
@@ -266,7 +265,9 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
             _log.exception("BROKER", "compute_limit_price_failed", trade_ref=trade_ref, err=str(e))
             intended_limit = None
 
+        # Default ON: dry-run unless operator explicitly opts out.
         dry_run = os.environ.get("LIMIT_DRY_RUN", "true").lower() == "true"
+
         if intended_limit is not None:
             _log.info("BROKER", "limit_intent_computed",
                       direction=direction, intended_limit=intended_limit,
@@ -282,10 +283,75 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
                 "dry_run": dry_run,
                 "actual_path": "market_order" if dry_run else "limit_order_pending",
             })
+
             if not dry_run:
-                _log.warn("BROKER", "limit_dry_run_disabled_but_real_path_not_implemented",
-                          trade_ref=trade_ref,
-                          note="LIMIT_DRY_RUN=false but real limit path not yet committed; falling through to market")
+                # REAL LIMIT PATH
+                _log.info("BROKER", "limit_order_placing", direction=direction,
+                          units=units, limit_price=intended_limit, sl=sl_price,
+                          tp=tp_price, ttl_seconds=ttl_seconds, trade_ref=trade_ref)
+                print(f"  [MICRO] Placing {direction.upper()} {units} units @ LIMIT "
+                      f"${intended_limit:.2f}, SL={sl_price:.2f}, TP={tp_price:.2f}, "
+                      f"TTL={ttl_seconds}s")
+                limit_result = place_limit_order(
+                    instrument="XAU_USD",
+                    units=oanda_units,
+                    limit_price=intended_limit,
+                    sl=sl_price,
+                    tp=tp_price,
+                    ttl_seconds=ttl_seconds,
+                    comment=f"{strategy}|{trade_ref}",
+                )
+                if not limit_result.get("success"):
+                    error = limit_result.get("error", "Unknown")
+                    _log.error("BROKER", "limit_order_failed", direction=direction,
+                               units=units, err=error, trade_ref=trade_ref)
+                    _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                                taken=False, skip_reason=f"limit_order_error: {error}")
+                    _log_journal(trade_ref, strategy, "LIMIT_ORDER_FAILED", entry_price,
+                                 {"error": error, "instrument": "XAU_USD",
+                                  "intended_limit": intended_limit})
+                    print(f"  [MICRO] Limit order FAILED: {error}")
+                    return None
+
+                pending_ticket = limit_result["ticket"]
+                _log.info("BROKER", "limit_order_placed", direction=direction,
+                          units=units, limit_price=limit_result.get("limit_price", intended_limit),
+                          ticket=pending_ticket, expiration=limit_result.get("expiration_time"),
+                          trade_ref=trade_ref)
+                try:
+                    execute(
+                        """INSERT INTO gd_trades (trade_ref, strategy, side, entry_time,
+                           entry_price, sl_price, tp_price, lot_size, units, mode, oanda_trade_id)
+                           VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, 'pending', %s)""",
+                        (trade_ref, strategy, direction.upper(), intended_limit, sl_price,
+                         tp_price, units / 100.0, units, pending_ticket)
+                    )
+                except Exception as e:
+                    _log.exception("DB", "pending_insert_failed_orphan_risk",
+                                   trade_ref=trade_ref, oanda_id=pending_ticket,
+                                   limit_price=intended_limit, err=str(e))
+                    print(f"  [MICRO] DB INSERT FAILED (limit is pending on broker!): {e}")
+                    try:
+                        _log_journal(trade_ref, strategy, "DB_INSERT_FAILED",
+                                     intended_limit, {"error": str(e),
+                                                       "oanda_id": pending_ticket,
+                                                       "kind": "pending"})
+                    except Exception:
+                        pass
+
+                _log_journal_safe(trade_ref, strategy, "LIMIT_PLACED", intended_limit, {
+                    "instrument": "XAU_USD", "units": units, "sl": sl_price, "tp": tp_price,
+                    "ticket": pending_ticket, "ttl_seconds": ttl_seconds,
+                    "expiration": limit_result.get("expiration_time"),
+                    "risk_dollar": risk_dollar, "equity_usd": equity_usd,
+                })
+                try:
+                    notify.limit_placed(trade_ref, "XAU_USD", direction,
+                                        intended_limit, ttl_seconds)
+                except Exception as e:
+                    print(f"  [MICRO] notify.limit_placed swallowed exception: {e}")
+                print(f"  [MICRO] LIMIT PLACED: ticket={pending_ticket} @ ${intended_limit:.2f}")
+                return trade_ref
 
     _log.info("BROKER", "order_placing", direction=direction, units=units, sl=sl_price, tp=tp_price, trade_ref=trade_ref, units_raw=units_raw, risk_dollar=risk_dollar, equity_usd=equity_usd)
     print(f"  [MICRO] Placing {direction.upper()} {units} units @ market, SL={sl_price:.2f}, TP={tp_price:.2f}")
@@ -355,8 +421,11 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 def check_open_positions():
     """Monitor open Micro positions — detect closures, enforce max hold."""
     global _price_extremes
+    # Filter #27: exclude pending limits — see backend-oil/scanner/live_engine.py
+    # for canonical comment.
     open_db_trades = execute(
-        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        f"AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
 
@@ -568,9 +637,10 @@ def _update_dd_after_exit(realized_pl_gbp: float):
 
 
 def check_alpha_sweep_breakeven():
-    """Check break-even for Micro trades."""
+    """Check break-even for Micro trades. Filter #27: exclude pending limits."""
     open_trades = execute(
-        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+        f"SELECT * FROM gd_trades WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        f"AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
 
@@ -649,9 +719,11 @@ def check_alpha_sweep_partial_tp():
     if partial_at <= 0 or partial_sz <= 0:
         return
 
+    # Filter #27: exclude pending limits.
     open_trades = execute(
         "SELECT * FROM gd_trades WHERE exit_time IS NULL AND strategy='micro_alpha_sweep' "
-        "AND oanda_trade_id IS NOT NULL AND COALESCE(partial_done, FALSE) = FALSE",
+        "AND oanda_trade_id IS NOT NULL AND COALESCE(partial_done, FALSE) = FALSE "
+        "AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
     _log.debug("POSITION", "partial_check_tick", open=len(open_trades) if open_trades else 0,
@@ -769,9 +841,12 @@ def reconcile_orphans():
     _log.debug("POSITION", "reconcile_tick", broker_open=len(broker_open))
     if not broker_open:
         # Issue #16 fix 2026-06-15: smell detector
+        # Filter #27: exclude pending limits — they correctly have no broker position.
         try:
             db_open = execute(
-                f"SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+                f"SELECT COUNT(*) as cnt FROM gd_trades WHERE exit_time IS NULL "
+                f"AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' "
+                f"AND COALESCE(mode, 'live') != 'pending'",
                 fetch=True
             )
             db_open_cnt = db_open[0]["cnt"] if db_open else 0
@@ -783,9 +858,12 @@ def reconcile_orphans():
 
     # Look up ANY system's open positions — see backend-oil-micro for full
     # rationale. June 11: cross-system pollution caused Telegram spam.
+    # Filter #27: exclude pending limits — oanda_trade_id is a pending ticket
+    # for those, must not be matched against broker_open positions.
     db_open_rows = execute(
         "SELECT oanda_trade_id FROM gd_trades "
-        "WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL",
+        "WHERE exit_time IS NULL AND oanda_trade_id IS NOT NULL "
+        "AND COALESCE(mode, 'live') != 'pending'",
         fetch=True
     )
     db_open_ids = {str(r["oanda_trade_id"]) for r in (db_open_rows or [])}
@@ -854,3 +932,123 @@ def reconcile_orphans():
             print(f"  [MICRO] reconcile_orphans: notify failed: {e}")
 
         print(f"  [MICRO] ORPHAN ADOPTED: {trade_ref} (broker {broker_id}) — investigate logs")
+
+
+# ---- Filter #27: pending-order monitor ----
+# Mirror of backend-oil/scanner/live_engine.pending_order_monitor.
+# See that file for canonical comments + state machine documentation.
+
+import json as _json
+
+
+def _read_dwx_json(filename: str):
+    from backend.execution.mt5_executor import DWX_DIR
+    import os.path
+    path = os.path.join(DWX_DIR, filename)
+    try:
+        with open(path, "r") as f:
+            return _json.load(f)
+    except Exception:
+        return None
+
+
+def pending_order_monitor():
+    """Filter #27 periodic reconciler for mode='pending' rows. See Oil Macro
+    canonical implementation for state machine docs."""
+    pending_db = execute(
+        f"SELECT * FROM gd_trades WHERE exit_time IS NULL "
+        f"AND strategy='micro_alpha_sweep' AND COALESCE(mode, 'live') = 'pending' "
+        f"AND trade_ref LIKE '{TRADE_REF_PREFIX}%%'",
+        fetch=True
+    )
+    if not pending_db:
+        return
+
+    pending_file = _read_dwx_json("pending_orders.json") or {}
+    open_file = _read_dwx_json("open_orders.json") or {}
+    cancelled_file = _read_dwx_json("cancelled_orders.json") or []
+    cancelled_tickets = set()
+    if isinstance(cancelled_file, list):
+        for entry in cancelled_file:
+            try:
+                cancelled_tickets.add(str(entry.get("ticket", "")))
+            except Exception:
+                continue
+    pending_tickets = {str(k) for k in pending_file.keys()} if isinstance(pending_file, dict) else set()
+    open_tickets = {str(k) for k in open_file.keys()} if isinstance(open_file, dict) else set()
+
+    _log.debug("POSITION", "pending_monitor_tick",
+               db_pending=len(pending_db), pending_file=len(pending_tickets),
+               open_file=len(open_tickets), cancelled_file=len(cancelled_tickets))
+
+    for row in pending_db:
+        ticket = str(row["oanda_trade_id"])
+        trade_ref = row["trade_ref"]
+        intended_limit = float(row["entry_price"])
+
+        if ticket in pending_tickets:
+            continue
+
+        if ticket in open_tickets:
+            fill_info = open_file.get(ticket, {})
+            actual_fill = float(fill_info.get("open_price", intended_limit))
+            broker_open_time = fill_info.get("open_time", "")
+            try:
+                execute(
+                    "UPDATE gd_trades SET mode='live', entry_price=%s WHERE oanda_trade_id=%s "
+                    "AND COALESCE(mode, 'live') = 'pending'",
+                    (actual_fill, ticket)
+                )
+            except Exception as e:
+                _log.exception("DB", "pending_monitor_fill_update_failed",
+                               trade_ref=trade_ref, ticket=ticket, err=str(e))
+                continue
+            _log.info("BROKER", "limit_filled", trade_ref=trade_ref, ticket=ticket,
+                      intended_limit=intended_limit, actual_fill=actual_fill,
+                      broker_open_time=broker_open_time)
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_FILLED", actual_fill, {
+                "instrument": "XAU_USD", "ticket": ticket,
+                "intended_limit": intended_limit, "actual_fill": actual_fill,
+                "broker_open_time": broker_open_time,
+            })
+            try:
+                notify.trade_filled(trade_ref, "XAU_USD", row["side"].lower(),
+                                    actual_fill, row["units"],
+                                    float(row["sl_price"]),
+                                    float(row["tp_price"]) if row["tp_price"] else 0)
+            except Exception as e:
+                _log.exception("BROKER", "limit_filled_notify_failed",
+                               trade_ref=trade_ref, err=str(e))
+            print(f"  [MICRO] LIMIT FILLED: {trade_ref} ticket={ticket} @ ${actual_fill:.2f}")
+            continue
+
+        if ticket in cancelled_tickets:
+            try:
+                execute(
+                    "UPDATE gd_trades SET exit_time=NOW(), exit_reason='LIMIT_TTL_EXPIRED' "
+                    "WHERE oanda_trade_id=%s AND COALESCE(mode, 'live') = 'pending'",
+                    (ticket,)
+                )
+            except Exception as e:
+                _log.exception("DB", "pending_monitor_expire_update_failed",
+                               trade_ref=trade_ref, ticket=ticket, err=str(e))
+                continue
+            _log.info("BROKER", "limit_ttl_expired", trade_ref=trade_ref,
+                      ticket=ticket, intended_limit=intended_limit)
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_TTL_EXPIRED",
+                              intended_limit, {
+                                  "instrument": "XAU_USD", "ticket": ticket,
+                                  "intended_limit": intended_limit,
+                              })
+            try:
+                notify.limit_ttl_expired(trade_ref, "XAU_USD", intended_limit)
+            except Exception as e:
+                _log.exception("BROKER", "limit_ttl_notify_failed",
+                               trade_ref=trade_ref, err=str(e))
+            print(f"  [MICRO] LIMIT EXPIRED: {trade_ref} ticket={ticket} @ ${intended_limit:.2f}")
+            continue
+
+        _log.warn("POSITION", "pending_monitor_orphan",
+                  trade_ref=trade_ref, ticket=ticket,
+                  note="ticket not in pending/open/cancelled files; leaving DB row "
+                       "for next iteration / daily recon")
