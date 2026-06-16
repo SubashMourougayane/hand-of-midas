@@ -6,8 +6,8 @@
 //|  All strategy logic lives in Python. This EA just bridges.         |
 //+------------------------------------------------------------------+
 #property copyright "Hand Of Midas"
-#property version   "2.00"
-#property description "DWX Bridge: streams market data and executes orders from Python"
+#property version   "2.10"
+#property description "DWX Bridge: streams market data and executes orders from Python (Filter #27 limit orders)"
 #property strict
 
 input string InpSymbols = "XAUUSD.ecn,BRENT.ecn";  // Symbols to stream (comma-separated)
@@ -44,7 +44,9 @@ int OnInit()
     // Start timer
     EventSetMillisecondTimer(InpTimerMs);
 
-    Print("[DWX] Server started. Symbols: ", InpSymbols, " | Folder: ", g_folder);
+    Print("[DWX] Server started v2.10 (Filter #27). Symbols: ", InpSymbols,
+          " | Folder: ", g_folder, " | Magic: ", InpMagic,
+          " | Commands: OPEN, OPEN_PENDING, CANCEL_PENDING, MODIFY, CLOSE, CLOSE_PARTIAL, CLOSE_ALL");
     WriteAccountInfo();
     WriteMarketData();
 
@@ -196,11 +198,16 @@ void WriteOpenOrders()
 //| and to reconcile fills (a ticket that was in pending_orders.json  |
 //| then appears in open_orders.json = fill detected).                |
 //+------------------------------------------------------------------+
+// Track our-magic count between ticks so we can log only on CHANGE,
+// not every 25ms timer call. Filter #27.
+static int g_lastPendingCount = -1;
+
 void WritePendingOrders()
 {
     string json = "{";
     int total = OrdersTotal();
     bool first = true;
+    int ourCount = 0;
 
     for(int i = 0; i < total; i++)
     {
@@ -210,6 +217,7 @@ void WritePendingOrders()
         long magic = OrderGetInteger(ORDER_MAGIC);
         if(magic != InpMagic) continue;  // Filter to OUR orders only
 
+        ourCount++;
         if(!first) json += ",";
         first = false;
 
@@ -248,6 +256,17 @@ void WritePendingOrders()
     json += "}";
 
     WriteFile(g_folder + "/pending_orders.json", json);
+
+    // Log on count CHANGE only (avoids 25ms-tick spam). Catches: a new pending
+    // appearing (Python sent OPEN_PENDING), or one disappearing (filled OR
+    // cancelled — Python's pending_order_monitor will distinguish via
+    // open_orders.json vs cancelled_orders.json).
+    if(ourCount != g_lastPendingCount)
+    {
+        Print("[DWX] pending_orders.json count changed: ", g_lastPendingCount,
+              " -> ", ourCount, " (our magic ", InpMagic, ")");
+        g_lastPendingCount = ourCount;
+    }
 }
 
 //+------------------------------------------------------------------+
