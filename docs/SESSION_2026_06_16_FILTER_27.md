@@ -296,3 +296,73 @@ But session ended before user did `git pull` on VPS + restart Python services. H
 - Parity probe: `scripts/check_filter_27_live_bt_parity.py`
 - Sweep JSON: `scripts/output/filter_27_results.json`
 - Memory entries: `~/.claude/.../memory/project_filter_27_limit_orders.md`, `project_dwx_ea_pending_orders.md`, `feedback_user_explicit_opt_in.md`, `session_2026_06_16_filter_27.md`, `next_session_tasks.md`
+
+---
+
+# Session Addendum (post-wrap deploy actions)
+
+After the original handoff was written and committed (`7e96432`), the user
+deployed Filter #27 to the VPS and progressed through the dry-run → real-limit
+flip in this session. No new code commits — these are deploy-side actions.
+
+## Deploy timeline (post-wrap)
+
+1. **18:46 UTC** — User killed all python.exe on VPS (`taskkill /F /IM python.exe`).
+2. **18:50 UTC** — User opened MetaEditor on VPS, recompiled `DWX_Server.mq5` (F7), reattached EA to chart.
+3. **18:52 UTC** — MT5 Experts tab confirmed: `[DWX] Server started v2.10 (Filter #27). Symbols: XAUUSD.ecn,BRENT.ecn | Folder: DWX | Magic: 200000 | Commands: OPEN, OPEN_PENDING, CANCEL_PENDING, MODIFY, CLOSE, CLOSE_PARTIAL, CLOSE_ALL`. EA-side ready.
+4. **~19:00 UTC** — User pulled `60a995c` on VPS, ran `start-win.bat`. All 4 services back up. Health-API check confirmed `*_pending_order_monitor` jobs registered on the 3 limit-shipped systems. Filter #27 fully loaded — but `LIMIT_DRY_RUN` defaulted to `true` (env var unset).
+5. **19:18 UTC** — Gold Macro live signal fired: `GD-AL-2025e3d2` SHORT 55u @ $4333.26, SL $4343.21, TP $4308.94. **Market order path** (correct — Gold Macro stashed Filter #27). Slippage attribution log confirmed working: `snap_bid=4333.26 snap_ask=4333.36` at order_send, fill at $4333.26 = **zero slip** on this fire. μs-precision timestamps verified live.
+6. **~20:30 UTC** — Trade GD-AL-2025e3d2 went floating-negative as price retraced from $4326 → $4337 (~$11 against). Position still within risk envelope ($6.16 / $9.95 SL distance = 38% consumed). No BE arming because price never touched the 35%-to-TP level ($4321.10).
+7. **20:40 UTC** — User asked to flip Filter #27 to real-limit mode. Initial misstep: I started a code-change to flip the default from `"true"` to `"false"` in 3 live engines. User correctly objected — "is it not just one env change?" — code reverted, no commits, zero diff.
+8. **~20:50 UTC** — Verified `.env` loading mechanism: each `config.py` calls `load_dotenv(<repo>/.env)` at import. So adding to `.env` is the canonical path (persistent, survives restart, no Windows-registry env-var management).
+9. **~20:55 UTC** — Read existing `C:\hand-of-midas\.env` via debug API, appended `LIMIT_DRY_RUN=false` via `Add-Content`, verified file contents.
+10. **~21:00 UTC** — Killed all 4 python services via debug API (gold endpoint dies along with them — expected). User ran `start-win.bat` on VPS to restart.
+11. **~21:05 UTC** — All 4 services back up. In-process verification confirmed `LIMIT_DRY_RUN='false'` loaded in oil / micro / oil-micro Python processes. `pending_order_monitor` jobs all registered post-restart.
+
+## Post-deploy state (live as of session close)
+
+```
+EA              v2.10                                  ✅ verified
+.env            LIMIT_DRY_RUN=false (persistent)       ✅ on VPS disk
+Python services 4/4 up (fresh PIDs ~21:05 UTC)         ✅
+In-process env  LIMIT_DRY_RUN='false' on 3 limit svcs  ✅ verified
+pending_order_monitor jobs registered                  ✅ all 3
+Real-limit path active on next signal                  ✅ next Oil/Gold-Micro/Oil-Micro signal
+Gold Macro path                                        ✅ market (stash respected)
+```
+
+## Open trades at session close
+
+`GD-AL-2025e3d2` Gold Macro SHORT 55u @ $4333.26 — **floating loss ~$200**, runner active. Market order, not Filter #27. Filter #5 BE will arm if price drops to $4321.10. SL at $4343.21 = max −$547 if hit.
+
+## Iteration learnings (not in original handoff)
+
+### Lesson — env var, not config flag, for dry-run gate
+
+User pushed back twice on dry-run gating decisions:
+- First, on whether config.py should host the dry-run flag (it does NOT; flag is env-var only). Decision: keep env-var-only because per-process flippable without code change, defaults safely to dry-run.
+- Second, on whether to change the default in code from `"true"` to `"false"`. Wrong move — should have just edited `.env`. User caught it; code was reverted before commit.
+
+**Correct path for env-driven defaults:** when user wants to flip behavior, edit `.env`, restart services. **Never** change code to flip a default value when an env var already does the job.
+
+### Lesson — debug API can self-suicide
+
+When killing python.exe via debug API on the gold service, the same gold process stops responding (expected). User must restart from VPS terminal directly. Workflow: use debug API for `taskkill`, then `start-win.bat` from VPS console.
+
+### Lesson — `.env` is gitignored, machine-local
+
+`.env` lives at `<repo-root>/.env`, loaded by every config.py via `load_dotenv()`. **Not committed.** Each environment (Mac dev, VPS prod) has its own. Edits made on VPS don't propagate to repo and vice versa. Audit trail is via `git log` of code that READS env vars + the deploy logs of when each service restarted.
+
+## Outstanding (post-wrap, additional to original)
+
+| Priority | Item |
+|---|---|
+| HIGH | First Oil Macro / Gold Micro / Oil Micro signal post-deploy will be a REAL limit order. Watch for `📋 LIMIT PLACED` Telegram. If it doesn't fire (or `LIMIT_ORDER_FAILED` journal event fires), triage immediately — likely DWX EA `OPEN_PENDING` parsing or broker rejection. |
+| HIGH | Watch `GD-AL-2025e3d2` runner — currently floating −$200, SL $6 above current. If SL fires that's −$547 day damage. |
+| MEDIUM | Verify lifecycle-pair Telegram messages after first real limit fires: `📋 LIMIT PLACED` → either `✅ TRADE FILLED` or `⏱ LIMIT EXPIRED`. Critical sanity check on 30s monitor + EA cancelled_orders.json wiring. |
+| MEDIUM | After first 3-5 real limit lifecycles, query `gd_journal` for `LIMIT_FILLED` events and compare `intended_limit` vs `actual_fill` field — proves live↔BT helper parity in production. |
+| LOW | All other items from original handoff carried forward (zombie P&L backfill, calibration plan trigger, bar-vs-wallclock investigation, Filter #28 candidate). |
+
+## Resume hint addendum
+
+🦣 **Filter #27 is now REAL on 3 systems. Default-OFF dry-run via `.env`. Next limit-shipped signal = real broker pending order.** Expected first-fire targets per scan-window timing: Oil Macro / Gold Micro any time during 08-19 UTC (London/NY); Oil Micro rolling 24/7 except 21-22 UTC maintenance.
