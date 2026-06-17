@@ -91,9 +91,12 @@ def fetch_trades(api_suffix: str, limit: int = 200):
 
 
 def fetch_journal(api_suffix: str, limit: int = 500):
-    """Journal endpoint shape varies: gold uses /journal/events, the others use /journal."""
+    """Journal endpoint shape varies: gold uses /journal/events (capped at 200),
+    the others use /journal."""
     if api_suffix == "gold":
-        url = f"{API_BASE}/api/{api_suffix}/journal/events?limit={limit}"
+        # Gold's /journal/events validates limit <= 200 and returns 422 otherwise.
+        capped = min(limit, 200)
+        url = f"{API_BASE}/api/{api_suffix}/journal/events?limit={capped}"
     else:
         url = f"{API_BASE}/api/{api_suffix}/journal?limit={limit}"
     data = http_get(url)
