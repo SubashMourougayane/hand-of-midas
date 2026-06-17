@@ -154,6 +154,55 @@ def test_unknown_offset_dict_raises():
         )
 
 
+# ----- M1: non-positive result guard -----
+
+def test_m1_negative_result_long_raises():
+    """M1: LONG with offset that drives limit <= 0 must raise, not return junk.
+    Scenario: tiny entry + huge offset × risk."""
+    with pytest.raises(ValueError, match="non-positive"):
+        compute_limit_price(
+            direction="long",
+            signal_entry=0.5, signal_risk=10.0,
+            engulf_close_ask=0.5, engulf_close_bid=0.4,
+            limit_offset_pct=-0.10,  # 0.5 + (-0.10 × 10) = -0.5
+        )
+
+
+def test_m1_negative_result_short_raises():
+    """M1: SHORT mirror with absurd offset producing negative result."""
+    with pytest.raises(ValueError, match="non-positive"):
+        compute_limit_price(
+            direction="short",
+            signal_entry=0.5, signal_risk=10.0,
+            engulf_close_ask=0.6, engulf_close_bid=0.5,
+            limit_offset_pct=10.0,  # 0.5 - (10.0 × 10) = -99.5
+        )
+
+
+def test_m1_zero_result_raises():
+    """M1: result == 0 also raises (not just negative). Broker would reject.
+    Edge case: signal_entry exactly cancels offset×risk."""
+    with pytest.raises(ValueError, match="non-positive"):
+        compute_limit_price(
+            direction="long",
+            signal_entry=10.0, signal_risk=100.0,
+            engulf_close_ask=10.0, engulf_close_bid=10.0,
+            limit_offset_pct=-0.10,  # 10 + (-0.10 × 100) = 0.0
+        )
+
+
+def test_m1_normal_positive_unchanged():
+    """M1 regression: realistic positive result must still return cleanly.
+    XAU at $4000 with offset=-0.10 and risk=$5: 4000 - 0.5 = $3999.5"""
+    result = compute_limit_price(
+        direction="long",
+        signal_entry=4000.0, signal_risk=5.0,
+        engulf_close_ask=4000.0, engulf_close_bid=3999.9,
+        limit_offset_pct=-0.10,
+    )
+    assert result == 3999.5
+
+
 # ----- BT-engine parity probes -----
 # These mirror the exact inline code that exists today in the 4 BT engines.
 # If they ever drift, the unit test fails BEFORE the BT does — the cheap

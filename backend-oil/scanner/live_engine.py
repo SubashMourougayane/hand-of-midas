@@ -18,7 +18,7 @@ from backend.execution import (
     close_trade, get_open_trades, get_account_summary,
     modify_stop_loss, get_trade_details,
 )
-from backend.execution.limit_price import compute_limit_price
+from backend.execution.limit_price import compute_limit_price, parse_dry_run_env
 
 def _get_gbp_usd_rate():
     """Oil account is USD — no conversion needed."""
@@ -198,11 +198,37 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
         print(f"  [OIL] SKIP: already have open Oil-Macro position")
         return None
 
+    # M12 (2026-06-17): validate SL distance from current price (broker minimum
+    # stop level). Mirror of backend-oil-micro/scanner/live_engine.py:182-194.
+    # Without this check, signals with SL too close to market reach the broker
+    # and get rejected with retcode 10016. Production evidence: 4 OIL-AS
+    # historical 10016 rejects (Jun 2 + Jun 9). Pre-emptive skip = cleaner
+    # gd_signals classification + cleaner postmortem trail.
+    # See docs/FILTER_27_AUDIT_BACKLOG.md M12.
+    price_now = get_current_price(instrument="BCO_USD")
+    if price_now:
+        current_ask = price_now["ask"]
+        current_bid = price_now["bid"]
+        if direction == "short" and sl_price <= current_ask + 0.05:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [OIL] SKIP: SL ${sl_price:.4f} too close to ask ${current_ask:.4f}")
+            return None
+        if direction == "long" and sl_price >= current_bid - 0.05:
+            _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="sl_too_close_to_price")
+            print(f"  [OIL] SKIP: SL ${sl_price:.4f} too close to bid ${current_bid:.4f}")
+            return None
+
     oanda_units = units if direction == "long" else -units
 
     # Filter #27: compute the limit_price the BT engine would use for this signal,
     # using the SAME helper. Whether we ACT on it depends on entry_mode + LIMIT_DRY_RUN.
     cfg_entry_mode = ALPHA_SWEEP.get("entry_mode", "market")
+    # M2 (2026-06-17): log resolved entry_mode so config typos like "Limit"
+    # or "LIMIT" are visible. Strict-equality check below treats anything
+    # other than literal "limit" as market. See docs/FILTER_27_AUDIT_BACKLOG.md M2.
+    will_use_limit = (cfg_entry_mode == "limit")
+    _log.info("BROKER", "entry_mode_resolved",
+              raw=cfg_entry_mode, will_use_limit=will_use_limit, trade_ref=trade_ref)
     if cfg_entry_mode == "limit":
         # Live needs the engulfing-bar bid/ask close. We only have the strategy's
         # entry_price + risk in this scope. For variant B (engulf_close) we
@@ -228,12 +254,116 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
         except Exception as e:
             _log.exception("BROKER", "compute_limit_price_failed", trade_ref=trade_ref, err=str(e))
             intended_limit = None
+            # M3 (2026-06-17): journal the limit→market fall-back so operators
+            # who opted into limit mode can spot when it didn't fire. Currently
+            # silent (only _log.exception), which is fine for crash forensics
+            # but invisible in the journal trail. See docs/FILTER_27_AUDIT_BACKLOG.md M3.
+            _log_journal_safe(trade_ref, strategy, "LIMIT_COMPUTE_FAILED_FELL_BACK_TO_MARKET",
+                              entry_price, {
+                                  "instrument": "BCO_USD",
+                                  "error": str(e),
+                                  "entry_price": entry_price,
+                                  "sl_price": sl_price,
+                                  "tp_price": tp_price,
+                                  "offset_pct": str(limit_offset_pct),
+                                  "fallback_action": "market_order",
+                              })
 
         # Dry-run gate. Default ON (LIMIT_DRY_RUN unset = "true") so we don't
         # accidentally place a live limit before the operator explicitly opts in.
-        dry_run = os.environ.get("LIMIT_DRY_RUN", "true").lower() == "true"
+        # H1 + M7 (2026-06-17): parse_dry_run_env handles whitespace + per-system
+        # override. Per-system: OIL_LIMIT_DRY_RUN wins, falls back to global
+        # LIMIT_DRY_RUN. Enables single-system rollback without flipping all 3.
+        # See docs/FILTER_27_AUDIT_BACKLOG.md H1+M7.
+        dry_run = parse_dry_run_env(system_prefix="OIL")
 
         if intended_limit is not None:
+            # H6 (2026-06-17): refuse to place a limit price clearly through
+            # current market. Production rate to date: 0/4 trip rate, but
+            # market-moving-while-engulfing-bar-forms could land limit ABOVE
+            # current ask (LONG) or BELOW current bid (SHORT) — broker would
+            # either instant-fill at unintended price OR reject 10015. We use
+            # PERMISSIVE thresholds (only kill if CLEARLY through ask/bid)
+            # so we don't kill working between-bid-ask placements like
+            # OIL-MI-08b725d3 (verified safe with permissive threshold).
+            # See docs/FILTER_27_AUDIT_BACKLOG.md H6.
+            if live_price:
+                live_bid_now = live_price.get("bid")
+                live_ask_now = live_price.get("ask")
+                if direction == "long" and live_ask_now and intended_limit > live_ask_now:
+                    _log.error("BROKER", "limit_price_through_market_long",
+                               trade_ref=trade_ref, intended_limit=intended_limit,
+                               current_ask=live_ask_now, current_bid=live_bid_now,
+                               distance=intended_limit - live_ask_now)
+                    _log_journal_safe(trade_ref, strategy, "LIMIT_PRICE_THROUGH_MARKET",
+                                      intended_limit, {
+                                          "instrument": "BCO_USD",
+                                          "side": "long",
+                                          "intended_limit": intended_limit,
+                                          "current_ask": live_ask_now,
+                                          "current_bid": live_bid_now,
+                                          "distance_through_ask": intended_limit - live_ask_now,
+                                          "reason": "limit_above_current_ask_for_long",
+                                      })
+                    _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                                taken=False, skip_reason="limit_price_through_market")
+                    return None
+                if direction == "short" and live_bid_now and intended_limit < live_bid_now:
+                    _log.error("BROKER", "limit_price_through_market_short",
+                               trade_ref=trade_ref, intended_limit=intended_limit,
+                               current_bid=live_bid_now, current_ask=live_ask_now,
+                               distance=live_bid_now - intended_limit)
+                    _log_journal_safe(trade_ref, strategy, "LIMIT_PRICE_THROUGH_MARKET",
+                                      intended_limit, {
+                                          "instrument": "BCO_USD",
+                                          "side": "short",
+                                          "intended_limit": intended_limit,
+                                          "current_bid": live_bid_now,
+                                          "current_ask": live_ask_now,
+                                          "distance_through_bid": live_bid_now - intended_limit,
+                                          "reason": "limit_below_current_bid_for_short",
+                                      })
+                    _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                                taken=False, skip_reason="limit_price_through_market")
+                    return None
+
+            # C2: defense-in-depth — refuse to place a limit where SL is on the
+            # wrong side. Math should guarantee this for current variants
+            # (LONG: limit=entry+offset×risk with offset≤0 → sl=entry−risk < limit;
+            #  SHORT: mirror), but a future variant sweep or sl_price formula
+            # change could regress it. Production has 0 wrong-side hits today
+            # (verified 2026-06-17). See docs/FILTER_27_AUDIT_BACKLOG.md C2.
+            if direction == "long" and sl_price >= intended_limit:
+                _log.error("BROKER", "limit_invalid_sl_long",
+                           trade_ref=trade_ref, intended_limit=intended_limit,
+                           sl_price=sl_price, gap=sl_price - intended_limit)
+                _log_journal_safe(trade_ref, strategy, "LIMIT_INVALID_SL",
+                                  intended_limit, {
+                                      "instrument": "BCO_USD",
+                                      "side": "long",
+                                      "sl": sl_price,
+                                      "intended_limit": intended_limit,
+                                      "reason": "sl_above_or_equal_long_limit",
+                                  })
+                _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                            taken=False, skip_reason="limit_invalid_sl_wrong_side")
+                return None
+            if direction == "short" and sl_price <= intended_limit:
+                _log.error("BROKER", "limit_invalid_sl_short",
+                           trade_ref=trade_ref, intended_limit=intended_limit,
+                           sl_price=sl_price, gap=intended_limit - sl_price)
+                _log_journal_safe(trade_ref, strategy, "LIMIT_INVALID_SL",
+                                  intended_limit, {
+                                      "instrument": "BCO_USD",
+                                      "side": "short",
+                                      "sl": sl_price,
+                                      "intended_limit": intended_limit,
+                                      "reason": "sl_below_or_equal_short_limit",
+                                  })
+                _log_signal(strategy, direction, entry_price, sl_price, tp_price,
+                            taken=False, skip_reason="limit_invalid_sl_wrong_side")
+                return None
+
             _log.info("BROKER", "limit_intent_computed",
                       direction=direction, intended_limit=intended_limit,
                       entry_price=entry_price, sl_price=sl_price, risk=risk_distance,
@@ -324,6 +454,17 @@ def execute_signal(direction: str, entry_price: float, sl_price: float, tp_price
                                         intended_limit, ttl_seconds)
                 except Exception as e:
                     print(f"  [OIL] notify.limit_placed swallowed exception: {e}")
+                # M11: limit-success path was missing _log_signal(taken=True),
+                # so gd_signals had NO row for this trade. Cooldown query in
+                # scheduler.py:127 ORDER BY timestamp DESC LIMIT 1 then found
+                # the LAST signal (could be hours earlier) → 5-min cooldown
+                # gate fails open → next scan tick could re-fire same setup.
+                # Wrap in try/except: broker order is live; must not crash here.
+                try:
+                    _log_signal(strategy, direction, intended_limit, sl_price,
+                                tp_price, taken=True, trade_ref=trade_ref)
+                except Exception as e:
+                    print(f"  [OIL] _log_signal FAILED (limit path): {e}")
                 print(f"  [OIL] LIMIT PLACED: ticket={pending_ticket} @ ${intended_limit:.4f}")
                 return trade_ref  # ALWAYS return trade_ref — pending exists on broker
 
@@ -975,6 +1116,25 @@ def reconcile_orphans():
 import json as _json  # local import to avoid top-of-file change
 
 
+# Filter #27 grace fallback (Fix B for BUG_FILTER_27_PENDING_RECONCILER_GAP):
+# If a pending ticket vanishes from all DWX files (orphan branch) AND its TTL
+# elapsed PENDING_GRACE_SECONDS ago, treat as TTL_EXPIRED. Catches the broker-
+# silent-expire path where OnTradeTransaction never fires because the broker
+# auto-cancelled the order without notifying the MT5 client.
+PENDING_GRACE_SECONDS = 60
+
+# Telegram throttle: alert once per orphan ticket. Cleared when ticket finally
+# resolves (filled / expired / cleanup) — see _resolve_orphan_state.
+_orphan_alerted: set = set()
+
+# M13: per-ticket counter of consecutive bad-open_price cycles in fill detection.
+# H4 (skip cycle on missing/zero/None) protects against transient DWX mid-write
+# races. M13 escalates if data stays bad for N cycles → indicates EA bug or
+# stuck state. After escalation, sentinel value (-1) suppresses re-fire.
+_bad_open_price_cycles: dict = {}
+BAD_OPEN_PRICE_THRESHOLD = 5  # 5 × 30s = ~2.5 min before escalation
+
+
 def _read_dwx_json(filename: str):
     """Read a DWX JSON file (best-effort, returns None on any error)."""
     from backend.execution.mt5_executor import DWX_DIR  # late import to keep cycle-free
@@ -985,6 +1145,176 @@ def _read_dwx_json(filename: str):
             return _json.load(f)
     except Exception:
         return None
+
+
+def _orphan_lookup_ttl_seconds(trade_ref: str) -> Optional[int]:
+    """Pull ttl_seconds for an orphaned pending row, with config fallback.
+
+    Lookup order:
+      1. Most recent LIMIT_PLACED journal event for this trade_ref (canonical)
+      2. ALPHA_SWEEP['limit_ttl_bars'] * 180 from config (fallback — H3 fix)
+
+    Why the fallback matters (H3, 2026-06-17):
+    Without a TTL value, the caller's grace check (`past_grace = elapsed >
+    ttl_seconds + PENDING_GRACE_SECONDS`) silently evaluates False forever
+    when ttl_seconds is None. Result: orphaned DB row never resolves, blocks
+    new signals via one-at-a-time guard. Three failure modes that can produce
+    None today:
+      a) DB hiccup at the exact moment of lookup (every-30s monitor tick)
+      b) LIMIT_PLACED journal write was swallowed upstream (rare but possible)
+      c) Old pre-fix-B row exists with no journal event
+
+    Production data (verified 2026-06-17): all 4 historical limit-path trades
+    have LIMIT_PLACED journal events. Bug class is theoretical so far. The
+    fallback is defense-in-depth for the day a DB hiccup races the lookup.
+
+    Returns:
+        int (ttl_seconds) — never None as long as ALPHA_SWEEP config is loaded
+        None — only if the config import itself failed (pathological)
+    """
+    # Path 1: journal lookup (canonical).
+    try:
+        rows = execute(
+            "SELECT context FROM gd_journal WHERE trade_ref=%s "
+            "AND event_type='LIMIT_PLACED' ORDER BY timestamp DESC LIMIT 1",
+            (trade_ref,), fetch=True
+        )
+        if rows:
+            ctx = rows[0]["context"] or {}
+            if isinstance(ctx, str):
+                ctx = _json.loads(ctx)
+            ttl = ctx.get("ttl_seconds")
+            if ttl is not None:
+                return int(ttl)
+            _log.warn("BROKER", "orphan_ttl_lookup_no_field",
+                      trade_ref=trade_ref,
+                      note="LIMIT_PLACED journal exists but missing ttl_seconds field; falling back to config")
+        else:
+            _log.warn("BROKER", "orphan_ttl_lookup_no_journal",
+                      trade_ref=trade_ref,
+                      note="no LIMIT_PLACED journal event; falling back to config")
+    except Exception as e:
+        _log.exception("DB", "orphan_ttl_lookup_db_error",
+                       trade_ref=trade_ref, err=str(e),
+                       note="DB error during journal lookup; falling back to config")
+
+    # Path 2: config fallback. ALPHA_SWEEP['limit_ttl_bars'] is the source of
+    # truth for what ttl_seconds *would have been* at placement time. This
+    # value is locked-in via Filter #27's BT-best variant ship config (Oil
+    # Macro: ttl15 = 5 bars). If config has been live-modified since the
+    # placement, the fallback is approximate but still correct order-of-mag.
+    try:
+        bars = ALPHA_SWEEP.get("limit_ttl_bars", 5)
+        ttl_fallback = int(bars) * 180  # M3 = 180s/bar
+        _log.info("BROKER", "orphan_ttl_lookup_config_fallback",
+                  trade_ref=trade_ref, ttl_seconds=ttl_fallback,
+                  source="ALPHA_SWEEP.limit_ttl_bars")
+        return ttl_fallback
+    except Exception as e:
+        _log.exception("BROKER", "orphan_ttl_lookup_config_failed",
+                       trade_ref=trade_ref, err=str(e),
+                       note="even config fallback failed — orphan row will NOT resolve via grace")
+        return None
+
+
+def reconcile_broker_pending_orphans():
+    """Filter #27 / C3 — find broker pending orders that have NO DB row.
+
+    Race scenario this protects against:
+      1. execute_signal calls place_limit_order
+      2. EA processes OPEN_PENDING and the broker accepts the limit
+      3. EA's last_response.json write is delayed > 10s
+      4. Python's _send_command times out, returns success=False
+      5. execute_signal sees failure, skips the DB INSERT
+      6. Broker now has a pending limit at our magic with NO DB row
+      7. If it fills: existing reconcile_orphans (filled-case) adopts it ✓
+      8. If it expires: NOBODY ever knows it existed — silent audit-trail loss
+
+    Production evidence (verified 2026-06-17):
+      - 0 limit-order timeouts to date
+      - 1 market-order timeout ever (Jun 7, micro_alpha_sweep)
+      - Race is theoretical but possible
+
+    Strategy: CANCEL orphan pendings (Option A — safest). We have no signal
+    context to adopt them properly (don't know sweep_key, intended sl/tp,
+    or which strategy fired). Cancelling cleanly:
+      - Eliminates broker exposure within seconds
+      - Surfaces a clear journal event for postmortem
+      - Costs 1 trade in the worst case (race-orphan that would have been valid)
+    Per audit data: race rate ≈ 0/1000 limits in production. Cost of cancel is
+    near-zero in expected value.
+
+    Magic check ensures we only touch our own orders; manual MT5 trades are
+    skipped. Idempotent: ticket already cancelled = no-op.
+    """
+    pending_file = _read_dwx_json("pending_orders.json") or {}
+    if not isinstance(pending_file, dict) or not pending_file:
+        return  # No broker pendings = nothing to reconcile
+
+    # All ticket IDs the DB knows about — cheap query, runs every 30s
+    db_known = execute(
+        "SELECT oanda_trade_id FROM gd_trades WHERE oanda_trade_id IS NOT NULL "
+        "AND exit_time IS NULL",
+        fetch=True
+    ) or []
+    db_known_tickets = {str(r["oanda_trade_id"]) for r in db_known}
+
+    # Magic from config — only adopt OUR pendings, never manual MT5 trades
+    OUR_MAGIC = 200000
+
+    for ticket_str, info in pending_file.items():
+        if not isinstance(info, dict):
+            continue
+        ticket = str(ticket_str)
+        if ticket in db_known_tickets:
+            continue  # known to us — handled by pending_order_monitor flow
+
+        magic = info.get("magic")
+        try:
+            if int(magic) != OUR_MAGIC:
+                continue  # not our order — manual MT5 trade
+        except (TypeError, ValueError):
+            continue  # malformed magic field — leave alone
+
+        # Found a pending limit at our magic with NO DB row → race-orphan.
+        # Cancel cleanly to eliminate broker exposure.
+        symbol = info.get("symbol", "?")
+        order_type = info.get("type", "?")
+        price = info.get("price", 0)
+        comment = info.get("comment", "")
+        _log.warn("BROKER", "broker_pending_orphan_detected",
+                  ticket=ticket, symbol=symbol, type=order_type,
+                  price=price, comment=comment, magic=magic,
+                  note="ticket in pending_orders.json but no DB row — race orphan, cancelling")
+        try:
+            cancel_result = cancel_pending_order(ticket)
+        except Exception as e:
+            _log.exception("BROKER", "broker_pending_orphan_cancel_failed",
+                           ticket=ticket, err=str(e))
+            continue
+
+        # Journal the cancel attempt regardless of outcome
+        synthetic_ref = f"OIL-AS-orphan-pend-{ticket[-8:]}"
+        _log_journal_safe(synthetic_ref, "alpha_sweep_oil",
+                          "LIMIT_ORPHAN_PENDING_CANCELLED",
+                          float(price) if price else 0, {
+                              "instrument": "BCO_USD",
+                              "ticket": ticket,
+                              "symbol": symbol,
+                              "type": order_type,
+                              "comment": comment,
+                              "cancel_result": cancel_result,
+                              "reason": "race_timeout_no_db_row",
+                          })
+        try:
+            notify.send(
+                f"⚠️ <b>BROKER PENDING ORPHAN</b>\n"
+                f"ticket={ticket} {symbol} {order_type} @ {price}\n"
+                f"No DB row — cancelled (race-timeout protection)."
+            )
+        except Exception as e:
+            _log.exception("BROKER", "broker_pending_orphan_notify_failed",
+                           ticket=ticket, err=str(e))
 
 
 def pending_order_monitor():
@@ -1006,7 +1336,21 @@ def pending_order_monitor():
       a ticket in NEITHER file briefly (during the transition tick). We
       handle this by treating that case as "orphan, leave DB row alone"
       — next iteration (30s later) will see a stable state.
+    - Broker silent expire: JustMarkets sometimes auto-expires pending
+      orders via ORDER_TIME_SPECIFIED without sending the MT5 client a
+      TRADE_TRANSACTION_ORDER_DELETE notification. EA poll detects the
+      ticket disappeared but can't write cancelled_orders.json without
+      the OnTradeTransaction event. PENDING_GRACE_SECONDS fallback below
+      catches this case; see docs/BUG_FILTER_27_PENDING_RECONCILER_GAP.md
     """
+    # C3: also reconcile broker-side pendings with no DB row (race-timeout
+    # orphans). Runs unconditionally — does not depend on pending_db being
+    # populated. See reconcile_broker_pending_orphans for full rationale.
+    try:
+        reconcile_broker_pending_orphans()
+    except Exception as e:
+        _log.exception("BROKER", "reconcile_broker_pending_orphans_failed", err=str(e))
+
     pending_db = execute(
         "SELECT * FROM gd_trades WHERE exit_time IS NULL "
         "AND strategy='alpha_sweep_oil' AND COALESCE(mode, 'live') = 'pending'",
@@ -1018,12 +1362,23 @@ def pending_order_monitor():
     pending_file = _read_dwx_json("pending_orders.json") or {}
     open_file = _read_dwx_json("open_orders.json") or {}
     cancelled_file = _read_dwx_json("cancelled_orders.json") or []
-    # cancelled_orders.json is a JSON array of dicts; normalize to set of tickets
-    cancelled_tickets = set()
+    # cancelled_orders.json is a JSON array of dicts. M9: keep state +
+    # detected_via metadata so the LIMIT_TTL_EXPIRED journal can record
+    # which path resolved the cancel:
+    #   state         = "EXPIRED" | "CANCELED" | "EXPIRED_POLLED" | "CANCELED_POLLED"
+    #   detected_via  = "ontradetrans" (EA OnTradeTransaction) | "poll" (Fix A)
+    # Dict key (ticket) still supports `if ticket in cancelled_tickets`.
+    cancelled_tickets: dict = {}
     if isinstance(cancelled_file, list):
         for entry in cancelled_file:
             try:
-                cancelled_tickets.add(str(entry.get("ticket", "")))
+                t = str(entry.get("ticket", ""))
+                if not t:
+                    continue
+                cancelled_tickets[t] = {
+                    "state": entry.get("state", ""),
+                    "detected_via": entry.get("detected_via", "ontradetrans"),
+                }
             except Exception:
                 continue
 
@@ -1046,7 +1401,79 @@ def pending_order_monitor():
         if ticket in open_tickets:
             # Broker filled. Pull the actual fill price + time from open_orders.json.
             fill_info = open_file.get(ticket, {})
-            actual_fill = float(fill_info.get("open_price", intended_limit))
+            # H4 (2026-06-17): validate open_price before using. Three failure
+            # modes the old `.get("open_price", intended_limit)` silently
+            # collapsed into one bad path:
+            #   1. missing field → defaulted to intended_limit (silent drift)
+            #   2. open_price=0 → DB entry_price=$0 (garbage state)
+            #   3. open_price=None → float(None) would crash
+            # All three indicate DWX is mid-write or wrote bad data. Safest
+            # response: skip THIS cycle and retry next monitor tick (30s).
+            # See docs/FILTER_27_AUDIT_BACKLOG.md H4.
+            raw_open_price = fill_info.get("open_price")
+            if raw_open_price is None or float(raw_open_price) <= 0:
+                # M13 — escalate persistent bad data. H4 alone retries forever
+                # silently if DWX writes bad data persistently (EA bug, file
+                # corruption, stuck state). Per-ticket counter; after N cycles
+                # fire Telegram + force-cancel + mark row exit_reason so
+                # operator hears about it before grace path masks it.
+                prev_count = _bad_open_price_cycles.get(ticket, 0)
+                if prev_count == -1:
+                    # Already escalated — drop log noise but stay skipped this cycle
+                    continue
+                bad_count = prev_count + 1
+                _bad_open_price_cycles[ticket] = bad_count
+                _log.warn("BROKER", "limit_filled_missing_open_price",
+                          trade_ref=trade_ref, ticket=ticket,
+                          raw_open_price=raw_open_price,
+                          fill_info_keys=list(fill_info.keys()),
+                          bad_cycles=bad_count,
+                          threshold=BAD_OPEN_PRICE_THRESHOLD,
+                          note="open_price missing/zero/None — DWX may be mid-write; retry next cycle")
+                if bad_count >= BAD_OPEN_PRICE_THRESHOLD:
+                    _log.error("BROKER", "bad_open_price_persistent",
+                               trade_ref=trade_ref, ticket=ticket,
+                               bad_cycles=bad_count,
+                               raw_open_price=raw_open_price,
+                               note=f"persistent bad open_price for {bad_count} cycles "
+                                    f"(~{bad_count * 30}s); force-cancelling pending")
+                    _log_journal_safe(trade_ref, row["strategy"],
+                                      "LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED",
+                                      intended_limit, {
+                                          "instrument": "BCO_USD", "ticket": ticket,
+                                          "bad_cycles": bad_count,
+                                          "raw_open_price": raw_open_price,
+                                          "fill_info_keys": list(fill_info.keys()),
+                                      })
+                    try:
+                        cancel_pending_order(ticket)
+                    except Exception as e:
+                        _log.exception("BROKER", "bad_open_price_cancel_failed",
+                                       trade_ref=trade_ref, ticket=ticket, err=str(e))
+                    try:
+                        execute(
+                            "UPDATE gd_trades SET exit_time=NOW(), "
+                            "exit_reason='LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED' "
+                            "WHERE oanda_trade_id=%s AND COALESCE(mode, 'live') = 'pending'",
+                            (ticket,)
+                        )
+                    except Exception as e:
+                        _log.exception("DB", "bad_open_price_db_update_failed",
+                                       trade_ref=trade_ref, ticket=ticket, err=str(e))
+                    try:
+                        notify.bad_open_price_persistent(
+                            trade_ref, "BCO_USD", ticket,
+                            intended_limit, bad_count, raw_open_price,
+                        )
+                    except Exception as e:
+                        _log.exception("BROKER", "bad_open_price_notify_failed",
+                                       trade_ref=trade_ref, err=str(e))
+                    _bad_open_price_cycles[ticket] = -1  # sentinel: don't re-escalate
+                    _orphan_alerted.discard(ticket)
+                continue  # skip this row this cycle; next 30s tick should see complete data
+            actual_fill = float(raw_open_price)
+            # M13: clear bad-data counter on valid fill (transient resolved cleanly)
+            _bad_open_price_cycles.pop(ticket, None)
             broker_open_time = fill_info.get("open_time", "")
             try:
                 execute(
@@ -1075,11 +1502,16 @@ def pending_order_monitor():
             except Exception as e:
                 _log.exception("BROKER", "limit_filled_notify_failed",
                                trade_ref=trade_ref, err=str(e))
+            _orphan_alerted.discard(ticket)
             print(f"  [OIL] LIMIT FILLED: {trade_ref} ticket={ticket} @ ${actual_fill:.4f}")
             continue
 
         if ticket in cancelled_tickets:
             # TTL expired or manual cancel. Mark closed.
+            # M9: surface EA's state + detected_via in journal context so
+            # postmortem can distinguish OnTradeTransaction-caught (expected)
+            # from poll-caught (Fix A; signals broker silent-expire).
+            cancel_meta = cancelled_tickets[ticket]
             try:
                 execute(
                     "UPDATE gd_trades SET exit_time=NOW(), exit_reason='LIMIT_TTL_EXPIRED' "
@@ -1091,28 +1523,104 @@ def pending_order_monitor():
                                trade_ref=trade_ref, ticket=ticket, err=str(e))
                 continue
             _log.info("BROKER", "limit_ttl_expired", trade_ref=trade_ref,
-                      ticket=ticket, intended_limit=intended_limit)
+                      ticket=ticket, intended_limit=intended_limit,
+                      state=cancel_meta.get("state"),
+                      detected_via=cancel_meta.get("detected_via"))
             _log_journal_safe(trade_ref, row["strategy"], "LIMIT_TTL_EXPIRED",
                               intended_limit, {
                                   "instrument": "BCO_USD", "ticket": ticket,
                                   "intended_limit": intended_limit,
+                                  "state": cancel_meta.get("state", ""),
+                                  "detected_via": cancel_meta.get("detected_via", "ontradetrans"),
                               })
             try:
                 notify.limit_ttl_expired(trade_ref, "BCO_USD", intended_limit)
             except Exception as e:
                 _log.exception("BROKER", "limit_ttl_notify_failed",
                                trade_ref=trade_ref, err=str(e))
+            _orphan_alerted.discard(ticket)
             print(f"  [OIL] LIMIT EXPIRED: {trade_ref} ticket={ticket} @ ${intended_limit:.4f}")
             continue
 
         # Orphan: ticket not in any of the 3 files. Could be:
         # - DWX file-write race (EA hasn't written yet for this tick)
-        # - Broker auto-cancelled the order on TTL but EA missed the
-        #   ORDER_DELETE event (unlikely but possible)
+        # - Broker auto-cancelled the order on TTL silently (no
+        #   OnTradeTransaction event — confirmed seen on JustMarkets
+        #   2026-06-17 with GD-MI-1e53d69b)
         # - Manual broker-side intervention
-        # Leave the DB row alone for now. Next 30s iteration will recheck.
-        # Daily recon will surface persistent orphans.
+        #
+        # Fix B: if TTL+grace has elapsed, resolve as TTL_EXPIRED. Otherwise
+        # leave alone for next iteration. Fix C: throttled Telegram alert
+        # once per ticket.
+        ttl_seconds = _orphan_lookup_ttl_seconds(trade_ref)
+        entry_time = row["entry_time"]
+        if entry_time.tzinfo is None:
+            entry_time = entry_time.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        elapsed = (now - entry_time).total_seconds()
+        past_grace = (ttl_seconds is not None) and (elapsed > ttl_seconds + PENDING_GRACE_SECONDS)
+
+        if past_grace:
+            try:
+                execute(
+                    "UPDATE gd_trades SET exit_time=NOW(), "
+                    "exit_reason='LIMIT_TTL_EXPIRED_GRACE' "
+                    "WHERE oanda_trade_id=%s AND COALESCE(mode, 'live') = 'pending'",
+                    (ticket,)
+                )
+            except Exception as e:
+                _log.exception("DB", "pending_monitor_grace_update_failed",
+                               trade_ref=trade_ref, ticket=ticket, err=str(e))
+                continue
+            _log.warn("BROKER", "limit_ttl_expired_grace",
+                      trade_ref=trade_ref, ticket=ticket,
+                      intended_limit=intended_limit,
+                      elapsed_seconds=int(elapsed), ttl_seconds=ttl_seconds,
+                      note="broker silent-expire fallback (Fix B)")
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_TTL_EXPIRED",
+                              intended_limit, {
+                                  "instrument": "BCO_USD", "ticket": ticket,
+                                  "intended_limit": intended_limit,
+                                  "exit_reason": "LIMIT_TTL_EXPIRED_GRACE",
+                                  "elapsed_seconds": int(elapsed),
+                                  "ttl_seconds": ttl_seconds,
+                                  "fallback": "fix_b_grace",
+                              })
+            try:
+                # M10: distinct Telegram suffix for grace fallback path so
+                # operator distinguishes broker silent-expire (Fix B) from
+                # broker normal-cancel on the phone, no SSH grep needed.
+                notify.limit_ttl_expired(trade_ref, "BCO_USD", intended_limit,
+                                         via_grace=True)
+            except Exception as e:
+                _log.exception("BROKER", "limit_ttl_grace_notify_failed",
+                               trade_ref=trade_ref, err=str(e))
+            _orphan_alerted.discard(ticket)
+            print(f"  [OIL] LIMIT EXPIRED (grace fallback): {trade_ref} ticket={ticket} @ ${intended_limit:.4f}")
+            continue
+
+        # Within grace window: log warn + throttled Telegram (1× per ticket)
         _log.warn("POSITION", "pending_monitor_orphan",
                   trade_ref=trade_ref, ticket=ticket,
-                  note="ticket not in pending/open/cancelled files; leaving DB row "
-                       "for next iteration / daily recon")
+                  elapsed_seconds=int(elapsed), ttl_seconds=ttl_seconds,
+                  note="ticket not in pending/open/cancelled files; "
+                       "within grace, will resolve at TTL+60s")
+        if ticket not in _orphan_alerted:
+            _orphan_alerted.add(ticket)
+            # M8: persist orphan event to gd_journal so postmortem can reconstruct
+            # broker-visibility gap from DB even after file logs rotate. Throttled
+            # via _orphan_alerted (1× per ticket) — same gate as Telegram.
+            _log_journal_safe(trade_ref, row["strategy"], "LIMIT_ORPHAN",
+                              intended_limit, {
+                                  "instrument": "BCO_USD", "ticket": ticket,
+                                  "intended_limit": intended_limit,
+                                  "elapsed_seconds": int(elapsed),
+                                  "ttl_seconds": ttl_seconds,
+                                  "note": "ticket missing from pending/open/cancelled; within grace",
+                              })
+            try:
+                notify.limit_orphan_warn(trade_ref, "BCO_USD", ticket,
+                                         intended_limit, int(elapsed))
+            except Exception as e:
+                _log.exception("BROKER", "orphan_alert_notify_failed",
+                               trade_ref=trade_ref, err=str(e))

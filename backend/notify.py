@@ -143,18 +143,79 @@ def limit_placed(trade_ref: str, instrument: str, direction: str,
     )
 
 
-def limit_ttl_expired(trade_ref: str, instrument: str, limit_price: float):
+def limit_ttl_expired(trade_ref: str, instrument: str, limit_price: float,
+                      via_grace: bool = False):
     """Filter #27 live: pending limit didn't fill within TTL.
 
-    Fires when the APScheduler cancel-job runs and the broker confirms the
-    order was cancelled (not filled). If the broker filled in-flight,
-    `trade_filled` fires instead — this method does NOT fire on race.
+    Two paths produce this:
+    - Normal (via_grace=False): broker fired ORDER_DELETE, EA wrote
+      cancelled_orders.json, pending_monitor cancel branch caught it. Healthy.
+    - Grace fallback (via_grace=True): broker silently auto-expired without
+      sending an ORDER_DELETE event. Fix B's TTL+60s grace path resolved
+      the row. **This indicates a broker reliability issue** and operator
+      should notice the cumulative pattern (high grace-fallback rate =
+      degrading broker). M10: distinct suffix on Telegram so the two paths
+      are visible from the phone, no SSH needed.
+
+    See [[bias-filter-net-negative]] context: today's GD-MI-1e53d69b
+    silent-expire was the trigger event for surfacing this distinction.
     """
     fmt = ".2f" if "XAU" in instrument else ".4f"
+    if via_grace:
+        send(
+            f"⏱ <b>LIMIT EXPIRED</b> (grace fallback)\n"
+            f"{trade_ref}\n"
+            f"{instrument} did not fill at ${limit_price:{fmt}} — broker silent expire.\n"
+            f"Fix B / TTL+60s path resolved row. Investigate if rate climbs."
+        )
+    else:
+        send(
+            f"⏱ <b>LIMIT EXPIRED</b>\n"
+            f"{trade_ref}\n"
+            f"{instrument} did not fill at ${limit_price:{fmt}} — cancelled."
+        )
+
+
+def bad_open_price_persistent(trade_ref: str, instrument: str, ticket: str,
+                               intended_limit: float, bad_cycles: int,
+                               raw_value):
+    """Filter #27 / M13: open_price field has been missing/zero/None for N
+    consecutive monitor cycles. H4 protects against transient DWX mid-write
+    races, but persistent bad data means EA bug, file corruption, or stuck
+    state. After N cycles (default 5 = ~2.5 min), fire alert + force-cancel.
+
+    The pending row will be force-cancelled (broker-side) and marked
+    exit_reason='LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED' so operator can
+    investigate without losing the trade ledger trail. One-shot — caller
+    must throttle (set per-ticket counter to sentinel after escalation)."""
+    fmt = ".2f" if "XAU" in instrument else ".4f"
     send(
-        f"⏱ <b>LIMIT EXPIRED</b>\n"
+        f"🐛 <b>BAD OPEN_PRICE PERSISTENT</b>\n"
         f"{trade_ref}\n"
-        f"{instrument} did not fill at ${limit_price:{fmt}} — cancelled."
+        f"{instrument} ticket={ticket} @ ${intended_limit:{fmt}}\n"
+        f"open_price=<code>{raw_value!r}</code> for {bad_cycles} cycles "
+        f"(~{bad_cycles * 30}s).\n"
+        f"Force-cancelling pending order. Investigate DWX/EA state."
+    )
+
+
+def limit_orphan_warn(trade_ref: str, instrument: str, ticket: str,
+                       intended_limit: float, age_seconds: int):
+    """Filter #27 live: pending-order ticket can't be found in any DWX file.
+
+    Fires once per ticket (caller is responsible for throttling — typically the
+    pending_order_monitor's _orphan_alerted set). Indicates a broker silently
+    auto-cancelled the order without a TRADE_TRANSACTION_ORDER_DELETE event,
+    OR a DWX file-write race we haven't recovered from yet. Pending_monitor
+    grace fallback (60s past TTL) will resolve cleanly; this alert ensures
+    we hear about it within 30s of detection rather than after manual grep."""
+    fmt = ".2f" if "XAU" in instrument else ".4f"
+    send(
+        f"⚠️ <b>LIMIT ORPHAN</b>\n"
+        f"{trade_ref}\n"
+        f"{instrument} ticket={ticket} @ ${intended_limit:{fmt}}\n"
+        f"Not in pending/open/cancelled DWX files (age {age_seconds}s).\n"
+        f"Grace fallback at TTL+60s will mark TTL_EXPIRED if unresolved."
     )
 
 

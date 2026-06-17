@@ -6,8 +6,8 @@
 //|  All strategy logic lives in Python. This EA just bridges.         |
 //+------------------------------------------------------------------+
 #property copyright "Hand Of Midas"
-#property version   "2.10"
-#property description "DWX Bridge: streams market data and executes orders from Python (Filter #27 limit orders)"
+#property version   "2.14"
+#property description "DWX Bridge: streams market data and executes orders from Python (Filter #27 limit orders + retcode-aware accept + per-cmd response files + history retry pool)"
 #property strict
 
 input string InpSymbols = "XAUUSD.ecn,BRENT.ecn";  // Symbols to stream (comma-separated)
@@ -44,7 +44,7 @@ int OnInit()
     // Start timer
     EventSetMillisecondTimer(InpTimerMs);
 
-    Print("[DWX] Server started v2.10 (Filter #27). Symbols: ", InpSymbols,
+    Print("[DWX] Server started v2.14 (Filter #27 + poll-cancel + retcode-accept + per-cmd-response + history-retry). Symbols: ", InpSymbols,
           " | Folder: ", g_folder, " | Magic: ", InpMagic,
           " | Commands: OPEN, OPEN_PENDING, CANCEL_PENDING, MODIFY, CLOSE, CLOSE_PARTIAL, CLOSE_ALL");
     WriteAccountInfo();
@@ -202,12 +202,119 @@ void WriteOpenOrders()
 // not every 25ms timer call. Filter #27.
 static int g_lastPendingCount = -1;
 
+// Filter #27 / Fix A — track ticket SET between ticks so we can detect when
+// a specific ticket disappears (broker silent-cancel). OnTradeTransaction
+// catches client-initiated and broker-notified cancels, but NOT the case
+// where the broker auto-expires a TTL'd pending without notifying the
+// terminal (confirmed seen on JustMarkets 2026-06-17 with GD-MI-1e53d69b).
+// See docs/BUG_FILTER_27_PENDING_RECONCILER_GAP.md
+#define FIX_A_MAX_PENDING 64
+static ulong  g_prevPendingTickets[FIX_A_MAX_PENDING];
+static int    g_prevPendingCount = 0;
+
+// H5 (2026-06-17) — retry pool for tickets where HistoryOrderSelect failed
+// on first attempt. Without this, a ticket that vanishes from OrdersTotal()
+// before MT5 has populated its history record gets dropped permanently from
+// the diff (replaced by the wholesale prev = current swap), and the
+// poll-detect cancelled_orders.json entry is silently lost. Python's Fix B
+// grace fallback still catches the DB row, but the forensic trail is gone.
+// See docs/FILTER_27_AUDIT_BACKLOG.md H5.
+//
+// Retry semantics:
+//   - On first miss: ticket added to retry pool with age=0
+//   - Each subsequent tick: try HistoryOrderSelect again, age++
+//   - If age >= FIX_A_RETRY_MAX_AGE: drop with Print warn (Python grace handles DB)
+//   - On success: remove from retry pool (process normally)
+#define FIX_A_RETRY_POOL    16
+#define FIX_A_RETRY_MAX_AGE 3   // give MT5 ~3 ticks (~75ms) to populate history
+static ulong  g_retryTickets[FIX_A_RETRY_POOL];
+static int    g_retryAge[FIX_A_RETRY_POOL];
+static int    g_retryCount = 0;
+
+//+------------------------------------------------------------------+
+//| H5 (2026-06-17): try to investigate a "lost" pending ticket via   |
+//| HistoryOrderSelect. Returns:                                      |
+//|    1  → resolved (wrote cancelled_orders.json or skipped non-our)|
+//|   -1  → permanently skip (filled-state, double-write, etc.)      |
+//|    0  → retry needed (HistoryOrderSelect failed, history not yet |
+//|        populated; caller queues for next tick)                   |
+//| Extracted from inline Fix A loop so both diff-path and retry-pool |
+//| can share the logic. See docs/FILTER_27_AUDIT_BACKLOG.md H5.      |
+//+------------------------------------------------------------------+
+int TryProcessLostTicket(ulong prevTicket)
+{
+    if(!HistoryOrderSelect(prevTicket))
+    {
+        return 0;  // history not populated; caller should retry next tick
+    }
+    long magic = HistoryOrderGetInteger(prevTicket, ORDER_MAGIC);
+    if(magic != InpMagic) return -1;  // not our ticket — done
+    long stateRaw = HistoryOrderGetInteger(prevTicket, ORDER_STATE);
+    if(stateRaw != ORDER_STATE_CANCELED && stateRaw != ORDER_STATE_EXPIRED)
+        return -1;  // filled (became position) — OnTradeTransaction handles it
+
+    // Idempotent guard — if cancelled_orders.json already contains this
+    // ticket (OnTradeTransaction already wrote it), don't double-write.
+    string existing = ReadFile(g_folder + "/cancelled_orders.json");
+    string ticketKey = StringFormat("\"ticket\":\"%d\"", prevTicket);
+    if(StringFind(existing, ticketKey) >= 0) return 1;  // already logged — done
+
+    long reasonRaw = HistoryOrderGetInteger(prevTicket, ORDER_REASON);
+    string symbol = HistoryOrderGetString(prevTicket, ORDER_SYMBOL);
+    double volume = HistoryOrderGetDouble(prevTicket, ORDER_VOLUME_INITIAL);
+    double price = HistoryOrderGetDouble(prevTicket, ORDER_PRICE_OPEN);
+    long orderType = HistoryOrderGetInteger(prevTicket, ORDER_TYPE);
+    datetime setupTime = (datetime)HistoryOrderGetInteger(prevTicket, ORDER_TIME_SETUP);
+    datetime doneTime = (datetime)HistoryOrderGetInteger(prevTicket, ORDER_TIME_DONE);
+    string comment = HistoryOrderGetString(prevTicket, ORDER_COMMENT);
+
+    string typeStr = "UNKNOWN";
+    if(orderType == ORDER_TYPE_BUY_LIMIT)       typeStr = "BUY_LIMIT";
+    else if(orderType == ORDER_TYPE_SELL_LIMIT) typeStr = "SELL_LIMIT";
+    else if(orderType == ORDER_TYPE_BUY_STOP)   typeStr = "BUY_STOP";
+    else if(orderType == ORDER_TYPE_SELL_STOP)  typeStr = "SELL_STOP";
+
+    // Tag state as "EXPIRED_POLLED" / "CANCELED_POLLED" so Python can
+    // distinguish poll-detected vs OnTradeTransaction-detected.
+    string stateStr = (stateRaw == ORDER_STATE_CANCELED) ? "CANCELED_POLLED" : "EXPIRED_POLLED";
+
+    string entry_json = StringFormat(
+        "{\"ticket\":\"%d\",\"symbol\":\"%s\",\"type\":\"%s\","
+        "\"volume\":%.2f,\"price\":%.5f,"
+        "\"setup_time\":\"%s\",\"done_time\":\"%s\","
+        "\"state\":\"%s\",\"reason_code\":%d,"
+        "\"magic\":%d,\"comment\":\"%s\",\"detected_via\":\"poll\"}",
+        prevTicket,
+        symbol,
+        typeStr,
+        volume,
+        price,
+        TimeToString(setupTime, TIME_DATE|TIME_SECONDS),
+        TimeToString(doneTime, TIME_DATE|TIME_SECONDS),
+        stateStr,
+        (int)reasonRaw,
+        magic,
+        comment
+    );
+    AppendCancelledOrder(entry_json);
+    Print("[DWX] PENDING ", stateStr, " (poll-detected): ticket=", prevTicket,
+          " ", symbol, " ", typeStr, " @ ", price);
+    return 1;  // resolved
+}
+
+
 void WritePendingOrders()
 {
     string json = "{";
     int total = OrdersTotal();
     bool first = true;
     int ourCount = 0;
+
+    // Snapshot current tickets for Fix A diff. We size to FIX_A_MAX_PENDING; if
+    // we ever have more pending orders than that, the older ones get dropped
+    // from the diff (but lost-detection still works for the most-recent slice).
+    ulong currentTickets[FIX_A_MAX_PENDING];
+    int currentCount = 0;
 
     for(int i = 0; i < total; i++)
     {
@@ -218,6 +325,21 @@ void WritePendingOrders()
         if(magic != InpMagic) continue;  // Filter to OUR orders only
 
         ourCount++;
+        if(currentCount < FIX_A_MAX_PENDING)
+        {
+            currentTickets[currentCount] = ticket;
+            currentCount++;
+        }
+        // M5 (2026-06-17): warn on overflow so silent diff-truncation is observable.
+        // Bumped on count-change pattern (g_lastPendingCount below) so we don't
+        // spam every 25ms tick when count is stable.
+        else if(ourCount != g_lastPendingCount)
+        {
+            Print("[DWX] WARN: M5 pending count ", ourCount,
+                  " > FIX_A_MAX_PENDING=", FIX_A_MAX_PENDING,
+                  " — diff truncated, lost-ticket detection incomplete for overflow");
+        }
+
         if(!first) json += ",";
         first = false;
 
@@ -256,6 +378,94 @@ void WritePendingOrders()
     json += "}";
 
     WriteFile(g_folder + "/pending_orders.json", json);
+
+    // ---- H5 (2026-06-17): retry pool — process tickets where previous tick's
+    // HistoryOrderSelect failed. Each gets up to FIX_A_RETRY_MAX_AGE attempts. ----
+    int newRetryCount = 0;
+    ulong   newRetryTickets[FIX_A_RETRY_POOL];
+    int     newRetryAge[FIX_A_RETRY_POOL];
+    for(int r = 0; r < g_retryCount; r++)
+    {
+        ulong retryTicket = g_retryTickets[r];
+        int   retryAge    = g_retryAge[r];
+        int   result      = TryProcessLostTicket(retryTicket);
+        // result: 1 = resolved (wrote cancelled or skipped non-our-magic/non-cancel)
+        //        -1 = skip permanently (filled-state, double-write, etc.)
+        //         0 = retry (HistoryOrderSelect still failing)
+        if(result != 0) continue;  // resolved or permanently skipped — drop from pool
+        // Retry: bump age, re-add to pool only if under max
+        if(retryAge + 1 >= FIX_A_RETRY_MAX_AGE)
+        {
+            Print("[DWX] PENDING POLL-DETECT retry exhausted: ticket=", retryTicket,
+                  " (age=", retryAge + 1, ", max=", FIX_A_RETRY_MAX_AGE,
+                  ") — Python Fix B grace will resolve DB row");
+            continue;  // give up on this ticket; Python Fix B will catch DB row
+        }
+        if(newRetryCount < FIX_A_RETRY_POOL)
+        {
+            newRetryTickets[newRetryCount] = retryTicket;
+            newRetryAge[newRetryCount]     = retryAge + 1;
+            newRetryCount++;
+        }
+        else
+        {
+            Print("[DWX] WARN: H5 retry pool full (FIX_A_RETRY_POOL=",
+                  FIX_A_RETRY_POOL, ") — dropping ticket ", retryTicket,
+                  " (age=", retryAge, "). Python Fix B grace will catch DB row.");
+        }
+    }
+
+    // ---- Fix A — detect tickets in prev set but not in current set ----
+    // For each "lost" ticket: try to process it now, queue for retry if history
+    // not populated yet. See TryProcessLostTicket for full logic.
+    for(int p = 0; p < g_prevPendingCount; p++)
+    {
+        ulong prevTicket = g_prevPendingTickets[p];
+        bool stillPresent = false;
+        for(int c = 0; c < currentCount; c++)
+        {
+            if(currentTickets[c] == prevTicket) { stillPresent = true; break; }
+        }
+        if(stillPresent) continue;
+
+        int result = TryProcessLostTicket(prevTicket);
+        if(result == 0)
+        {
+            // History not yet populated — queue for retry next tick.
+            // Skip if already in newRetry pool (rare race: ticket was already
+            // pending retry from a prior tick AND just disappeared from current).
+            bool alreadyQueued = false;
+            for(int q = 0; q < newRetryCount; q++)
+            {
+                if(newRetryTickets[q] == prevTicket) { alreadyQueued = true; break; }
+            }
+            if(!alreadyQueued && newRetryCount < FIX_A_RETRY_POOL)
+            {
+                newRetryTickets[newRetryCount] = prevTicket;
+                newRetryAge[newRetryCount]     = 0;
+                newRetryCount++;
+            }
+            else if(!alreadyQueued)
+            {
+                Print("[DWX] WARN: H5 retry pool full (FIX_A_RETRY_POOL=",
+                      FIX_A_RETRY_POOL, ") — dropping new lost ticket ",
+                      prevTicket, ". Python Fix B grace will catch DB row.");
+            }
+        }
+        // result 1 (resolved) or -1 (skip permanently) → done with this ticket
+    }
+    // Persist new retry pool for next tick
+    for(int i = 0; i < newRetryCount; i++)
+    {
+        g_retryTickets[i] = newRetryTickets[i];
+        g_retryAge[i]     = newRetryAge[i];
+    }
+    g_retryCount = newRetryCount;
+
+    // Replace prev with current for next tick
+    for(int i = 0; i < currentCount; i++) g_prevPendingTickets[i] = currentTickets[i];
+    g_prevPendingCount = currentCount;
+    // ---- end Fix A ----
 
     // Log on count CHANGE only (avoids 25ms-tick spam). Catches: a new pending
     // appearing (Python sent OPEN_PENDING), or one disappearing (filled OR
@@ -337,6 +547,28 @@ void ReadCommands()
 }
 
 //+------------------------------------------------------------------+
+//| H2 (2026-06-17): write response to BOTH last_response.json AND   |
+//| responses/<cmdfile>.json (per-cmd response). Python correlates  |
+//| command→response by cmd file name (no race possible across the  |
+//| 4 services). last_response.json kept for backward compat / EA   |
+//| observability via Experts log.                                   |
+//| See docs/FILTER_27_AUDIT_BACKLOG.md H2.                          |
+//+------------------------------------------------------------------+
+void WriteFinalResponse(string content, string filename)
+{
+    // Per-cmd response file (canonical, race-free path for Python)
+    if(StringLen(filename) > 0)
+    {
+        FolderCreate(g_folder + "/responses", FILE_COMMON);
+        WriteFile(g_folder + "/responses/" + filename, content);
+    }
+    // Shared file (backward compat + observability — each command's response
+    // overwrites the previous, so this is best-effort only)
+    WriteFile(g_folder + "/last_response.json", content);
+}
+
+
+//+------------------------------------------------------------------+
 //| Process a single command                                          |
 //+------------------------------------------------------------------+
 void ProcessCommand(string cmd, string filename)
@@ -370,7 +602,7 @@ void ProcessCommand(string cmd, string filename)
             for(int i = 8; i < n; i++) comment = comment + "|" + parts[i];
         }
 
-        ExecuteOpen(symbol, type, volume, price, sl, tp, comment);
+        ExecuteOpen(symbol, type, volume, price, sl, tp, comment, filename);
     }
     else if(action == "MODIFY" && n >= 4)
     {
@@ -379,17 +611,17 @@ void ProcessCommand(string cmd, string filename)
         double sl = StringToDouble(parts[2]);
         double tp = StringToDouble(parts[3]);
 
-        ExecuteModify(ticket, sl, tp);
+        ExecuteModify(ticket, sl, tp, filename);
     }
     else if(action == "CLOSE" && n >= 2)
     {
         // CLOSE|TICKET
         ulong ticket = (ulong)StringToInteger(parts[1]);
-        ExecuteClose(ticket);
+        ExecuteClose(ticket, filename);
     }
     else if(action == "CLOSE_ALL")
     {
-        ExecuteCloseAll();
+        ExecuteCloseAll(filename);
     }
     else if(action == "CLOSE_PARTIAL" && n >= 3)
     {
@@ -400,15 +632,16 @@ void ProcessCommand(string cmd, string filename)
         // detects "partial" by comparing volume to the original position size.
         if(!InpPartialTPEnabled)
         {
-            WriteFile(g_folder + "/last_response.json",
-                "{\"success\":false,\"error\":\"PartialTP disabled (InpPartialTPEnabled=false)\"}");
+            WriteFinalResponse(
+                "{\"success\":false,\"error\":\"PartialTP disabled (InpPartialTPEnabled=false)\"}",
+                filename);
             Print("[DWX] CLOSE_PARTIAL rejected: feature flag off");
         }
         else
         {
             ulong ticket = (ulong)StringToInteger(parts[1]);
             double volumeLots = StringToDouble(parts[2]);
-            ExecuteClosePartial(ticket, volumeLots);
+            ExecuteClosePartial(ticket, volumeLots, filename);
         }
     }
     else if(action == "OPEN_PENDING" && n >= 9)
@@ -433,26 +666,48 @@ void ProcessCommand(string cmd, string filename)
             comment = parts[8];
             for(int i = 9; i < n; i++) comment = comment + "|" + parts[i];
         }
-        ExecuteOpenPending(symbol, type, volume, price, sl, tp, ttl_seconds, comment);
+        ExecuteOpenPending(symbol, type, volume, price, sl, tp, ttl_seconds, comment, filename);
     }
     else if(action == "CANCEL_PENDING" && n >= 2)
     {
         // Filter #27: cancel a pending limit order by ticket. Idempotent.
         // CANCEL_PENDING|TICKET
         ulong ticket = (ulong)StringToInteger(parts[1]);
-        ExecuteCancelPending(ticket);
+        ExecuteCancelPending(ticket, filename);
     }
     else
     {
         Print("[DWX] Unknown command: ", action);
-        WriteResponse("ERROR|Unknown command: " + action, filename);
+        WriteFinalResponse("{\"success\":false,\"error\":\"Unknown command: " + action + "\"}", filename);
     }
+}
+
+//+------------------------------------------------------------------+
+//| Filter #27 / C1 — derive `accepted` from BOTH OrderSend() return  |
+//| value AND result.retcode. OrderSend returning true only means the |
+//| request reached the trade server; the broker's accept/reject is  |
+//| in result.retcode. Without this guard, rejections (10016 invalid |
+//| stops, 10018 market closed, etc.) get JSON-serialized as          |
+//| success=true with ticket=0 — Python downstream catches malformed |
+//| ticket but loses the retcode in the structured response. See     |
+//| docs/FILTER_27_AUDIT_BACKLOG.md item C1 + 2026-06-17 RCA.         |
+//|                                                                   |
+//| Returns true ONLY when:                                           |
+//|   sent (delivered to trade server) AND                            |
+//|   retcode in {DONE, PLACED, DONE_PARTIAL}                         |
+//+------------------------------------------------------------------+
+bool IsOrderAccepted(bool sent, uint retcode)
+{
+    if(!sent) return false;
+    return retcode == TRADE_RETCODE_DONE
+        || retcode == TRADE_RETCODE_PLACED
+        || retcode == TRADE_RETCODE_DONE_PARTIAL;
 }
 
 //+------------------------------------------------------------------+
 //| Execute market order                                              |
 //+------------------------------------------------------------------+
-void ExecuteOpen(string symbol, string type, double volume, double price, double sl, double tp, string comment)
+void ExecuteOpen(string symbol, string type, double volume, double price, double sl, double tp, string comment, string filename)
 {
     MqlTradeRequest request = {};
     MqlTradeResult result = {};
@@ -478,12 +733,13 @@ void ExecuteOpen(string symbol, string type, double volume, double price, double
         request.price = SymbolInfoDouble(symbol, SYMBOL_BID);
     }
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"price\":%.5f,\"volume\":%.2f,"
         "\"retcode\":%d,\"comment\":\"%s\"}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         result.order,
         result.price,
         result.volume,
@@ -491,19 +747,19 @@ void ExecuteOpen(string symbol, string type, double volume, double price, double
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] Order opened: ", symbol, " ", type, " ", volume, " @ ", result.price, " ticket=", result.order);
     else
-        Print("[DWX] Order FAILED: ", symbol, " retcode=", result.retcode, " ", result.comment);
+        Print("[DWX] Order FAILED: ", symbol, " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
 //| Filter #27: place a pending limit order with TTL expiration       |
 //+------------------------------------------------------------------+
 void ExecuteOpenPending(string symbol, string type, double volume, double price,
-                       double sl, double tp, int ttl_seconds, string comment)
+                       double sl, double tp, int ttl_seconds, string comment, string filename)
 {
     MqlTradeRequest request = {};
     MqlTradeResult result = {};
@@ -529,18 +785,20 @@ void ExecuteOpenPending(string symbol, string type, double volume, double price,
         request.type = ORDER_TYPE_SELL_LIMIT;
     else
     {
-        WriteFile(g_folder + "/last_response.json",
-            StringFormat("{\"success\":false,\"error\":\"Unknown pending type: %s\"}", type));
+        WriteFinalResponse(
+            StringFormat("{\"success\":false,\"error\":\"Unknown pending type: %s\"}", type),
+            filename);
         Print("[DWX] OPEN_PENDING rejected: unknown type ", type);
         return;
     }
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"price\":%.5f,\"volume\":%.2f,"
         "\"expiration\":\"%s\",\"retcode\":%d,\"comment\":\"%s\"}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         result.order,
         result.price,
         result.volume,
@@ -549,19 +807,19 @@ void ExecuteOpenPending(string symbol, string type, double volume, double price,
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] Pending placed: ", symbol, " ", type, " ", volume,
               " @ ", price, " ttl=", ttl_seconds, "s ticket=", result.order);
     else
-        Print("[DWX] Pending FAILED: ", symbol, " retcode=", result.retcode, " ", result.comment);
+        Print("[DWX] Pending FAILED: ", symbol, " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
 //| Filter #27: cancel a pending limit order. Idempotent.             |
 //+------------------------------------------------------------------+
-void ExecuteCancelPending(ulong ticket)
+void ExecuteCancelPending(ulong ticket, string filename)
 {
     MqlTradeRequest request = {};
     MqlTradeResult result = {};
@@ -569,31 +827,32 @@ void ExecuteCancelPending(ulong ticket)
     request.action = TRADE_ACTION_REMOVE;
     request.order = ticket;
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"retcode\":%d,\"comment\":\"%s\"}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         ticket,
         result.retcode,
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] Pending cancelled: ticket=", ticket);
     else
         // Common harmless cases: order already filled, already cancelled, already
         // expired by broker. Python caller treats by retcode, not as a hard error.
         Print("[DWX] CANCEL_PENDING failed (often harmless): ticket=", ticket,
-              " retcode=", result.retcode, " ", result.comment);
+              " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
 //| Modify position SL/TP                                            |
 //+------------------------------------------------------------------+
-void ExecuteModify(ulong ticket, double sl, double tp)
+void ExecuteModify(ulong ticket, double sl, double tp, string filename)
 {
     MqlTradeRequest request = {};
     MqlTradeResult result = {};
@@ -604,8 +863,9 @@ void ExecuteModify(ulong ticket, double sl, double tp)
     // Get current position info
     if(!PositionSelectByTicket(ticket))
     {
-        WriteFile(g_folder + "/last_response.json",
-            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket));
+        WriteFinalResponse(
+            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket),
+            filename);
         return;
     }
 
@@ -613,33 +873,35 @@ void ExecuteModify(ulong ticket, double sl, double tp)
     request.sl = sl;
     request.tp = (tp > 0) ? tp : PositionGetDouble(POSITION_TP);
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"retcode\":%d,\"comment\":\"%s\"}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         ticket,
         result.retcode,
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] Modified #", ticket, " SL=", sl, " TP=", tp);
     else
-        Print("[DWX] Modify FAILED #", ticket, " retcode=", result.retcode);
+        Print("[DWX] Modify FAILED #", ticket, " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
 //| Close position                                                    |
 //+------------------------------------------------------------------+
-void ExecuteClose(ulong ticket)
+void ExecuteClose(ulong ticket, string filename)
 {
     if(!PositionSelectByTicket(ticket))
     {
-        WriteFile(g_folder + "/last_response.json",
-            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket));
+        WriteFinalResponse(
+            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket),
+            filename);
         return;
     }
 
@@ -669,29 +931,30 @@ void ExecuteClose(ulong ticket)
         request.price = SymbolInfoDouble(symbol, SYMBOL_ASK);
     }
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"close_price\":%.5f,\"retcode\":%d,\"comment\":\"%s\"}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         ticket,
         result.price,
         result.retcode,
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] Closed #", ticket, " @ ", result.price);
     else
-        Print("[DWX] Close FAILED #", ticket, " retcode=", result.retcode);
+        Print("[DWX] Close FAILED #", ticket, " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
 //| Close all positions                                               |
 //+------------------------------------------------------------------+
-void ExecuteCloseAll()
+void ExecuteCloseAll(string filename)
 {
     int total = PositionsTotal();
     int closed = 0;
@@ -700,11 +963,17 @@ void ExecuteCloseAll()
         ulong ticket = PositionGetTicket(i);
         if(ticket > 0)
         {
-            ExecuteClose(ticket);
+            // Per-position close writes only to last_response.json (passing empty
+            // filename) so the loop's intermediate writes don't clobber the final
+            // CLOSE_ALL response. Final summary written below.
+            ExecuteClose(ticket, "");
             closed++;
         }
     }
     Print("[DWX] CloseAll: closed ", closed, " positions");
+    // Single per-cmd response for the CLOSE_ALL command itself.
+    string summary = StringFormat("{\"success\":true,\"closed_count\":%d,\"action\":\"CLOSE_ALL\"}", closed);
+    WriteFinalResponse(summary, filename);
 }
 
 //+------------------------------------------------------------------+
@@ -714,12 +983,13 @@ void ExecuteCloseAll()
 //| with reduced volume, and a partial close shows in deal history   |
 //| (which OnTradeTransaction picks up and writes to closed_orders).  |
 //+------------------------------------------------------------------+
-void ExecuteClosePartial(ulong ticket, double volumeLots)
+void ExecuteClosePartial(ulong ticket, double volumeLots, string filename)
 {
     if(!PositionSelectByTicket(ticket))
     {
-        WriteFile(g_folder + "/last_response.json",
-            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket));
+        WriteFinalResponse(
+            StringFormat("{\"success\":false,\"error\":\"Position %d not found\"}", ticket),
+            filename);
         return;
     }
 
@@ -735,25 +1005,28 @@ void ExecuteClosePartial(ulong ticket, double volumeLots)
         volumeLots = MathRound(volumeLots / lotStep) * lotStep;
     if(volumeLots < minLot)
     {
-        WriteFile(g_folder + "/last_response.json",
+        WriteFinalResponse(
             StringFormat("{\"success\":false,\"error\":\"Requested partial volume %.4f below min %.4f\"}",
-                volumeLots, minLot));
+                volumeLots, minLot),
+            filename);
         return;
     }
     if(volumeLots >= posVolume)
     {
-        WriteFile(g_folder + "/last_response.json",
+        WriteFinalResponse(
             StringFormat("{\"success\":false,\"error\":\"Requested partial volume %.2f >= position volume %.2f (use CLOSE not CLOSE_PARTIAL)\"}",
-                volumeLots, posVolume));
+                volumeLots, posVolume),
+            filename);
         return;
     }
     // Remaining volume must also be >= minLot, else broker rejects (orphan dust).
     double remaining = posVolume - volumeLots;
     if(remaining < minLot)
     {
-        WriteFile(g_folder + "/last_response.json",
+        WriteFinalResponse(
             StringFormat("{\"success\":false,\"error\":\"Remaining %.4f < min lot %.4f after partial — would orphan dust\"}",
-                remaining, minLot));
+                remaining, minLot),
+            filename);
         return;
     }
 
@@ -779,27 +1052,28 @@ void ExecuteClosePartial(ulong ticket, double volumeLots)
         request.price = SymbolInfoDouble(symbol, SYMBOL_ASK);
     }
 
-    bool success = OrderSend(request, result);
+    bool sent = OrderSend(request, result);
+    bool accepted = IsOrderAccepted(sent, result.retcode);
 
     string response = StringFormat(
         "{\"success\":%s,\"ticket\":%d,\"close_price\":%.5f,\"closed_volume\":%.2f,"
         "\"remaining_volume\":%.2f,\"retcode\":%d,\"comment\":\"%s\",\"partial\":true}",
-        success ? "true" : "false",
+        accepted ? "true" : "false",
         ticket,
         result.price,
-        success ? volumeLots : 0.0,
-        success ? remaining  : posVolume,
+        accepted ? volumeLots : 0.0,
+        accepted ? remaining  : posVolume,
         result.retcode,
         result.comment
     );
 
-    WriteFile(g_folder + "/last_response.json", response);
+    WriteFinalResponse(response, filename);
 
-    if(success)
+    if(accepted)
         Print("[DWX] PARTIAL #", ticket, " closed ", volumeLots, " lots @ ", result.price,
               " (remaining=", remaining, ")");
     else
-        Print("[DWX] PARTIAL FAILED #", ticket, " retcode=", result.retcode, " ", result.comment);
+        Print("[DWX] PARTIAL FAILED #", ticket, " sent=", sent, " retcode=", result.retcode, " ", result.comment);
 }
 
 //+------------------------------------------------------------------+
@@ -913,6 +1187,19 @@ void OnTradeTransaction(
                 // ORDER_STATE_CANCELED / ORDER_STATE_EXPIRED are the cases we want.
                 if(stateRaw == ORDER_STATE_CANCELED || stateRaw == ORDER_STATE_EXPIRED)
                 {
+                    // M4 (2026-06-17): dedup against cancelled_orders.json. The
+                    // Fix A poll-path may have written this ticket already (race:
+                    // poll detects ORDER vanishing from OrdersTotal() before
+                    // OnTradeTransaction fires). Same StringFind pattern as
+                    // TryProcessLostTicket. See docs/FILTER_27_AUDIT_BACKLOG.md M4.
+                    string existing_m4 = ReadFile(g_folder + "/cancelled_orders.json");
+                    string ticketKey_m4 = StringFormat("\"ticket\":\"%d\"", trans.order);
+                    if(StringFind(existing_m4, ticketKey_m4) >= 0)
+                    {
+                        Print("[DWX] M4: skipping double-write for ticket ", trans.order,
+                              " — already in cancelled_orders.json (poll-path got it first)");
+                        return;
+                    }
                     string symbol = HistoryOrderGetString(trans.order, ORDER_SYMBOL);
                     double volume = HistoryOrderGetDouble(trans.order, ORDER_VOLUME_INITIAL);
                     double price = HistoryOrderGetDouble(trans.order, ORDER_PRICE_OPEN);

@@ -104,52 +104,110 @@ _command_lock = threading.Lock()
 
 
 def _write_command(cmd_string):
-    """Write a command file for the EA to execute."""
+    """Write a command file for the EA to execute. Filename includes a
+    process-id + counter so concurrent processes never collide on naming."""
     cmd_dir = os.path.join(DWX_DIR, "commands")
     os.makedirs(cmd_dir, exist_ok=True)
-    filename = f"cmd_{int(time.time() * 1000)}.txt"
+    # H2 (2026-06-17): include PID so concurrent processes can't pick the same
+    # millisecond. Even if two services hit the same ms, their PIDs differ.
+    # Format: cmd_<unix_ms>_<pid>.txt → unique across processes + monotonic
+    # within process.
+    filename = f"cmd_{int(time.time() * 1000)}_{os.getpid()}.txt"
     path = os.path.join(cmd_dir, filename)
     with open(path, "w") as f:
         f.write(cmd_string)
     return filename
 
 
-def _wait_response(timeout=10):
-    """Wait for EA to write last_response.json after a command."""
-    path = os.path.join(DWX_DIR, "last_response.json")
+def _wait_response(filename, timeout=10):
+    """H2 (2026-06-17): wait for EA to write per-cmd response file
+    `responses/<cmd_filename>`.
+
+    Old behavior: poll shared last_response.json by mtime. Race-prone — 4
+    processes shared one file, EA's last write won. After H2: each command
+    gets its own response file named after the command file. No race possible
+    across processes; each process polls only its own filename.
+
+    Backward-compat fallback: if responses/ dir is empty after timeout AND
+    the EA is older (pre-v2.13), fall back to last_response.json mtime polling
+    so existing flows keep working during EA upgrade. Removed once EA v2.13+
+    confirmed live across all environments.
+
+    Args:
+        filename: cmd file name returned by _write_command (e.g. cmd_<ms>_<pid>.txt)
+        timeout: seconds to wait
+
+    Returns:
+        Parsed JSON dict, or None on timeout / parse error.
+    """
+    resp_dir = os.path.join(DWX_DIR, "responses")
+    resp_path = os.path.join(resp_dir, filename)
+    last_response_path = os.path.join(DWX_DIR, "last_response.json")
     start = time.time()
-    initial_mtime = os.path.getmtime(path) if os.path.exists(path) else 0
+    # Track mtime of last_response.json for backward-compat fallback only
+    initial_mtime = os.path.getmtime(last_response_path) if os.path.exists(last_response_path) else 0
 
     while time.time() - start < timeout:
-        if os.path.exists(path):
-            mtime = os.path.getmtime(path)
-            if mtime > initial_mtime:
-                time.sleep(0.05)
+        # H2 canonical path: per-cmd response file
+        if os.path.exists(resp_path):
+            time.sleep(0.05)  # small wait to ensure file is fully written
+            try:
+                with open(resp_path) as f:
+                    response = json.load(f)
+                # H2 cleanup: delete the response file after reading. Prevents
+                # `responses/` from accumulating over time. EA recomputes from
+                # scratch on next command — this file's job is done.
                 try:
-                    with open(path) as f:
-                        return json.load(f)
-                except:
-                    pass
+                    os.remove(resp_path)
+                except OSError:
+                    pass  # best-effort; not fatal if cleanup fails
+                return response
+            except Exception:
+                # File exists but not yet flushed — retry next iteration
+                pass
+
+        # Backward-compat: if EA is older (pre-v2.13), the per-cmd file will never
+        # appear. Detect by checking last_response.json mtime change.
+        if os.path.exists(last_response_path):
+            mtime = os.path.getmtime(last_response_path)
+            if mtime > initial_mtime:
+                # H2: only use this fallback if responses/ dir is missing entirely
+                # (EA pre-v2.13). If responses/ exists, prefer waiting for our own.
+                if not os.path.isdir(resp_dir):
+                    time.sleep(0.05)
+                    try:
+                        with open(last_response_path) as f:
+                            response = json.load(f)
+                            _log.warn("BROKER", "wait_response_fallback_to_shared",
+                                      filename=filename,
+                                      note="responses/ dir missing — EA may be pre-v2.13; using shared last_response.json")
+                            return response
+                    except Exception:
+                        pass
         time.sleep(0.1)
     return None
 
 
 def _send_command(cmd_string, timeout=10):
-    """Thread-safe: write command + wait response atomically.
-    Prevents concurrent commands from reading each other's responses (B4 fix).
+    """Thread-safe: write command + wait response.
+
+    H2 (2026-06-17): correlation is now by per-cmd response file
+    (`responses/<cmd_filename>.txt`) rather than shared last_response.json.
+    `_command_lock` is preserved as a sanity-net for in-process serialization
+    (DB connection pool, log ordering, etc.) but is no longer required for
+    correctness — concurrent processes get correctly-correlated responses
+    via the per-cmd file.
 
     Logs every command's send/receive cycle to BROKER category for full
-    traceability when investigating live issues. The action prefix
-    (OPEN/MODIFY/CLOSE/CLOSE_PARTIAL/CLOSE_ALL) is logged separately so
-    grep "BROKER.*action=CLOSE_PARTIAL" finds all partial closes.
+    traceability when investigating live issues.
     """
     action = cmd_string.split("|", 1)[0] if "|" in cmd_string else cmd_string
     t0 = time.time()
     _log.debug("BROKER", "command_sent", action=action, cmd=cmd_string, timeout=timeout)
 
     with _command_lock:
-        _write_command(cmd_string)
-        response = _wait_response(timeout)
+        filename = _write_command(cmd_string)
+        response = _wait_response(filename, timeout)
 
     elapsed_ms = int((time.time() - t0) * 1000)
 
@@ -381,10 +439,14 @@ def place_market_order(instrument, units, sl=None, tp=None, comment=""):
         if not ticket or float(ticket) <= 0 or not price or float(price) <= 0:
             _log.error("BROKER", "place_market_order_malformed_response",
                        instrument=instrument, ticket=ticket, price=price,
+                       retcode=response.get("retcode"),
+                       comment=response.get("comment", ""),
                        full_response=str(response))
             return {
                 "success": False,
-                "error": f"EA reported success but malformed: ticket={ticket} price={price}",
+                "retcode": response.get("retcode"),
+                "comment": response.get("comment", ""),
+                "error": f"EA reported success but malformed: ticket={ticket} price={price} retcode={response.get('retcode')}",
             }
         # Filter #27 slippage attribution: snapshot bid/ask AT fill (post-roundtrip)
         # so we can also distinguish "broker price moved during 638ms" from "the bid/ask
@@ -493,10 +555,15 @@ def place_limit_order(instrument, units, limit_price, sl=None, tp=None,
         echoed_price = response.get("price", limit_price)
         if not ticket or float(ticket) <= 0:
             _log.error("BROKER", "place_limit_order_malformed_response",
-                       instrument=instrument, ticket=ticket, full_response=str(response))
+                       instrument=instrument, ticket=ticket,
+                       retcode=response.get("retcode"),
+                       comment=response.get("comment", ""),
+                       full_response=str(response))
             return {
                 "success": False,
-                "error": f"EA reported success but malformed: ticket={ticket}",
+                "retcode": response.get("retcode"),
+                "comment": response.get("comment", ""),
+                "error": f"EA reported success but malformed: ticket={ticket} retcode={response.get('retcode')}",
             }
         _log.info("BROKER", "place_limit_order_placed", instrument=instrument,
                   ticket=str(ticket), limit_price=echoed_price,
