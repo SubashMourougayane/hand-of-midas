@@ -1,0 +1,102 @@
+====================================================================================================
+FILTER #28 — BIAS-DISABLE SWEEP (Path A: monkey-patch)
+====================================================================================================
+  Systems: ['gold-macro', 'gold-micro', 'oil-macro', 'oil-micro']
+  Date range: 2005-01-01 → 2026-12-31
+  Seed: 42
+  Method: NeutralBiasDict → daily_bias[any_date] = 'neutral'
+
+  [gold-macro] with-bias :: running run_backtest...
+  Data loaded in 5.0s (2387733 M3 bars)
+  [gold-macro] with-bias :: done in 109.0s
+  [gold-macro] NEUTRAL :: running run_backtest...
+  Data loaded in 3.5s (2387733 M3 bars)
+  [gold-macro] NEUTRAL :: done in 100.0s
+  [gold-micro] with-bias :: running run_backtest...
+  Data loaded in 3.3s (2387733 M3 bars)
+  [gold-micro] with-bias :: done in 186.2s
+  [gold-micro] NEUTRAL :: running run_backtest...
+  [gold-micro] NEUTRAL :: done in 190.5s
+  [oil-macro] with-bias :: running run_backtest...
+  Oil data loaded in 2.6s (2074869 M3 bars)
+  [oil-macro] with-bias :: done in 75.5s
+  [oil-macro] NEUTRAL :: running run_backtest...
+  Oil data loaded in 2.8s (2074869 M3 bars)
+  [oil-macro] NEUTRAL :: done in 79.5s
+  [oil-micro] with-bias :: running run_backtest...
+  Oil Micro data loaded in 2.8s (H1=113157, M3=2074869)
+  [oil-micro] with-bias :: done in 167.0s
+  [oil-micro] NEUTRAL :: running run_backtest...
+  Oil Micro data loaded in 2.8s (H1=113157, M3=2074869)
+  [oil-micro] NEUTRAL :: done in 183.4s
+
+==============================================================================================================
+RESULTS — per-system, with-bias vs neutral-bias
+==============================================================================================================
+  System        Mode       Trades   Wins     WR     PF      Total P&L   MaxDD%
+  ------------- -------- -------- ------ ------ ------ -------------- --------
+  gold-macro    with-bias    2,242  1,469  65.5%   3.53       $+427.6k   -13.7%
+  gold-macro    NEUTRAL     2,863  1,913  66.8%   3.53       $+660.9k   -13.6%
+  gold-micro    with-bias    1,784  1,375  77.1%   5.35       $+390.1k    -9.4%
+  gold-micro    NEUTRAL     2,286  1,809  79.1%   5.62       $+575.7k    -9.5%
+  oil-macro     with-bias    1,656  1,038  62.7%   5.43        $+1.01M   -11.9%
+  oil-macro     NEUTRAL     2,442  1,548  63.4%   5.05        $+2.00M   -12.4%
+  oil-micro     with-bias    4,504  3,600  79.9%   7.56        $+3.71M    -9.4%
+  oil-micro     NEUTRAL     6,128  4,929  80.4%   7.62        $+5.87M    -7.1%
+
+==============================================================================================================
+DELTA — Neutral minus With-bias
+==============================================================================================================
+  System          ΔTrades     ΔWR     ΔPF      Δ Total P&L   ΔMaxDD%
+  ------------- --------- ------- ------- ---------------- ---------
+  gold-macro         +621   +1.3p   -0.00         $+233.3k     +0.1p
+  gold-micro         +502   +2.1p   +0.27         $+185.6k     -0.1p
+  oil-macro          +786   +0.7p   -0.38         $+996.5k     -0.5p
+  oil-micro        +1,624   +0.5p   +0.06          $+2.16M     +2.3p
+  ------------- --------- ------- ------- ---------------- ---------
+  TOTAL                                            $+3.58M
+
+==============================================================================================================
+YEARLY P&L (Neutral minus With-bias) — positive = neutral wins, negative = with-bias wins
+==============================================================================================================
+  Year      gold-macro    gold-micro     oil-macro     oil-micro
+  2006           $+288         $+440        $+4.0k       $+71.1k
+  2007            $+87         $+762        $+9.3k       $+75.0k
+  2008         $+12.0k        $+8.8k      $+161.2k      $+179.2k
+  2009          $+9.1k        $+7.2k       $+61.9k      $+112.0k
+  2010         $+10.5k        $+4.9k       $+47.2k       $+94.1k
+  2011         $+17.3k        $+8.2k       $+49.6k      $+102.2k
+  2012          $+6.9k       $+10.4k       $+29.8k       $+93.2k
+  2013          $+2.5k       $+10.5k       $+44.0k       $+82.6k
+  2014          $+3.4k        $+4.3k       $+11.5k      $+119.1k
+  2015          $+1.2k        $+3.9k       $+48.1k      $+109.5k
+  2016          $+9.5k        $+5.8k       $+15.1k      $+114.7k
+  2017           $+923         $+268        $+1.1k       $+44.9k
+  2018           $+346         $+216       $+38.6k       $+90.1k
+  2019          $+4.0k        $+1.3k       $+33.5k       $+86.1k
+  2020         $+25.5k        $+8.0k       $+12.2k       $+91.6k
+  2021         $+18.9k        $+8.8k       $+30.3k      $+109.9k
+  2022         $+16.7k       $+13.4k      $+185.6k      $+119.0k
+  2023         $+14.4k       $+11.4k       $+72.4k      $+141.7k
+  2024         $+24.3k       $+23.9k       $+69.3k      $+115.4k
+  2025         $+39.6k       $+39.7k       $+45.6k      $+122.2k
+  2026         $+16.1k       $+13.4k       $+26.3k       $+88.1k
+  ------ ------------- ------------- ------------- -------------
+  WIN/LOSS        21W/0L        21W/0L        21W/0L        21W/0L
+
+  JSON: scripts/output/filter_28_bias_disable_results.json
+
+==============================================================================================================
+BOTTOM LINE — Filter #28
+==============================================================================================================
+  Cumulative ΔP&L (NEUTRAL minus WITH-BIAS): $+3.58M
+
+  REMINDER: This is single-seed only. Per project-filter-sweep-workflow,
+  to ship per-system needs:
+    1. Multi-seed runs (slippage RNG variability)
+    2. Yearly slice — confirm wins are not concentrated in vol-spike years
+    3. DD stress — peak-to-trough drawdown comparison
+    4. Parity harness check (live↔BT signal match)
+
+  Next: Path B — add bias_mode kwarg to run_backtest in 4 engines for
+  permanent toggle (instead of monkey-patch).
