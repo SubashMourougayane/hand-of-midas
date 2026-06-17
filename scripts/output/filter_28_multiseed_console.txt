@@ -1,0 +1,268 @@
+==============================================================================================================
+FILTER #28 — MULTI-SEED VALIDATION
+==============================================================================================================
+  Systems:   ['gold-macro', 'gold-micro', 'oil-macro', 'oil-micro']
+  Seeds:     [42, 7, 1337, 2024, 99]
+  Date range: 2005-01-01 → 2026-12-31
+  Total runs: 40 (4 systems × 2 modes × 5 seeds)
+  Method:    run_backtest(seed=X, bias_mode=...) — Path B kwarg
+
+  ── gold-macro ──
+  [1/40] elapsed=0s eta=0s
+    [gold-macro] seed=42 bias_mode=production :: running...
+  Data loaded in 2.8s (2387733 M3 bars)
+    [gold-macro] seed=42 bias_mode=production :: done in 72.6s :: trades=2,242 PF=3.53 P&L=$+427.6k
+  [2/40] elapsed=73s eta=1390s
+    [gold-macro] seed=42 bias_mode=neutral :: running...
+  Data loaded in 2.8s (2387733 M3 bars)
+    [gold-macro] seed=42 bias_mode=neutral :: done in 77.9s :: trades=2,863 PF=3.53 P&L=$+660.9k
+  [3/40] elapsed=151s eta=1862s
+    [gold-macro] seed=7 bias_mode=production :: running...
+  Data loaded in 2.8s (2387733 M3 bars)
+    [gold-macro] seed=7 bias_mode=production :: done in 78.4s :: trades=2,242 PF=3.53 P&L=$+427.7k
+  [4/40] elapsed=229s eta=2065s
+    [gold-macro] seed=7 bias_mode=neutral :: running...
+  Data loaded in 3.1s (2387733 M3 bars)
+    [gold-macro] seed=7 bias_mode=neutral :: done in 92.0s :: trades=2,863 PF=3.53 P&L=$+660.8k
+  [5/40] elapsed=321s eta=2250s
+    [gold-macro] seed=1337 bias_mode=production :: running...
+  Data loaded in 3.0s (2387733 M3 bars)
+    [gold-macro] seed=1337 bias_mode=production :: done in 83.0s :: trades=2,242 PF=3.53 P&L=$+427.6k
+  [6/40] elapsed=404s eta=2292s
+    [gold-macro] seed=1337 bias_mode=neutral :: running...
+  Data loaded in 3.2s (2387733 M3 bars)
+    [gold-macro] seed=1337 bias_mode=neutral :: done in 88.9s :: trades=2,863 PF=3.53 P&L=$+660.9k
+  [7/40] elapsed=493s eta=2326s
+    [gold-macro] seed=2024 bias_mode=production :: running...
+  Data loaded in 3.4s (2387733 M3 bars)
+    [gold-macro] seed=2024 bias_mode=production :: done in 85.9s :: trades=2,242 PF=3.53 P&L=$+427.6k
+  [8/40] elapsed=579s eta=2317s
+    [gold-macro] seed=2024 bias_mode=neutral :: running...
+  Data loaded in 3.1s (2387733 M3 bars)
+    [gold-macro] seed=2024 bias_mode=neutral :: done in 92.5s :: trades=2,863 PF=3.53 P&L=$+660.6k
+  [9/40] elapsed=672s eta=2314s
+    [gold-macro] seed=99 bias_mode=production :: running...
+  Data loaded in 3.3s (2387733 M3 bars)
+    [gold-macro] seed=99 bias_mode=production :: done in 85.7s :: trades=2,242 PF=3.53 P&L=$+427.7k
+  [10/40] elapsed=757s eta=2272s
+    [gold-macro] seed=99 bias_mode=neutral :: running...
+  Data loaded in 3.4s (2387733 M3 bars)
+    [gold-macro] seed=99 bias_mode=neutral :: done in 91.5s :: trades=2,863 PF=3.53 P&L=$+660.9k
+
+  ── gold-micro ──
+  [11/40] elapsed=849s eta=2238s
+    [gold-micro] seed=42 bias_mode=production :: running...
+  Data loaded in 3.2s (2387733 M3 bars)
+    [gold-micro] seed=42 bias_mode=production :: done in 166.8s :: trades=1,784 PF=5.35 P&L=$+390.1k
+  [12/40] elapsed=1016s eta=2370s
+    [gold-micro] seed=42 bias_mode=neutral :: running...
+    [gold-micro] seed=42 bias_mode=neutral :: done in 174.5s :: trades=2,286 PF=5.62 P&L=$+575.7k
+  [13/40] elapsed=1190s eta=2472s
+    [gold-micro] seed=7 bias_mode=production :: running...
+    [gold-micro] seed=7 bias_mode=production :: done in 182.9s :: trades=1,784 PF=5.35 P&L=$+390.1k
+  [14/40] elapsed=1373s eta=2550s
+    [gold-micro] seed=7 bias_mode=neutral :: running...
+    [gold-micro] seed=7 bias_mode=neutral :: done in 180.7s :: trades=2,286 PF=5.62 P&L=$+575.7k
+  [15/40] elapsed=1554s eta=2590s
+    [gold-micro] seed=1337 bias_mode=production :: running...
+    [gold-micro] seed=1337 bias_mode=production :: done in 176.2s :: trades=1,784 PF=5.35 P&L=$+390.6k
+  [16/40] elapsed=1730s eta=2595s
+    [gold-micro] seed=1337 bias_mode=neutral :: running...
+    [gold-micro] seed=1337 bias_mode=neutral :: done in 185.0s :: trades=2,286 PF=5.62 P&L=$+575.4k
+  [17/40] elapsed=1915s eta=2591s
+    [gold-micro] seed=2024 bias_mode=production :: running...
+    [gold-micro] seed=2024 bias_mode=production :: done in 173.0s :: trades=1,784 PF=5.35 P&L=$+390.6k
+  [18/40] elapsed=2088s eta=2552s
+    [gold-micro] seed=2024 bias_mode=neutral :: running...
+    [gold-micro] seed=2024 bias_mode=neutral :: done in 184.9s :: trades=2,286 PF=5.62 P&L=$+575.6k
+  [19/40] elapsed=2273s eta=2512s
+    [gold-micro] seed=99 bias_mode=production :: running...
+    [gold-micro] seed=99 bias_mode=production :: done in 167.6s :: trades=1,784 PF=5.35 P&L=$+390.3k
+  [20/40] elapsed=2441s eta=2441s
+    [gold-micro] seed=99 bias_mode=neutral :: running...
+    [gold-micro] seed=99 bias_mode=neutral :: done in 190.2s :: trades=2,286 PF=5.62 P&L=$+574.9k
+
+  ── oil-macro ──
+  [21/40] elapsed=2631s eta=2380s
+    [oil-macro] seed=42 bias_mode=production :: running...
+  Oil data loaded in 3.4s (2074869 M3 bars)
+    [oil-macro] seed=42 bias_mode=production :: done in 83.3s :: trades=1,656 PF=5.43 P&L=$+1.01M
+  [22/40] elapsed=2714s eta=2221s
+    [oil-macro] seed=42 bias_mode=neutral :: running...
+  Oil data loaded in 3.2s (2074869 M3 bars)
+    [oil-macro] seed=42 bias_mode=neutral :: done in 84.8s :: trades=2,442 PF=5.05 P&L=$+2.00M
+  [23/40] elapsed=2799s eta=2069s
+    [oil-macro] seed=7 bias_mode=production :: running...
+  Oil data loaded in 2.9s (2074869 M3 bars)
+    [oil-macro] seed=7 bias_mode=production :: done in 78.6s :: trades=1,656 PF=5.41 P&L=$+994.2k
+  [24/40] elapsed=2877s eta=1918s
+    [oil-macro] seed=7 bias_mode=neutral :: running...
+  Oil data loaded in 4.5s (2074869 M3 bars)
+    [oil-macro] seed=7 bias_mode=neutral :: done in 81.4s :: trades=2,439 PF=5.04 P&L=$+1.99M
+  [25/40] elapsed=2959s eta=1775s
+    [oil-macro] seed=1337 bias_mode=production :: running...
+  Oil data loaded in 3.1s (2074869 M3 bars)
+    [oil-macro] seed=1337 bias_mode=production :: done in 78.3s :: trades=1,654 PF=5.37 P&L=$+986.5k
+  [26/40] elapsed=3037s eta=1635s
+    [oil-macro] seed=1337 bias_mode=neutral :: running...
+  Oil data loaded in 3.5s (2074869 M3 bars)
+    [oil-macro] seed=1337 bias_mode=neutral :: done in 71.4s :: trades=2,439 PF=5.04 P&L=$+1.99M
+  [27/40] elapsed=3109s eta=1497s
+    [oil-macro] seed=2024 bias_mode=production :: running...
+  Oil data loaded in 2.6s (2074869 M3 bars)
+    [oil-macro] seed=2024 bias_mode=production :: done in 63.9s :: trades=1,654 PF=5.37 P&L=$+984.3k
+  [28/40] elapsed=3173s eta=1360s
+    [oil-macro] seed=2024 bias_mode=neutral :: running...
+  Oil data loaded in 2.3s (2074869 M3 bars)
+    [oil-macro] seed=2024 bias_mode=neutral :: done in 67.5s :: trades=2,442 PF=5.06 P&L=$+2.00M
+  [29/40] elapsed=3240s eta=1229s
+    [oil-macro] seed=99 bias_mode=production :: running...
+  Oil data loaded in 2.4s (2074869 M3 bars)
+    [oil-macro] seed=99 bias_mode=production :: done in 63.6s :: trades=1,656 PF=5.40 P&L=$+990.7k
+  [30/40] elapsed=3304s eta=1101s
+    [oil-macro] seed=99 bias_mode=neutral :: running...
+  Oil data loaded in 2.4s (2074869 M3 bars)
+    [oil-macro] seed=99 bias_mode=neutral :: done in 68.2s :: trades=2,442 PF=5.06 P&L=$+2.00M
+
+  ── oil-micro ──
+  [31/40] elapsed=3372s eta=979s
+    [oil-micro] seed=42 bias_mode=production :: running...
+  Oil Micro data loaded in 2.4s (H1=113157, M3=2074869)
+    [oil-micro] seed=42 bias_mode=production :: done in 146.8s :: trades=4,504 PF=7.56 P&L=$+3.71M
+  [32/40] elapsed=3519s eta=880s
+    [oil-micro] seed=42 bias_mode=neutral :: running...
+  Oil Micro data loaded in 2.6s (H1=113157, M3=2074869)
+    [oil-micro] seed=42 bias_mode=neutral :: done in 191.6s :: trades=6,128 PF=7.62 P&L=$+5.87M
+  [33/40] elapsed=3710s eta=787s
+    [oil-micro] seed=7 bias_mode=production :: running...
+  Oil Micro data loaded in 2.5s (H1=113157, M3=2074869)
+    [oil-micro] seed=7 bias_mode=production :: done in 155.1s :: trades=4,496 PF=7.62 P&L=$+3.72M
+  [34/40] elapsed=3865s eta=682s
+    [oil-micro] seed=7 bias_mode=neutral :: running...
+  Oil Micro data loaded in 2.7s (H1=113157, M3=2074869)
+    [oil-micro] seed=7 bias_mode=neutral :: done in 176.3s :: trades=6,134 PF=7.74 P&L=$+5.93M
+  [35/40] elapsed=4042s eta=577s
+    [oil-micro] seed=1337 bias_mode=production :: running...
+  Oil Micro data loaded in 2.6s (H1=113157, M3=2074869)
+    [oil-micro] seed=1337 bias_mode=production :: done in 156.4s :: trades=4,500 PF=7.62 P&L=$+3.73M
+  [36/40] elapsed=4198s eta=466s
+    [oil-micro] seed=1337 bias_mode=neutral :: running...
+  Oil Micro data loaded in 2.5s (H1=113157, M3=2074869)
+    [oil-micro] seed=1337 bias_mode=neutral :: done in 174.6s :: trades=6,123 PF=7.62 P&L=$+5.88M
+  [37/40] elapsed=4373s eta=355s
+    [oil-micro] seed=2024 bias_mode=production :: running...
+  Oil Micro data loaded in 2.4s (H1=113157, M3=2074869)
+    [oil-micro] seed=2024 bias_mode=production :: done in 156.9s :: trades=4,499 PF=7.58 P&L=$+3.71M
+  [38/40] elapsed=4530s eta=238s
+    [oil-micro] seed=2024 bias_mode=neutral :: running...
+  Oil Micro data loaded in 2.4s (H1=113157, M3=2074869)
+    [oil-micro] seed=2024 bias_mode=neutral :: done in 165.0s :: trades=6,134 PF=7.73 P&L=$+5.92M
+  [39/40] elapsed=4695s eta=120s
+    [oil-micro] seed=99 bias_mode=production :: running...
+  Oil Micro data loaded in 2.3s (H1=113157, M3=2074869)
+    [oil-micro] seed=99 bias_mode=production :: done in 138.7s :: trades=4,500 PF=7.60 P&L=$+3.72M
+  [40/40] elapsed=4833s eta=0s
+    [oil-micro] seed=99 bias_mode=neutral :: running...
+  Oil Micro data loaded in 2.4s (H1=113157, M3=2074869)
+    [oil-micro] seed=99 bias_mode=neutral :: done in 161.9s :: trades=6,138 PF=7.67 P&L=$+5.88M
+
+  Total elapsed: 4995s (83.3min)
+
+==================================================================================================================================
+PER-SEED RESULTS — full P&L per (system, seed, mode)
+==================================================================================================================================
+  System          Seed Mode          Trades      WR      PF     Total P&L   MaxDD%
+  ------------- ------ ----------- -------- ------- ------- ------------- --------
+  gold-macro        42 production     2,242  65.52%   3.531      $+427.6k  -13.75%
+  gold-macro        42 neutral        2,863  66.82%   3.528      $+660.9k  -13.63%
+  gold-macro         7 production     2,242  65.52%   3.531      $+427.7k  -13.75%
+  gold-macro         7 neutral        2,863  66.82%   3.528      $+660.8k  -13.64%
+  gold-macro      1337 production     2,242  65.52%   3.532      $+427.6k  -13.75%
+  gold-macro      1337 neutral        2,863  66.82%   3.528      $+660.9k  -13.64%
+  gold-macro      2024 production     2,242  65.52%   3.531      $+427.6k  -13.75%
+  gold-macro      2024 neutral        2,863  66.82%   3.527      $+660.6k  -13.63%
+  gold-macro        99 production     2,242  65.52%   3.531      $+427.7k  -13.75%
+  gold-macro        99 neutral        2,863  66.82%   3.528      $+660.9k  -13.64%
+  gold-micro        42 production     1,784  77.07%   5.350      $+390.1k   -9.44%
+  gold-micro        42 neutral        2,286  79.13%   5.623      $+575.7k   -9.55%
+  gold-micro         7 production     1,784  77.07%   5.350      $+390.1k   -9.44%
+  gold-micro         7 neutral        2,286  79.13%   5.623      $+575.7k   -9.55%
+  gold-micro      1337 production     1,784  77.07%   5.352      $+390.6k   -9.44%
+  gold-micro      1337 neutral        2,286  79.13%   5.619      $+575.4k   -9.55%
+  gold-micro      2024 production     1,784  77.07%   5.352      $+390.6k   -9.44%
+  gold-micro      2024 neutral        2,286  79.13%   5.622      $+575.6k   -9.55%
+  gold-micro        99 production     1,784  77.07%   5.350      $+390.3k   -9.44%
+  gold-micro        99 neutral        2,286  79.13%   5.619      $+574.9k   -9.55%
+  oil-macro         42 production     1,656  62.68%   5.430       $+1.01M  -11.87%
+  oil-macro         42 neutral        2,442  63.39%   5.054       $+2.00M  -12.37%
+  oil-macro          7 production     1,656  62.56%   5.408      $+994.2k  -11.89%
+  oil-macro          7 neutral        2,439  63.39%   5.043       $+1.99M  -12.38%
+  oil-macro       1337 production     1,654  62.52%   5.373      $+986.5k  -11.88%
+  oil-macro       1337 neutral        2,439  63.39%   5.043       $+1.99M  -12.40%
+  oil-macro       2024 production     1,654  62.45%   5.373      $+984.3k  -11.90%
+  oil-macro       2024 neutral        2,442  63.39%   5.059       $+2.00M  -12.39%
+  oil-macro         99 production     1,656  62.50%   5.399      $+990.7k  -11.91%
+  oil-macro         99 neutral        2,442  63.39%   5.058       $+2.00M  -12.40%
+  oil-micro         42 production     4,504  79.93%   7.561       $+3.71M   -9.38%
+  oil-micro         42 neutral        6,128  80.43%   7.623       $+5.87M   -7.05%
+  oil-micro          7 production     4,496  79.92%   7.615       $+3.72M   -9.40%
+  oil-micro          7 neutral        6,134  80.65%   7.743       $+5.93M   -7.01%
+  oil-micro       1337 production     4,500  79.98%   7.621       $+3.73M   -9.40%
+  oil-micro       1337 neutral        6,123  80.55%   7.617       $+5.88M   -7.05%
+  oil-micro       2024 production     4,499  79.88%   7.576       $+3.71M   -9.39%
+  oil-micro       2024 neutral        6,134  80.62%   7.727       $+5.92M   -7.07%
+  oil-micro         99 production     4,500  79.93%   7.604       $+3.72M   -9.39%
+  oil-micro         99 neutral        6,138  80.58%   7.674       $+5.88M   -7.05%
+
+==================================================================================================================================
+SEED DISTRIBUTION — mean / std / min / max / range across seeds
+==================================================================================================================================
+  System        Mode         N_seeds      mean P&L       std P&L       min P&L       max P&L         range   mean PF   mean WR
+  ------------- ----------- -------- ------------- ------------- ------------- ------------- ------------- --------- ---------
+  gold-macro    production         5      $+427.6k          $+27      $+427.6k      $+427.7k          $+55    3.531    65.52%
+  gold-macro    neutral            5      $+660.8k         $+122      $+660.6k      $+660.9k         $+282    3.528    66.82%
+  gold-micro    production         5      $+390.3k         $+243      $+390.1k      $+390.6k         $+504    5.351    77.07%
+  gold-micro    neutral            5      $+575.4k         $+325      $+574.9k      $+575.7k         $+784    5.621    79.13%
+  oil-macro     production         5      $+992.4k        $+8.5k      $+984.3k       $+1.01M       $+21.7k    5.397    62.54%
+  oil-macro     neutral            5       $+2.00M        $+4.5k       $+1.99M       $+2.00M       $+10.0k    5.052    63.39%
+  oil-micro     production         5       $+3.72M        $+8.1k       $+3.71M       $+3.73M       $+22.0k    7.596    79.93%
+  oil-micro     neutral            5       $+5.90M       $+24.2k       $+5.87M       $+5.93M       $+53.3k    7.677    80.57%
+
+==================================================================================================================================
+DELTA PER SEED — Neutral minus Production (per system × seed)
+==================================================================================================================================
+  System              seed=42        seed=7     seed=1337     seed=2024       seed=99        mean Δ         std Δ         min Δ         max Δ
+  ------------- ------------- ------------- ------------- ------------- ------------- ------------- ------------- ------------- -------------
+  gold-macro         $+233.3k      $+233.2k      $+233.2k      $+233.0k      $+233.2k      $+233.2k         $+117      $+233.0k      $+233.3k
+  gold-micro         $+185.6k      $+185.5k      $+184.8k      $+185.0k      $+184.6k      $+185.1k         $+447      $+184.6k      $+185.6k
+  oil-macro          $+996.5k       $+1.00M       $+1.01M       $+1.02M       $+1.01M       $+1.01M        $+9.0k      $+996.5k       $+1.02M
+  oil-micro           $+2.16M       $+2.21M       $+2.15M       $+2.21M       $+2.17M       $+2.18M       $+28.7k       $+2.15M       $+2.21M
+  ------------- ------------- ------------- ------------- ------------- ------------- ------------- ------------- ------------- -------------
+  TOTAL               $+3.58M       $+3.63M       $+3.58M       $+3.65M       $+3.59M       $+3.61M       $+33.0k       $+3.58M       $+3.65M
+
+==================================================================================================================================
+PER-YEAR W/L PER SEED — does Neutral beat Production every year on every seed?
+==================================================================================================================================
+  gold-macro   : seed=42: 21W/0L seed=7: 21W/0L seed=1337: 21W/0L seed=2024: 21W/0L seed=99: 21W/0L
+  gold-micro   : seed=42: 21W/0L seed=7: 21W/0L seed=1337: 21W/0L seed=2024: 21W/0L seed=99: 20W/1L
+    ⚠️  seed=99 neutral LOST in 1 year(s): [2006]
+  oil-macro    : seed=42: 21W/0L seed=7: 21W/0L seed=1337: 21W/0L seed=2024: 21W/0L seed=99: 21W/0L
+  oil-micro    : seed=42: 21W/0L seed=7: 21W/0L seed=1337: 21W/0L seed=2024: 21W/0L seed=99: 21W/0L
+
+==================================================================================================================================
+MULTI-SEED VERDICT
+==================================================================================================================================
+  Cumulative ΔP&L across all 4 systems, per seed:
+    seed=   42: $+3.58M
+    seed=    7: $+3.63M
+    seed= 1337: $+3.58M
+    seed= 2024: $+3.65M
+    seed=   99: $+3.59M
+  Mean: $+3.61M  ±  std: $+33.0k
+  Range: [$+3.58M ... $+3.65M]
+  CV (std/mean): 0.9%  (stable — ship-quality)
+  Worst seed delivered: $+3.58M cumulative across 4 systems
+  → ALL seeds positive — robust improvement
+
+  JSON: scripts/output/filter_28_multiseed_results.json
+  CSV:  scripts/output/filter_28_multiseed_summary.csv
