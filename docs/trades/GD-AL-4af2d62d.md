@@ -2,7 +2,7 @@
 
 > **Verdict:** <!-- skill: verdict -->🐛 Bug detected — BE never armed despite price reaching 60.8% to TP<!-- /skill: verdict -->
 > 
-> **TL;DR:** <!-- skill: tldr -->Gold Macro SHORT entered at $4348.67. Broker bars confirm price reached MFE $4331.09 (60.8% to TP) — past the 50% BE trigger ($4334.21) by $3.12. BE check (per-minute scheduler tick on `get_current_price()`) never fired, no `BREAK_EVEN` journal event. Trade then reversed near SL ($2.60 from SL). User force-closed manually on JM web; DB row force-updated via debug API. P&L pending JM-web backfill. Deterministic block above says "BE trigger never reached" — that's wrong: it reads local Mac DWX bars (stale since June 10). VPS broker bars confirm the breach.<!-- /skill: tldr -->
+> **TL;DR:** <!-- skill: tldr -->Gold Macro SHORT entered at $4348.67. Broker bars confirm price reached MFE $4331.09 (60.8% to TP) — past the 50% BE trigger ($4334.21) by $3.12. BE check (per-minute scheduler tick on `get_current_price()`) never fired, no `BREAK_EVEN` journal event. Trade then reversed; user force-closed manually on JM web at 16:11 UTC, exit $4361.96, **net −$160.32** (gross −$159.48 + commission −$0.84). DB backfilled. If BE had armed: ~+$3.60 scratch instead of −$160 loss → 99% of the loss is automation failure, not strategy failure. Filter #29 (bar-aware BE) candidate in flight.<!-- /skill: tldr -->
 
 ---
 
