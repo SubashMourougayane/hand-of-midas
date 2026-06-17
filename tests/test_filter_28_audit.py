@@ -402,6 +402,42 @@ def test_h3_parity_runner_handles_neutral_bias_import_failure_gracefully():
     )
 
 
+# ============================================================================
+# F28-M6 — Scan-status daily_bias shows "neutral" when BIAS_MODE=neutral
+# ============================================================================
+
+ALL_SCAN_STATUS_FILES = [
+    "backend/routes/scan_status.py",
+    "backend-micro/routes/scan_status.py",
+    "backend-oil/routes/scan_status.py",
+    "backend-oil-micro/routes/scan_status.py",
+]
+
+
+@pytest.mark.parametrize("module_path", ALL_SCAN_STATUS_FILES)
+def test_m6_scan_status_overrides_bias_when_neutral(module_path):
+    """F28-M6: when BIAS_MODE=neutral the scan-status display must show
+    bias='neutral' (effective), not the V1+V2 computed value. Otherwise
+    dashboard misleads operator post-flip."""
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    # Marker comment must exist
+    assert "F28-M6" in src, f"F28-M6: {module_path} missing M6 override marker"
+    # BIAS_MODE check + override pattern
+    assert "_bias_mode_cfg == \"neutral\"" in src or "_bias_mode_cfg == 'neutral'" in src, (
+        f"F28-M6: {module_path} must check _bias_mode_cfg == 'neutral'"
+    )
+    assert 'bias = "neutral"' in src or "bias = 'neutral'" in src, (
+        f"F28-M6: {module_path} must override bias='neutral' in M6 block"
+    )
+    # Override must be BEFORE return / serialization
+    m6_idx = src.find("F28-M6")
+    return_idx = src.find('"daily_bias": bias', m6_idx)
+    assert return_idx > m6_idx, (
+        f"F28-M6: {module_path} override must come BEFORE serialization"
+    )
+
+
 def test_h3_parity_harness_full_suite_still_passes():
     """RUNTIME: parity harness must still pass after F28-H3 changes.
     Catches any breaking refactor."""

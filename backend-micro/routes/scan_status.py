@@ -171,6 +171,14 @@ def get_scan_status():
         if prev_range > 0 and abs(mc - mo) / prev_range >= 0.4:
             bias = "bullish" if mc > mo else "bearish"
 
+    # F28-M6: when BIAS_MODE=neutral, strategy ignores V1+V2; display effective.
+    try:
+        from config import BIAS_MODE as _bias_mode_cfg
+        if _bias_mode_cfg == "neutral":
+            bias = "neutral"
+    except Exception:
+        pass
+
     # Trades today
     trades_today = execute(
         f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s",

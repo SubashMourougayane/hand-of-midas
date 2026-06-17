@@ -173,6 +173,14 @@ def get_scan_status():
             elif v1_bias == "bullish" or v2_bias == "bullish":
                 bias = "bullish"
 
+    # F28-M6: when BIAS_MODE=neutral, strategy ignores V1+V2; display effective.
+    try:
+        from config import BIAS_MODE as _bias_mode_cfg
+        if _bias_mode_cfg == "neutral":
+            bias = "neutral"
+    except Exception:
+        pass
+
     trades_today = execute(
         f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s",
         (today,), fetch=True

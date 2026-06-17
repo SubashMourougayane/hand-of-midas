@@ -154,6 +154,17 @@ def get_scan_status():
         else:
             bias = "bullish" if mid_close > mid_open else "bearish"
 
+    # F28-M6: when bias filter is disabled (BIAS_MODE=neutral), the strategy
+    # ignores the V1+V2 computation. Display the EFFECTIVE bias (what strategy
+    # uses) not the COMPUTED one, otherwise dashboard shows "bearish" while
+    # signals fire in both directions — misleading post-flip.
+    try:
+        from backend.config import BIAS_MODE as _bias_mode_cfg
+        if _bias_mode_cfg == "neutral":
+            bias = "neutral"
+    except Exception:
+        pass  # config import error — leave bias as computed
+
     # Compute skip reasons — why a detected sweep won't trade
     skip_reasons = []
     if sweep_detected and sweep_info:

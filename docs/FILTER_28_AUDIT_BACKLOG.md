@@ -362,6 +362,42 @@ _pending_
 
 ---
 
+### M6 — Scan-status `daily_bias` field shows COMPUTED bias post-F28-flip (misleading) ✅ (2026-06-18)
+
+**Files:** scan-status routes for all 4 systems
+- `backend/routes/scan_status.py` (Gold Macro)
+- `backend-micro/routes/scan_status.py` (Gold Micro)
+- `backend-oil/routes/scan_status.py` (Oil Macro)
+- `backend-oil-micro/routes/scan_status.py` (Oil Micro)
+
+**Audit finding:**
+After F28 flip, scan-status SSE payload still shows `daily_bias: "bearish"` (or whatever V1+V2 computed) even though strategy is now using `"neutral"`. Confirmed live 2026-06-18 02:33 IST: post-flip Gold Micro scan-status reported `bias_mode: "neutral"` AND `daily_bias: "bearish"` simultaneously. **Display lies about what strategy is actually doing.**
+
+**Why MEDIUM:**
+- Operator looking at dashboard sees `bearish` and assumes signals being filtered
+- Reality: strategy is taking BOTH directions (F28 active, bias filter dead)
+- Cosmetic but actively misleading post-flip
+- Same class of issue as F28-C1 (badge invisible) but inverted: badge correct, scan-status wrong
+
+**VERIFY:**
+<!-- grep scan_status route files for daily_bias field. Confirm it reports computed (V1+V2) value, not effective. -->
+_pending_
+
+**RCA:**
+<!-- Phase 3 wiring put F28 override INSIDE scheduler core fn. Scan-status route computes V1+V2 separately for display purposes — never sees the F28 override. Same parallel-code-path drift class as C1 (stream.py vs state.py). -->
+_pending_
+
+**FIX (simpler than originally proposed):**
+<!-- User decision 2026-06-18: V1+V2 is dead post-flip; don't surface computed value at all. 1-line patch in each scan_status route:
+       if BIAS_MODE == "neutral":
+           daily_bias = "neutral"  # F28 active — display reflects what strategy uses
+     No new field needed. Drops the "effective vs computed" complexity. -->
+_pending_
+
+**TEST:**
+<!-- Structural × 4 routes: when BIAS_MODE=neutral, scan-status payload daily_bias must equal "neutral" regardless of V1+V2 computation. -->
+_pending_
+
 ### M5 — Multi-seed shows 1/420 yearly loss; commit messages claim "84W/0L" without seed disclosure ⏸
 
 **Files:**
@@ -614,6 +650,7 @@ _pending_
 - [ ] M2 — F28 log-only-on-bias-change (drop volume from 526k/yr to ~1.4k/yr)
 - [ ] M3 — F28 override block placement (combine with M2)
 - [ ] M5 — Doc + commit-message qualifiers (single-seed disclosure)
+- [x] M6 — Scan-status `daily_bias` shows "neutral" when F28 flipped (1-line patch × 4 routes) ✅
 
 ## Phase 3 — Cleanup window (any time after first system stable)
 - [ ] M4 — NeutralBiasDict regression test (anti-pattern guard)

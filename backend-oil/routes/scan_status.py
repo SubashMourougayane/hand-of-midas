@@ -140,6 +140,14 @@ def get_scan_status():
         mo = (yesterday["bid_open"] + yesterday["ask_open"]) / 2
         bias = "bullish" if mc > mo else "bearish"
 
+    # F28-M6: when BIAS_MODE=neutral, strategy ignores V1+V2; display effective.
+    try:
+        from config import BIAS_MODE as _bias_mode_cfg
+        if _bias_mode_cfg == "neutral":
+            bias = "neutral"
+    except Exception:
+        pass
+
     # Compute skip reasons
     skip_reasons = []
     if sweep_detected and sweep_info:
