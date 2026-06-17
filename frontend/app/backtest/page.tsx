@@ -91,9 +91,9 @@ export default function BacktestPage() {
     setError("");
     let cancelled = false;
     client(svc)
-      .latestBacktest<BacktestResult & { config?: { start_date: string; end_date: string; capital: number; risk_pct: number; strategies?: string[] } }>()
+      .latestBacktest<(BacktestResult & { config?: { start_date: string; end_date: string; capital: number; risk_pct: number; strategies?: string[] } }) | { result: null }>()
       .then((data) => {
-        if (cancelled || !data) return;
+        if (cancelled || !data || !("stats" in data)) return;
         setResult(data);
         if (data.config) {
           setStartDate(data.config.start_date);
