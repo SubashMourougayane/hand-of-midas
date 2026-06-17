@@ -78,7 +78,9 @@ export default function TradesPage() {
   const { instrument } = useInstrument();
   const svc = instrument as ServiceKey;
   const [tab, setTab] = useState<"live" | "backtest">("backtest");
-  const [filter, setFilter] = useState({ strategy: "", side: "", result: "", year: "" });
+  // O2: exitReason filter is client-side (live tab) for filter27 lifecycle events.
+  // Not part of backend params — filters the rendered list post-fetch.
+  const [filter, setFilter] = useState({ strategy: "", side: "", result: "", year: "", exitReason: "" });
   const [page, setPage] = useState(1);
   const [liveTrades, setLiveTrades] = useState<LiveTrade[]>([]);
   const [btTrades, setBtTrades] = useState<BacktestTrade[]>([]);
@@ -144,6 +146,22 @@ export default function TradesPage() {
       cell: (t) => <span className="num text-[var(--color-text-muted)]">{formatLiveDate(t.exit_time || t.entry_time)}</span>,
     },
     { key: "strategy", header: "Strategy", cell: (t) => strategyBadge(t.strategy) },
+    {
+      key: "mode",
+      header: "Mode",
+      // O2: pending vs live distinction. Filled (live) = empty so it doesn't
+      // clutter every row; pending = subdued PENDING badge so operator can
+      // skim "did this fill or not?". Limit-shipped backends populate the
+      // field; Gold Macro always emits "live" (no F27 there yet).
+      cell: (t) => (
+        t.mode === "pending" ? (
+          <span className="px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider rounded border border-[var(--color-border)] text-[var(--color-text-dim)]">
+            PENDING
+          </span>
+        ) : <span className="text-[var(--color-text-dim)] text-[11px]">—</span>
+      ),
+      hideOnMobile: true,
+    },
     {
       key: "side",
       header: "Side",
@@ -316,11 +334,28 @@ export default function TradesPage() {
               ))}
             </select>
           ) : null}
-          {(filter.strategy || filter.side || filter.result || filter.year) ? (
+          {tab === "live" ? (
+            // O2: filter live trades by Filter #27 lifecycle exit reason — quickly
+            // surface "fill rate of last 100 limits", "any orphans?", etc.
+            <select
+              value={filter.exitReason}
+              onChange={(e) => setFilter({ ...filter, exitReason: e.target.value })}
+              aria-label="Filter by exit reason"
+            >
+              <option value="">All Reasons</option>
+              <option value="LIMIT_TTL_EXPIRED">Limit TTL Expired (clean)</option>
+              <option value="LIMIT_TTL_EXPIRED_GRACE">Limit TTL Expired (grace fallback)</option>
+              <option value="LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED">Bad open_price force-cancelled</option>
+              <option value="MANUAL_CLOSE_WEB">Manual close (web)</option>
+              <option value="STOP_LOSS">Stop loss</option>
+              <option value="TAKE_PROFIT">Take profit</option>
+            </select>
+          ) : null}
+          {(filter.strategy || filter.side || filter.result || filter.year || filter.exitReason) ? (
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setFilter({ strategy: "", side: "", result: "", year: "" })}
+              onClick={() => setFilter({ strategy: "", side: "", result: "", year: "", exitReason: "" })}
             >
               Reset
             </Button>
@@ -384,7 +419,12 @@ export default function TradesPage() {
           {tab === "live" ? (
             <Table<LiveTrade>
               columns={liveCols}
-              rows={liveTrades}
+              // O2: client-side exit_reason filter on top of fetched live trades.
+              // Server returns 100 most recent; filter narrows to the lifecycle
+              // event of interest (LIMIT_TTL_EXPIRED / GRACE / BAD_OPEN_PRICE / etc).
+              rows={filter.exitReason
+                ? liveTrades.filter((t) => t.exit_reason === filter.exitReason)
+                : liveTrades}
               rowKey={(r) => r.trade_ref}
               loading={loading}
               loadingRows={5}

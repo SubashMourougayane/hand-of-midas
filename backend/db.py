@@ -222,6 +222,14 @@ def daily_recon_stats(trade_ref_pattern: str, strategy_pattern: str, target_date
         "journal_errors": count_event("ORPHAN_ADOPT_FAILED") + count_event("EXECUTE_SIGNAL_RAISED"),
         "exit_ambiguous": count_event("EXIT_AMBIGUOUS"),
         "net_pnl": pnl,
+        # O3 (Filter #27 audit): surface limit-order lifecycle counts so the
+        # operator can answer "fill rate / orphan rate / bad-data rate" from
+        # the Telegram alone, no SQL needed.
+        "limit_placed": count_event("LIMIT_PLACED"),
+        "limit_filled": count_event("LIMIT_FILLED"),
+        "limit_ttl_expired": count_event("LIMIT_TTL_EXPIRED"),
+        "limit_orphan": count_event("LIMIT_ORPHAN"),
+        "limit_bad_open_price": count_event("LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED"),
     }
 
 

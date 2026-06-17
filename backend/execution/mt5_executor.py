@@ -43,6 +43,63 @@ def _server_to_utc_iso(t):
         # Fallback: legacy behavior if parsing fails (don't crash on malformed timestamps)
         return t.replace(".", "-").replace(" ", "T") + "Z"
 
+
+def _server_to_utc_dt(t):
+    """Same as _server_to_utc_iso but returns a tz-aware datetime instead of ISO string.
+
+    Returns None if the input is malformed — callers must handle gracefully.
+    """
+    if not t or "." not in t:
+        return None
+    try:
+        server_dt = datetime.strptime(t, "%Y.%m.%d %H:%M:%S")
+        utc_dt = server_dt - timedelta(hours=MT5_SERVER_OFFSET_HOURS)
+        return utc_dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def compute_time_to_fill(placement_dt, broker_open_time_str):
+    """O4 — Filter #27: compute time elapsed between limit-order placement and
+    broker fill, return as a compact human-readable string.
+
+    Args:
+        placement_dt: tz-aware datetime when we INSERTed the pending row
+            (typically gd_trades.entry_time for the pending row, which is the
+            wall-clock when the OPEN_PENDING command was issued — NOT the fill).
+        broker_open_time_str: MT5 server-time string from open_orders.json
+            (format: '2026.06.17 17:42:02', GMT+3 for JustMarkets).
+
+    Returns:
+        Compact string. Examples:
+            '45s'       (45 seconds)
+            '7m12s'     (7 minutes 12 seconds)
+            '14m'       (round number)
+            'unknown'   (broker_open_time malformed or placement_dt missing)
+            'negative'  (broker fill time is BEFORE placement — clock skew or
+                         server-time misconfigured)
+    """
+    if placement_dt is None or not broker_open_time_str:
+        return "unknown"
+    fill_dt = _server_to_utc_dt(broker_open_time_str)
+    if fill_dt is None:
+        return "unknown"
+    # Make placement_dt tz-aware if it isn't (DB rows return tzinfo, but be safe)
+    if placement_dt.tzinfo is None:
+        placement_dt = placement_dt.replace(tzinfo=timezone.utc)
+    delta = (fill_dt - placement_dt).total_seconds()
+    if delta < 0:
+        # Negative time = clock skew or wrong MT5_SERVER_OFFSET_HOURS for this broker.
+        # Surface explicitly rather than silently rendering "-3m".
+        return f"negative({int(delta)}s)"
+    seconds = int(delta)
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes, secs = divmod(seconds, 60)
+    if secs == 0:
+        return f"{minutes}m"
+    return f"{minutes}m{secs}s"
+
 # Symbol mapping: our internal names → JustMarkets MT5 names
 SYMBOL_MAP = {
     "XAU_USD": "XAUUSD.ecn",

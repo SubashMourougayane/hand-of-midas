@@ -44,7 +44,7 @@ interface LiveState {
   price: { bid: number; ask: number; mid: number; spread: number; tradeable: boolean } | null;
   account: { balance: number; nav: number; nav_usd: number; unrealized_pl: number; open_trades: number; currency: string; gbp_usd_rate: number };
   oanda_positions: Array<{ trade_id: string; units: number; price: number; unrealized_pl: number; sl: number; tp: number }>;
-  db_positions?: Array<{ trade_ref: string; strategy: string; side: string; entry_price: number; sl: number; tp: number; units: number; entry_time: string }>;
+  db_positions?: Array<{ trade_ref: string; strategy: string; side: string; entry_price: number; sl: number; tp: number; units: number; entry_time: string; mode?: string }>;
   dd_state?: { consecutive_losses: number; pause_counter: number; equity: number; peak_equity: number };
   recent_signals?: Array<{ timestamp: string; strategy: string; direction: string; entry_price: number; taken: boolean; skip_reason: string }>;
   recent_trades?: Array<{ trade_ref: string; strategy: string; side: string; pnl_gbp: number; pnl_usd: number; exit_reason: string; exit_time: string }>;
@@ -213,12 +213,20 @@ export default function LivePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(state.db_positions || []).map((p) => (
-                        <tr key={p.trade_ref} className="border-t border-[var(--color-border)]/60">
+                      {(state.db_positions || []).map((p) => {
+                        const isPending = p.mode === "pending";
+                        return (
+                        <tr key={p.trade_ref} className={`border-t border-[var(--color-border)]/60 ${isPending ? "opacity-60" : ""}`}>
                           <td className="py-2">
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: stratColor(p.strategy) }}>
                               <span className="w-1.5 h-1.5 rounded-full" style={{ background: stratColor(p.strategy) }} aria-hidden />
                               {stratLabel(p.strategy)}
+                              {/* O1: pending-limit badge so user can distinguish from filled positions */}
+                              {isPending && (
+                                <span className="ml-1.5 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider rounded border border-[var(--color-border)] text-[var(--color-text-dim)]">
+                                  PENDING
+                                </span>
+                              )}
                             </span>
                           </td>
                           <td className="py-2"><Badge tone={p.side === "LONG" ? "win" : "loss"} variant="soft">{p.side}</Badge></td>
@@ -230,7 +238,8 @@ export default function LivePage() {
                             {new Date(p.entry_time).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

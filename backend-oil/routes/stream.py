@@ -160,7 +160,8 @@ def _build_state():
 
     # Issue #5 fix 2026-06-15: was 'OIL-%%' which matched OIL-MI- (Oil Micro).
     db_positions = execute(
-        "SELECT trade_ref, strategy, side, entry_price, sl_price as sl, tp_price as tp, units, entry_time "
+        "SELECT trade_ref, strategy, side, entry_price, sl_price as sl, tp_price as tp, units, entry_time, "
+        "COALESCE(mode, 'live') AS mode "
         "FROM gd_trades WHERE exit_time IS NULL AND strategy = 'alpha_sweep_oil' ORDER BY entry_time DESC",
         fetch=True
     )
@@ -197,6 +198,7 @@ def _build_state():
                 "tp": float(p["tp"]) if p["tp"] else 0,
                 "units": p["units"],
                 "entry_time": p["entry_time"].isoformat() if p["entry_time"] else None,
+                "mode": p["mode"],  # O1: surface pending vs live for frontend badge
             }
             for p in (db_positions or [])
         ],

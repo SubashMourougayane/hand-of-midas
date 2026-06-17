@@ -2302,3 +2302,419 @@ def test_m5_overflow_warn_present():
     assert write_pending_pos > 0 and overflow_warn_pos > write_pending_pos, (
         "M5: overflow warn must live inside WritePendingOrders"
     )
+
+
+# ============================================================================
+# O3 — Daily recon must surface Filter #27 lifecycle counters
+# ============================================================================
+
+def test_o3_daily_recon_stats_returns_filter27_keys():
+    """daily_recon_stats must return 5 new Filter #27 keys."""
+    src = open(os.path.join(PROJECT_ROOT, "backend", "db.py")).read()
+    expected_keys = [
+        '"limit_placed"',
+        '"limit_filled"',
+        '"limit_ttl_expired"',
+        '"limit_orphan"',
+        '"limit_bad_open_price"',
+    ]
+    for key in expected_keys:
+        assert key in src, (
+            f"O3: backend/db.py daily_recon_stats must include {key} in return dict"
+        )
+    # Each key must use count_event() with the matching journal event_type
+    expected_event_types = [
+        '"LIMIT_PLACED"',
+        '"LIMIT_FILLED"',
+        '"LIMIT_TTL_EXPIRED"',
+        '"LIMIT_ORPHAN"',
+        '"LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED"',
+    ]
+    for evt in expected_event_types:
+        assert f"count_event({evt})" in src, (
+            f"O3: daily_recon_stats must call count_event({evt})"
+        )
+
+
+def test_o3_notify_daily_recon_signature_extended():
+    """notify.daily_recon must accept the 5 new kwargs with default=0
+    (backward-compatible — old callers pass through **stats unchanged)."""
+    import inspect
+    sys.path.insert(0, PROJECT_ROOT)
+    import importlib
+    from backend import notify as _notify
+    importlib.reload(_notify)
+    sig = inspect.signature(_notify.daily_recon)
+    params = sig.parameters
+    expected_kwargs = ["limit_placed", "limit_filled", "limit_ttl_expired",
+                       "limit_orphan", "limit_bad_open_price"]
+    for kw in expected_kwargs:
+        assert kw in params, f"O3: notify.daily_recon must accept {kw} kwarg"
+        assert params[kw].default == 0, (
+            f"O3: {kw} default must be 0 for backward compat"
+        )
+
+
+def test_o3_notify_renders_filter27_line_when_active():
+    """When limit_placed/filled/expired > 0, message body must contain a
+    Filter #27 line with placed/filled/expired counts + fill_rate %."""
+    import importlib
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend import notify as _notify
+    importlib.reload(_notify)
+
+    sent = []
+    original_send = _notify.send
+    _notify.send = lambda msg: sent.append(msg)
+    try:
+        _notify.daily_recon(
+            "Oil Macro", "2026-06-17",
+            total_trades=4, orphans_adopted=0, db_insert_failed=0,
+            journal_errors=0, net_pnl=-160.32, exit_ambiguous=0,
+            limit_placed=10, limit_filled=4, limit_ttl_expired=6,
+            limit_orphan=0, limit_bad_open_price=0,
+        )
+    finally:
+        _notify.send = original_send
+
+    assert len(sent) == 1
+    msg = sent[0]
+    assert "Filter #27" in msg, (
+        "O3: when limit events occurred, msg must include Filter #27 line"
+    )
+    assert "placed=10" in msg
+    assert "filled=4" in msg
+    assert "expired=6" in msg
+    assert "40%" in msg, "O3: fill rate (4/10 = 40%) must render"
+
+
+def test_o3_notify_omits_filter27_line_when_idle():
+    """When NO limit events occurred (e.g. Gold Macro day), the Filter #27
+    line should be omitted to keep the message compact."""
+    import importlib
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend import notify as _notify
+    importlib.reload(_notify)
+
+    sent = []
+    original_send = _notify.send
+    _notify.send = lambda msg: sent.append(msg)
+    try:
+        _notify.daily_recon(
+            "Gold Macro", "2026-06-17",
+            total_trades=2, orphans_adopted=0, db_insert_failed=0,
+            journal_errors=0, net_pnl=295.51, exit_ambiguous=0,
+        )  # NO limit_* kwargs — should default to 0
+    finally:
+        _notify.send = original_send
+
+    assert len(sent) == 1
+    msg = sent[0]
+    assert "Filter #27" not in msg, (
+        "O3: when 0 limit events, msg should NOT include Filter #27 line"
+    )
+
+
+# ============================================================================
+# O4 — time_to_fill computation in LIMIT_FILLED journal context
+# ============================================================================
+
+def test_o4_compute_time_to_fill_helper_exists():
+    """The helper must live in backend/execution/mt5_executor.py and have a
+    documented signature."""
+    import inspect
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution import mt5_executor
+    assert hasattr(mt5_executor, "compute_time_to_fill"), (
+        "O4: backend/execution/mt5_executor.py must expose compute_time_to_fill"
+    )
+    sig = inspect.signature(mt5_executor.compute_time_to_fill)
+    params = sig.parameters
+    assert "placement_dt" in params
+    assert "broker_open_time_str" in params
+
+
+def test_o4_compute_time_to_fill_seconds():
+    from datetime import datetime, timezone
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution.mt5_executor import compute_time_to_fill
+    # Placement: 2026-06-17 14:42:00 UTC
+    placement = datetime(2026, 6, 17, 14, 42, 0, tzinfo=timezone.utc)
+    # Broker fill: 17:42:45 GMT+3 server time = 14:42:45 UTC = 45s after placement
+    assert compute_time_to_fill(placement, "2026.06.17 17:42:45") == "45s"
+
+
+def test_o4_compute_time_to_fill_minutes():
+    from datetime import datetime, timezone
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution.mt5_executor import compute_time_to_fill
+    placement = datetime(2026, 6, 17, 14, 42, 0, tzinfo=timezone.utc)
+    # 17:49:12 GMT+3 = 14:49:12 UTC = 7m12s
+    assert compute_time_to_fill(placement, "2026.06.17 17:49:12") == "7m12s"
+    # Round number: 17:56:00 = 14m
+    assert compute_time_to_fill(placement, "2026.06.17 17:56:00") == "14m"
+
+
+def test_o4_compute_time_to_fill_unknown_inputs():
+    from datetime import datetime, timezone
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution.mt5_executor import compute_time_to_fill
+    placement = datetime(2026, 6, 17, 14, 42, 0, tzinfo=timezone.utc)
+    # Empty string
+    assert compute_time_to_fill(placement, "") == "unknown"
+    # Malformed broker time
+    assert compute_time_to_fill(placement, "garbage") == "unknown"
+    # None placement
+    assert compute_time_to_fill(None, "2026.06.17 17:43:00") == "unknown"
+
+
+def test_o4_compute_time_to_fill_negative_clock_skew():
+    """Broker timestamp BEFORE placement = clock skew. Surface explicitly,
+    don't silently render '-3m'."""
+    from datetime import datetime, timezone
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution.mt5_executor import compute_time_to_fill
+    placement = datetime(2026, 6, 17, 14, 42, 0, tzinfo=timezone.utc)
+    # 17:41:00 GMT+3 = 14:41:00 UTC = 60s BEFORE placement
+    result = compute_time_to_fill(placement, "2026.06.17 17:41:00")
+    assert result.startswith("negative"), (
+        f"O4: backwards-time fill must return 'negative(...)' marker; got {result!r}"
+    )
+
+
+def test_o4_compute_time_to_fill_naive_placement_assumed_utc():
+    """If placement_dt has no tzinfo, helper must assume UTC, not crash."""
+    from datetime import datetime
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend.execution.mt5_executor import compute_time_to_fill
+    placement_naive = datetime(2026, 6, 17, 14, 42, 0)  # NO tzinfo
+    result = compute_time_to_fill(placement_naive, "2026.06.17 17:42:30")
+    assert result == "30s"
+
+
+@pytest.mark.parametrize("module_path", LIMIT_BACKENDS)
+def test_o4_backend_calls_compute_time_to_fill(module_path):
+    """Each limit-shipped backend's pending_order_monitor must call
+    compute_time_to_fill in the fill-detection branch."""
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    assert "compute_time_to_fill" in src, (
+        f"O4: {module_path} must call compute_time_to_fill in fill branch"
+    )
+    # Also assert it's used in the LIMIT_FILLED journal context (not just imported)
+    fill_idx = src.find("LIMIT_FILLED")
+    assert fill_idx > 0
+    block = src[max(0, fill_idx - 600):fill_idx + 600]
+    assert "compute_time_to_fill" in block, (
+        f"O4: {module_path} compute_time_to_fill must be near LIMIT_FILLED journal block"
+    )
+
+
+@pytest.mark.parametrize("module_path", LIMIT_BACKENDS)
+def test_o4_journal_context_has_time_to_fill_key(module_path):
+    """LIMIT_FILLED journal context dict must include time_to_fill."""
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    fill_idx = src.find('"LIMIT_FILLED"')
+    assert fill_idx > 0, f"{module_path}: LIMIT_FILLED marker not found"
+    # Look forward 600 chars for the context dict
+    block = src[fill_idx:fill_idx + 600]
+    assert '"time_to_fill"' in block, (
+        f"O4: {module_path} LIMIT_FILLED journal context must include time_to_fill key"
+    )
+
+
+# ============================================================================
+# O1 — Dashboard pending vs live mode badge
+# Backend: state.py + stream.py must SELECT mode and surface in db_positions JSON.
+# Frontend: live page must render a "PENDING" badge for mode === "pending" rows.
+# ============================================================================
+
+# All 4 systems' state.py must surface mode in db_positions
+ALL_STATE_FILES = [
+    "backend/routes/state.py",
+    "backend-oil/routes/state.py",
+    "backend-micro/routes/state.py",
+    "backend-oil-micro/routes/state.py",
+]
+
+
+@pytest.mark.parametrize("module_path", ALL_STATE_FILES)
+def test_o1_state_surfaces_mode_in_db_positions(module_path):
+    """The state JSON's db_positions array must include `mode` per row.
+    For limit-shipped backends, comes from SQL COALESCE(mode, 'live').
+    For Gold Macro, fallback to t.get('mode') or 'live' (default 'live').
+    """
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    # The db_positions list comprehension or append must include "mode" key
+    assert '"mode"' in src, (
+        f"O1: {module_path} db_positions must include 'mode' key in JSON output"
+    )
+
+
+# Limit-shipped state.py + stream.py must SELECT mode from SQL
+LIMIT_ROUTE_FILES = [
+    "backend-oil/routes/state.py",
+    "backend-oil/routes/stream.py",
+    "backend-micro/routes/state.py",
+    "backend-oil-micro/routes/state.py",
+]
+
+
+@pytest.mark.parametrize("module_path", LIMIT_ROUTE_FILES)
+def test_o1_state_sql_selects_mode(module_path):
+    """SQL query for db_positions must SELECT COALESCE(mode, 'live').
+    Without the SELECT, p['mode'] would KeyError when serializing."""
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    assert "COALESCE(mode, 'live')" in src, (
+        f"O1: {module_path} SQL must SELECT COALESCE(mode, 'live') AS mode "
+        f"so the row dict has the field"
+    )
+
+
+def test_o1_frontend_live_page_renders_pending_badge():
+    """Live page must render a 'PENDING' badge for rows where mode === 'pending'."""
+    full = os.path.join(PROJECT_ROOT, "frontend", "app", "live", "page.tsx")
+    src = open(full).read()
+    # TS interface must declare mode field (optional for back-compat)
+    assert "mode?: string" in src or "mode: string" in src, (
+        "O1: frontend/app/live/page.tsx db_positions interface must include mode field"
+    )
+    # The PENDING badge text must appear
+    assert "PENDING" in src, (
+        "O1: live page must render 'PENDING' label for pending rows"
+    )
+    # Conditional render based on mode === 'pending'
+    assert 'mode === "pending"' in src or "mode === 'pending'" in src, (
+        "O1: live page must conditionally render badge based on mode === 'pending'"
+    )
+
+
+def test_o1_frontend_dim_pending_rows():
+    """Pending rows should be visually de-emphasized (e.g. opacity-60) so they
+    don't look like real positions."""
+    full = os.path.join(PROJECT_ROOT, "frontend", "app", "live", "page.tsx")
+    src = open(full).read()
+    # Some opacity / muted styling tied to isPending
+    assert "isPending" in src, (
+        "O1: live page must compute isPending boolean for visual styling"
+    )
+    assert "opacity-60" in src or "opacity-50" in src or "muted" in src.lower(), (
+        "O1: pending rows should be visually de-emphasized via opacity"
+    )
+
+
+# ============================================================================
+# O2 — Trades page mode column + exit reason filter
+# ============================================================================
+
+# All 4 systems' trades.py must serialize 'mode' field
+ALL_TRADES_FILES = [
+    "backend/routes/trades.py",
+    "backend-oil/routes/trades.py",
+    "backend-micro/routes/trades.py",
+    "backend-oil-micro/routes/trades.py",
+]
+
+
+@pytest.mark.parametrize("module_path", ALL_TRADES_FILES)
+def test_o2_trades_api_serializes_mode(module_path):
+    """The /api/<system>/trades response must include 'mode' field per row."""
+    full = os.path.join(PROJECT_ROOT, module_path)
+    src = open(full).read()
+    assert '"mode"' in src, (
+        f"O2: {module_path} /trades response must serialize 'mode' per row"
+    )
+
+
+def test_o2_frontend_trades_page_has_mode_column():
+    """Trades table must render a Mode column with PENDING badge for pending."""
+    full = os.path.join(PROJECT_ROOT, "frontend", "app", "trades", "page.tsx")
+    src = open(full).read()
+    # TS interface declares mode field
+    assert "mode: string" in src or "mode?: string" in src, (
+        "O2: LiveTrade interface must include mode field"
+    )
+    # Mode column registered in the live cols definition (key: 'mode')
+    assert 'key: "mode"' in src or "key: 'mode'" in src, (
+        "O2: liveCols must include a key='mode' column entry"
+    )
+    # Render PENDING label conditional on mode === 'pending'
+    assert "PENDING" in src, (
+        "O2: trades page must render 'PENDING' label for pending rows"
+    )
+    assert 'mode === "pending"' in src or "mode === 'pending'" in src, (
+        "O2: PENDING badge must conditionally render based on mode === 'pending'"
+    )
+
+
+def test_o2_frontend_trades_page_has_exit_reason_filter():
+    """A filter dropdown must let user filter by Filter #27 lifecycle exit reasons."""
+    full = os.path.join(PROJECT_ROOT, "frontend", "app", "trades", "page.tsx")
+    src = open(full).read()
+    # filter state holds exitReason
+    assert "exitReason" in src, (
+        "O2: filter state must include exitReason for client-side filtering"
+    )
+    # dropdown options include the F27 lifecycle exit reasons
+    assert "LIMIT_TTL_EXPIRED" in src, (
+        "O2: filter dropdown must include LIMIT_TTL_EXPIRED option"
+    )
+    assert "LIMIT_TTL_EXPIRED_GRACE" in src, (
+        "O2: filter dropdown must include LIMIT_TTL_EXPIRED_GRACE option (Fix B distinction)"
+    )
+    assert "LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED" in src, (
+        "O2: filter dropdown must include LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED option (M13)"
+    )
+
+
+def test_o2_frontend_trades_page_filter_applied_client_side():
+    """When exitReason is set, liveTrades is filtered before passing to the table."""
+    full = os.path.join(PROJECT_ROOT, "frontend", "app", "trades", "page.tsx")
+    src = open(full).read()
+    # The filter chain: liveTrades.filter((t) => t.exit_reason === filter.exitReason)
+    assert "filter.exitReason" in src, (
+        "O2: rendered rows must depend on filter.exitReason"
+    )
+    assert "exit_reason === filter.exitReason" in src or \
+           "filter((t) =>" in src or \
+           "filter.exitReason" in src, (
+        "O2: liveTrades must be filtered before passing to <Table />"
+    )
+
+
+def test_o3_orphan_and_bad_open_price_appear_in_status_flags():
+    """Non-zero limit_orphan or limit_bad_open_price counts must surface in
+    the Status: line as a flag (operator's eye-catching signal)."""
+    import importlib
+    sys.path.insert(0, PROJECT_ROOT)
+    from backend import notify as _notify
+    importlib.reload(_notify)
+
+    sent = []
+    original_send = _notify.send
+    _notify.send = lambda msg: sent.append(msg)
+    try:
+        _notify.daily_recon(
+            "Oil Micro", "2026-06-17",
+            total_trades=8, orphans_adopted=0, db_insert_failed=0,
+            journal_errors=0, net_pnl=120.0, exit_ambiguous=0,
+            limit_placed=10, limit_filled=8, limit_ttl_expired=2,
+            limit_orphan=2, limit_bad_open_price=1,
+        )
+    finally:
+        _notify.send = original_send
+
+    msg = sent[0]
+    assert "limit-orphans" in msg, (
+        "O3: limit_orphan>0 must appear in Status: flags"
+    )
+    assert "bad-open-price" in msg, (
+        "O3: limit_bad_open_price>0 must appear in Status: flags"
+    )
+    # And clean status not used
+    assert "✅ clean" not in msg, (
+        "O3: status must not say 'clean' when red flags exist"
+    )

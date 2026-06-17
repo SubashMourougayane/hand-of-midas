@@ -18,7 +18,8 @@ def get_state():
     positions = get_open_trades(instrument="XAU_USD")
 
     db_positions = execute(
-        f"SELECT trade_ref, strategy, side, entry_price, sl_price as sl, tp_price as tp, units, entry_time "
+        f"SELECT trade_ref, strategy, side, entry_price, sl_price as sl, tp_price as tp, units, entry_time, "
+        f"COALESCE(mode, 'live') AS mode "
         f"FROM gd_trades WHERE exit_time IS NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY entry_time DESC",
         fetch=True
     )
@@ -57,6 +58,7 @@ def get_state():
                 "tp": float(p["tp"]) if p["tp"] else 0,
                 "units": p["units"],
                 "entry_time": p["entry_time"].isoformat() if p["entry_time"] else None,
+                "mode": p["mode"],  # O1: pending vs live badge
             }
             for p in (db_positions or [])
         ],

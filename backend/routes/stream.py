@@ -198,6 +198,7 @@ def _build_state():
             "tp": float(t["tp_price"]) if t["tp_price"] else None,
             "units": t["units"],
             "entry_time": t["entry_time"].isoformat() if t["entry_time"] else None,
+            "mode": t.get("mode") or "live",  # O1: pending vs live (Gold N/A but uniform)
         })
 
     recent_trades = execute(

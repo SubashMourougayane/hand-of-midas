@@ -236,7 +236,10 @@ def orphan_adopted(trade_ref: str, broker_id: str, instrument: str, side: str,
 
 def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: int,
                 db_insert_failed: int, journal_errors: int, net_pnl: float,
-                exit_ambiguous: int = 0):
+                exit_ambiguous: int = 0,
+                limit_placed: int = 0, limit_filled: int = 0,
+                limit_ttl_expired: int = 0, limit_orphan: int = 0,
+                limit_bad_open_price: int = 0):
     """Daily reconciliation summary at 00:00 UTC. Numbers >0 for orphans/errors/
     exit_ambiguous are red flags requiring investigation.
 
@@ -244,6 +247,17 @@ def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: 
     logs one whenever a position vanishes from open_orders.json without a
     matching closed_orders.json entry. Brief race = expected (small numbers).
     Sustained = DWX EA broken; investigate.
+
+    O3 — Filter #27 lifecycle counters (default 0 so non-limit-shipped backends
+    pass them as zero and the line stays compact):
+        limit_placed:          broker accepted the pending order
+        limit_filled:          pending fill detected by pending_order_monitor
+        limit_ttl_expired:     clean cancel (broker fired ORDER_DELETE OR Fix B grace fallback)
+        limit_orphan:          within-grace orphan warn (M8)
+        limit_bad_open_price:  M13 force-cancel escalation (DWX wrote bad data ≥5 cycles)
+
+    Fill rate = limit_filled / limit_placed (only printed when limit_placed > 0).
+    Orphan rate / bad-open-price are flagged in the status line if non-zero.
     """
     flags = []
     if orphans_adopted > 0:
@@ -254,11 +268,25 @@ def daily_recon(system: str, date_str: str, total_trades: int, orphans_adopted: 
         flags.append(f"⚠️ {journal_errors} journal errors")
     if exit_ambiguous > 0:
         flags.append(f"⚠️ {exit_ambiguous} exit-ambiguous")
+    if limit_orphan > 0:
+        flags.append(f"⚠️ {limit_orphan} limit-orphans")
+    if limit_bad_open_price > 0:
+        flags.append(f"🐛 {limit_bad_open_price} bad-open-price")
     flag_str = " | ".join(flags) if flags else "✅ clean"
 
-    send(
-        f"📊 <b>Daily Recon — {system} — {date_str}</b>\n"
-        f"Trades: {total_trades}\n"
-        f"Net P&L: ${net_pnl:+.2f}\n"
-        f"Status: {flag_str}"
-    )
+    body = [
+        f"📊 <b>Daily Recon — {system} — {date_str}</b>",
+        f"Trades: {total_trades}",
+        f"Net P&L: ${net_pnl:+.2f}",
+    ]
+    # Only render the Filter #27 line when at least one limit event happened
+    # this day — keeps the message compact for non-limit-shipped backends.
+    if limit_placed > 0 or limit_filled > 0 or limit_ttl_expired > 0:
+        fill_rate = (limit_filled / limit_placed * 100) if limit_placed else 0.0
+        body.append(
+            f"Filter #27: placed={limit_placed} filled={limit_filled} "
+            f"expired={limit_ttl_expired} (fill rate {fill_rate:.0f}%)"
+        )
+    body.append(f"Status: {flag_str}")
+
+    send("\n".join(body))

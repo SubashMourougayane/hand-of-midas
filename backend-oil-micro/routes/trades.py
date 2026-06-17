@@ -30,6 +30,7 @@ def get_trades():
             "pnl_gbp": float(t["pnl_gbp"]) if t["pnl_gbp"] else 0,
             "pnl_usd": float(t["pnl_usd"]) if t["pnl_usd"] else 0,
             "exit_reason": t["exit_reason"] or "",
+            "mode": t.get("mode") or "live",  # O2: pending vs live for trade table
         }
         for t in (rows or [])
     ]

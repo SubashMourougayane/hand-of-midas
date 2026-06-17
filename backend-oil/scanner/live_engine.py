@@ -1485,10 +1485,13 @@ def pending_order_monitor():
                 _log.exception("DB", "pending_monitor_fill_update_failed",
                                trade_ref=trade_ref, ticket=ticket, err=str(e))
                 continue
-            time_to_fill = "unknown"  # broker_open_time is server-time; precise math defered
+            # O4 — compute fill latency from row.entry_time (placement) to
+            # broker_open_time (fill). Render compactly ("45s" / "7m12s").
+            from backend.execution.mt5_executor import compute_time_to_fill
+            time_to_fill = compute_time_to_fill(row["entry_time"], broker_open_time)
             _log.info("BROKER", "limit_filled", trade_ref=trade_ref, ticket=ticket,
                       intended_limit=intended_limit, actual_fill=actual_fill,
-                      broker_open_time=broker_open_time)
+                      broker_open_time=broker_open_time, time_to_fill=time_to_fill)
             _log_journal_safe(trade_ref, row["strategy"], "LIMIT_FILLED", actual_fill, {
                 "instrument": "BCO_USD", "ticket": ticket,
                 "intended_limit": intended_limit, "actual_fill": actual_fill,

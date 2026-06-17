@@ -705,9 +705,17 @@ elif direction == "short" and intended_limit <= live_price.ask:
 **File:** `mql5/DWX_Server.mq5` `WritePendingOrders`
 **Fix:** `if(ourCount > FIX_A_MAX_PENDING) Print("[DWX] WARN: pending count ", ourCount, " > ", FIX_A_MAX_PENDING, " — diff truncated");`
 
-### M6 — Document EA-restart blind spot ⏸
-**File:** `docs/BUG_FILTER_27_PENDING_RECONCILER_GAP.md` add a paragraph
-**Fix:** explicitly call out: EA recompile/restart loses pre-restart pending tickets from Fix A diff. Python Fix B grace catches DB row → `LIMIT_TTL_EXPIRED_GRACE` (so the distinct exit_reason is the postmortem signal). No code change, just doc.
+### M6 — Document EA-restart blind spot ✅ (2026-06-17)
+**File:** `docs/BUG_FILTER_27_PENDING_RECONCILER_GAP.md` § 13 (already in place)
+**Content:**
+- The gap: `g_prevPendingTickets` is in-memory `static`; EA recompile/restart resets it
+- Pending tickets that expire while EA is down are invisible to Fix A poll-detect
+- `cancelled_orders.json` won't get a poll-detected entry for those tickets
+- Why acceptable: Python Fix B grace fallback (TTL+60s) catches DB row → `LIMIT_TTL_EXPIRED_GRACE`
+- Postmortem signal: `exit_reason='LIMIT_TTL_EXPIRED_GRACE'` with no matching `cancelled_orders.json` entry → suspect EA restart during the TTL window; cross-check `[DWX] Server started v2.X` timestamps in MT5 Experts log
+
+**Tests:** N/A (doc-only)
+**Code:** No change.
 
 ### M7 — Per-system `LIMIT_DRY_RUN` env vars ⏸
 **Files:** all 3 live_engines + `backend/execution/limit_price.py` (helper)
@@ -881,22 +889,102 @@ Limit-shipped path returns early at `return trade_ref` immediately after `notify
 
 # OBSERVABILITY (4)
 
-### O1 — Dashboard pending vs live mode badge ⏸
-**Files:** `backend-oil/routes/state.py` + `frontend/app/live/page.tsx`
-**Gap:** `/state.db_positions` doesn't surface `mode`. Pending limits render as filled positions.
-**Fix:** Add `mode` to state JSON. Frontend live page: distinct badge / lighter styling for `mode='pending'` rows.
+### O1 — Dashboard pending vs live mode badge ✅ (2026-06-17)
+**Files:**
+- `backend/routes/state.py` + `backend/routes/stream.py` — Gold Macro: `t.get("mode") or "live"` fallback (no F27 there but uniform field)
+- `backend-oil/routes/state.py` + `backend-oil/routes/stream.py` — SQL `COALESCE(mode, 'live') AS mode` + serialize `"mode": p["mode"]`
+- `backend-micro/routes/state.py` — same pattern (stream.py reuses state via import)
+- `backend-oil-micro/routes/state.py` — same pattern (stream.py reuses state via import)
+- `frontend/app/live/page.tsx` — db_positions interface adds `mode?: string`; rows compute `isPending = p.mode === "pending"`; pending rows render `PENDING` badge + `opacity-60` styling
 
-### O2 — Trades page surfaces mode + limit exit reasons ⏸
-**File:** `frontend/app/trades/page.tsx`
-**Gap:** `mode` field IS in the response but never rendered. Cannot answer "fill rate of last 100 limits?" from UI.
-**Fix:** Add mode column. Add filter for exit_reason in (LIMIT_TTL_EXPIRED, LIMIT_TTL_EXPIRED_GRACE).
+**RCA:** `/state.db_positions` SQL didn't SELECT `mode` from `gd_trades`; serialization didn't include the field. Frontend Live page rendered pending limits identically to filled positions. Operator gets "LIMIT PLACED" Telegram → opens dashboard → sees the pending row labeled exactly like a real position. Same pattern recurring: F27 was added staged; observability paths weren't extended.
 
-### O3 — Daily recon Filter #27 counters ⏸
+**Fix:**
+1. Backend SQL: `COALESCE(mode, 'live')` so the field always returns a non-null string (NULL = pre-F27 rows)
+2. Backend serialize: `"mode": p["mode"]` in db_positions list comp
+3. Frontend: TS interface `mode?: string`, `isPending = p.mode === "pending"`, conditional `PENDING` badge + `opacity-60` row styling
+4. Gold Macro included for type uniformity (always 'live' there, but frontend type doesn't need a per-system shape)
+
+**Tests added** (10):
+- `test_o1_state_surfaces_mode_in_db_positions` — structural × 4 systems: state.py db_positions list contains `"mode"` key
+- `test_o1_state_sql_selects_mode` — structural × 4 limit-routes: SQL contains `COALESCE(mode, 'live')`
+- `test_o1_frontend_live_page_renders_pending_badge` — TS interface has mode field; "PENDING" string + `mode === "pending"` conditional
+- `test_o1_frontend_dim_pending_rows` — `isPending` boolean + `opacity-60` styling for visual de-emphasis
+
+**Test count:** 244 → 254 (all green)
+**Scope:** All 4 systems' route layer + frontend Live page. EA: no changes.
+
+### O2 — Trades page surfaces mode + limit exit reasons ✅ (2026-06-17)
+**Files:**
+- `backend-micro/routes/trades.py:32` — added `"mode": t.get("mode") or "live"` to row serialization (was missing)
+- `backend-oil-micro/routes/trades.py:32` — same pattern (was missing)
+- `backend/routes/trades.py` + `backend-oil/routes/trades.py` — already had mode (verified by O2 tests)
+- `frontend/app/trades/page.tsx`:
+  - new `mode` column in `liveCols` between `strategy` and `side`, hidden on mobile
+  - PENDING badge for `t.mode === "pending"`, em-dash for `live`
+  - new `filter.exitReason` state field
+  - new dropdown (live tab only): All Reasons / Limit TTL Expired (clean) / Limit TTL Expired (grace fallback) / Bad open_price force-cancelled / Manual close (web) / Stop loss / Take profit
+  - `liveTrades` filtered client-side by `t.exit_reason === filter.exitReason` before passing to `<Table>`
+  - Reset button clears the new filter alongside existing ones
+
+**RCA:** TS interface declared `mode: string` but Micro and Oil-Micro `trades.py` didn't serialize it (KeyError-pattern). Frontend never rendered it as a column. Operator couldn't answer "fill rate of last 100 limits", "any orphan-fallback this week", "did manual closes happen" from UI — only via SQL.
+
+**Fix:** Backend: add `mode` to 2 missing serializations. Frontend: column + dropdown + client-side filter. Filter operates on `exit_reason` (which the backend already populates correctly per F27 audit M9 — `LIMIT_TTL_EXPIRED` for clean, `LIMIT_TTL_EXPIRED_GRACE` for Fix B grace fallback, `LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED` for M13 escalation).
+
+**Tests added** (7):
+- 4 structural × backends: trades.py serializes "mode"
+- `test_o2_frontend_trades_page_has_mode_column` — TS interface, column key, PENDING render
+- `test_o2_frontend_trades_page_has_exit_reason_filter` — filter state + 3 critical option strings
+- `test_o2_frontend_trades_page_filter_applied_client_side` — `liveTrades.filter(...)` binding
+
+**Test count:** 254 → 261 (all green)
+**Scope:** All 4 systems' trades route + frontend Trades page. EA: no changes.
+
+### O3 — Daily recon Filter #27 counters ✅ (2026-06-17)
+**Files:**
+- `backend/db.py:218–230` — `daily_recon_stats()` adds 5 keys: `limit_placed`, `limit_filled`, `limit_ttl_expired`, `limit_orphan`, `limit_bad_open_price`
+- `backend/notify.py:237–290` — `daily_recon()` accepts 5 new kwargs (default 0); renders compact Filter #27 line only when at least one limit event occurred; `limit_orphan` + `limit_bad_open_price` flagged in Status line when non-zero
+
+**RCA:** Daily recon Telegram lacked Filter #27 lifecycle counts entirely. Operator couldn't answer "fill rate today / orphan rate / bad-open-price escalations" from phone alone — required SQL or log grep. Symmetric to M8/M9/M10 (those fixed per-event telemetry; O3 fixes daily-aggregate telemetry).
+
+**Fix:** `daily_recon_stats()` adds 5 `count_event()` calls for the new journal event types shipped by F27 audit. `notify.daily_recon()` adds 5 default-0 kwargs (backward-compat — old callers pass through `**stats` unchanged). New compact line `Filter #27: placed=X filled=Y expired=Z (fill rate N%)` rendered only when limits were active. Orphan + bad-open-price counts surface in Status flags when non-zero.
+
+**Tests added** (5):
+- `test_o3_daily_recon_stats_returns_filter27_keys` — structural: 5 keys + 5 event_type strings present
+- `test_o3_notify_daily_recon_signature_extended` — signature: 5 kwargs with default=0
+- `test_o3_notify_renders_filter27_line_when_active` — runtime: msg contains "Filter #27", placed=N filled=N expired=N (fill rate N%)
+- `test_o3_notify_omits_filter27_line_when_idle` — runtime: msg does NOT contain "Filter #27" when all limit_* = 0
+- `test_o3_orphan_and_bad_open_price_appear_in_status_flags` — runtime: Status line shows ⚠️ limit-orphans / 🐛 bad-open-price when counts > 0
+
+**Test count:** 227 → 232 (all green)
+**Scope:** 4 daily_recon_job callsites pass through `**stats` so no callsite changes needed. EA: no changes.
 **Files:** `backend/db.py:daily_recon_stats` + `backend/notify.py:daily_recon`
 **Gap:** Recon ignores Filter #27 entirely. No daily fill-rate.
 **Fix:** Add 5 counts: `limit_placed`, `limit_filled`, `limit_expired_clean`, `limit_expired_grace`, `limit_orphan`. Display in daily Telegram.
 
-### O4 — `time_to_fill` computation in `LIMIT_FILLED` ⏸
+### O4 — `time_to_fill` computation in `LIMIT_FILLED` ✅ (2026-06-17)
+**Files:**
+- `backend/execution/mt5_executor.py` — new `compute_time_to_fill(placement_dt, broker_open_time_str)` helper + `_server_to_utc_dt()` (returns tz-aware datetime instead of ISO string)
+- `backend-oil/scanner/live_engine.py:~1488` — replaced hardcoded `"unknown"` with `compute_time_to_fill(row["entry_time"], broker_open_time)`
+- `backend-micro/scanner/live_engine.py:~1311` — added time_to_fill to LIMIT_FILLED journal context (was missing entirely)
+- `backend-oil-micro/scanner/live_engine.py:~1280` — same as micro
+
+**RCA:** Oil Macro hardcoded `time_to_fill = "unknown"` with comment "broker_open_time is server-time; precise math deferred". Micro and Oil-Micro didn't carry the field at all in journal context. Operator's phone alert was silent on fill speed; postmortem couldn't analyze fill latency vs limit-price slippage tradeoffs.
+
+**Computation:** `placement_dt` = `gd_trades.entry_time` for the pending row (set to `NOW()` at OPEN_PENDING command time). `broker_open_time_str` = MT5 server time string `"YYYY.MM.DD HH:MM:SS"` (GMT+3 for JustMarkets). Helper:
+1. Returns `"unknown"` if either input missing/malformed
+2. Converts broker_open_time GMT+3 → UTC via `_server_to_utc_dt()` (uses existing `MT5_SERVER_OFFSET_HOURS` env var)
+3. Subtracts placement_dt; renders as `45s` / `7m12s` / `14m` (no zero-second tail)
+4. Returns `negative(...)` if fill is BEFORE placement (clock skew or wrong server-offset config)
+5. Naive placement_dt assumed UTC (DB returns tz-aware so should never trigger)
+
+**Tests added** (12):
+- 6 helper unit tests: signature, seconds, minutes (with + without trailing seconds), unknown inputs (4 modes), negative clock-skew, naive-tz fallback
+- 6 structural × 3 backends: each backend imports `compute_time_to_fill`, uses it near `LIMIT_FILLED` journal block, adds `"time_to_fill"` to context dict
+
+**Test count:** 232 → 244 (all green)
+**Scope:** Limit-shipped backends only. Gold Macro N/A.
+**Bonus:** New `_server_to_utc_dt()` helper exposes the existing tz math as a tz-aware datetime (alongside the ISO-string version) — reusable for any future fill-latency / duration analytics.
 **File:** all 3 pending_order_monitor fill branches
 **Gap:** Telegram says `time_to_fill='unknown'`. Math deferred. Latency drift never reaches operator.
 **Fix:**
@@ -955,6 +1043,8 @@ else:
 | 2026-06-18 | M10 shipped — notify.limit_ttl_expired gets via_grace kwarg, 3 grace branches pass True, 10 new tests pass | Operator can distinguish broker-normal-cancel from broker-silent-expire on phone Telegram alone — no SSH grep. Symmetric to M9: M9 fixed DB telemetry, M10 fixes Telegram telemetry. Audit count: 14/24 shipped. |
 | 2026-06-18 | M11 shipped — _log_signal(taken=True) added to limit-success path in 3 backends before `return trade_ref`, 12 new tests pass | **REAL BUG (not observability):** limit-shipped trades had NO gd_signals row → 5-min cooldown query found wrong "last signal" → could re-fire same engulfing setup. Currently masked by 30s scan cadence but structurally broken. Audit count: 15/24 shipped. |
 | 2026-06-18 | M13 shipped — per-ticket bad-open_price counter + 5-cycle threshold + force-cancel escalation in 3 backends, new notify.bad_open_price_persistent helper, 14 new tests pass | H4 protected against transient DWX races but had no ceiling; persistent bad data would loop forever silently. M13 fires Telegram + force-cancels at ~2.5 min. Sentinel -1 prevents re-fire spam. Audit count: 16/24 shipped. |
+| 2026-06-17 evening | O3 + O4 + O1 + O2 shipped — daily recon F27 counters, time_to_fill helper + 3-backend wiring, dashboard mode badge (state.py + Live page), trades page mode column + exit_reason filter. 34 new tests pass | All 4 observability items complete. Operator can now answer fill rate / orphan rate / bad-open-price rate / fill latency / pending vs live distinction from phone Telegram + web dashboard alone. Audit count: 20/24 shipped. |
+| 2026-06-17 evening | M6 marked ✅ — doc-only, EA-restart blind spot already documented in `docs/BUG_FILTER_27_PENDING_RECONCILER_GAP.md` § 13 | All M-tier complete except M14 (filter sweep, separate cycle). **Audit count: 21/24 shipped. Remaining: M14 + Filter #28 + Filter #29 (all filter-sweep cycles).** |
 | (pending) | C3-H6 implemented + tested | Phase 1 continues |
 | (pending) | M1-O4 implemented + tested | Phase 2 |
 | (pending) | Single push to midas-deploy | After full review |

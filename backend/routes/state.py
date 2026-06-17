@@ -83,6 +83,11 @@ def get_state():
             "tp": float(t["tp_price"]) if t["tp_price"] else None,
             "units": t["units"],
             "entry_time": t["entry_time"].isoformat() if t["entry_time"] else None,
+            # O1 (Filter #27 audit): mode field surfaces pending vs live for
+            # frontend badge. Gold Macro currently has no Filter #27 limits, so
+            # mode will always be 'live' or NULL — but field uniformity keeps
+            # the frontend type consistent across all 4 systems.
+            "mode": t.get("mode") or "live",
         })
 
     # Recent closed trades (last 5) — same Gold Macro filter
