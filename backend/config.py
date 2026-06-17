@@ -21,6 +21,13 @@ SESSIONS_UTC = {
 # Engulfing tolerance — relaxes strict body-wrap by this amount (sub-spread noise)
 ENGULFING_TOLERANCE = 0.10  # $0.10 for Gold (0.002% of price)
 
+# Filter #28 — bias mode for live scanner.
+#   "production" (default): use the V1+V2 daily candle bias (current behavior)
+#   "neutral":              force every day to "neutral" (bias filter goes silent)
+# Override via env var GOLD_MACRO_BIAS_MODE for production-without-redeploy flips.
+# See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md + 21yr BT proves +$233k for Gold Macro.
+BIAS_MODE = os.getenv("GOLD_MACRO_BIAS_MODE", "production")
+
 # Alpha-Sweep (V4)
 ALPHA_SWEEP = {
     "asia_min_range": 5.0,

@@ -235,6 +235,35 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         else:
             bias = "neutral"
 
+    # Filter #28 — bias-mode override.
+    from config import BIAS_MODE as _bias_mode_cfg
+    _computed_bias = bias
+    _bias_mode_used = "production"
+    if _bias_mode_cfg == "neutral":
+        bias = "neutral"
+        _bias_mode_used = "neutral"
+    if not dry_run:
+        _log.info(
+            "F28-BIAS", "bias_resolved",
+            system="oil-macro",
+            day=today.isoformat(),
+            mode=_bias_mode_used,
+            computed=_computed_bias,
+            effective=bias,
+            filter_active=(bias != "neutral"),
+        )
+        print(
+            f"  [F28-BIAS] oil-macro day={today.isoformat()} "
+            f"mode={_bias_mode_used} computed={_computed_bias} "
+            f"effective={bias} filter_active={bias != 'neutral'}"
+        )
+        _log_journal(
+            "SYSTEM", "alpha_sweep_oil", "F28_BIAS_RESOLVED", None,
+            {"system": "oil-macro", "day": today.isoformat(),
+             "mode": _bias_mode_used, "computed_bias": _computed_bias,
+             "effective_bias": bias, "filter_active": bias != "neutral"},
+        )
+
     # Detect ALL sweeps in scan window
     sweeps = []
     for bar in scan_bars:

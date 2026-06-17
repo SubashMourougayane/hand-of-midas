@@ -16,6 +16,11 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://subash@localhost:5432/golddigge
 
 ENGULFING_TOLERANCE = 0.01  # $0.01 for Oil (sub-spread noise)
 
+# Filter #28 — bias mode (per-system env override). Default = production (V1+V2).
+# Set OIL_MICRO_BIAS_MODE=neutral on VPS .env to disable bias filter.
+# 21yr BT: +$2.16M for Oil Micro vs production. See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
+BIAS_MODE = os.getenv("OIL_MICRO_BIAS_MODE", "production")
+
 # Oil Micro Alpha-Sweep: rolling 4hr consolidation windows every 2 hours
 # Same architecture as Gold Micro but with Oil-scaled thresholds
 # Research: PF 6.98, WR 85.9%, $1.21M (20yr, $5k capital, 4% risk)

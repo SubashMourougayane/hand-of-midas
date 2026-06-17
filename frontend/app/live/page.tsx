@@ -49,6 +49,8 @@ interface LiveState {
   recent_signals?: Array<{ timestamp: string; strategy: string; direction: string; entry_price: number; taken: boolean; skip_reason: string }>;
   recent_trades?: Array<{ trade_ref: string; strategy: string; side: string; pnl_gbp: number; pnl_usd: number; exit_reason: string; exit_time: string }>;
   scheduler_active: boolean;
+  // Filter #28: bias mode — "production" (V1+V2) or "neutral" (filter disabled).
+  bias_mode?: string;
 }
 
 interface LivePayload {
@@ -89,6 +91,15 @@ export default function LivePage() {
               <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium uppercase tracking-[1.4px] text-[var(--color-win)]">
                 <StatusDot tone="win" pulse size={6} />
                 Scheduler active
+              </span>
+            ) : null}
+            {/* Filter #28: bias mode badge — only show when NEUTRAL (production is the default; no need to clutter). */}
+            {state?.bias_mode === "neutral" ? (
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[1.6px] rounded border border-[var(--color-warn)]/50 text-[var(--color-warn)]"
+                title="Filter #28 active: bias filter disabled. Strategy is taking signals in both directions regardless of yesterday's daily candle."
+              >
+                F28 · BIAS NEUTRAL
               </span>
             ) : null}
             {lastUpdateLabel ? (

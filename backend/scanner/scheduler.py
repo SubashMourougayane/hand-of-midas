@@ -544,6 +544,47 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
         else:
             bias = "neutral"
 
+    # Filter #28 — bias-mode override. Production (V1+V2) is the default;
+    # set GOLD_MACRO_BIAS_MODE=neutral on the VPS .env to flip this system
+    # to neutral. 21yr BT: +$233k vs production. See research docs.
+    from backend.config import BIAS_MODE as _bias_mode_cfg
+    _computed_bias = bias
+    _bias_mode_used = "production"
+    if _bias_mode_cfg == "neutral":
+        bias = "neutral"
+        _bias_mode_used = "neutral"
+    if not dry_run:
+        _log.info(
+            "F28-BIAS",
+            "bias_resolved",
+            system="gold-macro",
+            day=today.isoformat(),
+            mode=_bias_mode_used,
+            computed=_computed_bias,
+            effective=bias,
+            filter_active=(bias != "neutral"),
+        )
+        # File-log + journal event for postmortem reconstruction.
+        print(
+            f"  [F28-BIAS] gold-macro day={today.isoformat()} "
+            f"mode={_bias_mode_used} computed={_computed_bias} "
+            f"effective={bias} filter_active={bias != 'neutral'}"
+        )
+        _log_journal(
+            "SYSTEM",
+            "alpha_sweep",
+            "F28_BIAS_RESOLVED",
+            None,
+            {
+                "system": "gold-macro",
+                "day": today.isoformat(),
+                "mode": _bias_mode_used,
+                "computed_bias": _computed_bias,
+                "effective_bias": bias,
+                "filter_active": bias != "neutral",
+            },
+        )
+
     # Detect ALL sweeps in scan window (not just first)
     sweeps = []
     for bar in scan_bars:

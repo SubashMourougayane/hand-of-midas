@@ -237,6 +237,35 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
         else:
             bias = "neutral"
 
+    # Filter #28 — bias-mode override.
+    from config import BIAS_MODE as _bias_mode_cfg
+    _computed_bias = bias
+    _bias_mode_used = "production"
+    if _bias_mode_cfg == "neutral":
+        bias = "neutral"
+        _bias_mode_used = "neutral"
+    if not dry_run:
+        _log.info(
+            "F28-BIAS", "bias_resolved",
+            system="gold-micro",
+            day=today.isoformat(),
+            mode=_bias_mode_used,
+            computed=_computed_bias,
+            effective=bias,
+            filter_active=(bias != "neutral"),
+        )
+        print(
+            f"  [F28-BIAS] gold-micro day={today.isoformat()} "
+            f"mode={_bias_mode_used} computed={_computed_bias} "
+            f"effective={bias} filter_active={bias != 'neutral'}"
+        )
+        _log_journal(
+            "SYSTEM", "micro_alpha_sweep", "F28_BIAS_RESOLVED", None,
+            {"system": "gold-micro", "day": today.isoformat(),
+             "mode": _bias_mode_used, "computed_bias": _computed_bias,
+             "effective_bias": bias, "filter_active": bias != "neutral"},
+        )
+
     trade_placed_this_cycle = False
     signals_found = []  # For dry_run mode
 

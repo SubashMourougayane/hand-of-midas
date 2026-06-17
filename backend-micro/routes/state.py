@@ -83,4 +83,14 @@ def get_state():
             for t in (recent_trades or [])
         ],
         "scheduler_active": True,
+        # Filter #28: surface live bias mode for dashboard.
+        "bias_mode": _get_bias_mode_safe(),
     }
+
+
+def _get_bias_mode_safe() -> str:
+    try:
+        from config import BIAS_MODE
+        return BIAS_MODE
+    except Exception:
+        return "production"

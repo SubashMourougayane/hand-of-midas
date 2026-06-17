@@ -118,4 +118,15 @@ def get_state():
         "recent_signals": signals_list,
         "recent_trades": recent,
         "scheduler_active": True,
+        # Filter #28: surface live bias mode for dashboard.
+        "bias_mode": _get_bias_mode_safe(),
     }
+
+
+def _get_bias_mode_safe() -> str:
+    """Read Gold Macro's BIAS_MODE. Default 'production' on any error."""
+    try:
+        from backend.config import BIAS_MODE
+        return BIAS_MODE
+    except Exception:
+        return "production"
