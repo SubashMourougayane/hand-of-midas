@@ -223,7 +223,19 @@ def _build_state():
             for t in (recent_trades or [])
         ],
         "scheduler_active": True,
+        # F28-C1: surface live bias mode so frontend SSE-driven badge can render.
+        "bias_mode": _get_bias_mode_safe(),
     }
+
+
+def _get_bias_mode_safe() -> str:
+    """Read Oil Macro's BIAS_MODE. Default 'production' on any error so the
+    SSE stream never breaks if config import fails."""
+    try:
+        from config import BIAS_MODE
+        return BIAS_MODE
+    except Exception:
+        return "production"
 
 
 def _refresh_loop():

@@ -18,8 +18,11 @@ ENGULFING_TOLERANCE = 0.01  # $0.01 for Oil (sub-spread noise)
 
 # Filter #28 — bias mode (per-system env override). Default = production (V1+V2).
 # Set OIL_MICRO_BIAS_MODE=neutral on VPS .env to disable bias filter.
-# 21yr BT: +$2.16M for Oil Micro vs production. See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
-BIAS_MODE = os.getenv("OIL_MICRO_BIAS_MODE", "production")
+# Multi-seed 21yr BT: Oil Micro Δ = +$2.18M mean (range $2.15M-$2.21M, std $28.7k).
+# See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
+# F28-H1: parse_bias_mode_env normalizes whitespace + case + warns on typos.
+from backend.backtest.neutral_bias import parse_bias_mode_env
+BIAS_MODE = parse_bias_mode_env("OIL_MICRO_BIAS_MODE", default="production")
 
 # Oil Micro Alpha-Sweep: rolling 4hr consolidation windows every 2 hours
 # Same architecture as Gold Micro but with Oil-scaled thresholds

@@ -120,6 +120,26 @@ def _build_daily_bias(d_df: pd.DataFrame) -> dict:
     return bias
 
 
+def _resolve_system_bias_mode(cfg) -> str:
+    """F28-H3: read this system's BIAS_MODE config to know whether to swap
+    daily_bias for NeutralBiasDict in the parity comparison.
+
+    Returns "production" or "neutral". Defaults to "production" if anything
+    fails (config import error, attribute missing, etc.) — the harness must
+    not break on F28 config issues; the parity check itself will surface
+    drift if the live system is actually running with a flipped bias.
+    """
+    import importlib
+    try:
+        # cfg.config_module_path is e.g. "config" or "backend.config".
+        # For service-relative configs (3 of 4), the system's sys.path has
+        # been injected by extractor.py before this is called.
+        mod = importlib.import_module(cfg.config_module_path)
+        return getattr(mod, "BIAS_MODE", "production")
+    except Exception:
+        return "production"
+
+
 def run_parity_check(
     system_key: str,
     days: int = DEFAULT_DAYS,
@@ -129,10 +149,12 @@ def run_parity_check(
     Steps:
     1. Load CSV data (H1, M3, D).
     2. Build daily_bias dict.
-    3. Slice to last `days` days.
-    4. Run BT signal-gen → list[SignalRecord].
-    5. Replay live signal-gen → list[SignalRecord].
-    6. Diff and score.
+    3. F28-H3: if this system's BIAS_MODE=="neutral", swap daily_bias for
+       NeutralBiasDict so the BT comparison mirrors live behavior.
+    4. Slice to last `days` days.
+    5. Run BT signal-gen → list[SignalRecord].
+    6. Replay live signal-gen → list[SignalRecord].
+    7. Diff and score.
 
     The function does not write JSON itself (that's the caller's job, e.g.
     test_22_parity.py calls score.write_json()).
@@ -143,6 +165,27 @@ def run_parity_check(
 
     h1_full, m3_full, d_full = _load_data(cfg)
     daily_bias = _build_daily_bias(d_full)
+
+    # F28-H3 — bias-mode mirroring.
+    # If this system has BIAS_MODE=neutral live, the live core fn will fire
+    # signals that V1+V2 would block. Without this mirror, BT side keeps
+    # blocking → harness shows drift on every run (false positive). Swap
+    # the bias dict for NeutralBiasDict on BOTH sides so the comparison
+    # measures genuine live↔BT drift, not the F28 setting itself.
+    bias_mode = _resolve_system_bias_mode(cfg)
+    if bias_mode == "neutral":
+        # Late-import so the harness doesn't fail to load when running on
+        # an older branch without neutral_bias.py. Swallow any ImportError
+        # and fall back to V1+V2 (better signal than crash).
+        try:
+            from backend.backtest.neutral_bias import NeutralBiasDict
+            daily_bias = NeutralBiasDict()
+            print(f"  [parity] F28-aware: {system_key} BIAS_MODE=neutral → "
+                  f"swapping daily_bias for NeutralBiasDict on both sides")
+        except ImportError:
+            print(f"  [parity] WARNING: {system_key} BIAS_MODE=neutral but "
+                  f"NeutralBiasDict unavailable; falling back to V1+V2 — "
+                  f"parity report may show false drift")
 
     # Window the data to last `days` days. Use the M3 file's last timestamp
     # as the reference (it's the freshest source).

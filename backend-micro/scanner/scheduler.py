@@ -259,7 +259,9 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
             f"mode={_bias_mode_used} computed={_computed_bias} "
             f"effective={bias} filter_active={bias != 'neutral'}"
         )
-        _log_journal(
+        # F28-H2: use _log_journal_safe (swallows DB blips) — F28 must NOT
+        # introduce a new failure mode. Observability-only event.
+        _log_journal_safe(
             "SYSTEM", "micro_alpha_sweep", "F28_BIAS_RESOLVED", None,
             {"system": "gold-micro", "day": today.isoformat(),
              "mode": _bias_mode_used, "computed_bias": _computed_bias,

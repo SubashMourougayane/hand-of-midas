@@ -24,8 +24,11 @@ ENGULFING_TOLERANCE = 0.01  # $0.01 for Oil (0.01% of price)
 
 # Filter #28 — bias mode (per-system env override). Default = production (V1+V2).
 # Set OIL_MACRO_BIAS_MODE=neutral on VPS .env to disable bias filter.
-# 21yr BT: +$997k for Oil Macro vs production. See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
-BIAS_MODE = os.getenv("OIL_MACRO_BIAS_MODE", "production")
+# Multi-seed 21yr BT: Oil Macro Δ = +$1.01M mean (range $996.5k-$1.02M, std $9.0k).
+# See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
+# F28-H1: parse_bias_mode_env normalizes whitespace + case + warns on typos.
+from backend.backtest.neutral_bias import parse_bias_mode_env
+BIAS_MODE = parse_bias_mode_env("OIL_MACRO_BIAS_MODE", default="production")
 
 # Alpha-Sweep for Oil (same logic, different thresholds)
 ALPHA_SWEEP = {

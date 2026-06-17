@@ -257,7 +257,9 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
             f"mode={_bias_mode_used} computed={_computed_bias} "
             f"effective={bias} filter_active={bias != 'neutral'}"
         )
-        _log_journal(
+        # F28-H2: use _log_journal_safe (swallows DB blips) — F28 must NOT
+        # introduce a new failure mode. Observability-only event.
+        _log_journal_safe(
             "SYSTEM", "alpha_sweep_oil", "F28_BIAS_RESOLVED", None,
             {"system": "oil-macro", "day": today.isoformat(),
              "mode": _bias_mode_used, "computed_bias": _computed_bias,

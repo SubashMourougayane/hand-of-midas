@@ -25,8 +25,12 @@ ENGULFING_TOLERANCE = 0.10  # $0.10 for Gold (0.002% of price)
 #   "production" (default): use the V1+V2 daily candle bias (current behavior)
 #   "neutral":              force every day to "neutral" (bias filter goes silent)
 # Override via env var GOLD_MACRO_BIAS_MODE for production-without-redeploy flips.
-# See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md + 21yr BT proves +$233k for Gold Macro.
-BIAS_MODE = os.getenv("GOLD_MACRO_BIAS_MODE", "production")
+# See docs/FILTER_28_BIAS_DISABLE_RESEARCH.md.
+# Multi-seed 21yr BT: Gold Macro Δ = +$233.2k mean (range $233.0k-$233.3k, std $117).
+# F28-H1: parse_bias_mode_env normalizes whitespace + case + warns on typos
+# (vs raw os.getenv which silently flips "neutral " → production).
+from backend.backtest.neutral_bias import parse_bias_mode_env
+BIAS_MODE = parse_bias_mode_env("GOLD_MACRO_BIAS_MODE", default="production")
 
 # Alpha-Sweep (V4)
 ALPHA_SWEEP = {
