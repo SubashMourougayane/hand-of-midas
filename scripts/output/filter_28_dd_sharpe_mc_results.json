@@ -1,0 +1,293 @@
+{
+  "args": {
+    "systems": "gold-macro,gold-micro,oil-macro,oil-micro",
+    "start": "2005-01-01",
+    "end": "2026-12-31",
+    "seed": 42,
+    "mc_trials": 1000,
+    "mc_seed": 12345,
+    "output_dir": "scripts/output"
+  },
+  "results": [
+    {
+      "system": "gold-macro",
+      "bias_mode": "production",
+      "total_trades": 2242,
+      "total_pnl": 427597.9,
+      "win_rate": 0.6552185548617306,
+      "profit_factor": 3.5314643740816987,
+      "max_drawdown_pct_engine": -13.747080663512786,
+      "dd": {
+        "max_dd_dollar": 3409.810000000012,
+        "max_dd_pct_of_peak": 1.8573649440689628,
+        "max_dd_duration_days": 317,
+        "n_dd_periods": 231,
+        "total_trades": 2242,
+        "final_pnl": 427597.9000000005
+      },
+      "sharpe": {
+        "sharpe": 5.931590331910713,
+        "mean_daily_pnl": 247.73922363847046,
+        "std_daily_pnl": 663.0158244921829,
+        "n_trading_days": 1726,
+        "days_pos": 1153,
+        "days_neg": 573
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 387225.7335000004,
+        "final_pnl_p50": 424962.2399999995,
+        "final_pnl_p95": 465979.3719999999,
+        "max_dd_p5": 2188.158000000004,
+        "max_dd_p50": 2904.824999999997,
+        "max_dd_p95": 4170.961499999992,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "gold-macro",
+      "bias_mode": "neutral",
+      "total_trades": 2863,
+      "total_pnl": 660851.5500000002,
+      "win_rate": 0.6681802305274188,
+      "profit_factor": 3.5277673163608214,
+      "max_drawdown_pct_engine": -13.634893853899388,
+      "dd": {
+        "max_dd_dollar": 5148.640000000014,
+        "max_dd_pct_of_peak": 0.6735861407751935,
+        "max_dd_duration_days": 316,
+        "n_dd_periods": 287,
+        "total_trades": 2863,
+        "final_pnl": 660851.5499999996
+      },
+      "sharpe": {
+        "sharpe": 5.9723840648527995,
+        "mean_daily_pnl": 314.2422967189729,
+        "std_daily_pnl": 835.2513430229262,
+        "n_trading_days": 2103,
+        "days_pos": 1454,
+        "days_neg": 648
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 605750.5025000005,
+        "final_pnl_p50": 659945.7499999995,
+        "final_pnl_p95": 719094.6059999999,
+        "max_dd_p5": 2915.299000000063,
+        "max_dd_p50": 3719.595000000003,
+        "max_dd_p95": 5465.57750000002,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "gold-micro",
+      "bias_mode": "production",
+      "total_trades": 1784,
+      "total_pnl": 390097.43000000034,
+      "win_rate": 0.7707399103139013,
+      "profit_factor": 5.349768638953895,
+      "max_drawdown_pct_engine": -9.44381231558445,
+      "dd": {
+        "max_dd_dollar": 2372.679999999993,
+        "max_dd_pct_of_peak": 0.47712790190149795,
+        "max_dd_duration_days": 294,
+        "n_dd_periods": 199,
+        "total_trades": 1784,
+        "final_pnl": 390097.4300000002
+      },
+      "sharpe": {
+        "sharpe": 7.594963649503238,
+        "mean_daily_pnl": 297.5571548436308,
+        "std_daily_pnl": 621.9349575918073,
+        "n_trading_days": 1311,
+        "days_pos": 1010,
+        "days_neg": 301
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 357126.7039999999,
+        "final_pnl_p50": 390004.8849999993,
+        "final_pnl_p95": 424799.10100000043,
+        "max_dd_p5": 1356.0844999999972,
+        "max_dd_p50": 1816.1300000000165,
+        "max_dd_p95": 2539.423999999996,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "gold-micro",
+      "bias_mode": "neutral",
+      "total_trades": 2286,
+      "total_pnl": 575686.5300000003,
+      "win_rate": 0.7913385826771654,
+      "profit_factor": 5.62272353442905,
+      "max_drawdown_pct_engine": -9.546273231973453,
+      "dd": {
+        "max_dd_dollar": 2371.0200000000186,
+        "max_dd_pct_of_peak": 0.347181593784945,
+        "max_dd_duration_days": 137,
+        "n_dd_periods": 227,
+        "total_trades": 2286,
+        "final_pnl": 575686.5300000004
+      },
+      "sharpe": {
+        "sharpe": 7.749545527338768,
+        "mean_daily_pnl": 363.43846590909095,
+        "std_daily_pnl": 744.4832430067585,
+        "n_trading_days": 1584,
+        "days_pos": 1252,
+        "days_neg": 332
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 533414.4030000012,
+        "final_pnl_p50": 576255.815,
+        "final_pnl_p95": 620393.4315000003,
+        "max_dd_p5": 2022.8674999999464,
+        "max_dd_p50": 2720.164999999979,
+        "max_dd_p95": 3917.638499999995,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "oil-macro",
+      "bias_mode": "production",
+      "total_trades": 1656,
+      "total_pnl": 1006056.7599999998,
+      "win_rate": 0.6268115942028986,
+      "profit_factor": 5.429775269396377,
+      "max_drawdown_pct_engine": -11.873709475318984,
+      "dd": {
+        "max_dd_dollar": 4680.51999999996,
+        "max_dd_pct_of_peak": 0.9162252651311172,
+        "max_dd_duration_days": 160,
+        "n_dd_periods": 247,
+        "total_trades": 1656,
+        "final_pnl": 1006056.7600000006
+      },
+      "sharpe": {
+        "sharpe": 6.49434788301484,
+        "mean_daily_pnl": 769.7450344299924,
+        "std_daily_pnl": 1881.5320374397847,
+        "n_trading_days": 1307,
+        "days_pos": 876,
+        "days_neg": 431
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 903784.0389999996,
+        "final_pnl_p50": 1002030.1899999981,
+        "final_pnl_p95": 1120309.811999998,
+        "max_dd_p5": 3429.060999999952,
+        "max_dd_p50": 4538.585000000021,
+        "max_dd_p95": 6589.32750000033,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "oil-macro",
+      "bias_mode": "neutral",
+      "total_trades": 2442,
+      "total_pnl": 2002591.839999999,
+      "win_rate": 0.6339066339066339,
+      "profit_factor": 5.05449649360345,
+      "max_drawdown_pct_engine": -12.369741515024081,
+      "dd": {
+        "max_dd_dollar": 6070.989999999991,
+        "max_dd_pct_of_peak": 0.40223342148096736,
+        "max_dd_duration_days": 96,
+        "n_dd_periods": 329,
+        "total_trades": 2442,
+        "final_pnl": 2002591.8400000003
+      },
+      "sharpe": {
+        "sharpe": 7.232247012835697,
+        "mean_daily_pnl": 1116.8945008365865,
+        "std_daily_pnl": 2451.5410643453056,
+        "n_trading_days": 1793,
+        "days_pos": 1232,
+        "days_neg": 561
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 1842375.1319999988,
+        "final_pnl_p50": 2008047.4900000016,
+        "final_pnl_p95": 2178200.721,
+        "max_dd_p5": 5342.943499999999,
+        "max_dd_p50": 6850.955000000424,
+        "max_dd_p95": 9552.83600000001,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "oil-micro",
+      "bias_mode": "production",
+      "total_trades": 4504,
+      "total_pnl": 3711942.04,
+      "win_rate": 0.7992895204262878,
+      "profit_factor": 7.561122806640472,
+      "max_drawdown_pct_engine": -9.381857312792315,
+      "dd": {
+        "max_dd_dollar": 6926.239999999991,
+        "max_dd_pct_of_peak": 0.610012566299026,
+        "max_dd_duration_days": 41,
+        "n_dd_periods": 491,
+        "total_trades": 4504,
+        "final_pnl": 3711942.039999999
+      },
+      "sharpe": {
+        "sharpe": 9.248838552240501,
+        "mean_daily_pnl": 1142.4875469375193,
+        "std_daily_pnl": 1960.9410899183626,
+        "n_trading_days": 3249,
+        "days_pos": 2578,
+        "days_neg": 671
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 3549582.544000002,
+        "final_pnl_p50": 3709894.180000004,
+        "final_pnl_p95": 3868764.335499998,
+        "max_dd_p5": 4083.715000000107,
+        "max_dd_p50": 5131.714999999851,
+        "max_dd_p95": 6867.986000000004,
+        "prob_negative_final": 0.0
+      }
+    },
+    {
+      "system": "oil-micro",
+      "bias_mode": "neutral",
+      "total_trades": 6128,
+      "total_pnl": 5873415.6900000125,
+      "win_rate": 0.8043407310704961,
+      "profit_factor": 7.6230662533991635,
+      "max_drawdown_pct_engine": -7.050827560399142,
+      "dd": {
+        "max_dd_dollar": 6591.070000000298,
+        "max_dd_pct_of_peak": 0.1363367781099149,
+        "max_dd_duration_days": 21,
+        "n_dd_periods": 600,
+        "total_trades": 6128,
+        "final_pnl": 5873415.689999978
+      },
+      "sharpe": {
+        "sharpe": 10.335914646173599,
+        "mean_daily_pnl": 1454.8961332672775,
+        "std_daily_pnl": 2234.5153673340724,
+        "n_trading_days": 4037,
+        "days_pos": 3223,
+        "days_neg": 814
+      },
+      "mc": {
+        "n_trials": 1000,
+        "final_pnl_p5": 5665653.824999993,
+        "final_pnl_p50": 5865639.789999997,
+        "final_pnl_p95": 6063309.522500016,
+        "max_dd_p5": 4700.36450000013,
+        "max_dd_p50": 5872.124999999534,
+        "max_dd_p95": 7883.129500000295,
+        "prob_negative_final": 0.0
+      }
+    }
+  ]
+}
