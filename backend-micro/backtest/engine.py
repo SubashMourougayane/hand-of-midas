@@ -34,8 +34,13 @@ def run_backtest(
     limit_offset_pct=None,
     limit_ttl_bars: int | None = None,
     limit_fill_strict: bool | None = None,
+    bias_mode: str | None = None,
 ) -> BacktestResult:
     """Run Micro portfolio backtest (Micro Alpha-Sweep + Mean-Rev + Cross-Market).
+
+    bias_mode: Filter #28 — None/'production' (default, compute daily_bias) or
+      'neutral' (force NeutralBiasDict — every day treated as 'neutral'). See
+      backend/backtest/neutral_bias.py.
 
     be_trigger_pct: BE trigger fraction override. None (default) = read from
       MICRO_ALPHA_SWEEP config (post-Filter-#5: 0.35).
@@ -87,7 +92,13 @@ def run_backtest(
     gold_m3 = gold_m3[(gold_m3.index >= filter_start) & (gold_m3.index <= filter_end)]
 
     # Daily bias + 50MA (same as Gold Macro)
-    daily_bias = {}
+    # Filter #28: bias_mode='neutral' → NeutralBiasDict; default = compute as before.
+    from backend.backtest.neutral_bias import NeutralBiasDict, resolve_bias_mode
+    _resolved_bias_mode = resolve_bias_mode(bias_mode)
+    if _resolved_bias_mode == "neutral":
+        daily_bias = NeutralBiasDict()
+    else:
+        daily_bias = {}
     gold_50ma_vals = pd.Series(gold_d["mid_close"].values).rolling(50, min_periods=50).mean().values
     gold_50ma_dict = {}
     gold_close_dict = {}

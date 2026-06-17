@@ -95,6 +95,7 @@ def run_backtest(
     limit_offset_pct: float | None = None,
     limit_ttl_bars: int | None = None,
     limit_fill_strict: bool | None = None,
+    bias_mode: str | None = None,
 ) -> BacktestResult:
     """Run full portfolio backtest.
 
@@ -102,6 +103,10 @@ def run_backtest(
     trail_after_be_pct: post-BE trail fraction. 0.0 = legacy. Filter #6 tests 0.5.
     partial_tp_at_pct / partial_tp_size: Filter #7 overrides (None = config default).
     partial_arms_be: Filter #7 Variant B (None = config default).
+    bias_mode: Filter #28 — None/'production' (default, compute daily_bias from
+      previous-day candle) or 'neutral' (force NeutralBiasDict — every day
+      treated as 'neutral', bias filter goes silent). See backend/backtest/
+      neutral_bias.py for rationale + Path A research.
     entry_mode: Filter #27. None/"market" (default) = legacy market-entry baseline.
       "limit" = simulate limit orders at limit_price for limit_ttl_bars M3 bars.
     limit_offset_pct: Filter #27. Used only when entry_mode="limit".
@@ -140,7 +145,15 @@ def run_backtest(
 
     # Daily bias + 50MA
     # Variant C bias: strong body = directional, weak body (< 40% of range) = neutral (allow both)
-    daily_bias = {}
+    # Filter #28: bias_mode='neutral' replaces daily_bias with a NeutralBiasDict so
+    # every date returns "neutral" — bias filter goes silent. Path A research
+    # (2026-06-18, single-seed 21yr): +$233k delta on Gold Macro alone.
+    from backend.backtest.neutral_bias import NeutralBiasDict, resolve_bias_mode
+    _resolved_bias_mode = resolve_bias_mode(bias_mode)
+    if _resolved_bias_mode == "neutral":
+        daily_bias = NeutralBiasDict()
+    else:
+        daily_bias = {}
     gold_50ma_vals = pd.Series(gold_d["mid_close"].values).rolling(50, min_periods=50).mean().values
     gold_50ma_dict = {}
     gold_close_dict = {}

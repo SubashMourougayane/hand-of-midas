@@ -444,6 +444,7 @@ def run_backtest(
     limit_offset_pct=None,
     limit_ttl_bars: int | None = None,
     limit_fill_strict: bool | None = None,
+    bias_mode: str | None = None,
 ) -> BacktestResult:
     """Run Oil Micro portfolio backtest.
 
@@ -453,6 +454,8 @@ def run_backtest(
     partial_arms_be: Filter #7 Variant B (None = config default).
     entry_mode/limit_offset_pct/limit_ttl_bars/limit_fill_strict: Filter #27.
       See backend/backtest/engine.py for full semantics.
+    bias_mode: Filter #28 — None/'production' (default, compute daily_bias) or
+      'neutral' (force NeutralBiasDict). See backend/backtest/neutral_bias.py.
     """
     if be_trigger_pct is None:
         be_trigger_pct = MICRO_ALPHA_SWEEP["be_trigger_pct"]
@@ -486,7 +489,13 @@ def run_backtest(
     oil_m3_filtered = oil_m3[(oil_m3.index >= filter_start) & (oil_m3.index <= filter_end)]
 
     # Daily bias — Combined V1+V2
-    daily_bias = {}
+    # Filter #28: bias_mode='neutral' → NeutralBiasDict; default = compute as before.
+    from backend.backtest.neutral_bias import NeutralBiasDict, resolve_bias_mode
+    _resolved_bias_mode = resolve_bias_mode(bias_mode)
+    if _resolved_bias_mode == "neutral":
+        daily_bias = NeutralBiasDict()
+    else:
+        daily_bias = {}
     for i in range(1, len(oil_d)):
         # OANDA dailyAlignment=21: bar at T 21:00 represents (T → T+1) session,
         # so trade-date = bar.date() + 1day; oil_d[i-1] = true yesterday's bar. See parity audit
