@@ -50,20 +50,18 @@
 
 **N=1 closed. Insufficient. Continue collecting.**
 
-### Pending limit orders (observation, no action)
-**Pulled at ~10:55 IST (= 07:25 CEST/05:25 UTC):**
+### Pending limit orders → BOTH EXPIRED (LIMIT_TTL_EXPIRED at 07:15 UTC)
 
-| trade_ref | system | side | limit | SL | TP | R:R | placed (UTC) | TTL |
+| trade_ref | system | side | limit | SL | TP | R:R | placed | result |
 |---|---|---|---|---|---|---|---|---|
-| GD-MI-f2a2f90b | Gold Micro | LONG | $4300.32 | $4294.34 | $4327.89 | 4.61 | 07:00:03 | 15min |
-| OIL-MI-de5d0d17 | Oil Micro | LONG | $77.16 | $76.74 | $78.91 | 4.17 | 07:00:03 | 15min |
+| GD-MI-f2a2f90b | Gold Micro | LONG | $4300.32 | $4294.34 | $4327.89 | 4.61 | 07:00 UTC | TTL_EXPIRED 07:15 |
+| OIL-MI-de5d0d17 | Oil Micro | LONG | $77.16 | $76.74 | $78.91 | 4.17 | 07:00 UTC | TTL_EXPIRED 07:15 |
 
-**Observations:**
-- Both LONG, both placed exact same second → bullish setups on both Gold + Oil simultaneously
-- R:R 4+ on both → spec-clean (contrast yesterday's GD-MI-2b152d33 at 1.17)
-- Oil Micro entry $77.16 = ~$2.30 below yesterday's $79–80 zone → Oil dropped overnight, regime now favouring LONG
-- F28 `bias_mode=neutral` confirmed on both
-- Need to check `computed_bias` for both once journal events propagate — that's the F28 evidence point
+**Outcome:** No fills. No P&L. Price never pulled back into limit levels within 15min TTL.
+
+**Filter #27 win:** if these had been market orders, they would have filled at the trigger price (likely worse on a fast LONG). Limit said "buy only on pullback" — pullback didn't come, no trade. Slippage saved.
+
+**F28 evidence note:** TTL_EXPIRED ≠ F28 trade (no fill, no risk). These don't enter the F28 ledger.
 
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.
