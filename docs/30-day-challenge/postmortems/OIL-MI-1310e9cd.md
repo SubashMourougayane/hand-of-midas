@@ -54,9 +54,14 @@
 
 > NOTE: deterministic script said "TP NOT reached in 30-min window" — this was generated immediately at exit. Manual price-check 30min later showed TP hit. Script has a bounded look-ahead that doesn't catch slow follow-through.
 
-> NOTE 2: User's MT5 M5 chart screenshot shows trade body confined to **$78.00–78.20 range entire trade**. Visually no candle touches BE-SL $78.06. Yet BE armed (journal trigger_price=$77.67) and exit fired at $78.06. **🚨 $0.30+ gap between scheduler's recorded prices and visual MT5 candles. Possible stale-tick / wrong-price-source bug.** Logged as P1 in IDEAS.md.
+> NOTE 2 (UPDATED with MT5 logs): MT5 Experts log shows:
+> - `15:12:01 MODIFY SL → 78.06` (BE arm)
+> - `15:16:31 CLOSED @ 78.06 reason=SL profit=$3`
+> The candle just before the big-red-drop has **L=$78.06** (visible bottom-of-chart hover: O:78.20 H:78.25 L:78.06 C:78.07). **BE-SL DID fire on a real $78.06 BID-low wick.** Not a phantom — but an intra-bar wick that hit BE-SL before the next candle did the entire TP move.
 
-> NOTE 3: Big red candle that DROVE the price to TP fired AFTER blue arrow (exit). Visually: tight consolidation → BE-SL exit → big red drop → TP hit. F29 (bar-aware BE) candidate confirmed: don't exit on intra-bar tick if bar's CLOSE is in our favour.
+> NOTE 3 (the F29 lesson): The candle that fired BE-SL had a tiny wick down to $78.06. The VERY NEXT M3 candle dropped $78.10 → $77.55 (heading to TP $77.07). **F29 (bar-aware BE)** would skip the BE exit on a wick-only touch and wait for bar CLOSE. Trade would then ride the next candle's drop toward TP.
+
+> NOTE 4 (residual concern): the journal `trigger_price=77.67` does NOT match any visible price during the trade body. This is the ASK that scheduler observed at BE-arm moment. Either real broker tick (invisible in M3 candles) OR stale/wrong price source. P1 audit item — investigate `price["ask"]` source in live_engine.py:752 in Phase 3.
 
 ## Counterfactual P&L scenarios
 
