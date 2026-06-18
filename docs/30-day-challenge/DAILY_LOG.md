@@ -48,7 +48,22 @@
 |---|---|---|---|---|
 | OIL-MI-ac215cc6 | neutral | bearish | yes (LONG) | −$367.20 |
 
-**N=1. Insufficient. Continue collecting.**
+**N=1 closed. Insufficient. Continue collecting.**
+
+### Pending limit orders (observation, no action)
+**Pulled at ~10:55 IST (= 07:25 CEST/05:25 UTC):**
+
+| trade_ref | system | side | limit | SL | TP | R:R | placed (UTC) | TTL |
+|---|---|---|---|---|---|---|---|---|
+| GD-MI-f2a2f90b | Gold Micro | LONG | $4300.32 | $4294.34 | $4327.89 | 4.61 | 07:00:03 | 15min |
+| OIL-MI-de5d0d17 | Oil Micro | LONG | $77.16 | $76.74 | $78.91 | 4.17 | 07:00:03 | 15min |
+
+**Observations:**
+- Both LONG, both placed exact same second → bullish setups on both Gold + Oil simultaneously
+- R:R 4+ on both → spec-clean (contrast yesterday's GD-MI-2b152d33 at 1.17)
+- Oil Micro entry $77.16 = ~$2.30 below yesterday's $79–80 zone → Oil dropped overnight, regime now favouring LONG
+- F28 `bias_mode=neutral` confirmed on both
+- Need to check `computed_bias` for both once journal events propagate — that's the F28 evidence point
 
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.
