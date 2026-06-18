@@ -2,7 +2,7 @@
 
 > **Verdict:** <!-- skill: verdict -->✅ Protected by BE<!-- /skill: verdict -->
 > 
-> **TL;DR:** <!-- skill: tldr -->Oil Micro SHORT @ $78.07, BE armed at 13:12 UTC (price hit $77.67 ~70% to TP), SL trailed to $78.06. Price reversed UP, hit BE-adjusted SL. **Closed +$3 instead of −$173 full SL. F5 BE saved $176.** Bias agreed (bearish), F28 not a factor.<!-- /skill: tldr -->
+> **TL;DR:** <!-- skill: tldr -->Oil Micro SHORT @ $78.07, BE armed at 13:12 UTC (price hit $77.67 ~70% to TP), SL trailed to $78.06. Price faked UP (hit BE-SL +$3 exit), then **30min later hit TP target $77.07** without us. **BE saved $176 over a hypothetical SL but COST $300 over a hypothetical TP run.** Net trade +$3 vs counterfactual TP +$303 = F5 BE robbed $300 of edge.<!-- /skill: tldr -->
 
 ---
 
@@ -41,7 +41,15 @@
 
 ## What happened AFTER exit?
 
-- TP level $77.0700 was NOT reached in the 30-min window after exit
+- TP level $77.0700 **WAS** reached at ~19:17 IST (~30min after exit at 18:47 IST)
+- Price journey post-exit:
+  - 18:47 IST: exit at $78.06 (BE-SL)
+  - 18:50 IST: $77.50 area
+  - 19:00 IST: $77.30 area
+  - 19:17 IST: **$77.07** = TP target hit
+- **Counterfactual: had we stayed in trade with original SL $78.64, TP would have hit for +$303 instead of actual +$3.**
+
+> NOTE: deterministic script said "TP NOT reached in 30-min window" — this was generated immediately at exit. Manual price-check 30min later showed TP hit. Script has a bounded look-ahead that doesn't catch slow follow-through.
 
 ## Counterfactual P&L scenarios
 
@@ -142,29 +150,39 @@ Entry mechanics clean.
 ## 4. Counterfactual narrative
 
 <!-- skill: counterfactual -->
-**The 3 counterfactual scenarios (correctly computed):**
-- Without BE: SL hit at $78.64 → −$0.57 × 303 = **−$173**
+**Three real scenarios to evaluate:**
+- Without BE: SL would have hit at $78.64 → −$0.57 × 303 = **−$173**
 - With BE (actual): SL trailed to $78.06 → +$0.01 × 303 = **+$3**
-- If TP had been reached: $77.07 → +$1.00 × 303 = **+$303**
-- **BE delta: +$176 saved**
+- **If we'd ridden the original SL: TP $77.07 hit at 19:17 IST → +$1.00 × 303 = +$303** ← THIS IS WHAT ACTUALLY HAPPENED IN PRICE
 
-**BE timing analysis:** Price reached $77.67 at 13:12 UTC → BE armed (35% threshold of $1.00 TP from entry would be at $77.74; actual trigger at $77.67 = ~40% to TP, slightly past threshold). BE was correctly timed — fired AFTER price made meaningful progress, not too early.
+**BE saved us $176 vs a hypothetical SL but COST us $300 vs the actual price path.** Single-trade lookback says BE was wrong here.
 
-**Was the reversal predictable?** Price went from $78.07 → $77.67 (40% to TP) in 54 minutes, then reversed UP to hit BE-adjusted SL within 5 more minutes. Classic "60-65% to TP, fail to break, reverse" Oil pattern. **Strategy correctly captured the favorable progression but couldn't capture the win.**
+**BE timing analysis (revised):** Price reached $77.67 at 13:12 UTC → BE armed (~40% progress past 35% threshold). BE fired correctly per spec. **But the move continued — this was a CONTINUATION, not a reversal.** BE got faked out by intra-bar volatility on the way to TP.
 
-**Implied edge:** BE saved $176 on this single trade. Across 2 BE saves in the last 24hrs (08b725d3 +$326, this +$176), F5 has saved cumulative ~$502 of risk that pre-Filter-5 (50% threshold) would not have caught. **F5 ship continues to validate live.**
+**Critical pattern (F29 candidate):** Same lesson as GD-AL-4af2d62d (Jun 17): the stock-bar-aware vs intra-bar-aware BE check matters. Price action between BE-arm (18:42) and BE-exit (18:47) was 5 minutes of UP movement. If BE waited for a CLOSED M5 bar above entry instead of any tick touching SL, this trade rides through to TP. **Worth re-evaluating F29 priority.**
 
-**Was SL too wide?** No. SL at $78.64 was sweep_wick + $0.20 buffer (config). Standard placement. The trade made 70% progress to TP — clearly the strategy's read of the sweep was correct, just not strong enough to follow through to TP.
+**Updated F5 ledger over 2 trades (24hr live):**
+| Trade | Without F5 | Actual | TP-counterfactual | Net effect of F5 |
+|---|---|---|---|---|
+| OIL-MI-08b725d3 (Jun 17) | −$317 SL | +$9 BE | TP not reached | F5 saved +$326 |
+| OIL-MI-1310e9cd (Jun 18) | −$173 SL | +$3 BE | +$303 TP (hit 30min after exit) | F5 cost −$300 |
+| **Net** | −$490 | +$12 | +$130 | **F5 +$26 vs no-BE / F5 −$118 vs ride-to-TP** |
+
+**Reframe:** F5 is a risk-management tool, not an alpha tool. It trades expected value for variance reduction. **Today's trade shows the cost side of that trade-off explicitly.**
+
+**Was SL too wide?** No. SL at $78.64 was sweep_wick + $0.20 buffer. Standard. The strategy's read was right — TP hit. F5 didn't trust the move.
 <!-- /skill: counterfactual -->
 
 ## 5. Recommendations
 
 <!-- skill: recommendations -->
-- **Status:** F5 BE working as designed. Trade is the 2nd BE-save in 24hrs. Both validate Filter #5 (35% threshold) ship.
-- **F28 evidence (Day 1 post-reset):** N=2. One F28-allowed-against-bias trade (LONG, lost $367). One bias-aligned trade (SHORT, BE save +$3). **F28 verdict still inconclusive — need 10+ trades, especially F28-allowed-against-bias subset.**
-- **Track for next trades:** R:R distribution. If most Oil Micro trades fire with R:R 1.5–2 (not 3+), the strategy may be in a tight-range regime. Compare R:R distribution Day 1–7 vs prior weeks.
-- **Cap rework verified live:** today's cap counter correctly excludes 2 TTL_EXPIRED. Without rework, would have been capped. With rework, this trade was allowed → +$3. **Rework already paying for itself.**
-- **No code fix needed.** Postmortem.py R:R + BE-threshold display bugs already in IDEAS.md as P1.
+- **Status:** ⚠️ **F5 BE robbed this trade of $300 of edge.** Trade made 70% progress to TP, BE armed, intra-bar volatility hit BE-SL, then price continued to TP without us. Same pattern class as F29 candidate.
+- **F5 narrative needs rebalancing:** Yesterday's 08b725d3 (BE saved $326 from real reversal) and today's 1310e9cd (BE cost $300 from fake reversal). Net F5 vs no-BE = +$26 over 2 trades. **F5 vs ride-to-TP = −$118.** Tight call.
+- **F29 (bar-aware BE) priority bumped:** This trade is the 2nd 24hr example where BE intra-bar tick fired before a CLOSED bar confirmed reversal. F29 spec is in `docs/FILTER_29_BAR_AWARE_BE_RESEARCH.md`. **Worth Phase 3 ranking.**
+- **F28 evidence (Day 1 post-reset):** N=2. One F28-allowed-against-bias trade (LONG, lost $367). One bias-aligned trade (SHORT, BE-save +$3). **F28 verdict still inconclusive.**
+- **Track for next trades:** Did BE arm before TP-hit? If yes, did BE save (real reversal) or rob (continuation)? **30-day data on this matters for F5 keep/revert + F29 ship.**
+- **Cap rework verified live:** today's cap counter correctly excludes 2 TTL_EXPIRED. Without rework, this trade would have been blocked at 3/3.
+- **No code fix needed today.** Postmortem.py bugs (R:R header + BE threshold display) already P1 in IDEAS.md.
 <!-- /skill: recommendations -->
 
 ---
