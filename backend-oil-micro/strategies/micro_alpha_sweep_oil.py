@@ -48,8 +48,12 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
 
     for date in dates:
         day_h1 = oil_h1[oil_h1.index.date == date]
-        if len(day_h1) < 6:
-            continue
+        # Phase 5.5 — removed `if len(day_h1) < 6: continue`. Was a guard
+        # against thin BT historical days but blocked live signals before
+        # 6 H1 bars accumulated mid-day (e.g. 04:18 SHORT can't fire until
+        # 06:03 cron has 6 bars closed, by which time the staleness window
+        # has expired). Downstream `len(consol) < 2` and `len(m3_window) < 3`
+        # already gate insufficient-data cases robustly.
 
         bias = daily_bias.get(date, "neutral")
         # Cap rework Jun 18: signal-gen no longer caps at max_trades_per_day.
@@ -77,7 +81,14 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                 if _hour_past(now_hour, scan_end_hour):
                     continue
 
-                consol = day_h1[day_h1.index.hour.isin(consol_hours)]
+                # Gate consol by index <= bar_ts (current iteration). Prevents
+                # lookahead: at outer bar_ts=03:00, consol must NOT include
+                # 22:00, 23:00 of the same date (those bars haven't formed
+                # yet). scan_bars already had this gate (line 98). consol
+                # was missing it — silent BT lookahead bug discovered
+                # 2026-06-19 during Phase 5.5 parity drill-down.
+                consol = day_h1[(day_h1.index.hour.isin(consol_hours))
+                                & (day_h1.index <= bar_ts)]
                 if len(consol) < 2:
                     continue
 
@@ -160,7 +171,8 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                                 direction="long", risk=risk,
                                 strategy="micro_alpha_sweep_oil", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
-                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}"},
+                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}",
+                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour},
                             ))
                         else:
                             entry = oil_m3["bid_close"].iat[idx] - _slippage(br)
@@ -180,7 +192,8 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                                 direction="short", risk=risk,
                                 strategy="micro_alpha_sweep_oil", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
-                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}"},
+                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}",
+                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour},
                             ))
 
                         traded_sweeps.add(sk)
