@@ -1,8 +1,8 @@
 # Postmortem — OIL-MI-1310e9cd
 
-> **Verdict:** <!-- skill: verdict -->✅ Protected by BE<!-- /skill: verdict -->
+> **Verdict:** <!-- skill: verdict -->🐛 Bug detected — TWO bugs combined to produce a misleading +$3<!-- /skill: verdict -->
 > 
-> **TL;DR:** <!-- skill: tldr -->Oil Micro SHORT @ $78.07, BE armed at 13:12 UTC (price hit $77.67 ~70% to TP), SL trailed to $78.06. Price faked UP (hit BE-SL +$3 exit), then **30min later hit TP target $77.07** without us. **BE saved $176 over a hypothetical SL but COST $300 over a hypothetical TP run.** Net trade +$3 vs counterfactual TP +$303 = F5 BE robbed $300 of edge.<!-- /skill: tldr -->
+> **TL;DR:** <!-- skill: tldr -->**Two bugs found via MQL5 CopyRates proof.** (1) **PHANTOM BE arm**: journal logged trigger_price=$77.67 but real M1 LOW for the entire trade window was $78.00 — scheduler saw a price that didn't exist on broker M1 OHLC. (2) **Wrong-side SHORT BE-SL math**: code sets SL = entry−$0.01 for SHORT = SL BELOW entry → broker fired this as profit-target when BID drifted DOWN through $78.06, not as protective stop. Price went UP $0.46 then back down. Trade closed +$3 = lucky outcome of two bugs. Without the bugs: SL untouched, ride through to TP $77.07 = +$303. **Net cost of bugs: $300 on this single trade.**<!-- /skill: tldr -->
 
 ---
 
@@ -134,12 +134,34 @@ Entry mechanics clean.
 ## 2. Bug-smell scan (judgment)
 
 <!-- skill: bug_smell -->
-- **🐛 postmortem.py R:R reads BE-adjusted SL** — Header shows R:R 100:1 because script reads `gd_trades.sl` AFTER BE adjustment ($78.06). Original SL was $78.64 → real R:R 1.75:1. Same script bug as OIL-MI-08b725d3 yesterday. Already in IDEAS.md as P1.
-- **🐛 BE 50% TP threshold mismatch (postmortem header)** — Header says "50% TP $77.5700 NEVER reached" but BE armed at trigger_price=$77.67 (~70% to TP from entry). Postmortem assumes 50% threshold; Oil Micro's actual `be_trigger_pct=0.35` (Filter #5 ship Jun 13). Already in IDEAS.md as P1.
-- **Double EXIT_FILLED at 13:17:01** — same dedup pattern as 4 prior trades. P1 in IDEAS.md.
-- **Cap rework working live** — pre-fix, this would have been the 3rd "trade" of the day (1 SL + 2 TTL_EXPIRED + this one). Post-fix, cap counter shows 2/3 because TTL_EXPIRED doesn't count. ✅ Verified.
-- DB pnl_usd matches broker (no swap — closed same day). No phantom fill markers.
-- No M3 excursion data (Mac MT5 not running).
+**🚨 TWO P0-CANDIDATE BUGS — found via MQL5 CopyRates proof:**
+
+**Bug #1 — PHANTOM BE arm**
+- Journal: `BREAK_EVEN trigger_price=77.67` at 15:12:02 CEST
+- MQL5 CopyRates output for trade window 14:18-15:17 CEST: `M1 [60 bars]: HIGH=78.5300 at 14:34, LOW=78.0000 at 15:17`
+- **Real M1 LOW = $78.00. Logged trigger = $77.67. $0.33 phantom gap.**
+- Implication: scheduler's `price["ask"]` returns prices not present in broker M1 OHLC. BE-arm condition `price["ask"] <= target_50` fires on phantom ticks.
+- Code: `backend-oil-micro/scanner/live_engine.py:752`
+
+**Bug #2 — Wrong-side SHORT BE-SL math**
+- Code: `backend-oil-micro/scanner/live_engine.py:754` for SHORT path: `new_sl = entry - 0.01`
+- For SHORT entered at $78.07, this places SL at $78.06 = BELOW entry
+- For protective stop on a SHORT, SL must be ABOVE entry (fires when ASK rises = loss event)
+- SL below entry = treated by broker as profit-target. Fires when BID drifts DOWN to SL = profit-lock.
+- Actual broker behaviour: position closed when BID hit $78.06 going down toward TP — NOT a protective stop firing on adverse move.
+- Real exit price/cause/timing all driven by this wrong-side math.
+
+**Combined effect:**
+- Bug #1 fired BE arm under phantom conditions (real LOW was $78.00, never below)
+- Bug #2 turned the modified SL into a profit-target
+- Lucky outcome: price drifted DOWN through $78.06 → exit at $78.06 = +$3
+- Without bugs: original SL $78.64 stays, M1 HIGH was only $78.53, never touched original SL, trade rides to TP $77.07 = +$303
+
+**Other smaller smells:**
+- 🐛 postmortem.py R:R reads BE-adjusted SL → header shows R:R 100:1 (real ~1.75 with original SL). P1.
+- 🐛 postmortem.py "50% to TP" deterministic line uses 50%, but Oil Micro F5 threshold is 35%. P1.
+- Double EXIT_FILLED at 15:17:01 — same dedup pattern as prior trades. P1.
+- Cap rework: pre-fix this would have been blocked at 3/3 (1 SL + 2 TTL). Post-fix correctly allowed. ✅
 <!-- /skill: bug_smell -->
 
 ## 3. Pattern interpretation
@@ -162,39 +184,66 @@ Entry mechanics clean.
 ## 4. Counterfactual narrative
 
 <!-- skill: counterfactual -->
-**Three real scenarios to evaluate:**
-- Without BE: SL would have hit at $78.64 → −$0.57 × 303 = **−$173**
-- With BE (actual): SL trailed to $78.06 → +$0.01 × 303 = **+$3**
-- **If we'd ridden the original SL: TP $77.07 hit at 19:17 IST → +$1.00 × 303 = +$303** ← THIS IS WHAT ACTUALLY HAPPENED IN PRICE
 
-**BE saved us $176 vs a hypothetical SL but COST us $300 vs the actual price path.** Single-trade lookback says BE was wrong here.
+### Visual journey (with MQL5 CopyRates proof)
 
-**BE timing analysis (revised):** Price reached $77.67 at 13:12 UTC → BE armed (~40% progress past 35% threshold). BE fired correctly per spec. **But the move continued — this was a CONTINUATION, not a reversal.** BE got faked out by intra-bar volatility on the way to TP.
+```
+PRICE
+$78.64 ─────────────────────────────────────  ←  Original SL (NEVER TOUCHED)
 
-**Critical pattern (F29 candidate):** Same lesson as GD-AL-4af2d62d (Jun 17): the stock-bar-aware vs intra-bar-aware BE check matters. Price action between BE-arm (18:42) and BE-exit (18:47) was 5 minutes of UP movement. If BE waited for a CLOSED M5 bar above entry instead of any tick touching SL, this trade rides through to TP. **Worth re-evaluating F29 priority.**
+$78.53 ──────● HIGH at 14:34 (16min after entry)
+       ╱     peak loss-direction (price went UP $0.46 against SHORT)
+       │  
+$78.20 │  ─range $78.20-78.40 for ~38min ─
+$78.07 ●─────────────────────────────●──────  ←  ENTRY at 14:18
+$78.06 ─────────────────────────────●─────●─  ←  BE-SL set 15:12 (Bug #2 wrong-side) → fired 15:16:31 = exit +$3
+$78.00 ────────────────────────────●────────  ←  M1 LOW at 15:17 (exit moment)
 
-**Updated F5 ledger over 2 trades (24hr live):**
-| Trade | Without F5 | Actual | TP-counterfactual | Net effect of F5 |
-|---|---|---|---|---|
-| OIL-MI-08b725d3 (Jun 17) | −$317 SL | +$9 BE | TP not reached | F5 saved +$326 |
-| OIL-MI-1310e9cd (Jun 18) | −$173 SL | +$3 BE | +$303 TP (hit 30min after exit) | F5 cost −$300 |
-| **Net** | −$490 | +$12 | +$130 | **F5 +$26 vs no-BE / F5 −$118 vs ride-to-TP** |
+$77.77 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   ←  30% TP (NEVER REACHED — proof: M1 LOW was $78.00)
+$77.72 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   ←  35% BE arm threshold (NEVER REACHED)
+$77.67 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─   ←  🚨 PHANTOM trigger_price (Bug #1 — no real M1 tick)
 
-**Reframe:** F5 is a risk-management tool, not an alpha tool. It trades expected value for variance reduction. **Today's trade shows the cost side of that trade-off explicitly.**
+(price kept dropping AFTER exit, hit TP $77.07 around 16:00+ chart time)
 
-**Was SL too wide?** No. SL at $78.64 was sweep_wick + $0.20 buffer. Standard. The strategy's read was right — TP hit. F5 didn't trust the move.
+$77.07 ─────────────────────────────────────  ←  TP (hit AFTER our exit)
+```
+
+### Real timeline (M1 OHLC proof)
+| Phase | Time (CEST) | Price action |
+|---|---|---|
+| 1. Entry | 14:18 | SHORT @ $78.07 |
+| 2. Loss-direction rally | 14:18 → 14:34 (16min) | Price ROSE from $78.07 to **$78.53** (M1 HIGH proof) — $0.46 against SHORT |
+| 3. Range | 14:34 → 15:12 (38min) | Price drifted back $78.20-78.40 |
+| 4. **Phantom BE arm** | 15:12:02 | Journal logs trigger=$77.67 — **but real M1 LOW was $78.00** at this point |
+| 5. **Wrong-side SL fires** | 15:16:31 | BID drifts DOWN through $78.06 → broker treats as profit-target → exit +$3 |
+| 6. After exit | 15:17 → 16:00+ | Price kept dropping. TP $77.07 hit later. Without us. |
+
+### Counterfactual P&L
+- **Without bugs (clean BE-disabled run):** original SL $78.64 stays. M1 HIGH was only $78.53 (never touched SL). Price subsequently dropped to TP $77.07. Trade rides to TP = **+$303**
+- **Actual (with both bugs):** **+$3** (exit at $78.06)
+- **Cost of bugs on this trade: $300**
+
+### Updated 24hr F5 ledger (with bug awareness)
+| Trade | Outcome | What ACTUALLY drove the result |
+|---|---|---|
+| OIL-MI-08b725d3 (Jun 17) | +$9 "BE save" | Same code path. Possibly also affected by both bugs. **Needs MQL5 CopyRates audit to verify.** |
+| OIL-MI-1310e9cd (Jun 18) | +$3 "BE save" | **Confirmed: phantom BE arm + wrong-side SL math.** Lucky direction-of-drift produced +$3 instead of −$170. |
+
+**🚨 Yesterday's "F5 saved $326" claim is now suspect.** Need to MQL5-audit that trade too before trusting F5 numbers.
 <!-- /skill: counterfactual -->
 
 ## 5. Recommendations
 
 <!-- skill: recommendations -->
-- **Status:** ⚠️ **F5 BE robbed this trade of $300 of edge.** Trade made 70% progress to TP, BE armed, intra-bar volatility hit BE-SL, then price continued to TP without us. Same pattern class as F29 candidate.
-- **F5 narrative needs rebalancing:** Yesterday's 08b725d3 (BE saved $326 from real reversal) and today's 1310e9cd (BE cost $300 from fake reversal). Net F5 vs no-BE = +$26 over 2 trades. **F5 vs ride-to-TP = −$118.** Tight call.
-- **F29 (bar-aware BE) priority bumped:** This trade is the 2nd 24hr example where BE intra-bar tick fired before a CLOSED bar confirmed reversal. F29 spec is in `docs/FILTER_29_BAR_AWARE_BE_RESEARCH.md`. **Worth Phase 3 ranking.**
-- **F28 evidence (Day 1 post-reset):** N=2. One F28-allowed-against-bias trade (LONG, lost $367). One bias-aligned trade (SHORT, BE-save +$3). **F28 verdict still inconclusive.**
-- **Track for next trades:** Did BE arm before TP-hit? If yes, did BE save (real reversal) or rob (continuation)? **30-day data on this matters for F5 keep/revert + F29 ship.**
-- **Cap rework verified live:** today's cap counter correctly excludes 2 TTL_EXPIRED. Without rework, this trade would have been blocked at 3/3.
-- **No code fix needed today.** Postmortem.py bugs (R:R header + BE threshold display) already P1 in IDEAS.md.
+- **Status:** 🐛 **TWO bugs detected.** This wasn't an F5 BE save and wasn't an F29-style intra-bar fake-out. It was: phantom price + wrong-side SL math, lucky direction-drift → +$3.
+- **🚨 P0-CANDIDATE Bug #1 (phantom BE arm):** scheduler logged trigger=$77.67, real M1 LOW was $78.00. Audit `live_engine.py:752` price source. **Fix Mon Jun 22.**
+- **🚨 P0-CANDIDATE Bug #2 (SHORT BE-SL math):** `new_sl = entry - 0.01` for SHORT puts SL on wrong side. Audit `live_engine.py:754`. **Fix Mon Jun 22.**
+- **F5 narrative is now SUSPECT.** Yesterday's OIL-MI-08b725d3 "+$9 BE save" used the same code path. **MQL5 CopyRates audit of that trade required before trusting any F5 metric.**
+- **F29 priority lower than I thought:** F29 (bar-aware BE) doesn't help if the BE arm itself is firing on phantom prices. Fix the foundation first.
+- **F28 evidence:** N=2 for the post-reset 30-day challenge ledger. One F28-allowed-against-bias trade (LONG, lost $367). One bias-aligned bug-driven trade (SHORT, +$3). F28 verdict still inconclusive.
+- **Track for next BE event:** when BE arms, capture journal `trigger_price` AND check MT5 M1 LOW for the trade window. If trigger_price ≠ visible price → confirms phantom-tick bug.
+- **Cap rework still verified working** — today's cap counter correctly excluded 2 TTL_EXPIRED.
+- **Discipline note:** Phase 0 build week ends Mon Jun 22. Both bugs need audit + fix BEFORE Day 1 freeze starts. Otherwise 30-day F28 measurement is corrupted by F5 bugs.
 <!-- /skill: recommendations -->
 
 ---

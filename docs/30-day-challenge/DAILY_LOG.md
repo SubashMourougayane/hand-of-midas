@@ -22,11 +22,11 @@
 | trade_ref | system | side | entry | exit | P&L (DB) | P&L (JM web) | tag |
 |---|---|---|---|---|---|---|---|
 | OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat / **F28-allowed-against-bias** |
-| OIL-MI-1310e9cd | Oil Micro | SHORT | $78.07 | $78.06 (BE-SL) | **+$3.00** | — | ⚠️ BE robbed TP run / TP $77.07 hit 30min after exit / F5 cost $300 vs ride |
+| OIL-MI-1310e9cd | Oil Micro | SHORT | $78.07 | $78.06 (BE-SL) | **+$3.00** | — | 🐛 TWO BUGS: phantom BE arm (trigger=$77.67 vs real M1 LOW $78.00) + wrong-side SHORT BE-SL math. Lucky drift → +$3. Without bugs: ride to TP +$303. Bug cost: $300. |
 
 ### Postmortems written
 - [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed (Day 1 trade)
-- [x] OIL-MI-1310e9cd — `postmortems/OIL-MI-1310e9cd.md` — verdict: ⚠️ F5 robbed TP run (+$3 actual vs +$303 if rode SL — TP hit 30min after BE exit)
+- [x] OIL-MI-1310e9cd — `postmortems/OIL-MI-1310e9cd.md` — verdict: 🐛 TWO P0-candidate bugs detected (phantom BE arm + wrong-side SHORT SL math) — see IDEAS.md
 - [x] OIL-MI-6fbb7040 — Jun 17 backfill — ✅ Clean loss — 3rd Oil Micro SL in streak
 - [x] OIL-MI-ea9d591d — Jun 17 backfill — ✅ Clean loss — 2nd Oil Micro SL in streak
 - [x] OIL-MI-08b725d3 — Jun 17 backfill — ✅ Protected by BE — F5 saved $326 of risk

@@ -69,25 +69,42 @@ _(append below as ideas arise — DO NOT ACT)_
 - **Counter-argument:** if we don't count TTL_EXPIRED, signal-spammy days could blow through the intended attempt budget. Need to think about WHAT the cap protects.
 - **Why I'm not acting now:** Phase 0 freeze. Phase 3 ranking candidate. Track over 30 days how often TTL_EXPIRED contributes to lockout.
 
-### 2026-06-18 — 🟠 P1: BE trigger_price journal field shows ASK that doesn't match visible MT5 chart
+### 2026-06-18 — 🚨 P0-CANDIDATE: PHANTOM BE arm — `trigger_price=$77.67` recorded when real M1 LOW was $78.00
 - **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd postmortem)
-- **Source:** BE journal logs `trigger_price=77.67` (= scheduler's `price["ask"]` at BE-check moment). MT5 M3/M5 chart shows trade body never went near $77.67 visually.
-- **MT5 Experts log evidence (resolves earlier "phantom" worry):**
-  - `15:12:01 MODIFY SL → 78.06`
-  - `15:16:31 CLOSED @ 78.06 reason=SL profit=$3`
-  - **Trade DID exit on a real $78.06 SL touch** — one M3 candle's LOW touched $78.06 (visible: O:78.20 H:78.25 **L:78.06** C:78.07)
-- **Real concern remains:** the `trigger_price=77.67` value in the journal context is suspicious. If scheduler's price feed shows ASK=$77.67 when actual JM ASK was $78.05+, the BE-arm condition fires on a phantom tick.
-- **Cost to investigate:** Audit `price["ask"]` source in `backend-oil-micro/scanner/live_engine.py:752` — is it MT5 live tick or stale/OANDA?
-- **Why it matters:** BE arm condition (`price["ask"] <= target_50`) is what FIRES the modify command. If price source is wrong, BE arms in conditions it shouldn't.
-- **Why I'm not acting now:** Phase 0 build week ends Mon Jun 22. Investigate Phase 3.
+- **Source:** Journal `BREAK_EVEN trigger_price=77.67` at 15:12:02 CEST. User ran MQL5 `CopyRates` on BRENT.ecn M1 for the trade window (14:18-15:17 CEST):
+  - `M1 [60 bars]: HIGH=78.5300 at 14:34, LOW=78.0000 at 15:17`
+  - **Lowest tick during entire trade window = $78.00.** Never reached $77.77 (30% to TP), never reached $77.72 (35% BE threshold), never reached $77.67 (logged trigger).
+- **What this means:** scheduler's `price["ask"]` returned $77.67 when actual broker ASK was $78.02+. **The BE-arm check fired on a phantom price.** SL was modified to $78.06 (entry−$0.01) under conditions that should NOT have triggered BE arm.
+- **Smoking-gun evidence:** journal shows trigger_price 33 cents below ACTUAL minimum recorded by broker M1 OHLC.
+- **Why this is P0-candidate (not P0):** Money didn't bleed today (trade closed +$3 by accident — see below). But ANY F5 BE save in 24hr is potentially built on this same phantom-tick mechanism. Statistical foundation of F5 metrics is shaky.
+- **Cost to investigate:** Audit `price["ask"]` source in `backend-oil-micro/scanner/live_engine.py:752`. Is it MT5 live tick (DWX live_prices) or stale OANDA cache or REST poll lagging?
+- **Cost to fix:** ~30min once root cause known. Likely: replace OANDA stream tick with DWX live tick file.
+- **Why I'm not acting today:** Phase 0 build week, marathon-fatigue risk. Investigate Mon Jun 22 BEFORE freeze starts.
+- **Track:** every BE event for next 7 days, log scheduler-recorded ask vs MT5 M1 LOW for the trade window. If pattern repeats → root cause confirmed.
 
-### 2026-06-18 — 🟠 P1 (CORRECTED): BE-SL fired on intra-bar wick before bar close — F29 candidate
-- **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd postmortem)
-- **Source:** BE armed at 15:12:01 server time, set SL=$78.06. EXIT at 15:16:31 (4.5 min later). M3 candle right before big drop had **L=$78.06** — wicked down briefly to $78.06, fired BE-SL, then NEXT candle dropped $0.50+ toward TP.
-- **Pattern:** intra-bar wick fires SL before the bar's CLOSE confirms direction. Same pattern as GD-AL-4af2d62d (Jun 17).
-- **Cost to investigate:** F29 (bar-aware BE) research doc exists at `docs/FILTER_29_BAR_AWARE_BE_RESEARCH.md`. Need BT sweep + variant comparison.
-- **Why it matters:** 2 examples in 24hr (this trade + GD-AL-4af2d62d). F29 may be highest-leverage Phase 3 ship candidate.
-- **Why I'm not acting now:** Phase 0 freeze. Phase 2 review (Day 15+).
+### 2026-06-18 — 🚨 P0-CANDIDATE: SHORT BE-SL math creates wrong-side SL — fires as profit-target not stop-loss
+- **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd postmortem after MQL CopyRates proof)
+- **Source:** `backend-oil-micro/scanner/live_engine.py:754` for SHORT path: `new_sl = entry - 0.01`
+  - For SHORT entered at $78.07, this places SL at $78.06 — **BELOW entry**.
+  - For a SHORT position, broker SL fires when ASK rises to SL level. SL below entry is on the WRONG side — broker either rejects OR interprets as a profit-target.
+  - Actual behaviour observed: JM accepted the SL=78.06 modification, then closed the position when BID drifted DOWN through $78.06 (price went toward TP, hit BE level, exit).
+- **MQL5 proof of the actual price path:**
+  - HIGH $78.53 at 14:34 (16min after entry — price went UP $0.46 against SHORT)
+  - LOW $78.00 at 15:17 (exit moment — price drifted DOWN to entry zone)
+  - Trade NEVER got to 30% TP, NEVER tested original SL $78.64
+- **Effect:** the "BE save" that recorded +$3 was actually broker firing a profit-target, not a real BE protective stop. Same code on a LONG trade would correctly place SL below entry as protective stop. **The SHORT branch math is symmetric-but-wrong.**
+- **Counterfactual cost:** without the buggy BE modify, original SL $78.64 stays — never tested (M1 HIGH only reached $78.53). Trade rides through to TP $77.07 (hit at chart-time ~16:00+). **+$303 instead of +$3 = $300 cost from this bug on this single trade.**
+- **Cost to fix:** ~10min — confirm intent (profit-lock at entry-pip, OR protective stop slightly above entry?) and adjust `new_sl` formula for SHORT branch.
+- **Cost to verify:** rerun BT with corrected formula, compare to F5 baseline. Some win-trades become bigger wins, some loss-trades become bigger losses.
+- **Why P0-candidate not P0:** today the bug accidentally produced +$3 instead of −$170 (full SL). Bug + price-direction-luck = small profit. Could go either way next time.
+- **Why I'm not acting today:** Phase 0 build week. Need careful diff + BT verification — no rushed fix. Investigate Mon Jun 22.
+
+### 2026-06-18 — 🟠 P1: F29 (bar-aware BE) — BUMPED to highest priority Phase 3 candidate
+- **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd evidence)
+- **Source:** This trade + GD-AL-4af2d62d (Jun 17) = 2 examples in 24hr where intra-bar tick fires BE before bar close confirms direction.
+- **Distinct from the 2 P0-candidates above:** F29 is about WHEN to arm BE (wait for bar close), not WHAT price triggers it (phantom tick) or HOW SL is set (wrong-side math).
+- **Cost to investigate:** F29 research doc at `docs/FILTER_29_BAR_AWARE_BE_RESEARCH.md`. BT sweep + variant comparison ~3hr.
+- **Why I'm not acting now:** Phase 0 freeze. Bigger leverage — fix the BE phantom + math bugs FIRST before sweeping F29 variants. Otherwise BT and live diverge.
 
 ### 2026-06-18 — 🟠 P1: postmortem.py R:R uses BE-adjusted SL
 - **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-08b725d3)
