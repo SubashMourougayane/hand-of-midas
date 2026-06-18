@@ -27,6 +27,13 @@ Tag legend: `clean-strat` / `bug` / `drift` / `outlier`
 ### Postmortems written
 - [ ] GD-XX-xxxx — postmortem committed (link to file)
 
+### Missed limit orders (LIMIT_TTL_EXPIRED) — counterfactual ledger
+| trade_ref | system | direction | limit | TP | SL | placed → expired | counterfactual: TP/SL/neither, est P&L |
+|---|---|---|---|---|---|---|---|
+| (none yet) | | | | | | | |
+
+> Fill counterfactual at evening close from price feed (NOT BT). 30-day aggregate = F27 cost/value calibration.
+
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: <bug found, not bleeding, parked in AUDIT>
 - 🟡 P2: <idea, parked in ideas/IDEAS.md>

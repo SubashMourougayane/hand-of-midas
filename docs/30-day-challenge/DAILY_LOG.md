@@ -63,6 +63,24 @@
 
 **F28 evidence note:** TTL_EXPIRED ≠ F28 trade (no fill, no risk). These don't enter the F28 ledger.
 
+### Missed-limit ledger (counterfactual — would this trade have won/lost if F27 hadn't pulled it back?)
+
+> Track post-expiry: did price reach TP, SL, or just sit between? Records F27 cost-of-discipline.
+> Source: query journal/state for price extremes from limit_placed → next 4hr (Micro) / next bar close (Macro).
+> **DO NOT run BT to compute this — use live tick/bar data only.**
+
+| trade_ref | system | direction | limit | TP | SL | placed → expired | post-expiry: did TP hit? did SL hit? counterfactual P&L |
+|---|---|---|---|---|---|---|---|
+| GD-MI-f2a2f90b | Gold Micro | LONG | $4300.32 | $4327.89 | $4294.34 | 07:00→07:15 UTC | TBD — fill in evening close from price feed |
+| OIL-MI-de5d0d17 | Oil Micro | LONG | $77.16 | $78.91 | $76.74 | 07:00→07:15 UTC | TBD — fill in evening close from price feed |
+
+**Interpretation rule:**
+- If TP would have hit → F27 cost us the win (bad for F27)
+- If SL would have hit → F27 saved us (good for F27)
+- If neither (sideways) → F27 neutral
+
+**End-of-30-day aggregate:** sum counterfactual P&L from missed limits. Compare to actual P&L from filled limits. Tells us if F27's TTL is too tight (too many TP-hits missed) or correctly calibrated.
+
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.
 - 🟠 P1: API drift between Macro and Micro `/backtest/latest` shape — Macro wraps in `{result: ...}`, Micro returns flat object. Logged for Phase 2 review.
