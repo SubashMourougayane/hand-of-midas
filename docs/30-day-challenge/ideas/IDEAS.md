@@ -82,22 +82,14 @@ _(append below as ideas arise — DO NOT ACT)_
 - **Why I'm not acting today:** Phase 0 build week, marathon-fatigue risk. Investigate Mon Jun 22 BEFORE freeze starts.
 - **Track:** every BE event for next 7 days, log scheduler-recorded ask vs MT5 M1 LOW for the trade window. If pattern repeats → root cause confirmed.
 
-### 2026-06-18 — 🚨 P0-CANDIDATE: SHORT BE-SL math creates wrong-side SL — fires as profit-target not stop-loss
-- **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd postmortem after MQL CopyRates proof)
-- **Source:** `backend-oil-micro/scanner/live_engine.py:754` for SHORT path: `new_sl = entry - 0.01`
-  - For SHORT entered at $78.07, this places SL at $78.06 — **BELOW entry**.
-  - For a SHORT position, broker SL fires when ASK rises to SL level. SL below entry is on the WRONG side — broker either rejects OR interprets as a profit-target.
-  - Actual behaviour observed: JM accepted the SL=78.06 modification, then closed the position when BID drifted DOWN through $78.06 (price went toward TP, hit BE level, exit).
-- **MQL5 proof of the actual price path:**
-  - HIGH $78.53 at 14:34 (16min after entry — price went UP $0.46 against SHORT)
-  - LOW $78.00 at 15:17 (exit moment — price drifted DOWN to entry zone)
-  - Trade NEVER got to 30% TP, NEVER tested original SL $78.64
-- **Effect:** the "BE save" that recorded +$3 was actually broker firing a profit-target, not a real BE protective stop. Same code on a LONG trade would correctly place SL below entry as protective stop. **The SHORT branch math is symmetric-but-wrong.**
-- **Counterfactual cost:** without the buggy BE modify, original SL $78.64 stays — never tested (M1 HIGH only reached $78.53). Trade rides through to TP $77.07 (hit at chart-time ~16:00+). **+$303 instead of +$3 = $300 cost from this bug on this single trade.**
-- **Cost to fix:** ~10min — confirm intent (profit-lock at entry-pip, OR protective stop slightly above entry?) and adjust `new_sl` formula for SHORT branch.
-- **Cost to verify:** rerun BT with corrected formula, compare to F5 baseline. Some win-trades become bigger wins, some loss-trades become bigger losses.
-- **Why P0-candidate not P0:** today the bug accidentally produced +$3 instead of −$170 (full SL). Bug + price-direction-luck = small profit. Could go either way next time.
-- **Why I'm not acting today:** Phase 0 build week. Need careful diff + BT verification — no rushed fix. Investigate Mon Jun 22.
+### 2026-06-18 — ❌ RETRACTED: SHORT BE-SL math is NOT a bug
+- **Verified via VERIFY stage (Thu Jun 18 evening):** read all 4 systems' BE code:
+  - LONG: `new_sl = entry + X` (SL above entry = profit-lock when BID retraces down)
+  - SHORT: `new_sl = entry - X` (SL below entry = profit-lock when ASK retraces up)
+  - Pattern is SYMMETRIC and CORRECT. Standard profit-lock convention.
+- **Why I thought it was a bug:** misread the SHORT-side mechanics. Confused myself thinking SL below entry on SHORT = wrong-side. It's correct: SL below entry on SHORT = profit-lock that fires when ASK retraces back up.
+- **Why it manifested today:** ROOT CAUSE is Bug #1 (phantom BE arm). When BE armed at fake trigger=$77.67 while real ASK was actually $78.20+, the SL=$78.06 was already BREACHED at modify time (ASK > SL on SHORT). Broker delayed firing for 4 minutes (likely until ASK retraced/min-distance rule satisfied), then closed at $78.06.
+- **Action: NONE.** Code unchanged. Bug #1 is the only real bug.
 
 ### 2026-06-18 — 🟠 P1: F29 (bar-aware BE) — BUMPED to highest priority Phase 3 candidate
 - **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd evidence)

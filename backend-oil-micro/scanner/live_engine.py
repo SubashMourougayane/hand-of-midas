@@ -45,6 +45,30 @@ def _get_gbp_usd_rate():
     return 1.0
 
 
+def _compute_tick_age_secs(tick_time_str: str) -> Optional[float]:
+    """Bug #1 (Jun 18) diagnostic: how stale is the tick we just read?
+
+    DWX EA writes market_data.json with `time` field as MT5 server time
+    string ("2026.06.18 15:18:14") — server is UTC+2/UTC+3 depending on
+    DST. We can't trust the absolute UTC offset across runs, so we
+    compute the LOCAL-clock-side delta: parse the tick string as if it
+    were in the SAME timezone as our process clock, and subtract from
+    `datetime.now()`. The clock-side delta is what matters for
+    "how-stale" — if DWX wrote 90s ago by its own clock, our clock
+    will see ~90s gap regardless of timezone offset.
+    """
+    if not tick_time_str:
+        return None
+    try:
+        # MT5 format "YYYY.MM.DD HH:MM:SS"
+        tick_dt = datetime.strptime(tick_time_str, "%Y.%m.%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return None
+    # Both naive — same clock-side semantics
+    delta = (datetime.now() - tick_dt).total_seconds()
+    return round(delta, 1)
+
+
 def _log_signal(strategy: str, direction: str, entry: float, sl: float, tp: float,
                 taken: bool, skip_reason: str = "", trade_ref: str = ""):
     execute(
@@ -711,6 +735,12 @@ def check_alpha_sweep_breakeven():
         _log.warn("BROKER", "be_check_no_price")
         return
 
+    # Bug #1 (Jun 18) diagnostic: capture tick freshness so we can detect
+    # phantom BE arms caused by stale market_data.json. See
+    # docs/30-day-challenge/ideas/IDEAS.md "PHANTOM BE arm" entry.
+    tick_time_str = price.get("time", "")
+    tick_age_secs = _compute_tick_age_secs(tick_time_str)
+
     cfg = MICRO_ALPHA_SWEEP
     for trade in open_trades:
         entry = float(trade["entry_price"])
@@ -730,19 +760,22 @@ def check_alpha_sweep_breakeven():
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_bid=price["bid"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=target_50-price["bid"])
             if price["bid"] >= target_50:
                 new_sl = entry + 0.01
-                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["bid"], target_50=target_50, old_sl=sl, new_sl=new_sl)
+                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["bid"], target_50=target_50, old_sl=sl, new_sl=new_sl, tick_time=tick_time_str, tick_age_secs=tick_age_secs)
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["bid"])
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN", new_sl, {
                         "old_sl": sl, "trigger_price": price["bid"], "source": "scheduler",
+                        "tick_time": tick_time_str, "tick_age_secs": tick_age_secs,
+                        "trigger_bid": price["bid"], "trigger_ask": price["ask"], "trigger_mid": price.get("mid"), "trigger_spread": price.get("spread"),
                     })
                     print(f"  [OIL-MICRO] LONG break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
                     _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN_FAILED", None, {
                         "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"),
+                        "tick_time": tick_time_str, "tick_age_secs": tick_age_secs,
                     })
         else:
             if tp >= entry or sl <= entry:
@@ -752,19 +785,22 @@ def check_alpha_sweep_breakeven():
             _log.debug("POSITION", "be_progress", ref=trade["trade_ref"], side=side, current_ask=price["ask"], target_50=target_50, entry=entry, tp=tp, distance_to_trigger=price["ask"]-target_50)
             if price["ask"] <= target_50:
                 new_sl = entry - 0.01
-                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["ask"], target_50=target_50, old_sl=sl, new_sl=new_sl)
+                _log.info("POSITION", "be_triggered", ref=trade["trade_ref"], side=side, trigger_price=price["ask"], target_50=target_50, old_sl=sl, new_sl=new_sl, tick_time=tick_time_str, tick_age_secs=tick_age_secs)
                 result = modify_stop_loss(trade["oanda_trade_id"], new_sl)
                 if result.get("success"):
                     execute("UPDATE gd_trades SET sl_price = %s WHERE trade_ref = %s", (new_sl, trade["trade_ref"]))
                     _log.info("POSITION", "be_armed", ref=trade["trade_ref"], side=side, old_sl=sl, new_sl=new_sl, trigger_price=price["ask"])
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN", new_sl, {
                         "old_sl": sl, "trigger_price": price["ask"], "source": "scheduler",
+                        "tick_time": tick_time_str, "tick_age_secs": tick_age_secs,
+                        "trigger_bid": price["bid"], "trigger_ask": price["ask"], "trigger_mid": price.get("mid"), "trigger_spread": price.get("spread"),
                     })
                     print(f"  [OIL-MICRO] SHORT break-even: SL {sl:.4f} → {new_sl:.4f}")
                 else:
                     _log.error("POSITION", "be_modify_failed", ref=trade["trade_ref"], side=side, old_sl=sl, attempted_sl=new_sl, err=result.get("error", "Unknown"))
                     _log_journal(trade["trade_ref"], trade["strategy"], "BREAK_EVEN_FAILED", None, {
                         "old_sl": sl, "attempted_sl": new_sl, "error": result.get("error", "Unknown"),
+                        "tick_time": tick_time_str, "tick_age_secs": tick_age_secs,
                     })
 
 
