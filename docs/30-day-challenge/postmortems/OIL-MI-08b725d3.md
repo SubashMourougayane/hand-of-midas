@@ -109,7 +109,7 @@ Strategy mechanics clean. F27 fill 28s. BE armed correctly. Entry signal valid.
 <!-- skill: pattern -->
 This is the FIRST trade of the Oil Micro Jun 17–18 streak. **The only one BE saved.** If BE had not armed, this would have been a 4th SL adding ~−$317. Instead +$9. **BE worked as designed under partial-progress conditions — saved $326 of risk.** This is the success case for Filter #5 (BE 35% threshold from Jun 13 ship). Without F5, this trade would have been a full SL. Evidence in favour of keeping F5 lowered threshold.
 
-Streak pattern: 4 setups, same Oil zone, same SHORT direction (3) + 1 LONG, all into a probable trending market. BE saving 1/4 doesn't fix the regime issue — it just reduces blow-up severity.
+**IMPORTANT: this trade is PRE-RESET (Jun 17) — pattern context only, NOT F28-candidate evidence.** Account reset to $10K Jun 18 morning. F28 verdict uses post-reset trades only.
 <!-- /skill: pattern -->
 
 ## 4. Counterfactual narrative

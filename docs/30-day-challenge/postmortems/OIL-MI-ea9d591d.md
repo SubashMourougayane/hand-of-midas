@@ -103,7 +103,9 @@ SHORT entry F27 limit @ $79.0941, filled @ $79.09 (broker beat by 0.4 pip). R:R 
 ## 3. Pattern interpretation
 
 <!-- skill: pattern -->
-**This is THE first SL in the Oil Micro Jun 17 streak.** Sequence: 08b725d3 (+$9 nominal win) → ea9d591d (−$318) → 6fbb7040 (−$306) → ac215cc6 (−$360). Three consecutive losers totalling −$985 in ~20 hours. **All 3 SHORTs traded into the same Oil price range ($79–80) within hours of each other** — likely the same consolidation-then-fail-to-break pattern repeating. Possibly Oil was actually trending UP across this window and the strategy's mean-reversion SHORTs were systematically wrong-sided. **Phase 2 candidate: did F28 (neutral) bypass a bullish bias filter that would have killed all 3 SHORTs?** Cannot confirm without journal access for Jun 17.
+**This is the first SHORT-SL of the Oil Micro Jun 17 streak.** Sequence: 08b725d3 (+$9 nominal win) → ea9d591d (−$318) → 6fbb7040 (−$306) → ac215cc6 (−$360). Three consecutive SHORTs into the $79–80 zone, then 1 LONG. All in the same trending-up regime.
+
+**IMPORTANT: this trade is PRE-RESET (Jun 17) — NOT an F28-candidate trade for the 30-day challenge.** Account was reset to $10K Jun 18 morning. Whether F28 contributed CANNOT be answered from this trade. Pattern context only.
 <!-- /skill: pattern -->
 
 ## 4. Counterfactual narrative

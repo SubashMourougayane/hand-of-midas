@@ -103,7 +103,9 @@ SHORT entry via F27 limit @ $79.2326, filled @ $79.2300 (broker beat by 0.3 pip)
 ## 3. Pattern interpretation
 
 <!-- skill: pattern -->
-**Streak context dominates.** This is the 3rd Oil Micro SL in a row (08b725d3 +9, ea9d591d −318, then THIS −306). All 3 SHORTs on Jun 17. Combined with subsequent OIL-MI-ac215cc6 LONG (−360), Oil Micro lost on 4 consecutive setups (with 1 nominal +9 win). **Recent 6 trades 2W/4L, net −$1,300.** Not an outlier — this is a regime issue. Either Oil Micro's edge is currently underwater, or F28 (active live as of Jun 17) is letting through trades that V1+V2 would have filtered. **Phase 2 ranking candidate: Oil Micro post-F28 performance vs pre-F28.**
+**Streak context dominates.** This is the 3rd Oil Micro SL in a row (08b725d3 +9, ea9d591d −318, then THIS −306). All 3 SHORTs on Jun 17. Combined with subsequent OIL-MI-ac215cc6 LONG (−360), Oil Micro lost on 4 consecutive setups (with 1 nominal +9 win). **Recent 6 trades 2W/4L, net −$1,300.**
+
+**IMPORTANT: this trade is PRE-RESET (Jun 17), pre-baseline for the 30-day challenge.** Account was reset to $10K on Jun 18 morning. This trade is NOT F28-candidate evidence — it's pattern context only. Whether F28 caused the streak vs regime mismatch CANNOT be answered from pre-reset data. F28 verdict relies on POST-RESET trades only.
 <!-- /skill: pattern -->
 
 ## 4. Counterfactual narrative
@@ -117,7 +119,7 @@ Binary outcome: SL or TP. **Price never reached BE level $78.4850** so trailing/
 <!-- skill: recommendations -->
 - **Status:** Single trade NORMAL. Streak CONCERNING. Not a bug.
 - **Track:** Oil Micro 4 consecutive losing setups across Jun 17–18. P&L impact ≈ −$1,000 in 24hr.
-- **Phase 2 Decide question:** is F28 the cause of the streak, or is it regime mismatch unrelated to F28? Counterfactual unavailable without BT comparison (which is bible-violation during freeze).
+- **Phase 2 Decide question:** N/A — this trade is pre-baseline. Use ONLY post-reset trades (Jun 18+) for F28 verdict. Pre-baseline streak is regime context, not F28 evidence.
 - **No code fix.** Discipline holds.
 <!-- /skill: recommendations -->
 

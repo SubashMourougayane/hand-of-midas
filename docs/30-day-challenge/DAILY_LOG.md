@@ -32,13 +32,23 @@
 - [x] GD-AL-4af2d62d — Jun 17 (already postmortem'd pre-challenge, copied to folder)
 - [ ] OIL-AS-a251ada3 / b32439ae / e5705d4e — Oil Macro skipped (postmortem.py auth bug, parked P1)
 
-### Backfill key findings
-- **Oil Micro 4-trade losing streak Jun 17–18:** −$985 raw, +$9 saved by F5 BE arm. Net −$976.
-- **All 3 Oil Micro SHORTs fired in same $79–80 zone within hours** — likely fighting an up-trending Oil regime.
-- **F5 (BE 35%) confirmed working** on OIL-MI-08b725d3 — BE armed at ~36% to TP, saved a full SL.
-- **GD-MI-2b152d33 fired with R:R 1.17** — borderline-spec entry. Phase 1 watch: track every Gold Micro R:R.
+### Backfill key findings (CONTEXT: Jun 17 trades are PRE-RESET — NOT F28 candidates)
+
+**IMPORTANT:** Account was reset to $10,000 on Jun 18 morning, AFTER F28 was flipped Jun 17 evening. The only F28-candidate trade in the 30-day challenge so far is **OIL-MI-ac215cc6** (post-reset Day 1 BRENT). The 5 backfilled postmortems (Jun 17) are PRE-BASELINE — useful for pattern context only, NOT for F28 verdict.
+
+- **Pre-baseline pattern observation:** Oil Micro 4-trade losing streak Jun 17–18 (−$976 net). All 3 SHORTs in $79–80 zone — likely fighting up-trending Oil. **Not F28 evidence.** Could be regime-mismatch unrelated to F28.
+- **F5 (BE 35%) confirmed working** on OIL-MI-08b725d3 (pre-baseline) — BE armed at ~36% to TP, saved $326.
+- **GD-MI-2b152d33 fired with R:R 1.17** (pre-baseline) — borderline-spec entry. Phase 1 watch: track every Gold Micro R:R.
 - **3 new P1s parked:** R:R-uses-BE-adjusted-SL, BE-50%-threshold-mismatch, GD-MI-permissive-R:R-gate.
 - **Discipline test #5:** wanted to pull OANDA CSV + run BT for "validation" — pushed back hard, held line.
+
+### F28 evidence ledger (post-reset only — REAL data)
+
+| trade | bias_mode | computed_bias | took? | P&L |
+|---|---|---|---|---|
+| OIL-MI-ac215cc6 | neutral | bearish | yes (LONG) | −$367.20 |
+
+**N=1. Insufficient. Continue collecting.**
 
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.

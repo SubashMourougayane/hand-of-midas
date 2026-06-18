@@ -91,12 +91,12 @@ _The sections below are placeholders. The `trade-postmortem` skill replaces each
 <!-- skill: strategy_alignment -->
 Strategy is `micro_alpha_sweep_oil` (rolling 4hr Oil Micro). Entry was via Filter #27 limit-order path at $78.4706 (offset_pct=-0.1, intended pullback into structure). Limit placed 01:00:02 UTC, filled 14m20s later at $78.4700 (1 pip better than intended limit). R:R = 3.73:1 — high end of normal for this strategy (typical 2.5–4). SL distance $0.30/unit is tight on Oil Micro vs typical $0.40–0.60 — possibly the consolidation range was unusually narrow. Filter #27 worked exactly as designed: order placed, filled within 15min TTL, executed at intended price.
 
-**🚨 F28 SMOKING GUN:** Journal `F28_BIAS_RESOLVED` events around the trade time show:
+**🚨 F28 SMOKING GUN — and this trade IS the FIRST F28-candidate trade of the 30-day challenge** (post-reset $10K baseline established Jun 18 morning). Journal `F28_BIAS_RESOLVED` events around the trade time show:
 - `computed_bias`: **bearish** (V1+V2 would have blocked this LONG)
 - `mode`: **neutral** (F28 active)
 - `effective_bias`: **neutral** → LONG allowed
 
-**This trade would NOT have fired under production V1+V2.** F28 (neutral) explicitly bypassed the bearish bias filter, allowing a LONG to be placed against the bias. The trade lost. **N=1 — single-trade noise, but exactly the data Phase 2 verdict needs.**
+**This trade would NOT have fired under production V1+V2.** F28 (neutral) explicitly bypassed the bearish bias filter, allowing a LONG to be placed against the bias. The trade lost. **N=1 — single-trade noise, but exactly the data Phase 2 verdict needs.** The Jun 17 trades (pre-reset) are pattern context only, NOT F28 evidence.
 
 **No alignment red flags on the entry-signal mechanics** — consolidation + sweep + engulfing all fired correctly per the strategy. The filter that was designed to suppress LONGs into bearish bias was deliberately disabled by F28.
 
