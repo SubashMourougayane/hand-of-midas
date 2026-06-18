@@ -61,6 +61,14 @@
 
 _(append below as ideas arise — DO NOT ACT)_
 
+### 2026-06-18 — 🟡 P2: should LIMIT_TTL_EXPIRED count toward max_trades_per_day?
+- **Phase noticed:** Phase 0, Day 1
+- **Source:** Oil Micro hit 3/3 cap today via 1 SL + 2 TTL_EXPIRED. Locked out for the day even though only 1 actual trade was taken.
+- **Cost to investigate:** Phase 2 review of cap counter logic in scheduler. Possibly per-system tunable.
+- **Why it matters:** TTL_EXPIRED = no risk taken. Treating them as "trades" against the cap penalizes F27 (limit-order discipline) — a market-order strategy taking 3 SL hits would have used the same cap but ate $1k+ in losses. Limits saved that risk and STILL got capped.
+- **Counter-argument:** if we don't count TTL_EXPIRED, signal-spammy days could blow through the intended attempt budget. Need to think about WHAT the cap protects.
+- **Why I'm not acting now:** Phase 0 freeze. Phase 3 ranking candidate. Track over 30 days how often TTL_EXPIRED contributes to lockout.
+
 ### 2026-06-18 — 🟠 P1: postmortem.py R:R uses BE-adjusted SL
 - **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-08b725d3)
 - **Source:** Trade with BE-armed shows R:R 100:1 because script reads `gd_trades.sl` AFTER BE adjustment ($79.02). Original SL was $79.38 → real R:R 2.86:1.
