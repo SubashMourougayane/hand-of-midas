@@ -21,15 +21,18 @@
 ### Trades fired today
 | trade_ref | system | side | entry | exit | P&L (DB) | P&L (JM web) | tag |
 |---|---|---|---|---|---|---|---|
-| (TBD as trades close) | | | | | | | |
+| OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat |
 
 ### Postmortems written
-- [ ] (none yet — fill as trades close)
+- [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed
 
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.
 - 🟠 P1: API drift between Macro and Micro `/backtest/latest` shape — Macro wraps in `{result: ...}`, Micro returns flat object. Logged for Phase 2 review.
 - 🟠 P1: **F28 NOT wired into BT routes (all 4 systems).** User ran Gold Micro BT from UI — got pre-F28 numbers. Verified: all 4 BT routes call `run_backtest()` without `bias_mode` kwarg → engine defaults to `"production"`. Live scheduler IS correctly reading `BIAS_MODE` (live unaffected). BT dashboard shows production regardless of env var. This is M1 from `docs/FILTER_28_AUDIT_BACKLOG.md` — known audit item, NOT a new bug. Parked in `ideas/IDEAS.md`. **Discipline test: passed — did NOT fix on Day 1 even though "30min" and "I already know how."**
+- 🟠 P1: **DB pnl_usd excludes swap (overnight financing).** OIL-MI-ac215cc6: DB shows −$360, JM web shows −$367.20 (−$7.20 swap). Daily reconcile (DB-sum vs wallet-Δ) will drift on overnight trades by swap amount. Phase 3 candidate.
+- 🟠 P1: **Double EXIT_FILLED journal events** for OIL-MI-ac215cc6 — likely OnTradeTransaction + scanner-detected exit firing duplicate. Check if `gd_trades` row was double-inserted. Same bug class as June 15 dedup audit.
+- 🟡 P2: **Oil Micro losing streak — 2W/5L net −$1,606 over last 7 trades.** Includes today's trade. Could be regime mismatch, Filter #27 fill distribution change, or F28 letting through trades V1+V2 would have filtered. Track all Oil Micro trades closely in Phase 1.
 - 🟡 P2: F30 (SMC PDH/PDL bias) and F31 (DXY anti-correlation Gold-only) research docs already exist. Resist temptation to start BT sweep before Phase 3.
 - 🟡 P2: F29 (bar-aware BE check) — needs live BE_PROGRESS journal events. Could begin Phase 1 instrumentation if it adds zero strategy logic. **Decision: park, instrumentation can wait until Phase 3 ship slot.**
 

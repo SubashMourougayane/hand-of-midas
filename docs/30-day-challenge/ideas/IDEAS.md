@@ -61,6 +61,27 @@
 
 _(append below as ideas arise — DO NOT ACT)_
 
+### 2026-06-18 — 🟠 P1: DB pnl_usd excludes overnight swap
+- **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-ac215cc6)
+- **Source:** JM web shows −$367.20, DB shows −$360.00. Diff = −$7.20 swap.
+- **Cost to fix:** ~30min — add `swap_usd` column to `gd_trades`, populate from MT5 close event, include in `pnl_usd` OR keep separate.
+- **Why it matters:** Daily reconcile (DB pnl-sum vs wallet Δ) drifts on overnight trades. Will create false bug-smell flags during 30-day challenge.
+- **Why I'm not acting now:** Phase 0 freeze. Workaround: in DAILY_LOG, track BOTH numbers. Reconcile gap = swap, document in evening close.
+
+### 2026-06-18 — 🟠 P1: Double EXIT_FILLED journal events
+- **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-ac215cc6)
+- **Source:** Two `EXIT_FILLED` journal rows at 01:26:00 UTC for the same trade (different context strings — one with `pnl_gbp`, one without).
+- **Cost to fix:** ~1hr — investigate scheduler vs OnTradeTransaction race.
+- **Why it matters:** Same bug class as June 15 dedup audit. May or may not double-insert `gd_trades` row.
+- **Why I'm not acting now:** Phase 0 freeze. Verify in Phase 1: query `SELECT COUNT(*) FROM gd_trades WHERE trade_ref=...` — if 1, journal-only duplicate (annoying not bleeding). If 2, real bug.
+
+### 2026-06-18 — 🟡 P2: Oil Micro losing streak — investigate in Phase 2
+- **Phase noticed:** Phase 0, Day 1 (postmortem peers table)
+- **Source:** OIL-MI-ac215cc6 + 6 prior = 2W/5L net −$1,606 over last 7 Oil Micro trades.
+- **Cost to investigate:** Phase 2 review. If still drifting, Phase 3 ranking candidate.
+- **Why it matters:** Could be regime mismatch / F27 fill distribution shift / F28 letting through reverse-bias trades.
+- **Why I'm not acting now:** N=7 too small for verdict. Continue postmortems through Phase 1.
+
 ### 2026-06-18 — 🟠 P1: F28 NOT wired into BT routes (all 4 systems)
 - **Phase noticed:** Phase 0, Day 1
 - **Source:** User ran Gold Micro BT from UI, saw same numbers as pre-F28 → suspected F28 inactive in BT
