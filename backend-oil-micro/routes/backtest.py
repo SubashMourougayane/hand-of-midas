@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from backtest.engine import run_backtest
 from backend.db import execute, insert_returning, get_conn
+from config import BIAS_MODE
 
 router = APIRouter()
 
@@ -37,11 +38,13 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest):
     _runs[run_id]["progress"].append("Loading Oil data (H1 + M3 + Daily)...")
 
     try:
+        # F28 audit M1: pass live BIAS_MODE through to BT.
         result = run_backtest(
             start_date=req.start_date,
             end_date=req.end_date,
             capital=req.capital,
             risk_pct=req.risk_pct,
+            bias_mode=BIAS_MODE,
         )
 
         _runs[run_id]["progress"].append(f"Complete: {len(result.trades)} trades found")

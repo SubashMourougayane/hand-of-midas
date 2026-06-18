@@ -83,23 +83,18 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
             continue
 
         bias = daily_bias.get(date, "neutral")
-        day_trades = 0
-        max_per_day = cfg["max_trades_per_day"]
+        # Cap rework Jun 18: signal-gen no longer caps at max_trades_per_day.
+        # Caller (execution loop) caps on FILLED trades only — matches live
+        # behavior post-cap-fix where LIMIT_TTL_EXPIRED doesn't count.
         traded_sweeps = set()
 
         for bar_ts, bar in day_h1.iterrows():
-            if day_trades >= max_per_day:
-                break
-
             now_hour = bar_ts.hour
 
             if cfg["market_close_start"] <= now_hour < cfg["market_close_end"]:
                 continue
 
             for start_hour in range(0, 24, cfg["scan_gap_hours"]):
-                if day_trades >= max_per_day:
-                    break
-
                 end_hour = (start_hour + cfg["consol_hours"]) % 24
                 scan_end_hour = (start_hour + cfg["consol_hours"] + cfg["scan_after_hours"]) % 24
 
@@ -130,9 +125,6 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                 scan_bars = day_h1[(day_h1.index.hour.isin(scan_hours)) & (day_h1.index <= bar_ts)]
 
                 for sbar_ts, sb in scan_bars.iterrows():
-                    if day_trades >= max_per_day:
-                        break
-
                     sweep_dir = None
                     sweep_wick = None
                     if sb["mid_high"] > bearish_level and sb["mid_close"] < range_high:
@@ -223,7 +215,6 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                             ))
 
                         traded_sweeps.add(sk)
-                        day_trades += 1
                         found = True
                         break
 
@@ -231,8 +222,6 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                         traded_sweeps.add(sk)
                     if found:
                         break
-                if day_trades >= max_per_day:
-                    break
 
     return signals
 
@@ -548,6 +537,10 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None
     position_exit_time = None
+    # Cap rework Jun 18: count FILLED trades per day (matches live where
+    # LIMIT_TTL_EXPIRED doesn't count toward max_trades_per_day).
+    day_filled_trades = 0
+    max_per_day = MICRO_ALPHA_SWEEP["max_trades_per_day"]
     # Filter #27 accumulators (micro_alpha_sweep_oil; Oil Micro is single-strategy)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
@@ -567,10 +560,15 @@ def run_backtest(
             current_year = trade_year
             daily_pnl = 0.0
             current_date = None
+            day_filled_trades = 0
 
         if trade_date != current_date:
             daily_pnl = 0.0
+            day_filled_trades = 0
             current_date = trade_date
+
+        if day_filled_trades >= max_per_day:
+            continue
 
         if last_signal_time and (signal.date - last_signal_time).total_seconds() < COOLDOWN_SECONDS:
             continue
@@ -656,6 +654,7 @@ def run_backtest(
 
         # Filter #27: filled
         _filter27_filled_local += 1
+        day_filled_trades += 1  # Cap rework Jun 18: count only filled trades
 
         pnl_dollar = result["pnl_per_unit"] * units
         equity += pnl_dollar

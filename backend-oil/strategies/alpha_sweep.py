@@ -68,14 +68,9 @@ def generate_signals(
         if not sweeps:
             continue
 
-        # Process each sweep (up to max_trades_per_day)
-        day_trades = 0
-        max_per_day = cfg.get("max_trades_per_day", 3)
-
+        # Cap rework Jun 18: signal-gen no longer caps at max_trades_per_day.
+        # Engine execution loop caps on FILLED trades only.
         for sweep_dir, sweep_wick, sweep_time in sweeps:
-            if day_trades >= max_per_day:
-                break
-
             # Bias filter (Variant C: neutral = allow both directions)
             if bias != "neutral":
                 if sweep_dir == "bullish" and bias != "bullish":
@@ -148,7 +143,6 @@ def generate_signals(
                         metadata={"asia_high": ah, "asia_low": al, "sweep_dir": sweep_dir, "sweep_wick": sweep_wick},
                     ))
 
-                day_trades += 1
                 break  # One engulfing per sweep
 
     return signals

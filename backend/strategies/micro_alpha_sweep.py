@@ -66,14 +66,11 @@ def generate_signals(
             continue
 
         bias = daily_bias.get(date, "none")
-        day_trades = 0
-        max_per_day = mcfg["max_trades_per_day"]
+        # Cap rework Jun 18: signal-gen no longer caps at max_trades_per_day.
+        # Engine execution loop caps on FILLED trades only.
         traded_sweeps = set()
 
         for bar_ts, bar in day_h1.iterrows():
-            if day_trades >= max_per_day:
-                break
-
             now_hour = bar_ts.hour
 
             # Skip during market close (same as live) — bypassed when
@@ -85,9 +82,6 @@ def generate_signals(
 
             # Check all windows (0, 2, 4, ..., 22) — same as live scheduler
             for start_hour in range(0, 24, mcfg["scan_gap_hours"]):
-                if day_trades >= max_per_day:
-                    break
-
                 end_hour = (start_hour + mcfg["consol_hours"]) % 24
                 scan_end_hour = (start_hour + mcfg["consol_hours"] + mcfg["scan_after_hours"]) % 24
 
@@ -124,9 +118,6 @@ def generate_signals(
                 scan_bars = day_h1[(day_h1.index.hour.isin(scan_hours)) & (day_h1.index <= bar_ts)]
 
                 for sbar_ts, sb in scan_bars.iterrows():
-                    if day_trades >= max_per_day:
-                        break
-
                     sweep_dir = None
                     sweep_wick = None
                     if sb["mid_high"] > bearish_level and sb["mid_close"] < range_high:
@@ -221,7 +212,6 @@ def generate_signals(
                             ))
 
                         traded_sweeps.add(sk)
-                        day_trades += 1
                         found = True
                         break
 
@@ -229,7 +219,5 @@ def generate_signals(
                         traded_sweeps.add(sk)
                     if found:
                         break  # One trade per sweep, move to next window
-                if day_trades >= max_per_day:
-                    break
 
     return signals

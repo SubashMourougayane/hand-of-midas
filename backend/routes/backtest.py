@@ -7,6 +7,7 @@ import json
 
 from backend.backtest.engine import run_backtest
 from backend.db import execute, insert_returning, get_conn
+from backend.config import BIAS_MODE
 
 router = APIRouter()
 
@@ -74,12 +75,14 @@ def api_backtest(req: BacktestRequest):
     def _run_bg():
         try:
             t0 = time.time()
+            # F28 audit M1: pass live BIAS_MODE through to BT.
             result = run_backtest(
                 strategies=req.strategies,
                 start_date=req.start_date,
                 end_date=req.end_date,
                 capital=req.capital,
                 risk_pct=req.risk_pct,
+                bias_mode=BIAS_MODE,
             )
             _process_and_save(req, result, t0)
         except Exception as e:

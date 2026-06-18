@@ -431,8 +431,12 @@ def _run_alpha_sweep_core(now: datetime, h1_candles: list, daily_candles: list,
     signals_found: list[dict] = []  # collected only when dry_run=True
 
     if not dry_run:
+        # Day 1 override fix: LIMIT_TTL_EXPIRED entries don't count toward
+        # daily cap. No risk was taken, so they shouldn't lock out the day.
         existing = execute(
-            "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep' AND entry_time::date = %s",
+            "SELECT COUNT(*) as cnt FROM gd_trades "
+            "WHERE strategy='alpha_sweep' AND entry_time::date = %s "
+            "AND (exit_reason IS NULL OR exit_reason NOT IN ('LIMIT_TTL_EXPIRED', 'LIMIT_TTL_EXPIRED_GRACE'))",
             (today,), fetch=True
         )
         trades_today = existing[0]["cnt"] if existing else 0

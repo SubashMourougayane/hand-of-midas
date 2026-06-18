@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from backtest.engine import run_backtest
 from backend.db import execute, insert_returning, get_conn
+from config import BIAS_MODE
 
 router = APIRouter()
 
@@ -37,12 +38,15 @@ def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: l
     _runs[run_id]["progress"].append("Loading 20 years of data...")
 
     try:
+        # F28 audit M1: pass live BIAS_MODE through to BT so dashboard
+        # numbers reflect the same bias setting that's running in production.
         result = run_backtest(
             strategies=mapped_strategies,
             start_date=req.start_date,
             end_date=req.end_date,
             capital=req.capital,
             risk_pct=req.risk_pct,
+            bias_mode=BIAS_MODE,
         )
 
         _runs[run_id]["progress"].append(f"Generating signals complete ({len(result.trades)} trades)")

@@ -174,6 +174,10 @@ def run_backtest(
     daily_pnl = 0.0
     last_signal_time = None  # For cooldown tracking
     position_exit_time = None  # One-at-a-time: when current position exits (C9 fix)
+    # Cap rework Jun 18: count FILLED micro_alpha_sweep trades per day.
+    day_filled_trades = 0
+    from backend.strategies.micro_alpha_sweep import MICRO_CONFIG as _micro_cfg_for_cap
+    max_per_day = _micro_cfg_for_cap.get("max_trades_per_day", 3)
     # Filter #27 accumulators (micro_alpha_sweep scope only)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
@@ -193,11 +197,16 @@ def run_backtest(
             current_year = trade_year
             daily_pnl = 0.0
             current_date = None
+            day_filled_trades = 0
 
         # Daily reset
         if trade_date != current_date:
             daily_pnl = 0.0
+            day_filled_trades = 0
             current_date = trade_date
+
+        if signal.strategy == "micro_alpha_sweep" and day_filled_trades >= max_per_day:
+            continue
 
         # 5-minute cooldown between signals (same as live — prevents same-scan re-entry)
         if last_signal_time and (signal.date - last_signal_time).total_seconds() < COOLDOWN_SECONDS:
@@ -303,6 +312,7 @@ def run_backtest(
         # Filter #27: count filled micro_alpha_sweep trades (denominator-pair)
         if signal.strategy == "micro_alpha_sweep":
             _filter27_filled_local += 1
+            day_filled_trades += 1  # Cap rework Jun 18
 
         # Track when this position exits (for one-at-a-time rule)
         bar_seconds = 180 if signal.timeframe == "M3" else 86400  # 3min or 1day

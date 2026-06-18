@@ -221,7 +221,13 @@ def run_backtest(
     state = DDState()
     trades: list[BacktestTrade] = []
     current_year = None
+    current_date = None
     last_signal_time = None
+    # Cap rework Jun 18: count FILLED alpha_sweep trades per day. Mirrors
+    # live behavior where LIMIT_TTL_EXPIRED doesn't count toward the cap.
+    day_filled_trades = 0
+    from backend.config import ALPHA_SWEEP as _alpha_cfg_for_cap
+    max_per_day = _alpha_cfg_for_cap.get("max_trades_per_day", 3)
     # Filter #27 accumulators (alpha_sweep scope only)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
@@ -243,6 +249,17 @@ def run_backtest(
             state.equity_history = []
             state.current_year = trade_year
             current_year = trade_year
+            current_date = None
+            day_filled_trades = 0
+
+        if trade_date != current_date:
+            day_filled_trades = 0
+            current_date = trade_date
+
+        # Cap rework: scope to alpha_sweep only — other strategies (mean_rev,
+        # cross_market) aren't sweep-based and have their own cadence.
+        if signal.strategy == "alpha_sweep" and day_filled_trades >= max_per_day:
+            continue
 
         if state.equity < 100:
             continue
@@ -345,6 +362,7 @@ def run_backtest(
         # Filter #27: count filled alpha_sweep trades (denominator-pair to total_signals)
         if signal.strategy == "alpha_sweep":
             _filter27_filled_local += 1
+            day_filled_trades += 1  # Cap rework Jun 18
 
         # Hold time string
         if signal.strategy == "alpha_sweep":

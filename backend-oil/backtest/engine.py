@@ -172,7 +172,13 @@ def run_backtest(
     equity_history = []
     trades: list[BacktestTrade] = []
     current_year = None
+    current_date = None
     position_exit_time = None  # One-at-a-time: when current position exits
+    # Cap rework Jun 18: count FILLED trades per day. Mirrors live behavior
+    # where LIMIT_TTL_EXPIRED doesn't count toward max_trades_per_day.
+    day_filled_trades = 0
+    from config import ALPHA_SWEEP as _alpha_cfg_for_cap
+    max_per_day = _alpha_cfg_for_cap.get("max_trades_per_day", 3)
     # Filter #27 accumulators (alpha_sweep_oil; Oil Macro is single-strategy)
     _filter27_missed_local = 0
     _filter27_wwl_local = 0
@@ -191,6 +197,15 @@ def run_backtest(
             equity_history = []
             current_year = trade_year
             position_exit_time = None
+            current_date = None
+            day_filled_trades = 0
+
+        if trade_date != current_date:
+            day_filled_trades = 0
+            current_date = trade_date
+
+        if day_filled_trades >= max_per_day:
+            continue
 
         if equity < 100:
             continue
@@ -274,6 +289,7 @@ def run_backtest(
 
         # Filter #27: filled
         _filter27_filled_local += 1
+        day_filled_trades += 1  # Cap rework Jun 18
 
         pnl_dollar = result.pnl_per_unit * units
         equity += pnl_dollar

@@ -160,12 +160,20 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
     cfg = MICRO_ALPHA_SWEEP
     today = now.date()
 
-    # Check trades today (max of DB and local counter)
+    # Check trades today.
+    # Day 1 override fix: LIMIT_TTL_EXPIRED entries don't count toward daily
+    # cap. No risk was taken, so they shouldn't lock out the day.
     existing = execute(
-        f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s",
+        f"SELECT COUNT(*) as cnt FROM gd_trades "
+        f"WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND entry_time::date = %s "
+        f"AND (exit_reason IS NULL OR exit_reason NOT IN ('LIMIT_TTL_EXPIRED', 'LIMIT_TTL_EXPIRED_GRACE'))",
         (today,), fetch=True
     )
     db_trades_today = existing[0]["cnt"] if existing else 0
+    # Self-heal in-memory counter from filtered DB so a TTL_EXPIRED that
+    # was already counted optimistically gets uncounted on the next tick.
+    if db_trades_today < _daily_state["trades"]:
+        _daily_state["trades"] = db_trades_today
     trades_today = max(db_trades_today, _daily_state["trades"])
     if trades_today >= cfg["max_trades_per_day"]:
         if not dry_run:

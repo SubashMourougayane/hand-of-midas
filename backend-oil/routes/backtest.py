@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from backtest.engine import run_backtest
 from backend.db import execute, insert_returning, get_conn
+from config import BIAS_MODE
 
 router = APIRouter()
 
@@ -22,11 +23,13 @@ class BacktestRequest(BaseModel):
 @router.post("/backtest")
 def api_backtest(req: BacktestRequest):
     t0 = time.time()
+    # F28 audit M1: pass live BIAS_MODE through to BT.
     result = run_backtest(
         start_date=req.start_date,
         end_date=req.end_date,
         capital=req.capital,
         risk_pct=req.risk_pct,
+        bias_mode=BIAS_MODE,
     )
 
     trades = result.trades

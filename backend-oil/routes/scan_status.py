@@ -114,8 +114,11 @@ def get_scan_status():
                 sweep_detected = True
                 sweep_info = {"direction": "bullish", "wick": mid_low, "time": c["timestamp"]}
 
+    # Day 1 override fix: LIMIT_TTL_EXPIRED entries don't count toward cap.
     trades_today = execute(
-        "SELECT COUNT(*) as cnt FROM gd_trades WHERE strategy='alpha_sweep_oil' AND entry_time::date = %s",
+        "SELECT COUNT(*) as cnt FROM gd_trades "
+        "WHERE strategy='alpha_sweep_oil' AND entry_time::date = %s "
+        "AND (exit_reason IS NULL OR exit_reason NOT IN ('LIMIT_TTL_EXPIRED', 'LIMIT_TTL_EXPIRED_GRACE'))",
         (today,), fetch=True
     )
     trade_count = trades_today[0]["cnt"] if trades_today else 0
