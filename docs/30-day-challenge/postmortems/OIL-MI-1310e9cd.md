@@ -42,14 +42,17 @@
 ## What happened AFTER exit?
 
 - TP level $77.0700 **WAS** reached at ~19:17 IST (~30min after exit at 18:47 IST)
-- Price journey post-exit:
-  - 18:47 IST: exit at $78.06 (BE-SL)
-  - 18:50 IST: $77.50 area
-  - 19:00 IST: $77.30 area
-  - 19:17 IST: **$77.07** = TP target hit
+- **Visual chart analysis (from JM web):**
+  - Pre-entry: choppy consolidation $78.10-78.50 from 14:00-16:00
+  - 16:00-16:18 chart: drift down to $78.10 → ENTRY $78.07
+  - 16:18-16:42 chart: tight range $78.00-78.10 (barely moves)
+  - **16:42-16:48 chart: ONE BIG RED CANDLE — opens ~$78.10, wicks UP momentarily (likely tagged BE-SL $78.06), then plunges to $77.50**
+  - 16:48 onward: continues down to TP $77.07
 - **Counterfactual: had we stayed in trade with original SL $78.64, TP would have hit for +$303 instead of actual +$3.**
 
 > NOTE: deterministic script said "TP NOT reached in 30-min window" — this was generated immediately at exit. Manual price-check 30min later showed TP hit. Script has a bounded look-ahead that doesn't catch slow follow-through.
+
+> NOTE 2: BE-SL fired during the OPENING WICK of the big red candle that immediately went to TP. The 5-minute M5 bar that triggered BE was the SAME bar that would have run to TP if we'd stayed in. **F29 bar-aware BE candidate: don't exit on intra-bar tick if the bar's CLOSE is in our favour.**
 
 ## Counterfactual P&L scenarios
 
