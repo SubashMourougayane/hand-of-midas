@@ -61,6 +61,17 @@
 
 _(append below as ideas arise — DO NOT ACT)_
 
+### 2026-06-18 — 🟠 P1: F28 NOT wired into BT routes (all 4 systems)
+- **Phase noticed:** Phase 0, Day 1
+- **Source:** User ran Gold Micro BT from UI, saw same numbers as pre-F28 → suspected F28 inactive in BT
+- **Verified:** All 4 BT routes (`backend/routes/backtest.py`, `backend-oil/routes/backtest.py`, `backend-micro/routes/backtest.py`, `backend-oil-micro/routes/backtest.py`) call `run_backtest()` WITHOUT `bias_mode` kwarg → engine resolves `None → "production"` (via `resolve_bias_mode` in `backend/backtest/neutral_bias.py`) → V1+V2 bias filter ON.
+- **Live impact:** ZERO. Live scheduler reads `BIAS_MODE` from config correctly. Live trades still fire under neutral (F28 active live).
+- **BT impact:** BT dashboard shows production numbers regardless of `BIAS_MODE` env var. UI badge would say neutral but BT result is production. Misleading.
+- **Cost to investigate:** Already investigated. Cost to fix ≈ 30min (4 route files: read `BIAS_MODE` from config, pass to `run_backtest`).
+- **Why it matters:** Phase 2 (DECIDE) F28 verdict relies on BT-as-baseline comparison. If BT can't run neutral, comparison is harder.
+- **Why I'm not acting now:** This is M1 from `docs/FILTER_28_AUDIT_BACKLOG.md` — already known, already scoped, already documented. Discipline test: parked even though it's "small" and "I already know how." Phase 3 ranking candidate.
+- **Workaround during freeze:** Live data is the source of truth for F28 verdict, not BT. The 5-seed multi-seed BT validation already done (Path B clean kwarg) covers the BT-side evidence. BT dashboard mismatch is annoying, not blocking.
+
 ---
 
 ## Phase 1 ideas (Days 8–14)
