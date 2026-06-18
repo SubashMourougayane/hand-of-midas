@@ -33,6 +33,12 @@
 - 🟠 P1: **DB pnl_usd excludes swap (overnight financing).** OIL-MI-ac215cc6: DB shows −$360, JM web shows −$367.20 (−$7.20 swap). Daily reconcile (DB-sum vs wallet-Δ) will drift on overnight trades by swap amount. Phase 3 candidate.
 - 🟠 P1: **Double EXIT_FILLED journal events** for OIL-MI-ac215cc6 — likely OnTradeTransaction + scanner-detected exit firing duplicate. Check if `gd_trades` row was double-inserted. Same bug class as June 15 dedup audit.
 - 🟡 P2: **Oil Micro losing streak — 2W/5L net −$1,606 over last 7 trades.** Includes today's trade. Could be regime mismatch, Filter #27 fill distribution change, or F28 letting through trades V1+V2 would have filtered. Track all Oil Micro trades closely in Phase 1.
+
+### Discipline tests passed today
+1. **F28 not wired in BT** — known audit M1, "30min fix, I know how" — parked, not fixed
+2. **Swap reconcile gap** — small ergonomic fix — parked, not fixed
+3. **Double EXIT_FILLED journal** — bug-class — parked, not fixed
+4. **F30 parallel research temptation** — "different branch, no ship" rationalization — pushed back by AI, user held the line. Bible Trap #2 caught and resisted.
 - 🟡 P2: F30 (SMC PDH/PDL bias) and F31 (DXY anti-correlation Gold-only) research docs already exist. Resist temptation to start BT sweep before Phase 3.
 - 🟡 P2: F29 (bar-aware BE check) — needs live BE_PROGRESS journal events. Could begin Phase 1 instrumentation if it adds zero strategy logic. **Decision: park, instrumentation can wait until Phase 3 ship slot.**
 
