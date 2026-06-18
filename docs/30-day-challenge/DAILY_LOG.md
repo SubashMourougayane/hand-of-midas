@@ -22,7 +22,9 @@
 | trade_ref | system | side | entry | exit | P&L (DB) | P&L (JM web) | tag |
 |---|---|---|---|---|---|---|---|
 | OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat / **F28-allowed-against-bias** |
-| OIL-MI-1310e9cd | Oil Micro | SHORT | $78.07 | $78.06 (BE-SL) | **+$3.00** | — | 🐛 TWO BUGS: phantom BE arm (trigger=$77.67 vs real M1 LOW $78.00) + wrong-side SHORT BE-SL math. Lucky drift → +$3. Without bugs: ride to TP +$303. Bug cost: $300. |
+| OIL-MI-1310e9cd | Oil Micro | SHORT | $78.07 | $78.06 (BE-SL) | **+$3.00** | — | 🐛 phantom BE arm bug. Lucky drift → +$3. Without bug: ride to TP +$303 |
+| OIL-AS-9b521a21 | Oil Macro | LONG | $77.06 | $76.66 (SL) | **−$458.78** | — | F28-allowed-against-bias. Bias=bearish, took LONG, SL'd in 11min |
+| OIL-AS-c5b353f0 | Oil Macro | LONG | $77.10 | $76.44 (SL) | **−$692.64** | — | F28-allowed-against-bias. Bias=bearish, took LONG, SL'd in 36min |
 
 ### Postmortems written
 - [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed (Day 1 trade)
@@ -49,9 +51,18 @@
 | trade | bias_mode | computed_bias | direction | F28 effect | P&L |
 |---|---|---|---|---|---|
 | OIL-MI-ac215cc6 | neutral | bearish | LONG (against bias) | F28-ALLOWED | −$367.20 |
-| OIL-MI-1310e9cd | neutral | bearish | SHORT (with bias) | bias-aligned (no F28 effect) | +$3.00 |
+| OIL-MI-1310e9cd | neutral | bearish | SHORT (with bias) | bias-aligned (bug-driven) | +$3.00 |
+| OIL-AS-9b521a21 | neutral | bearish | LONG (against bias) | F28-ALLOWED | **−$458.78** |
+| OIL-AS-c5b353f0 | neutral | bearish | LONG (against bias) | F28-ALLOWED | **−$692.64** |
 
-**N=2 closed. F28-allowed: 1 (lost). Bias-aligned: 1 (BE save). Insufficient for verdict.**
+**N=4 closed. F28-allowed-against-bias: 3 trades, all LOSSES, total −$1,518. Bias-aligned: 1 (bug-driven).**
+
+**🚨 Day 1 F28 score: -$1,518 cost from F28-allowed-against-bias trades.** Production V1+V2 would have blocked all 3 LONGs (bias=bearish). N=4 still small, but the pattern is brutal.
+
+### Day 1 wallet impact
+- **Realized P&L: −$1,515.62**
+- **Wallet: ~$8,484** (vs $10,000 baseline = −15.2%)
+- **Trades: 4 SL hits + 1 bug-driven scratch + 2 TTL_EXPIRED = 7 events**
 
 ### Pending limit orders → BOTH EXPIRED (LIMIT_TTL_EXPIRED at 07:15 UTC)
 
