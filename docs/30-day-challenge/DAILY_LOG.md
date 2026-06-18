@@ -22,9 +22,11 @@
 | trade_ref | system | side | entry | exit | P&L (DB) | P&L (JM web) | tag |
 |---|---|---|---|---|---|---|---|
 | OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat / **F28-allowed-against-bias** |
+| OIL-MI-1310e9cd | Oil Micro | SHORT | $78.07 | $78.06 (BE-SL) | **+$3.00** | — | ✅ Protected by BE / bias-aligned / F5 saved $176 |
 
 ### Postmortems written
 - [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed (Day 1 trade)
+- [x] OIL-MI-1310e9cd — `postmortems/OIL-MI-1310e9cd.md` — verdict: ✅ Protected by BE — F5 saved $176
 - [x] OIL-MI-6fbb7040 — Jun 17 backfill — ✅ Clean loss — 3rd Oil Micro SL in streak
 - [x] OIL-MI-ea9d591d — Jun 17 backfill — ✅ Clean loss — 2nd Oil Micro SL in streak
 - [x] OIL-MI-08b725d3 — Jun 17 backfill — ✅ Protected by BE — F5 saved $326 of risk
@@ -44,11 +46,12 @@
 
 ### F28 evidence ledger (post-reset only — REAL data)
 
-| trade | bias_mode | computed_bias | took? | P&L |
-|---|---|---|---|---|
-| OIL-MI-ac215cc6 | neutral | bearish | yes (LONG) | −$367.20 |
+| trade | bias_mode | computed_bias | direction | F28 effect | P&L |
+|---|---|---|---|---|---|
+| OIL-MI-ac215cc6 | neutral | bearish | LONG (against bias) | F28-ALLOWED | −$367.20 |
+| OIL-MI-1310e9cd | neutral | bearish | SHORT (with bias) | bias-aligned (no F28 effect) | +$3.00 |
 
-**N=1 closed. Insufficient. Continue collecting.**
+**N=2 closed. F28-allowed: 1 (lost). Bias-aligned: 1 (BE save). Insufficient for verdict.**
 
 ### Pending limit orders → BOTH EXPIRED (LIMIT_TTL_EXPIRED at 07:15 UTC)
 
