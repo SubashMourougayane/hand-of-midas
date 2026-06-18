@@ -24,7 +24,21 @@
 | OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat / **F28-allowed-against-bias** |
 
 ### Postmortems written
-- [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed
+- [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed (Day 1 trade)
+- [x] OIL-MI-6fbb7040 — Jun 17 backfill — ✅ Clean loss — 3rd Oil Micro SL in streak
+- [x] OIL-MI-ea9d591d — Jun 17 backfill — ✅ Clean loss — 2nd Oil Micro SL in streak
+- [x] OIL-MI-08b725d3 — Jun 17 backfill — ✅ Protected by BE — F5 saved $326 of risk
+- [x] GD-MI-2b152d33 — Jun 17 backfill — 🔍 Outlier — R:R 1.17 below structural break-even
+- [x] GD-AL-4af2d62d — Jun 17 (already postmortem'd pre-challenge, copied to folder)
+- [ ] OIL-AS-a251ada3 / b32439ae / e5705d4e — Oil Macro skipped (postmortem.py auth bug, parked P1)
+
+### Backfill key findings
+- **Oil Micro 4-trade losing streak Jun 17–18:** −$985 raw, +$9 saved by F5 BE arm. Net −$976.
+- **All 3 Oil Micro SHORTs fired in same $79–80 zone within hours** — likely fighting an up-trending Oil regime.
+- **F5 (BE 35%) confirmed working** on OIL-MI-08b725d3 — BE armed at ~36% to TP, saved a full SL.
+- **GD-MI-2b152d33 fired with R:R 1.17** — borderline-spec entry. Phase 1 watch: track every Gold Micro R:R.
+- **3 new P1s parked:** R:R-uses-BE-adjusted-SL, BE-50%-threshold-mismatch, GD-MI-permissive-R:R-gate.
+- **Discipline test #5:** wanted to pull OANDA CSV + run BT for "validation" — pushed back hard, held line.
 
 ### Surprises / observations (P1/P2/P3)
 - 🟠 P1: `is_latest` race condition in `gd_backtest_runs` → `/backtest/latest` returns `{result:null}` wrapper when no row has `is_latest=TRUE`. Frontend now guarded (commit b014083). Backend fix deferred to Phase 3 ranking.

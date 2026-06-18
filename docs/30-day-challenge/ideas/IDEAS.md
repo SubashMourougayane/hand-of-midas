@@ -61,6 +61,34 @@
 
 _(append below as ideas arise — DO NOT ACT)_
 
+### 2026-06-18 — 🟠 P1: postmortem.py R:R uses BE-adjusted SL
+- **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-08b725d3)
+- **Source:** Trade with BE-armed shows R:R 100:1 because script reads `gd_trades.sl` AFTER BE adjustment ($79.02). Original SL was $79.38 → real R:R 2.86:1.
+- **Cost to fix:** ~30min — track original SL separately in gd_trades or read from journal LIMIT_PLACED event.
+- **Why it matters:** Postmortem header math is wrong for any BE-armed trade. Misleading R:R reading.
+- **Why I'm not acting now:** Phase 0 freeze. Workaround: when verdict shows R:R >10, re-derive from journal LIMIT_PLACED.
+
+### 2026-06-18 — 🟠 P1: BE 50% TP threshold mismatch
+- **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-08b725d3)
+- **Source:** BE armed at trigger_price=$78.68 (~36% to TP) but postmortem says "50% TP $78.5300 NEVER reached." Either BE threshold is configured below 50% (likely Filter #5 lowered it to 35%) OR BE math uses different price reference.
+- **Cost to fix:** ~30min — confirm threshold via Oil Micro config + fix postmortem.py if it just reads wrong threshold.
+- **Why it matters:** Postmortem header confidently states "BE NEVER reached" while logs show BE armed. Confusing forensics.
+- **Why I'm not acting now:** Phase 0 freeze. Confirm in Phase 1 by reading Oil Micro `MICRO_ALPHA_SWEEP_OIL` config block.
+
+### 2026-06-18 — 🟠 P1: GD-MI-2b152d33 fired with R:R 1.17 — entry gate too permissive?
+- **Phase noticed:** Phase 0, Day 1 (postmortem GD-MI-2b152d33)
+- **Source:** Gold Micro SHORT entered with R:R 1.17. At Gold Micro's recent ~30% WR, R:R 1.17 is structurally unprofitable. Strategy spec says R:R should be 2.5+.
+- **Cost to investigate:** ~1hr — read scheduler entry path, check for min-R:R gate, audit historical trades for similar low-R:R fires.
+- **Why it matters:** If strategy is firing low-R:R setups regularly, that's silently eroding edge. Could be the explanation for some Gold Micro losses.
+- **Why I'm not acting now:** Phase 0 freeze. Track R:R for every Gold Micro trade Phase 1. If pattern holds → Phase 3 ranking candidate as "min R:R gate" filter.
+
+### 2026-06-18 — 🟠 P1: postmortem.py http_get missing auth header
+- **Phase noticed:** Phase 0, Day 1 (backfilling yesterday's postmortems)
+- **Source:** Oil Macro trades return HTTP 404 from script. Manual curl WITH auth header returns 200. `scripts/postmortem.py:66 http_get()` does NOT add `Authorization: Bearer` token.
+- **Cost to fix:** ~2min — add `Authorization` header from env var
+- **Why it matters:** Postmortem skill is the foundational measurement tool of the 30-day challenge. Half-blind to Oil Macro right now. Workaround = hand-write Oil Macro postmortems via curl.
+- **Why I'm not acting now:** Phase 0 freeze. Script bug, not a strategy bug. Phase 3 ranking candidate or "just fix when it next breaks me."
+
 ### 2026-06-18 — 🟠 P1: DB pnl_usd excludes overnight swap
 - **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-ac215cc6)
 - **Source:** JM web shows −$367.20, DB shows −$360.00. Diff = −$7.20 swap.
