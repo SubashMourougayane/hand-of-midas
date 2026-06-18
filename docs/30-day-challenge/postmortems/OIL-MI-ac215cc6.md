@@ -89,7 +89,18 @@ _The sections below are placeholders. The `trade-postmortem` skill replaces each
 ## 1. Strategy alignment
 
 <!-- skill: strategy_alignment -->
-Strategy is `micro_alpha_sweep_oil` (rolling 4hr Oil Micro). Entry was via Filter #27 limit-order path at $78.4706 (offset_pct=-0.1, intended pullback into structure). Limit placed 01:00:02 UTC, filled 14m20s later at $78.4700 (1 pip better than intended limit). R:R = 3.73:1 — high end of normal for this strategy (typical 2.5–4). SL distance $0.30/unit is tight on Oil Micro vs typical $0.40–0.60 — possibly the consolidation range was unusually narrow. Filter #27 worked exactly as designed: order placed, filled within 15min TTL, executed at intended price. **No alignment red flags. Just a losing direction.**
+Strategy is `micro_alpha_sweep_oil` (rolling 4hr Oil Micro). Entry was via Filter #27 limit-order path at $78.4706 (offset_pct=-0.1, intended pullback into structure). Limit placed 01:00:02 UTC, filled 14m20s later at $78.4700 (1 pip better than intended limit). R:R = 3.73:1 — high end of normal for this strategy (typical 2.5–4). SL distance $0.30/unit is tight on Oil Micro vs typical $0.40–0.60 — possibly the consolidation range was unusually narrow. Filter #27 worked exactly as designed: order placed, filled within 15min TTL, executed at intended price.
+
+**🚨 F28 SMOKING GUN:** Journal `F28_BIAS_RESOLVED` events around the trade time show:
+- `computed_bias`: **bearish** (V1+V2 would have blocked this LONG)
+- `mode`: **neutral** (F28 active)
+- `effective_bias`: **neutral** → LONG allowed
+
+**This trade would NOT have fired under production V1+V2.** F28 (neutral) explicitly bypassed the bearish bias filter, allowing a LONG to be placed against the bias. The trade lost. **N=1 — single-trade noise, but exactly the data Phase 2 verdict needs.**
+
+**No alignment red flags on the entry-signal mechanics** — consolidation + sweep + engulfing all fired correctly per the strategy. The filter that was designed to suppress LONGs into bearish bias was deliberately disabled by F28.
+
+**Phase 1 instrumentation gap noted:** journal does not emit `SIGNAL_DETECTED` / `SWEEP_FOUND` / `ENGULF_CONFIRMED` events — we cannot see WHAT level was swept or how the consolidation looked. Should be tracked for Phase 3 ranking — without these events, postmortems miss the entry-signal forensics.
 <!-- /skill: strategy_alignment -->
 
 ## 2. Bug-smell scan (judgment)
@@ -116,11 +127,12 @@ Counterfactual table is binary: SL = −$359.10, TP = +$1,340.64. **Price never 
 ## 5. Recommendations
 
 <!-- skill: recommendations -->
-- **Status:** This trade is **normal** (clean strategy execution, losing setup). Streak context is **concerning** — Oil Micro 2W/5L net −$1,606 over last 7 trades.
-- **Verify on broker (manual):** JM web shows −$367.20 net (incl. swap −$7.20). DB pnl_usd=−360 (excludes swap). **Not a bug, but track:** if 30-day reconcile (wallet Δ vs DB-sum) is off, swap is the culprit. Add swap column to gd_trades or accept the gap and document.
-- **Track for future trades:** is the streak Oil-Micro-specific, or is Gold Micro also drifting? Postmortem every Oil + Gold Micro trade in Phase 1, tag streak vs reversal.
-- **Do NOT fix during freeze:** double-EXIT_FILLED journal row, swap reconcile, F28 bias_mode field on postmortem — all parked as P1/P2 in IDEAS.md. Phase 3 candidates.
-- **F28 evidence (Day 1):** 1 trade, 1 loss. Insufficient for verdict. Continue collecting.
+- **Status:** Trade execution is **normal** (clean Filter #27 limit fill, SL hit at intended level). But this is an **F28-allowed-against-bias trade** — exactly the population that the 30-day F28 experiment is designed to measure. Tag for explicit tracking.
+- **F28 single-trade evidence (Day 1):** 1 trade, allowed by F28, blocked by V1+V2. Lost $367.20. **Counterfactual under production: this trade does NOT exist, wallet stays $10,000.** N=1 = noise. Need 10+ such trades for verdict. Track `computed_bias=X` vs `effective_bias=neutral` mismatches separately in Phase 2 review.
+- **Verify on broker (manual):** JM web −$367.20 incl swap. DB −$360. **Not a bug** but reconcile-gap is real. Track in evening close.
+- **Track for future trades:** Streak context is concerning — Oil Micro 2W/5L net −$1,606 over last 7. Is bias-disable contributing? Postmortem every Oil Micro trade in Phase 1, tag F28-allowed-against-bias separately.
+- **Phase 1 instrumentation gap:** No `SIGNAL_DETECTED` / `SWEEP_FOUND` events. Add to IDEAS.md as P2 — Phase 3 ranking candidate IF postmortem patterns reveal entry-quality issues we can't currently see.
+- **Do NOT fix during freeze:** double-EXIT_FILLED, swap column, F28-not-in-BT, signal events instrumentation — all parked. Discipline holds.
 <!-- /skill: recommendations -->
 
 ---

@@ -21,7 +21,7 @@
 ### Trades fired today
 | trade_ref | system | side | entry | exit | P&L (DB) | P&L (JM web) | tag |
 |---|---|---|---|---|---|---|---|
-| OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat |
+| OIL-MI-ac215cc6 | Oil Micro | LONG | $78.47 | $78.17 (SL) | −$360.00 | −$367.20 (incl −$7.20 swap) | clean-strat / **F28-allowed-against-bias** |
 
 ### Postmortems written
 - [x] OIL-MI-ac215cc6 — `postmortems/OIL-MI-ac215cc6.md` — verdict: ✅ Clean loss — strategy as designed
