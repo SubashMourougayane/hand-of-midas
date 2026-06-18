@@ -69,6 +69,18 @@ _(append below as ideas arise — DO NOT ACT)_
 - **Counter-argument:** if we don't count TTL_EXPIRED, signal-spammy days could blow through the intended attempt budget. Need to think about WHAT the cap protects.
 - **Why I'm not acting now:** Phase 0 freeze. Phase 3 ranking candidate. Track over 30 days how often TTL_EXPIRED contributes to lockout.
 
+### 2026-06-18 — 🚨 P1: BE trigger_price ($77.67) doesn't match MT5 visual chart (lowest visible ~$77.95)
+- **Phase noticed:** Phase 0 build week, Day 1 (OIL-MI-1310e9cd postmortem)
+- **Source:** Trade exited at BE-SL $78.06. Journal says BE armed at `trigger_price=77.67` (= ask price seen by scheduler when BE check fired). User's MT5 M5 chart visually shows trade body never went below ~$77.95. $0.30 visual gap between scheduler's recorded ask and what MT5 chart shows.
+- **Evidence:** docs/30-day-challenge/postmortems/OIL-MI-1310e9cd.md "What happened AFTER exit" section + MT5 screenshot.
+- **Possible causes:**
+  1. Stale price tick read by scheduler at BE-check time
+  2. Real broker spike at M3/M1 resolution invisible in M5
+  3. Wrong price source (OANDA vs MT5 mismatch — OANDA ~$79, JM ~$78 at trade time)
+- **Cost to investigate:** Need M1 chart from JM at 12:12-12:20 UTC + log scheduler's price feed source.
+- **Why it matters:** If BE is firing on phantom ticks, F5 metrics are unreliable. Could affect entire BE narrative.
+- **Why I'm not acting now:** Phase 0 build week ends Mon Jun 22. Investigate as Phase 3 ranking item OR Day 1 P1 audit (after sleeping on it).
+
 ### 2026-06-18 — 🟠 P1: postmortem.py R:R uses BE-adjusted SL
 - **Phase noticed:** Phase 0, Day 1 (postmortem OIL-MI-08b725d3)
 - **Source:** Trade with BE-armed shows R:R 100:1 because script reads `gd_trades.sl` AFTER BE adjustment ($79.02). Original SL was $79.38 → real R:R 2.86:1.

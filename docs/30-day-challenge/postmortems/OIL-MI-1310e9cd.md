@@ -42,17 +42,21 @@
 ## What happened AFTER exit?
 
 - TP level $77.0700 **WAS** reached at ~19:17 IST (~30min after exit at 18:47 IST)
-- **Visual chart analysis (from JM web):**
-  - Pre-entry: choppy consolidation $78.10-78.50 from 14:00-16:00
-  - 16:00-16:18 chart: drift down to $78.10 → ENTRY $78.07
-  - 16:18-16:42 chart: tight range $78.00-78.10 (barely moves)
-  - **16:42-16:48 chart: ONE BIG RED CANDLE — opens ~$78.10, wicks UP momentarily (likely tagged BE-SL $78.06), then plunges to $77.50**
-  - 16:48 onward: continues down to TP $77.07
+- **Visual chart analysis (from MT5 M5 — authoritative source):**
+  - ENTRY at $78.07 (red arrow ~14:50 chart time)
+  - Trade body: tight range **$78.00-78.20** from entry to exit (~70min)
+  - **Price NEVER went near original SL $78.64** (off-screen high)
+  - **EXIT at $78.06-78.10 zone** (blue arrow ~16:00 chart time) — at the END of consolidation, just BEFORE the big breakout
+  - **Big RED candle AFTER exit** drops $78.10 → $77.80, then continues straight down to $76.84+ (well past TP $77.07)
+
+- **Key forensic finding:** Visual mid-prices during trade body look like they don't touch $78.06. But ASK price = MID + 0.02-0.025 spread → visible MID $78.04 = ASK $78.06 → fires SHORT BE-SL. **One small ask-side tick during a sideways candle triggered BE-SL exit before the breakout move started.**
 - **Counterfactual: had we stayed in trade with original SL $78.64, TP would have hit for +$303 instead of actual +$3.**
 
 > NOTE: deterministic script said "TP NOT reached in 30-min window" — this was generated immediately at exit. Manual price-check 30min later showed TP hit. Script has a bounded look-ahead that doesn't catch slow follow-through.
 
-> NOTE 2: BE-SL fired during the OPENING WICK of the big red candle that immediately went to TP. The 5-minute M5 bar that triggered BE was the SAME bar that would have run to TP if we'd stayed in. **F29 bar-aware BE candidate: don't exit on intra-bar tick if the bar's CLOSE is in our favour.**
+> NOTE 2: User's MT5 M5 chart screenshot shows trade body confined to **$78.00–78.20 range entire trade**. Visually no candle touches BE-SL $78.06. Yet BE armed (journal trigger_price=$77.67) and exit fired at $78.06. **🚨 $0.30+ gap between scheduler's recorded prices and visual MT5 candles. Possible stale-tick / wrong-price-source bug.** Logged as P1 in IDEAS.md.
+
+> NOTE 3: Big red candle that DROVE the price to TP fired AFTER blue arrow (exit). Visually: tight consolidation → BE-SL exit → big red drop → TP hit. F29 (bar-aware BE) candidate confirmed: don't exit on intra-bar tick if bar's CLOSE is in our favour.
 
 ## Counterfactual P&L scenarios
 
