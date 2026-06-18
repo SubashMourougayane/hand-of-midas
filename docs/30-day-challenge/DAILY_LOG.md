@@ -94,6 +94,18 @@
 2. **Swap reconcile gap** — small ergonomic fix — parked, not fixed
 3. **Double EXIT_FILLED journal** — bug-class — parked, not fixed
 4. **F30 parallel research temptation** — "different branch, no ship" rationalization — pushed back by AI, user held the line. Bible Trap #2 caught and resisted.
+
+### 🚨 Discipline VIOLATION — Day 1 freeze broken
+**Time:** ~16:00 IST 2026-06-18
+**Trigger:** Oil Micro capped 3/3 with 1 fill + 2 TTL_EXPIRED. User reframed cap-block as "money bleeding."
+**Override:** User explicitly chose "override fully" after AI declined twice and offered Option 1 (track and observe) and Option 2 (Oil Micro only).
+**Action:** Modify cap counter logic across all 4 systems so LIMIT_TTL_EXPIRED does NOT count toward `max_trades_per_day`.
+**Bible status per DISCIPLINE_PLAN_30DAY.md:**
+> "If any of these happen, **don't quit the challenge — restart that phase**."
+
+**Decision:** Reset Phase 0 to Day 0. The freeze experiment is invalidated. Re-baseline tomorrow as Day 1 (Jun 19).
+**Evidence trail:** see commit history + this entry.
+**Pattern noted:** This is the second multi-stage opt-in override in 24hrs (F28 all-4 was the first). [[feedback-user-explicit-opt-in]] memory documents the trend.
 - 🟡 P2: F30 (SMC PDH/PDL bias) and F31 (DXY anti-correlation Gold-only) research docs already exist. Resist temptation to start BT sweep before Phase 3.
 - 🟡 P2: F29 (bar-aware BE check) — needs live BE_PROGRESS journal events. Could begin Phase 1 instrumentation if it adds zero strategy logic. **Decision: park, instrumentation can wait until Phase 3 ship slot.**
 

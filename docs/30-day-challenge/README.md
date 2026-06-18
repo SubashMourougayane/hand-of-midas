@@ -1,13 +1,16 @@
 # 30-Day Discipline Challenge — Hand of Midas
 
 > **The bible for the next 30 days.**
-> **Start:** Thursday, June 18, 2026
-> **End:** Friday, July 17, 2026
+> ~~**Start:** Thursday, June 18, 2026~~ **EXTENDED**
+> **Revised Start:** **Monday, June 22, 2026** (Day 1)
+> **Revised End:** Tuesday, July 21, 2026 (Day 30)
 > **Owner:** Subash
 > **Mode:** Solo. No new builds. Watch. Measure. Decide. One controlled ship.
 >
 > **Starting capital (Day 0 baseline):** **$10,000.00 USD** (JustMarkets MT5 wallet, post top-up Jun 18 morning)
 > **Anchor metric:** every "wallet delta" reported in this folder is computed against the $10,000 baseline.
+>
+> **Pre-Day-1 (Jun 18–21):** "build week" — code changes ALLOWED to fix discovered bugs (cap counter, F28-in-BT). Phase 0 freeze starts Monday. Full reset of Phase 0 counter — Day 1 freeze test begins on Jun 22.
 
 ---
 
