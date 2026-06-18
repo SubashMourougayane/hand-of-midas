@@ -1,0 +1,42 @@
+# Phase 0 baseline parity — Oil Micro
+
+Window: 2026-06-11 → 2026-06-18
+BT bias_mode: neutral
+Live BIAS_MODE env: neutral (per-system)
+
+BT trades        : 12
+Live signals     : 20
+Matched          : 10
+BT-only           : 2
+Live-only         : 10
+
+Match rate (BT view)   : 10/12 = 83.3%
+Match rate (Live view) : 10/20 = 50.0%
+
+=== Matched signals ===
+  BT=2026-06-11T15:39:00+00:00 live=2026-06-11T15:39:00.000000Z short Δ0m  e_diff=0.0014 sl_diff=0.0000 tp_diff=0.7100
+  BT=2026-06-12T17:33:00+00:00 live=2026-06-12T17:33:00.000000Z short Δ0m  e_diff=0.0015 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-15T10:33:00+00:00 live=2026-06-15T10:33:00.000000Z long Δ0m  e_diff=0.0015 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-15T13:27:00+00:00 live=2026-06-15T13:27:00.000000Z long Δ0m  e_diff=0.0011 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-16T08:12:00+00:00 live=2026-06-16T08:12:00.000000Z long Δ0m  e_diff=0.0003 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-17T08:30:00+00:00 live=2026-06-17T08:30:00.000000Z long Δ0m  e_diff=0.0003 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-17T19:18:00+00:00 live=2026-06-17T19:18:00.000000Z short Δ0m  e_diff=0.0004 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-18T09:12:00+00:00 live=2026-06-18T09:12:00.000000Z long Δ0m  e_diff=0.0016 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-18T15:15:00+00:00 live=2026-06-18T15:15:00.000000Z short Δ0m  e_diff=0.0014 sl_diff=0.0000 tp_diff=0.0000
+  BT=2026-06-18T18:21:00+00:00 live=2026-06-18T18:21:00.000000Z long Δ0m  e_diff=0.0007 sl_diff=0.0000 tp_diff=0.0000
+
+=== BT-only (BT fired, live didn't) ===
+  2026-06-15T17:33:00+00:00 LONG entry=82.1431 sl=81.7050 tp=82.9350 exit=82.1092 pnl=$1069.69
+  2026-06-17T04:18:00+00:00 SHORT entry=79.0747 sl=79.5250 tp=78.5450 exit=79.1097 pnl=$743.38
+
+=== Live-only (live fired, BT didn't) ===
+  2026-06-11T04:18:00.000000Z short entry=93.5160 sl=94.3900 tp=90.9400
+  2026-06-12T18:42:00.000000Z long entry=86.5543 sl=85.7650 tp=92.5250
+  2026-06-15T12:39:00.000000Z long entry=82.6640 sl=81.8550 tp=87.9050
+  2026-06-15T14:21:00.000000Z long entry=82.6438 sl=82.1200 tp=83.2000
+  2026-06-15T17:12:00.000000Z long entry=82.4644 sl=81.7050 tp=83.2000
+  2026-06-15T23:12:00.000000Z short entry=83.0567 sl=83.4800 tp=82.0350
+  2026-06-16T09:18:00.000000Z long entry=82.2737 sl=81.8700 tp=82.9400
+  2026-06-16T22:12:00.000000Z long entry=79.3740 sl=78.8550 tp=80.5100
+  2026-06-17T21:12:00.000000Z long entry=79.2839 sl=78.6050 tp=82.0700
+  2026-06-18T10:09:00.000000Z long entry=77.7142 sl=77.2450 tp=78.6600

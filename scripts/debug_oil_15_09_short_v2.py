@@ -1,0 +1,68 @@
+"""Replay BT exactly: monkey-patch execute_trade to log every bar walk for the
+2026-06-17 15:09 SHORT trade.
+"""
+from __future__ import annotations
+import os
+import sys
+import importlib
+
+ROOT = "/Users/subash/SUBASH/GoldDigger"
+os.chdir(ROOT)
+sys.path.insert(0, ROOT)
+
+for k in list(sys.modules.keys()):
+    if k.startswith(("scanner", "config", "backtest", "strategies",
+                     "backend.execution", "backend.strategies", "backend.backtest",
+                     "backend.data")):
+        del sys.modules[k]
+
+pkg_path = os.path.join(ROOT, "backend-oil")
+if pkg_path in sys.path:
+    sys.path.remove(pkg_path)
+sys.path.insert(0, pkg_path)
+importlib.invalidate_caches()
+
+import pandas as pd
+
+# Patch execute_trade to print whenever bar_start corresponds to the 15:09 bar
+fill_model = importlib.import_module("backend.execution.fill_model")
+original_execute = fill_model.execute_trade
+
+def patched_execute(df, bar_start, entry, sl, tp, direction, max_bars, strategy, **kwargs):
+    bar_ts = df.index[bar_start]
+    target_ts = pd.Timestamp("2026-06-17 15:09:00", tz="UTC")
+    if bar_ts == target_ts and direction == "short":
+        print(f"\n>>> CAUGHT TARGET TRADE <<<")
+        print(f"   bar_start: {bar_start} ({bar_ts})")
+        print(f"   entry={entry} sl={sl} tp={tp} direction={direction}")
+        print(f"   kwargs: {kwargs}")
+        # Walk bars+0..+5 manually printing
+        for i in range(6):
+            b = bar_start + i
+            if b >= len(df):
+                break
+            ts = df.index[b]
+            ah = df["ask_high"].iat[b]
+            al = df["ask_low"].iat[b]
+            ao = df["ask_open"].iat[b]
+            print(f"   [{i}] {ts}: ask o={ao:.4f} h={ah:.4f} l={al:.4f}")
+        result = original_execute(df, bar_start, entry, sl, tp, direction, max_bars, strategy, **kwargs)
+        print(f"   RESULT: bars_held={result.bars_held} exit={result.exit_price:.4f} reason={result.exit_reason}")
+        # Walk what bars were "actually used" — bar_start + bars_held
+        if result.bars_held > 0:
+            exit_b = bar_start + result.bars_held
+            exit_ts = df.index[exit_b]
+            print(f"   exit bar: [{result.bars_held}] {exit_ts}")
+        print(f"<<< END TRADE >>>\n")
+        return result
+    return original_execute(df, bar_start, entry, sl, tp, direction, max_bars, strategy, **kwargs)
+
+fill_model.execute_trade = patched_execute
+
+# Also patch the engine's reference if it imported by name
+engine = importlib.import_module("backtest.engine")
+engine.execute_trade = patched_execute
+
+print("Running BT with patched execute_trade...")
+result = engine.run_backtest(bias_mode="neutral")
+print(f"Done. {len(result.trades)} total trades.")
