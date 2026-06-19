@@ -3,14 +3,25 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { InstrumentContext, Instrument, INSTRUMENTS } from "@/lib/instrument";
 
-const VALID: Instrument[] = ["gold", "micro", "oil", "oil-micro"];
+const VALID: Instrument[] = ["micro", "oil-micro"];
 const STORAGE_KEY = "midas_system";
 
+// Migrate legacy localStorage entries from retired Macro systems.
+const LEGACY_MIGRATIONS: Record<string, Instrument> = {
+  gold: "micro",
+  oil: "oil-micro",
+};
+
 function readInitial(): Instrument {
-  if (typeof window === "undefined") return "gold";
+  if (typeof window === "undefined") return "micro";
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored && VALID.includes(stored as Instrument)) return stored as Instrument;
-  return "gold";
+  if (stored && stored in LEGACY_MIGRATIONS) {
+    const migrated = LEGACY_MIGRATIONS[stored];
+    try { window.localStorage.setItem(STORAGE_KEY, migrated); } catch {}
+    return migrated;
+  }
+  return "micro";
 }
 
 export default function InstrumentProvider({ children }: { children: React.ReactNode }) {

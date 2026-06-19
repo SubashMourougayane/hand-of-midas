@@ -7,6 +7,9 @@ import { CountUp } from "@/components/ui/CountUp";
 import { EquityCurve } from "@/components/ui/EquityCurve";
 import { SpireMark } from "@/components/brand/SpireMark";
 
+// Macros retired 2026-06-19. Keys retained for backward-compat with
+// data/backtest.json which still has historical Macro stats; runtime
+// SYSTEMS list filters them out.
 type SystemKey = "aggregate" | "gold" | "micro" | "oil" | "oil-micro";
 type CurvePoint = { y: number; e: number; yr_pnl?: number };
 type SystemBlock = {
@@ -22,9 +25,7 @@ const data = bt as unknown as Record<SystemKey, SystemBlock>;
 
 const SYSTEMS: { key: SystemKey; short: string; tone: string }[] = [
   { key: "aggregate", short: "All Systems", tone: "var(--color-brass)" },
-  { key: "gold", short: "Gold Macro", tone: "var(--color-sys-gold)" },
   { key: "micro", short: "Gold Micro", tone: "var(--color-sys-gold-micro)" },
-  { key: "oil", short: "Oil Macro", tone: "var(--color-sys-oil)" },
   { key: "oil-micro", short: "Oil Micro", tone: "var(--color-sys-oil-micro)" },
 ];
 

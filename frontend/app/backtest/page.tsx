@@ -619,11 +619,8 @@ function BacktestProgress({ instrument, progressMsg }: { instrument: string; pro
     return () => clearInterval(timer);
   }, []);
 
-  const steps = instrument === "oil"
-    ? ["Loading 20 years of oil data", "Generating Alpha-Sweep signals (M3)", "Executing trades with DD protection", "Computing statistics"]
-    : instrument === "micro"
-    ? ["Loading 20 years of data", "Generating Micro Alpha-Sweep signals (rolling 4hr)", "Executing trades with DD protection", "Computing statistics"]
-    : ["Loading 20 years of data", "Generating Cross-Market signals", "Generating Mean-Rev signals", "Generating Alpha-Sweep signals (M3)", "Executing trades with DD protection", "Computing statistics"];
+  // Macros retired 2026-06-19. Both Micros use the same 4hr rolling Alpha-Sweep.
+  const steps = ["Loading 20 years of data", "Generating Micro Alpha-Sweep signals (rolling 4hr)", "Executing trades with DD protection", "Computing statistics"];
 
   const currentStep = Math.min(Math.floor(elapsed / 15), steps.length - 1);
 

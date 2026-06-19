@@ -4,19 +4,16 @@ import { ChevronDown } from "lucide-react";
 import { useInstrument, INSTRUMENTS, Instrument } from "@/lib/instrument";
 import { cn } from "@/components/ui/cn";
 
-const ORDER: Instrument[] = ["gold", "micro", "oil", "oil-micro"];
+// Macros retired 2026-06-19. See start-win.bat header for rationale.
+const ORDER: Instrument[] = ["micro", "oil-micro"];
 
 const SYSTEM_VAR: Record<Instrument, string> = {
-  gold: "var(--color-sys-gold)",
   micro: "var(--color-sys-gold-micro)",
-  oil: "var(--color-sys-oil)",
   "oil-micro": "var(--color-sys-oil-micro)",
 };
 
 const SHORT_LABEL: Record<Instrument, string> = {
-  gold: "Gold Macro",
   micro: "Gold Micro",
-  oil: "Oil Macro",
   "oil-micro": "Oil Micro",
 };
 

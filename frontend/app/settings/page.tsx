@@ -19,7 +19,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default function SettingsPage() {
   const { instrument } = useInstrument();
-  const isGold = instrument === "gold" || instrument === "micro";
+  // Macros retired 2026-06-19.
+  const isGold = instrument === "micro";
   const symbol = isGold ? "XAU/USD" : "BCO/USD";
 
   return (

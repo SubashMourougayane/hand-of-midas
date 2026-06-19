@@ -78,7 +78,7 @@ export default function LivePage() {
   const stratLabel = (s: string) =>
     s.includes("alpha_sweep") ? "Alpha" : s === "mean_rev" ? "MRev" : "Cross";
 
-  const symbol = instrument === "oil" || instrument === "oil-micro" ? "BCO/USD" : "XAU/USD";
+  const symbol = instrument === "oil-micro" ? "BCO/USD" : "XAU/USD";
 
   return (
     <div className="p-3 sm:p-6 max-w-[1280px] mx-auto">
@@ -114,9 +114,8 @@ export default function LivePage() {
         {/* System Mode */}
         <SystemMode hasPositions={(state?.db_positions?.length || state?.oanda_positions?.length || 0) > 0} />
 
-        {/* Sweep Proximity (Gold Macro / Oil Macro only — Micro has different scan-status shape) */}
-        {instrument !== "micro" && instrument !== "oil-micro" && <SweepProximity scan={scan} />}
-        {(instrument === "micro" || instrument === "oil-micro") && scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
+        {/* Macros retired 2026-06-19 — Micro-only path; SweepProximity branch dead. */}
+        {scan && <MicroWindows scan={scan as unknown as Record<string, unknown>} />}
 
         {error ? (
           <Card padded className="mb-4 border-[var(--color-loss)]/40 bg-[var(--color-loss)]/5">

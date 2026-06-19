@@ -31,7 +31,8 @@ interface OHLCPoint {
 
 export default function TradeJourney({ date, strategy, direction, entry, sl, tp, exit_price, pnl, bars_held, status, hold_human, onClose }: TradeJourneyProps) {
   const { instrument } = useInstrument();
-  const prefix = instrument === "oil" ? "oil" : "gold";
+  // Macros retired 2026-06-19. Was: instrument === "oil" ? "oil" : "gold".
+  const prefix = instrument === "oil-micro" ? "oil-micro" : "micro";
   const [points, setPoints] = useState<OHLCPoint[]>([]);
   const [entryIdx, setEntryIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,7 +64,8 @@ export default function TradeJourney({ date, strategy, direction, entry, sl, tp,
   const beTarget = isAlphaSweep && tp > 0
     ? (isLong ? entry + (tp - entry) * 0.5 : entry - (entry - tp) * 0.5)
     : 0;
-  const beOffset = instrument === "oil" ? 0.01 : 0.30;
+  // Macros retired 2026-06-19. Oil Micro keeps the oil-scaled BE offset.
+  const beOffset = instrument === "oil-micro" ? 0.01 : 0.30;
   const beSl = isLong ? entry + beOffset : entry - beOffset;
 
   let beBarIdx = -1;

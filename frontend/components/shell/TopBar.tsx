@@ -6,10 +6,9 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { useInstrument, INSTRUMENTS } from "@/lib/instrument";
 import { SpireMark } from "@/components/brand/SpireMark";
 
+// Macros retired 2026-06-19.
 const SHORT_LABEL: Record<string, string> = {
-  gold: "Gold Macro",
   micro: "Gold Micro",
-  oil: "Oil Macro",
   "oil-micro": "Oil Micro",
 };
 
