@@ -255,7 +255,16 @@ def generate_signals(
                                           "consol_range": consol_range,
                                           "window": f"{start_hour}-{end_hour}",
                                           "sweep_time": sbar_ts.isoformat(),
-                                          "start_hour": start_hour},
+                                          "start_hour": start_hour,
+                                          # BT-LOOKAHEAD fix (2026-06-20): h1 bar that
+                                          # caused this signal to be emitted. BT engine
+                                          # uses this as the fill-walk anchor (NOT
+                                          # signal.date) so BT and live both can fill
+                                          # only from "after H1 has closed" — matching
+                                          # live's cron cadence. Tape replay (Jun 19)
+                                          # showed signal.date-anchored fills produced
+                                          # impossible (51-min reverse lookahead) fills.
+                                          "emit_h1_bar": bar_ts.isoformat()},
                             ))
                         else:
                             entry = gold_m3["bid_close"].iat[idx] - slippage(br)
@@ -278,7 +287,8 @@ def generate_signals(
                                           "consol_range": consol_range,
                                           "window": f"{start_hour}-{end_hour}",
                                           "sweep_time": sbar_ts.isoformat(),
-                                          "start_hour": start_hour},
+                                          "start_hour": start_hour,
+                                          "emit_h1_bar": bar_ts.isoformat()},
                             ))
 
                         traded_sweeps.add(sk)

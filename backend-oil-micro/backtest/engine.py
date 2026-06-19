@@ -450,6 +450,23 @@ def run_backtest(
         except KeyError:
             continue
 
+        # BT-LOOKAHEAD fix (2026-06-20): see backend-micro/backtest/engine.py for
+        # the rationale. Anchor fill walk to the H1 bar that emitted the signal,
+        # not the engulfing M3 bar. signal.date stays unchanged for cooldown/
+        # position_exit_time semantics.
+        bar_idx_for_fill = bar_idx
+        if signal.metadata and signal.metadata.get("emit_h1_bar"):
+            try:
+                _emit_ts = pd.Timestamp(signal.metadata["emit_h1_bar"])
+                if _emit_ts.tzinfo is None:
+                    _emit_ts = _emit_ts.tz_localize("UTC")
+                _candidate_idx = oil_m3.index.searchsorted(_emit_ts, side="right")
+                if _candidate_idx >= len(oil_m3):
+                    continue
+                bar_idx_for_fill = max(bar_idx, int(_candidate_idx))
+            except (ValueError, TypeError):
+                pass
+
         # Filter #27 — compute limit_price per variant (Oil Micro = always micro_alpha_sweep_oil).
         # Uses the shared helper for live↔BT parity. See backend/execution/limit_price.py.
         use_limit = (entry_mode == "limit" and limit_ttl_bars > 0)
@@ -469,7 +486,7 @@ def run_backtest(
 
         result = _execute_trade(
             df=oil_m3,
-            bar_start=bar_idx,
+            bar_start=bar_idx_for_fill,
             entry=signal.entry,
             sl=signal.sl,
             tp=signal.tp,

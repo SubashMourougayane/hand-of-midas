@@ -250,6 +250,32 @@ def run_backtest(
         except KeyError:
             continue
 
+        # BT-LOOKAHEAD fix (2026-06-20): bar_idx_for_fill = first M3 bar AFTER
+        # emit_h1_bar (the H1 bar that caused this signal to be emitted by
+        # the strategy). signal.date is the engulfing M3 bar — strategy KNOWS
+        # the engulfing happened, but only LEARNS about it when h1 closes
+        # past end_hour. Using engulfing M3 as fill anchor gives BT a 30-60min
+        # reverse lookahead. Fix: anchor fill walk to emit_h1_bar+1 M3 bar.
+        # See docs/parity/PARITY_REMEDIATION_LOG.md → BT-LOOKAHEAD section.
+        bar_idx_for_fill = bar_idx
+        if signal.timeframe == "M3" and signal.metadata and signal.metadata.get("emit_h1_bar"):
+            try:
+                _emit_ts = pd.Timestamp(signal.metadata["emit_h1_bar"])
+                if _emit_ts.tzinfo is None:
+                    _emit_ts = _emit_ts.tz_localize("UTC")
+                # First M3 bar STRICTLY AFTER emit_h1_bar.
+                _candidate_idx = df.index.searchsorted(_emit_ts, side="right")
+                if _candidate_idx >= len(df):
+                    # No M3 bars after emit_h1_bar — signal can't be filled
+                    continue
+                # Use the LATER of (engulfing+1, emit_h1+1). Strategy may have
+                # back-found an engulfing AT or BEFORE emit_h1; we anchor on
+                # whichever is later.
+                bar_idx_for_fill = max(bar_idx, int(_candidate_idx))
+            except (ValueError, TypeError):
+                # Bad metadata → fall back to legacy bar_idx (logged anomaly)
+                pass
+
         tp = signal.tp
         if signal.strategy == "mean_rev" and tp == 0:
             tp = signal.entry + signal.risk * 3
@@ -279,9 +305,13 @@ def run_backtest(
         if signal.strategy == "micro_alpha_sweep":
             _filter27_total_local += 1
 
+        # BT-LOOKAHEAD: pass bar_idx_for_fill (post-h1-emit anchor), not bar_idx
+        # (engulfing M3). For Daily timeframe and Macro market entries the
+        # difference is zero; for M3 alpha-sweep variants it eliminates ~30-60min
+        # reverse lookahead.
         result = execute_trade(
             df=df,
-            bar_start=bar_idx,
+            bar_start=bar_idx_for_fill,
             entry=signal.entry,
             sl=signal.sl,
             tp=tp,

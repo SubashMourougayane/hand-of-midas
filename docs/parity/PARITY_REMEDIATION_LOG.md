@@ -634,6 +634,81 @@ $ pytest tests/test_unmark_sweep_consumed.py tests/test_psycopg2_numpy_adapter.p
 
 ---
 
+## BT-LOOKAHEAD — F27 fill model uses engulfing M3 bar as bar_idx (PATH 3 FIX)
+
+**Priority:** P0 · **Started:** 2026-06-20 IST 04:30 · **Status:** 🔵 IN_PROGRESS
+
+### Audit claim
+BT engine reads `signal.date = engulfing M3 bar` and uses `bar_idx = df.index.get_loc(signal.date)`. Strategy emits a signal in `for bar_ts in day_h1.iterrows()` only when `bar_ts >= end_hour + 1`. So the EARLIEST knowable time of the signal = h1 bar_ts. But BT walks fill from engulfing M3 bar onwards. **Reverse lookahead of (h1_bar_ts - signal.date) ≈ 30-60 min.** Tape replay produced zero fills for trades BT shows as filled. Real bug.
+
+### VERIFY (Stage 1)
+
+**Where lookahead lives in code:**
+
+| File | Line | Code |
+|---|---|---|
+| `backend/strategies/micro_alpha_sweep.py` | 251 | `signal.date=gold_m3.index[idx]` (engulfing M3 — SOURCE) |
+| `backend/strategies/micro_alpha_sweep.py` | 274 | same for SHORT |
+| `backend-oil-micro/strategies/micro_alpha_sweep_oil.py` | 177 | `date=oil_m3.index[idx]` (LONG) |
+| `backend-oil-micro/strategies/micro_alpha_sweep_oil.py` | 198 | same SHORT |
+| `backend-micro/backtest/engine.py` | 249 | `bar_idx = df.index.get_loc(signal.date)` (USE) |
+| `backend-oil-micro/backtest/engine.py` | similar |
+| `backend/backtest/engine.py` (Macro) | similar |
+| `backend-oil/backtest/engine.py` (Macro) | similar |
+
+**Strategy outer loop variable that should be the "knowability" anchor:** `bar_ts` (the H1 bar in `for bar_ts, bar in day_h1.iterrows()`) at the moment of emission.
+
+**Concretely for the BT 08:09 LONG case:**
+- `bar_ts = 09:00 UTC` (the h1 bar whose `_hour_past` check returned True)
+- `sbar_ts = 08:00 UTC` (the sweep h1 bar)
+- `idx = m3 idx of 08:09` (engulfing M3 bar)
+- `signal.date = 08:09` ← what BT uses as bar_idx for fill walk
+- `signal_emit_h1_bar = 09:00` ← what BT *should* use
+
+**Decision: which timestamp is the right "earliest knowable" anchor for live parity?**
+
+In live, the cron tick at `bar_ts.minute = 0/3/6/...` AFTER `bar_ts` closes (because broker H1 is delivered after the bar closes). So if `bar_ts = 09:00 UTC`, the earliest live cron that sees this is `09:03 UTC` (next */3 cron tick). Live then emits signal, sends limit to broker (broker accepts at ~09:03:01 UTC).
+
+**Fix anchor:** `signal_emit_h1_bar + 1 minute` (round up to next M3 boundary). For 09:00 H1 → first M3 bar of fill walk = 09:03 UTC. 
+
+But there's a subtlety — the live cron at 09:03 might not have the 09:00 H1 yet (broker delay). The next reliable cron is 09:06. **Conservative anchor: signal_emit_h1_bar + scan_minute_cadence (=3min)**. So fill walk starts at 09:03 M3 (which BT can also access).
+
+**Implementation plan:**
+1. Strategy: pass `emit_h1_bar` (string ISO) in `signal.metadata`
+2. Engine: at fill-walk time, compute `fill_start_m3 = m3 bar at emit_h1_bar + 3min` (or first M3 bar > emit_h1_bar)
+3. Pass `bar_start = m3.index.get_loc(fill_start_m3)` to `execute_trade` instead of engulfing bar_idx
+
+**Affected files:** 4 strategies (gold_micro, oil_micro, oil_macro_alpha_sweep, gold_macro_alpha_sweep) and 4 engines.
+
+**Risk:** every F27-mode trade will fill different bar (or not fill) → 21yr P&L will change materially. Cost: probably very large drop. But this is the honest number.
+
+**🚩 F-LOOKAHEAD.1 — does the same lookahead affect MARKET-mode entries?** Yes. For market mode, BT also uses `bar_idx = engulfing M3` and assumes entry at engulfing's `ask_close + slippage`. Real live market entry happens at `bar_ts + cron_lag`. Need same fix for market mode.
+
+**🚩 F-LOOKAHEAD.2 — does the same affect SL/TP exit walk?** No. Exit walk starts at `bar_start` and walks forward. Once `bar_start` is correct (post-h1-emit), the SL/TP walk is correct.
+
+**🚩 F-LOOKAHEAD.3 — Macro strategies (alpha_sweep, alpha_sweep_oil) also affected?** Probably yes. Macros use the same h1 + scan-bar pattern. Macros currently disabled but if re-enabled the bug reappears.
+
+### RCA (Stage 2)
+
+Strategy was designed to mirror live's signal data: `signal.date` = engulfing M3 (the bar where the entry condition is verified). That's correct as a "this is the price we'd want." But the BT engine then uses signal.date as the **fill anchor** — that's where the assumption breaks. Live's fill anchor is "when can I tell the broker about this signal" = the H1 cron tick after consol completes. BT's fill anchor was conflated with signal.date.
+
+The bug was likely INVISIBLE for years because:
+- Phase 6 (last week) unified live↔BT signal-gen but didn't change fill anchors.
+- BT's $3.04M honest 7yr was calculated WITH this lookahead.
+- Tape replay in this branch is the FIRST tool to expose it.
+
+### FIX (Stage 3)
+
+_pending — designing surgical patch next..._
+
+### TEST (Stage 4)
+_pending..._
+
+### FLAGS
+_pending..._
+
+---
+
 ## A10 — Signal-gen divergence (NEW, where today's $753 lives)
 
 **Priority:** P0 · **Started:** 2026-06-20 IST early hours · **Status:** 🔵 IN_PROGRESS

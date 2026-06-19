@@ -179,7 +179,9 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                                 strategy="micro_alpha_sweep_oil", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
                                           "consol_range": consol_range, "window": f"{start_hour}-{end_hour}",
-                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour},
+                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour,
+                                          # BT-LOOKAHEAD fix (2026-06-20): see micro_alpha_sweep.py
+                                          "emit_h1_bar": bar_ts.isoformat()},
                             ))
                         else:
                             entry = oil_m3["bid_close"].iat[idx] - _slippage(br)
@@ -200,7 +202,8 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                                 strategy="micro_alpha_sweep_oil", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
                                           "consol_range": consol_range, "window": f"{start_hour}-{end_hour}",
-                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour},
+                                          "sweep_time": sbar_ts.isoformat(), "start_hour": start_hour,
+                                          "emit_h1_bar": bar_ts.isoformat()},
                             ))
 
                         traded_sweeps.add(sk)
