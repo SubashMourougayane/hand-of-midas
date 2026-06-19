@@ -27,7 +27,21 @@ _traded_sweeps_oil = {"date": None, "keys": set()}
 
 
 def london_session_job():
-    """Every 3 min during 08:00-20:00 UTC — Oil Alpha-Sweep (London + NY)."""
+    """Every 3 min during 08:00-20:00 UTC — Oil Alpha-Sweep (London + NY).
+
+    Phase 6 (2026-06-19): Macro signal scanning DISABLED per
+    DECISION_2026-06-19_DROP_MACROS.md. The strategy continues to fire
+    in BT for historical reference, but live Macros do NOT take new
+    entries. Position monitor, pending order monitor, and daily recon
+    continue to run so any open positions exit cleanly.
+
+    To re-enable, set env var `OIL_MACRO_SCAN_ENABLED=true` BEFORE
+    Python starts. Default (unset) = DISABLED.
+    """
+    if os.environ.get("OIL_MACRO_SCAN_ENABLED", "").lower() != "true":
+        _log.debug("SCAN", "macro_scan_disabled_phase6", system="oil-macro")
+        return
+
     now = datetime.now(timezone.utc)
     hour = now.hour + now.minute / 60.0
     cfg = ALPHA_SWEEP

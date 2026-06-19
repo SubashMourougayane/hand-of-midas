@@ -6,6 +6,7 @@ Schedule:
   08:00-10:30 UTC → Alpha-Sweep London session monitoring (every 3 min)
   Every 1 min → Position monitoring (SL/TP detection, break-even)
 """
+import os
 import numpy as np
 import pandas as pd
 from datetime import datetime, timezone, timedelta
@@ -53,20 +54,26 @@ def daily_close_job():
         _log.exception("SYSTEM", "max_hold_exit_failed", err=str(e))
         print(f"  Max hold check error: {e}")
 
-    # Then: check for new signals
-    try:
-        _run_cross_market()
-    except Exception as e:
-        _log.exception("SYSTEM", "cross_market_failed", err=str(e))
-        print(f"  Cross-Market error: {e}")
-        _log_journal("SYSTEM", "cross_market", "ERROR", context={"error": str(e)})
+    # Then: check for new signals.
+    # Phase 6 (2026-06-19): cross_market + mean_rev DISABLED per
+    # DECISION_2026-06-19_DROP_MACROS.md. Strategy code retained for
+    # historical BT runs. To re-enable: set GOLD_MACRO_SCAN_ENABLED=true.
+    if os.environ.get("GOLD_MACRO_SCAN_ENABLED", "").lower() == "true":
+        try:
+            _run_cross_market()
+        except Exception as e:
+            _log.exception("SYSTEM", "cross_market_failed", err=str(e))
+            print(f"  Cross-Market error: {e}")
+            _log_journal("SYSTEM", "cross_market", "ERROR", context={"error": str(e)})
 
-    try:
-        _run_mean_rev()
-    except Exception as e:
-        _log.exception("SYSTEM", "mean_rev_failed", err=str(e))
-        print(f"  Mean-Rev error: {e}")
-        _log_journal("SYSTEM", "mean_rev", "ERROR", context={"error": str(e)})
+        try:
+            _run_mean_rev()
+        except Exception as e:
+            _log.exception("SYSTEM", "mean_rev_failed", err=str(e))
+            print(f"  Mean-Rev error: {e}")
+            _log_journal("SYSTEM", "mean_rev", "ERROR", context={"error": str(e)})
+    else:
+        _log.debug("SCAN", "macro_scan_disabled_phase6", system="gold-macro", scope="cross_market+mean_rev")
 
     _log.info("SCAN", "daily_close_job_complete")
     print(f"  Daily close job complete.")
@@ -364,7 +371,18 @@ def london_session_job():
     """
     08:00-20:00 UTC — Poll every 3 min for Alpha-Sweep.
     Detects Asia sweep + M3 engulfing across London + NY sessions.
+
+    Phase 6 (2026-06-19): Macro signal scanning DISABLED per
+    DECISION_2026-06-19_DROP_MACROS.md. Position monitor + heartbeat +
+    daily_recon continue running so any open positions exit cleanly.
+
+    To re-enable, set env var `GOLD_MACRO_SCAN_ENABLED=true` BEFORE
+    Python starts. Default (unset) = DISABLED.
     """
+    if os.environ.get("GOLD_MACRO_SCAN_ENABLED", "").lower() != "true":
+        _log.debug("SCAN", "macro_scan_disabled_phase6", system="gold-macro")
+        return
+
     now = datetime.now(timezone.utc)
     hour = now.hour + now.minute / 60.0
     cfg = ALPHA_SWEEP
