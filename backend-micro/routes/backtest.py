@@ -40,7 +40,7 @@ class BacktestRequest(BaseModel):
 def _run_backtest_thread(run_id: str, req: BacktestRequest, mapped_strategies: list):
     """Run backtest in background thread, push progress to _runs store."""
     t0 = time.time()
-    _runs[run_id]["progress"].append("Loading 20 years of data...")
+    _runs[run_id]["progress"].append("Loading 7 years of M3 data (Jun 2019 onward)...")
 
     try:
         # F28 audit M1: pass live BIAS_MODE through to BT so dashboard

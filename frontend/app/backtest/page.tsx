@@ -71,8 +71,11 @@ const SESSIONS = [
 export default function BacktestPage() {
   const { instrument } = useInstrument();
   const svc = instrument as ServiceKey;
-  const [startDate, setStartDate] = useState("2006-01-01");
-  const [endDate, setEndDate] = useState("2026-05-21");
+  // Phase 6 + JM data switch (2026-06-19): JM CSV starts 2019-06-03.
+  // Older defaults (2006-01-01) silently clamped to CSV start. End date
+  // defaults to today minus 1 day for safety.
+  const [startDate, setStartDate] = useState("2019-06-03");
+  const [endDate, setEndDate] = useState("2026-06-18");
   const [capital, setCapital] = useState(5000);
   const [riskPct, setRiskPct] = useState(3.0);
   // Phase 6 retire: only alpha_sweep variants run live. mean_rev + cross_market dropped.
@@ -620,7 +623,7 @@ function BacktestProgress({ instrument, progressMsg }: { instrument: string; pro
   }, []);
 
   // Macros retired 2026-06-19. Both Micros use the same 4hr rolling Alpha-Sweep.
-  const steps = ["Loading 20 years of data", "Generating Micro Alpha-Sweep signals (rolling 4hr)", "Executing trades with DD protection", "Computing statistics"];
+  const steps = ["Loading 7 years of M3 data", "Generating Micro Alpha-Sweep signals (rolling 4hr)", "Executing trades with DD protection", "Computing statistics"];
 
   const currentStep = Math.min(Math.floor(elapsed / 15), steps.length - 1);
 
