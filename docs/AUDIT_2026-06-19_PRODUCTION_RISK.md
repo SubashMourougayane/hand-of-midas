@@ -43,9 +43,26 @@
 
 ---
 
-## C1 — APScheduler jobs lack `max_instances=1` guard
+## C1 — APScheduler jobs lack `max_instances=1` guard [REJECTED — false alarm]
 
-### Is it real?
+### Update 2026-06-19 (post-VERIFY stage):
+
+The audit agent assumed APScheduler default `max_instances` is 3. **It's 1.**
+
+```python
+>>> from apscheduler.schedulers.background import BackgroundScheduler
+>>> sch = BackgroundScheduler(timezone="UTC")
+>>> sch._job_defaults
+{'misfire_grace_time': 1, 'coalesce': True, 'max_instances': 1}
+```
+
+Our scheduler instance is `BackgroundScheduler(timezone="UTC")` — it inherits
+the default `max_instances=1`. Every job already runs serialized; parallel
+reentry is impossible without explicit opt-out.
+
+**Status:** REJECTED by VERIFY stage. No fix needed.
+
+### (Original audit finding below, preserved for record:)
 **Yes — verified.** All 4 jobs in both Micros add without `max_instances`:
 
 ```
@@ -269,9 +286,29 @@ Update `database/schema.sql:86` for new clones.
 
 ---
 
-## C4 — Cross-process MT5 OPEN-command lock missing
+## C4 — Cross-process MT5 OPEN-command lock missing [REJECTED — false alarm]
 
-### Is it real?
+### Update 2026-06-19 (post-VERIFY stage):
+
+The H2 fix (commit `b794fee`, 2026-06-17) made each command get its OWN
+response file at `responses/<cmd_<unix_ms>_<pid>>.txt`. Filename includes
+PID so cross-process collisions are impossible. Each process polls only
+its own filename.
+
+The docstring of `_send_command` (line 251-256) explicitly notes this:
+
+> `_command_lock` is preserved as a sanity-net for in-process serialization
+> (DB connection pool, log ordering, etc.) but is no longer required for
+> correctness — concurrent processes get correctly-correlated responses
+> via the per-cmd file.
+
+The audit conflated "lock object is per-process" (true) with "no
+cross-process safety" (false). The safety comes from the per-cmd response
+file mechanism, not the lock.
+
+**Status:** REJECTED. Already fixed by H2 (2 days ago).
+
+### (Original audit finding below, preserved for record:)
 **Yes — verified.**
 
 ```
@@ -434,9 +471,21 @@ Defer. Add a check: before grace-cancel, confirm ticket not in
 
 ---
 
-## H3 — `gd_journal` missing index on `(strategy, event_type, timestamp)`
+## H3 — `gd_journal` missing index on `(strategy, event_type, timestamp)` [REJECTED — already exists on prod]
 
-### Is it real?
+### Update 2026-06-19 (post-VERIFY stage):
+
+Live VPS DB inspection shows `gd_journal_event_type_ts` index already
+exists on `(event_type, timestamp)`. EXPLAIN of a daily_recon-style query
+on 224k rows returns `Index Scan` with `cost=0.42..8.45` — sub-millisecond.
+
+The index was added out-of-band at some point but never landed in
+`database/schema.sql`. Added now to schema.sql via `CREATE INDEX IF NOT
+EXISTS` so fresh clones match production state.
+
+**Status:** REJECTED (no-op on production). Schema sync only.
+
+### (Original audit finding below, preserved for record:)
 **Yes — but performance-only.** No correctness impact. Daily recon
 queries do sequential scans. As journal grows, recon time slows.
 

@@ -498,6 +498,16 @@ void WriteSymbolBars(string symbol, ENUM_TIMEFRAMES tf, int count, string tfLabe
     int copied = CopyRates(symbol, tf, 0, count, rates);
     if(copied <= 0) return;
 
+    // M3 fix (2026-06-19): warn if CopyRates returned fewer bars than
+    // requested. Indicates broker/MT5 history is stale or chart hasn't
+    // caught up after reconnect. Python side has its own min-bar check
+    // (h1 < 6 → skip cycle) so this is diagnostic only — but without the
+    // warn we'd have no signal that the EA is feeding partial data.
+    if(copied < count) {
+        PrintFormat("[DWX] WARN: CopyRates partial - symbol=%s tf=%s requested=%d got=%d",
+                    symbol, tfLabel, count, copied);
+    }
+
     string json = "[";
     for(int i = 0; i < copied; i++)
     {

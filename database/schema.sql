@@ -140,6 +140,11 @@ CREATE TABLE IF NOT EXISTS gd_journal (
 );
 
 CREATE INDEX idx_gd_journal_trade_ref ON gd_journal(trade_ref);
+-- H3 (2026-06-19): index for daily_recon-style queries (filter by event_type
+-- + timestamp window, count). Already exists on production DB; added here
+-- so fresh clones match prod. EXPLAIN shows Index Scan, sub-ms latency at
+-- 224k rows.
+CREATE INDEX IF NOT EXISTS gd_journal_event_type_ts ON gd_journal(event_type, "timestamp");
 
 -- DD protection state (persisted)
 CREATE TABLE IF NOT EXISTS gd_dd_state (
