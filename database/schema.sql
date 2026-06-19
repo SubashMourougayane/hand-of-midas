@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS gd_trades (
     units INTEGER NOT NULL,
     pnl_gbp DECIMAL(10,2),
     pnl_usd DECIMAL(10,2),
-    exit_reason VARCHAR(30),
+    exit_reason VARCHAR(50),  -- C3 (2026-06-19): widened from 30 to fit 36-char LIMIT_BAD_OPEN_PRICE_FORCE_CANCELLED. Same class as Jun 10 VARCHAR(20) orphan cascade.
     mode VARCHAR(10) DEFAULT 'paper',
     oanda_trade_id VARCHAR(30),
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS gd_journal (
     timestamp TIMESTAMPTZ DEFAULT NOW(),
     trade_ref VARCHAR(50),
     strategy VARCHAR(50),
-    event_type VARCHAR(30) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,  -- C3 (2026-06-19): widened from 30 to fit 40-char LIMIT_COMPUTE_FAILED_FELL_BACK_TO_MARKET.
     price DECIMAL(10,4),
     context JSONB
 );
