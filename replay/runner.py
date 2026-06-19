@@ -32,12 +32,14 @@ import psycopg2
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-REPLAY_DB_NAME = "golddigger_replay"
+REPLAY_DB_NAME = os.environ.get("REPLAY_DB_NAME", "golddigger_replay")
 REPLAY_DB_URL = f"postgresql://subash@localhost:5432/{REPLAY_DB_NAME}"
 
 
 def _truncate_replay_db() -> None:
     """Wipe replay DB tables before each run."""
+    if "replay" not in REPLAY_DB_NAME:
+        raise RuntimeError(f"Replay refuses to truncate non-replay DB: {REPLAY_DB_NAME}")
     conn = psycopg2.connect(REPLAY_DB_URL)
     conn.autocommit = True
     cur = conn.cursor()
@@ -68,7 +70,7 @@ class ReplayRunner:
     def setup_env(self) -> None:
         """Pre-import setup. MUST be called BEFORE importing live modules."""
         # Hard guard: replay DB only.
-        if "golddigger_replay" not in REPLAY_DB_URL:
+        if "replay" not in REPLAY_DB_URL:
             raise RuntimeError(f"Replay refuses to run with DB={REPLAY_DB_URL}")
 
         # Live's `from backend.config import DB_URL` reads DATABASE_URL env.
@@ -222,6 +224,19 @@ class ReplayRunner:
 
         sys.modules["backend.execution.mt5_executor"] = stub
 
+        # Also stub backend.notify — Telegram is real network, expensive,
+        # and irrelevant for replay parity. ConnectTimeout per signal is
+        # ~5s of wasted wall-clock.
+        notify_stub = types.ModuleType("backend.notify")
+        for fn in (
+            "signal_skipped", "trade_filled", "trade_closed", "limit_placed",
+            "limit_ttl_expired", "max_hold_deferred", "be_armed", "partial_filled",
+            "daily_recon", "bad_open_price_persistent", "send", "exception",
+            "send_text",
+        ):
+            setattr(notify_stub, fn, lambda *a, **kw: None)
+        sys.modules["backend.notify"] = notify_stub
+
     def patch_live_clock(self, tape) -> None:
         """Patch datetime.now in live modules to return tape time.
 
@@ -364,8 +379,9 @@ class ReplaySession:
                         if self.verbose:
                             import traceback; traceback.print_exc()
 
-            # ── Position monitor: every minute
-            if clock.minute % position_monitor_minute_cadence == 0:
+            # ── Position monitor: every minute (skip when no open trades — major speedup)
+            has_open = any(o.state == "OPEN" for o in self.broker._orders.values())
+            if has_open and clock.minute % position_monitor_minute_cadence == 0:
                 for system, sched in self.schedulers.items():
                     try:
                         sched.position_monitor_job()
@@ -379,8 +395,9 @@ class ReplaySession:
                         if self.verbose:
                             import traceback; traceback.print_exc()
 
-            # ── Pending order monitor (Filter #27)
-            if clock.minute % pending_minute_cadence == 0:
+            # ── Pending order monitor (Filter #27) — skip when no pending limits
+            has_pending = any(o.state == "PENDING" for o in self.broker._orders.values())
+            if has_pending and clock.minute % pending_minute_cadence == 0:
                 for system, sched in self.schedulers.items():
                     if hasattr(sched, "pending_order_monitor_job"):
                         try:

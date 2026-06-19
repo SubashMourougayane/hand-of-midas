@@ -19,6 +19,11 @@ from datetime import datetime, timezone
 REPO_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
+# For multi-day runs, raise log threshold so DEBUG/INFO from live's _log
+# don't dominate output. WARN+ still fires (catches gates, position events).
+if "--quiet" in sys.argv or "--year2024" in sys.argv or "--year2025" in sys.argv:
+    os.environ["HOM_LOG_LEVEL"] = "WARN"
+
 from replay.tape.server import TapeServer
 from replay.bridge.broker import FakeBroker
 from replay.runner import ReplaySession, _truncate_replay_db
@@ -44,25 +49,44 @@ def main():
     # 3. Bridge — broker over the tape
     broker = FakeBroker(tape=tape, starting_balance=10000.0)
 
-    # 4. Session — install Gold Micro first
+    # 4. Session — install Gold or Oil based on flag
     session = ReplaySession(tape=tape, broker=broker, verbose=False)
-    print("Installing gold-micro...")
-    session.add_system("gold-micro", "backend-micro", "XAU_USD", bias_mode="neutral")
-    # NOTE: oil-micro is in same backend.execution namespace via the stub,
-    # so installing both currently overwrites the gold-micro scheduler with
-    # oil-micro's scheduler module. Single-system per-replay for now.
-    # Will solve multi-system in a later iteration.
+    import sys as _sys
+    if "--oil" in _sys.argv:
+        print("Installing oil-micro...")
+        session.add_system("oil-micro", "backend-oil-micro", "BCO_USD", bias_mode="neutral")
+    else:
+        print("Installing gold-micro...")
+        session.add_system("gold-micro", "backend-micro", "XAU_USD", bias_mode="neutral")
+    # NOTE: cannot install both due to sys.modules namespace collision —
+    # the stub mt5_executor would be shared but the scanner.scheduler import
+    # collides. Single-system per-replay for now.
 
-    # 5. Run Jun 13-20 from 00:00 UTC (full week)
+    # 5. Pick window from CLI flags
     import sys
-    if "--week" in sys.argv:
+    if "--year2024" in sys.argv:
+        start = datetime(2024, 1, 1, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+    elif "--year2025" in sys.argv:
+        start = datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+    elif "--week" in sys.argv:
         start = datetime(2026, 6, 13, 0, 0, tzinfo=timezone.utc)
         end = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
     else:
         start = datetime(2026, 6, 19, 0, 0, tzinfo=timezone.utc)
         end = datetime(2026, 6, 19, 18, 30, tzinfo=timezone.utc)
     print(f"\nRunning replay from {start} to {end}...")
-    result = session.run(start, end)
+    # For multi-day runs, redirect stdout so cron-tick prints don't dominate.
+    # Python logging via _log still goes to stderr (we keep that) but live's
+    # raw print() statements get muted to /tmp/replay_stdout.log.
+    if "--quiet" in sys.argv or (end - start).days > 7:
+        import contextlib
+        with open("/tmp/replay_stdout.log", "w") as devnull:
+            with contextlib.redirect_stdout(devnull):
+                result = session.run(start, end)
+    else:
+        result = session.run(start, end)
 
     print(f"\n--- REPLAY DONE ---")
     print(f"Steps (1-min ticks): {result['steps']}")
