@@ -184,4 +184,9 @@ def compute_limit_price(
             f"signal_risk={signal_risk}, offset_pct={limit_offset_pct!r}). "
             f"Broker would reject. Refusing to return junk price."
         )
-    return candidate
+    # Coerce to native float — numpy 2.x's np.float64 repr is "np.float64(X)"
+    # which broke a live LIMIT INSERT on 2026-06-19 when psycopg2 fell back
+    # to str() (no adapter). DB now has a global adapter (backend/db.py)
+    # but defending here too: callers downstream may format/serialize/log,
+    # and native float keeps everything portable.
+    return float(candidate)

@@ -5,7 +5,48 @@ import decimal
 from datetime import datetime, date
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.extensions import register_adapter, AsIs
 from backend.config import DB_URL
+
+
+# ============================================================================
+# numpy → psycopg2 adapter registration
+# ----------------------------------------------------------------------------
+# CRITICAL (caught 2026-06-19 live): numpy 2.x changed repr() of numpy
+# scalars from "4166.06" to "np.float64(4166.06)". psycopg2 has no built-in
+# adapter for numpy types, so it falls back to str() which becomes
+# "np.float64(4166.06)" — Postgres parses that as schema.function call:
+#
+#   psycopg2.errors.InvalidSchemaName: schema "np" does not exist
+#
+# This silently failed an INSERT on a real LIVE limit order — the order was
+# placed on the broker but no DB row written. Orphan-cancel reconciler
+# saved us by detecting the broker-pending-without-DB-row mismatch and
+# cancelling the order. Without that safety net, real money was at risk.
+#
+# These adapters run at module-import time and apply to every psycopg2
+# connection in this process. They cover all numpy scalar types we can
+# plausibly hit in price/risk math.
+# ============================================================================
+try:
+    import numpy as _np
+
+    def _adapt_numpy_float(numpy_float):
+        return AsIs(repr(float(numpy_float)))
+
+    def _adapt_numpy_int(numpy_int):
+        return AsIs(repr(int(numpy_int)))
+
+    register_adapter(_np.float64, _adapt_numpy_float)
+    register_adapter(_np.float32, _adapt_numpy_float)
+    register_adapter(_np.int64, _adapt_numpy_int)
+    register_adapter(_np.int32, _adapt_numpy_int)
+    if hasattr(_np, "bool_"):
+        register_adapter(_np.bool_, lambda v: AsIs(repr(bool(v))))
+except ImportError:
+    # numpy not available in some lean services. That's fine — those
+    # services won't pass numpy values to execute() anyway.
+    pass
 
 # Parse DB_URL into components for psycopg2
 # Format: postgresql://user@host:port/dbname or postgresql://user:pass@host:port/dbname
