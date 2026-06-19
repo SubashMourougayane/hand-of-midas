@@ -8,6 +8,16 @@ Signal generation matches live scheduler exactly:
 - For each bar, checks ALL active windows
 - For each window, checks ALL completed scan bars (not just current)
 - Deduplicates by (sweep_bar_ts, window_start)
+
+Phase 4 refactor (2026-06-19): added `cfg` parameter. Strategy now accepts
+the config dict the caller passes (dependency injection). Old behavior
+imported `backend.config.ALPHA_SWEEP` (Gold Macro's config — wrong for
+Gold Micro). Master RCA D2: 'asia_min_range' (Gold Macro) vs 'min_range'
+(Gold Micro) silently agreed on 5.0 today but would drift if either
+changed. Fix: cfg parameter eliminates the import path.
+
+Backward compat: cfg defaults to None → falls back to old ALPHA_SWEEP
+import. Existing callers don't break.
 """
 import numpy as np
 import pandas as pd
@@ -24,6 +34,16 @@ MICRO_CONFIG = {
     "market_close_end": 22,
     "max_trades_per_day": 3,
 }
+
+
+def _cfg_min_range(cfg: dict) -> float:
+    """Return min consolidation range from cfg, supporting both naming
+    conventions: 'min_range' (Gold/Oil Micro) and 'asia_min_range' (Gold Macro
+    legacy callers). Master RCA D2 fix.
+    """
+    if "min_range" in cfg:
+        return cfg["min_range"]
+    return cfg["asia_min_range"]
 
 
 def _hours_in_range(start: int, end: int) -> set:
@@ -44,14 +64,21 @@ def generate_signals(
     gold_m3: pd.DataFrame,
     daily_bias: dict,
     disable_market_close: bool | None = None,
+    cfg: dict | None = None,
 ) -> list[Signal]:
     """
     disable_market_close: Filter — drop the 21–22 UTC market-close block.
       Inherited from Oil Micro config; Gold Micro doesn't actually close at
       that hour. Default False (legacy = block 21-22 UTC). True = scan
       through. None reads from cfg.disable_market_close (default False).
+
+    cfg: config dict. Defaults to backend.config.ALPHA_SWEEP for backward
+      compat with old Gold Macro callers. Phase 4 refactor: Gold Micro live
+      scheduler + BT both pass MICRO_ALPHA_SWEEP from backend-micro/config.py
+      (single source of truth, eliminates D2 key drift).
     """
-    cfg = ALPHA_SWEEP
+    if cfg is None:
+        cfg = ALPHA_SWEEP
     mcfg = MICRO_CONFIG
     if disable_market_close is None:
         disable_market_close = cfg.get("disable_market_close", False)
@@ -62,8 +89,9 @@ def generate_signals(
 
     for date in dates:
         day_h1 = gold_h1[gold_h1.index.date == date]
-        if len(day_h1) < 6:
-            continue
+        # Phase 4 — removed `if len(day_h1) < 6: continue`. Was a guard
+        # against thin BT historical days but blocked live signals before
+        # 6 H1 bars accumulated mid-day. Same fix as Oil Micro Phase 5.5.
 
         bias = daily_bias.get(date, "none")
         # Cap rework Jun 18: signal-gen no longer caps at max_trades_per_day.
@@ -99,23 +127,41 @@ def generate_signals(
                 if _hour_past(now_hour, scan_end_hour):
                     continue
 
-                # Build consolidation range (handles midnight wrap)
-                consol = day_h1[day_h1.index.hour.isin(consol_hours)]
+                # Build consolidation range (handles midnight wrap).
+                # Phase 4 lookahead fix: gate by index <= bar_ts so consol
+                # only includes bars that have closed at this iteration.
+                # Without this, consol can pull future bars (e.g. 22:00 of
+                # date D when iterating at 03:00 of date D for window 22-2)
+                # — same lookahead bug Oil Micro had pre-Phase-5.5.
+                consol = day_h1[(day_h1.index.hour.isin(consol_hours))
+                                & (day_h1.index <= bar_ts)]
                 if len(consol) < 2:
                     continue
 
                 range_high = consol["mid_high"].max()
                 range_low = consol["mid_low"].min()
                 consol_range = range_high - range_low
-                if consol_range < cfg["asia_min_range"]:
+                # D2 fix: use _cfg_min_range so 'min_range' and 'asia_min_range'
+                # both resolve. Gold Micro passes MICRO_ALPHA_SWEEP (key=
+                # 'min_range'); legacy Gold Macro passes ALPHA_SWEEP (key=
+                # 'asia_min_range').
+                if consol_range < _cfg_min_range(cfg):
                     continue
 
                 bearish_level = range_high + cfg["sweep_threshold"]
                 bullish_level = range_low - cfg["sweep_threshold"]
 
-                # Check ALL scan bars up to current bar (handles midnight wrap)
+                # Check ALL scan bars up to current bar (handles midnight wrap).
+                # Phase 4 fix: scan_bars must occur AFTER consol's last bar.
+                # Without this, a 03:00 sweep on date D could be paired with
+                # a consol formed from 18-21 of date D (later same day) when
+                # iterating at bar_ts=22:00 — temporally backward sweep,
+                # impossible in real time. Gate: scan_bar.index > max(consol.index).
                 scan_hours = _hours_in_range(end_hour, scan_end_hour)
-                scan_bars = day_h1[(day_h1.index.hour.isin(scan_hours)) & (day_h1.index <= bar_ts)]
+                consol_last = consol.index.max()
+                scan_bars = day_h1[(day_h1.index.hour.isin(scan_hours))
+                                   & (day_h1.index <= bar_ts)
+                                   & (day_h1.index > consol_last)]
 
                 for sbar_ts, sb in scan_bars.iterrows():
                     sweep_dir = None
@@ -142,11 +188,29 @@ def generate_signals(
                         if sweep_dir == "bearish" and bias != "bearish":
                             continue
 
-                    # Engulfing search
+                    # Engulfing search.
+                    # Phase 4 parity contract: m3_window must contain the FULL
+                    # expected bar count. If short, skip without consuming sweep.
+                    # Reason: when live's 50-bar M3 view truncates the early bars
+                    # of the engulfing window, the strategy's `for j in range(
+                    # start_idx, len(m3_window))` starts at a different bar
+                    # index than BT's full-history call → picks a different
+                    # first engulfing → live and BT diverge. Discovered Phase 4,
+                    # Gold Micro 06-12 21:33 vs 21:45 mismatch (cron 06-13 00:00
+                    # had only 6 bars for 15-bar window).
                     eng_end = sbar_ts + timedelta(hours=cfg["engulfing_window_hours"])
                     m3_window = gold_m3[(gold_m3.index > sbar_ts) & (gold_m3.index <= eng_end)]
-                    if len(m3_window) < 3:
-                        traded_sweeps.add(sk)
+                    expected_m3_bars = int(cfg["engulfing_window_hours"] * 20)  # 20 bars/hr at M3
+                    if len(m3_window) < expected_m3_bars:
+                        # Truncated window — don't fire AND don't consume sweep
+                        # (BT will never hit this branch with full history; live
+                        # will retry next cron when more M3 bars are available).
+                        # Only consume sweep if engulfing window is fully past
+                        # AND still under-filled (real data gap, not view limit).
+                        # The `traded_sweeps.add(sk)` below was wrong — it
+                        # consumed sweeps even when next cron would have data.
+                        if len(m3_window) < 3:
+                            traded_sweeps.add(sk)
                         continue
 
                     start_idx = 2 if cfg["skip_first_bar"] else 1
@@ -188,7 +252,10 @@ def generate_signals(
                                 direction="long", risk=risk,
                                 strategy="micro_alpha_sweep", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
-                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}"},
+                                          "consol_range": consol_range,
+                                          "window": f"{start_hour}-{end_hour}",
+                                          "sweep_time": sbar_ts.isoformat(),
+                                          "start_hour": start_hour},
                             ))
                         else:
                             entry = gold_m3["bid_close"].iat[idx] - slippage(br)
@@ -208,7 +275,10 @@ def generate_signals(
                                 direction="short", risk=risk,
                                 strategy="micro_alpha_sweep", max_bars=cfg["max_bars"], timeframe="M3",
                                 metadata={"sweep_dir": sweep_dir, "sweep_wick": sweep_wick,
-                                          "consol_range": consol_range, "window": f"{start_hour}-{end_hour}"},
+                                          "consol_range": consol_range,
+                                          "window": f"{start_hour}-{end_hour}",
+                                          "sweep_time": sbar_ts.isoformat(),
+                                          "start_hour": start_hour},
                             ))
 
                         traded_sweeps.add(sk)

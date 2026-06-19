@@ -15,6 +15,12 @@ from config import MICRO_ALPHA_SWEEP, STRATEGY_RISK, MAX_UNITS, slippage, ENGULF
 from scanner.live_engine import execute_signal, check_open_positions, check_alpha_sweep_breakeven, check_alpha_sweep_partial_tp, reconcile_orphans, pending_order_monitor, _log_journal, _log_journal_safe
 from scanner import _log
 
+# Phase 4 (REFACTOR_PLAN_LIVE_BT_UNIFY): unified signal-gen + adapter.
+# Live now imports the SAME generate_signals BT uses. Production gates
+# (cooldown, open-pos, daily cap, blacklist, F28 override) wrap the call.
+from backend.strategies.micro_alpha_sweep import generate_signals as _generate_signals
+from backend.scanner.broker_to_dataframe import broker_bars_to_dataframe
+
 scheduler = BackgroundScheduler(timezone="UTC")
 
 # Daily PnL tracking (resets at midnight UTC)
@@ -304,267 +310,157 @@ def _run_micro_sweep_core(now: datetime, active_windows: list,
             _log.debug("GATE", "startup_cooldown", until=_startup_cooldown_until.isoformat() if _startup_cooldown_until else None)
         return [] if dry_run else None
 
-    for window in active_windows:
+    # ───────────────────────────────────────────────────────────────────
+    # Phase 4 refactor: call BT's generate_signals directly.
+    # Same pattern as Oil Micro Phase 5.5. See REFACTOR_PLAN_LIVE_BT_UNIFY.
+    # ───────────────────────────────────────────────────────────────────
+
+    # Build BT-format DataFrames using Phase 1 adapter.
+    h1_df = broker_bars_to_dataframe(h1_candles)
+    m3_df = broker_bars_to_dataframe(m3_candles)
+    if h1_df.empty or m3_df.empty:
+        if not dry_run:
+            _log.warn("BROKER", "empty_dataframe_after_adapter",
+                      h1_rows=len(h1_df), m3_rows=len(m3_df))
+        return [] if dry_run else None
+
+    # Build daily_bias dict for the days in our H1 view.
+    daily_bias_dict = {}
+    for d in set(h1_df.index.date):
+        daily_bias_dict[d] = bias
+
+    # Generate signal universe. Pass MICRO_ALPHA_SWEEP cfg explicitly
+    # (D2 fix — strategy reads 'min_range' from MICRO_ALPHA_SWEEP, not
+    # 'asia_min_range' from ALPHA_SWEEP).
+    signals = _generate_signals(
+        h1_df, m3_df, daily_bias_dict,
+        cfg=cfg,
+    )
+
+    if not dry_run:
+        _log.debug("SCAN", "signals_from_strategy", count=len(signals), bias=bias)
+
+    # Iterate signals, applying production-only gates.
+    for signal in signals:
         if trades_today >= cfg["max_trades_per_day"] or trade_placed_this_cycle:
             break
 
-        # Build consolidation range from H1 bars in this window (handles midnight wrap)
-        consol_hours = _hours_in_range(window["consol_start"], window["consol_end"])
-        consol_bars = []
-        for c in h1_candles:
-            ts = _parse_ts(c["timestamp"])
-            if ts.hour in consol_hours:
-                c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
-                c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
-                c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
-                consol_bars.append(c)
-
-        if len(consol_bars) < 2:
-            if not dry_run:
-                _log.debug("GATE", "consol_too_few_bars", window=f"{window['consol_start']}-{window['consol_end']}", got=len(consol_bars), need=2)
+        # Drop signals whose engulfing time is in the future relative to now.
+        if signal.date.to_pydatetime() > now:
             continue
 
-        range_high = max(c["mid_high"] for c in consol_bars)
-        range_low = min(c["mid_low"] for c in consol_bars)
-        consol_range = range_high - range_low
+        # NOTE: no time-based staleness gate. Persistent sweep blacklist
+        # (_traded_sweeps + DB-backed is_sweep_consumed) is the dedup
+        # source of truth.
 
-        if not dry_run:
-            _log.debug("SCAN", "consol_range", window=f"{window['consol_start']}-{window['consol_end']}", high=range_high, low=range_low, range=consol_range, min_required=cfg["min_range"], bias=bias)
-
-        if consol_range < cfg["min_range"]:
+        # Reconstruct sweep_key from metadata. Master RCA D4: BT keys by
+        # (sbar_ts, start_hour) per-window tuple. Live now does the same
+        # via sweep_time + start_hour from signal metadata.
+        sweep_dir = signal.metadata.get("sweep_dir") if signal.metadata else None
+        sweep_wick = signal.metadata.get("sweep_wick") if signal.metadata else None
+        consol_range = signal.metadata.get("consol_range") if signal.metadata else None
+        sweep_time = signal.metadata.get("sweep_time") if signal.metadata else None
+        start_hour = signal.metadata.get("start_hour") if signal.metadata else None
+        if sweep_time is None or start_hour is None:
             if not dry_run:
-                _log.debug("GATE", "range_too_small", window=f"{window['consol_start']}-{window['consol_end']}", range=consol_range, min=cfg["min_range"])
+                _log.warn("SCAN", "signal_missing_sweep_metadata", date=str(signal.date))
+            continue
+        sweep_key = f"{sweep_time}_{start_hour}_{sweep_dir}"
+
+        # Persistent sweep blacklist (DB-backed since Issue #9, 2026-06-15).
+        if sweep_key not in _traded_sweeps["keys"] and not dry_run:
+            from backend.db import is_sweep_consumed
+            if is_sweep_consumed("gold-micro", today, sweep_key):
+                _traded_sweeps["keys"].add(sweep_key)
+        if sweep_key in _traded_sweeps["keys"]:
+            if not dry_run:
+                _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
             continue
 
-        # Scan bars: after consolidation, within scan window
-        scan_bars = []
-        for c in h1_candles:
-            ts = _parse_ts(c["timestamp"])
-            scan_hours = _hours_in_range(window["consol_end"], window["scan_until"])
-            if ts.hour in scan_hours:
-                c["mid_high"] = (c["bid_high"] + c["ask_high"]) / 2
-                c["mid_low"] = (c["bid_low"] + c["ask_low"]) / 2
-                c["mid_close"] = (c["bid_close"] + c["ask_close"]) / 2
-                scan_bars.append(c)
-
-        if not scan_bars:
+        # One-at-a-time: DB check.
+        open_micro = execute(
+            f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
+            fetch=True,
+        )
+        if open_micro and open_micro[0]["cnt"] > 0:
             if not dry_run:
-                _log.debug("GATE", "no_scan_bars_yet", window=f"{window['consol_start']}-{window['consol_end']}", scan_until=window["scan_until"])
+                _log.debug("GATE", "open_position_db", db_count=open_micro[0]["cnt"])
             continue
 
-        # Detect sweeps
-        bearish_level = range_high + cfg["sweep_threshold"]
-        bullish_level = range_low - cfg["sweep_threshold"]
-
-        for bar in scan_bars:
-            if trades_today >= cfg["max_trades_per_day"]:
-                break
-
-            sweep_dir = None
-            sweep_wick = None
-
-            if bar["mid_high"] > bearish_level and bar["mid_close"] < range_high:
-                sweep_dir = "bearish"
-                sweep_wick = bar["mid_high"]
-            elif bar["mid_low"] < bullish_level and bar["mid_close"] > range_low:
-                sweep_dir = "bullish"
-                sweep_wick = bar["mid_low"]
-
-            if not sweep_dir:
-                continue
-
+        # MT5 cross-check (catches orphans not in DB).
+        mt5_open = get_open_trades()
+        if mt5_open and len(mt5_open) > 0:
             if not dry_run:
-                _log.debug("SCAN", "sweep_detected", bar=bar["timestamp"], dir=sweep_dir, wick=sweep_wick, range_high=range_high, range_low=range_low)
+                _log.debug("GATE", "open_position_mt5", mt5_count=len(mt5_open))
+            continue
 
-            # Dedup: once a sweep is consumed (traded, SL'd, or no engulfing), never re-fire that day.
-            # Matches backtest traded_sweeps behavior. Persists across 3-min scan cycles.
-            # Issue #9 fix 2026-06-15: also DB-backed for restart safety.
-            sweep_key = f"{bar['timestamp']}_{sweep_dir}"
-            if sweep_key not in _traded_sweeps["keys"] and not dry_run:
-                from backend.db import is_sweep_consumed
-                if is_sweep_consumed("gold-micro", today, sweep_key):
-                    _traded_sweeps["keys"].add(sweep_key)
-            if sweep_key in _traded_sweeps["keys"]:
-                if not dry_run:
-                    _log.debug("GATE", "sweep_already_traded", sweep_key=sweep_key)
-                continue
+        direction = signal.direction
+        entry = signal.entry
+        sl = signal.sl
+        tp = signal.tp
+        risk = signal.risk
+        window_str = signal.metadata.get("window", "?-?") if signal.metadata else "?-?"
 
-            # One-at-a-time: check BOTH DB and MT5 (DB may miss trades if INSERT failed)
-            open_micro = execute(
-                f"SELECT COUNT(*) as cnt FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time IS NULL",
-                fetch=True
+        if dry_run:
+            signals_found.append({
+                "time": signal.date.isoformat(), "direction": direction,
+                "entry": round(entry, 2), "sl": round(sl, 2), "tp": round(tp, 2),
+                "risk": round(risk, 2), "bias": bias,
+                "range_high": None, "range_low": None,
+                "consol_range": consol_range, "sweep_wick": sweep_wick,
+            })
+            _traded_sweeps["keys"].add(sweep_key)
+            trades_today += 1
+            trade_placed_this_cycle = True
+            continue
+
+        # Live path.
+        # CRITICAL: Add sweep to blacklist BEFORE placing the order.
+        # If execute_signal raises mid-flight, the next 3-min cron must
+        # NOT retry the same sweep. Pre-marking it breaks the orphan-trade
+        # cascade observed on June 10.
+        _traded_sweeps["keys"].add(sweep_key)
+        from backend.db import mark_sweep_consumed
+        try:
+            mark_sweep_consumed("gold-micro", today, sweep_key)
+        except Exception as e:
+            _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
+        _daily_state["trades"] += 1  # Optimistic — rolled back if signal skipped
+        _log.info(
+            "SIGNAL", "fired",
+            direction=direction, entry=entry, sl=sl, tp=tp, risk=risk,
+            sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias,
+            consol_range=consol_range,
+        )
+
+        try:
+            trade_ref = execute_signal(
+                strategy="micro_alpha_sweep",
+                direction=direction,
+                entry_price=entry,
+                sl_price=sl,
+                tp_price=tp,
+                context={
+                    "consol_range": consol_range,
+                    "consol_window": window_str,
+                    "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
+                },
+                daily_pnl=_daily_state["pnl"],
             )
-            if open_micro and open_micro[0]["cnt"] > 0:
-                if not dry_run:
-                    _log.debug("GATE", "open_position_db", db_count=open_micro[0]["cnt"])
-                continue  # Already have an open Micro position — wait for it to close
-            # Also check MT5 directly — catches orphan positions not in DB
-            mt5_open = get_open_trades()
-            if mt5_open and len(mt5_open) > 0:
-                if not dry_run:
-                    _log.debug("GATE", "open_position_mt5", mt5_count=len(mt5_open))
-                continue  # MT5 has open position (possibly not in DB)
-
-            # Bias filter
-            if bias != "neutral":
-                if sweep_dir == "bullish" and bias != "bullish":
-                    if not dry_run:
-                        _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
-                    continue
-                if sweep_dir == "bearish" and bias != "bearish":
-                    if not dry_run:
-                        _log.debug("GATE", "bias_block", bias=bias, side=sweep_dir)
-                    continue
-
-            # Find engulfing in M3 candles
-            sweep_time = _parse_ts(bar["timestamp"])
-            window_end = sweep_time + timedelta(hours=cfg["engulfing_window_hours"])
-
-            relevant_m3 = []
-            for c in m3_candles:
-                ts = _parse_ts(c["timestamp"])
-                if sweep_time < ts <= window_end:
-                    relevant_m3.append(c)
-
-            if len(relevant_m3) < 3:
-                if not dry_run:
-                    _log.debug("GATE", "engulfing_window_too_few_m3", sweep_key=sweep_key, m3_count=len(relevant_m3), window_end=window_end.isoformat(), expired=(now >= window_end))
-                if now >= window_end:
-                    _traded_sweeps["keys"].add(sweep_key)
-                    if not dry_run:
-                        from backend.db import mark_sweep_consumed
-                        try: mark_sweep_consumed("gold-micro", today, sweep_key)
-                        except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
-                continue
-
-            for j in range(2, len(relevant_m3)):
-                c = relevant_m3[j]
-                prev = relevant_m3[j - 1]
-
-                co = (c["bid_open"] + c["ask_open"]) / 2
-                cc = (c["bid_close"] + c["ask_close"]) / 2
-                po = (prev["bid_open"] + prev["ask_open"]) / 2
-                pc = (prev["bid_close"] + prev["ask_close"]) / 2
-
-                ct, cb = max(co, cc), min(co, cc)
-                pt, pb = max(po, pc), min(po, pc)
-
-                tol = ENGULFING_TOLERANCE
-                if sweep_dir == "bullish" and not (cc > co and cb <= pb + tol and ct >= pt - tol):
-                    continue
-                if sweep_dir == "bearish" and not (cc < co and cb <= pb + tol and ct >= pt - tol):
-                    continue
-
-                # Engulfing confirmed — calculate entry
-                br = (c["ask_high"] + c["bid_high"]) / 2 - (c["ask_low"] + c["bid_low"]) / 2
-
-                if sweep_dir == "bullish":
-                    entry = c["ask_close"] + slippage(br)
-                    sl = sweep_wick - cfg["sl_buffer"]
-                    risk = entry - sl
-                    if risk < cfg["min_sl"]:
-                        sl = entry - cfg["min_sl"]
-                        risk = cfg["min_sl"]
-                    if risk < 0.3 or risk > consol_range * 0.8:
-                        if not dry_run:
-                            _log.debug("GATE", "risk_out_of_band", side="long", risk=risk, min=0.3, max=consol_range*0.8, consol_range=consol_range)
-                        continue
-                    tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
-                    tp = range_high - tp_buf
-                    if tp - entry < risk * 0.8:
-                        if not dry_run:
-                            _log.debug("GATE", "tp_too_close", side="long", entry=entry, tp=tp, risk=risk, tp_distance=tp-entry, min_required=risk*0.8)
-                        continue
-                    direction = "long"
-                else:
-                    entry = c["bid_close"] - slippage(br)
-                    sl = sweep_wick + cfg["sl_buffer"]
-                    risk = sl - entry
-                    if risk < cfg["min_sl"]:
-                        sl = entry + cfg["min_sl"]
-                        risk = cfg["min_sl"]
-                    if risk < 0.3 or risk > consol_range * 0.8:
-                        if not dry_run:
-                            _log.debug("GATE", "risk_out_of_band", side="short", risk=risk, min=0.3, max=consol_range*0.8, consol_range=consol_range)
-                        continue
-                    tp_buf = cfg.get("tp_structure_buffer", consol_range * cfg["tp_multiplier"])
-                    tp = range_low + tp_buf
-                    if entry - tp < risk * 0.8:
-                        if not dry_run:
-                            _log.debug("GATE", "tp_too_close", side="short", entry=entry, tp=tp, risk=risk, tp_distance=entry-tp, min_required=risk*0.8)
-                        continue
-                    direction = "short"
-
-                # Execute (or collect in dry_run mode)
-                if dry_run:
-                    signals_found.append({
-                        "time": c["timestamp"], "direction": direction,
-                        "entry": round(entry, 2), "sl": round(sl, 2), "tp": round(tp, 2),
-                        "risk": round(risk, 2), "bias": bias,
-                        "range_high": range_high, "range_low": range_low,
-                        "consol_range": consol_range, "sweep_wick": sweep_wick,
-                    })
-                    _traded_sweeps["keys"].add(sweep_key)
-                    trades_today += 1
-                    trade_placed_this_cycle = True
-                else:
-                    # CRITICAL: Add sweep to blacklist BEFORE placing the order.
-                    # If execute_signal raises mid-flight, the next 3-min cron
-                    # must NOT retry the same sweep. Pre-marking it breaks the
-                    # orphan-trade cascade pattern (see
-                    # docs/JUNE10_OIL_4ORPHANS_INVESTIGATION.md).
-                    # Issue #9 fix 2026-06-15: also persist to DB for restart safety.
-                    _traded_sweeps["keys"].add(sweep_key)
-                    from backend.db import mark_sweep_consumed
-                    try: mark_sweep_consumed("gold-micro", today, sweep_key)
-                    except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
-                    _daily_state["trades"] += 1  # Optimistic — rolled back if signal skipped
-                    _log.info("SIGNAL", "fired", direction=direction, entry=entry, sl=sl, tp=tp, risk=risk, sweep_wick=sweep_wick, sweep_dir=sweep_dir, bias=bias, range_high=range_high, range_low=range_low)
-
-                    try:
-                        trade_ref = execute_signal(
-                            strategy="micro_alpha_sweep",
-                            direction=direction,
-                            entry_price=entry,
-                            sl_price=sl,
-                            tp_price=tp,
-                            context={
-                                "range_high": range_high, "range_low": range_low,
-                                "consol_range": consol_range, "consol_window": f"{window['consol_start']}-{window['consol_end']}",
-                                "sweep_dir": sweep_dir, "sweep_wick": sweep_wick, "bias": bias,
-                            },
-                            daily_pnl=_daily_state["pnl"],
-                        )
-                        if trade_ref:
-                            trades_today += 1
-                            trade_placed_this_cycle = True
-                            _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction=direction)
-                        else:
-                            # Signal skipped (DD, sl_too_close, etc.) — roll back optimistic counter
-                            _daily_state["trades"] = max(0, _daily_state["trades"] - 1)
-                            _log.warn("SIGNAL", "skipped_by_engine", direction=direction, sweep_key=sweep_key)
-                    except Exception as e:
-                        # Sweep stays blacklisted, counter stays incremented (conservative)
-                        _log.exception("SYSTEM", "execute_signal_raised", direction=direction, sweep_key=sweep_key, err=str(e))
-                        print(f"  [MICRO] execute_signal raised: {e}")
-                        _log_journal_safe("SYSTEM", "micro_alpha_sweep", "EXECUTE_SIGNAL_RAISED",
-                                          entry, {"error": str(e), "sweep_key": sweep_key, "direction": direction})
-                break  # One engulfing per sweep
-
-            # No engulfing found — only consume sweep if engulfing window has expired.
-            # If window still open, a future M3 bar might form a valid engulfing.
+            if trade_ref:
+                trades_today += 1
+                trade_placed_this_cycle = True
+                _log.info("SIGNAL", "executed", trade_ref=trade_ref, direction=direction)
             else:
-                if now >= window_end:
-                    _traded_sweeps["keys"].add(sweep_key)
-                    if not dry_run:
-                        from backend.db import mark_sweep_consumed
-                        try: mark_sweep_consumed("gold-micro", today, sweep_key)
-                        except Exception as e: _log.exception("SYSTEM", "mark_sweep_consumed_failed", err=str(e))
-
-            # If trade was placed, exit scan_bars loop
-            if trade_placed_this_cycle:
-                break
-        # trade_placed_this_cycle checked at top of window loop
+                _daily_state["trades"] = max(0, _daily_state["trades"] - 1)
+                _log.warn("SIGNAL", "skipped_by_engine", direction=direction, sweep_key=sweep_key)
+        except Exception as e:
+            _log.exception("SYSTEM", "execute_signal_raised", direction=direction, sweep_key=sweep_key, err=str(e))
+            print(f"  [MICRO] execute_signal raised: {e}")
+            _log_journal_safe(
+                "SYSTEM", "micro_alpha_sweep", "EXECUTE_SIGNAL_RAISED",
+                entry, {"error": str(e), "sweep_key": sweep_key, "direction": direction},
+            )
 
     if not dry_run:
         _log.info("SCAN", "complete", trades_today=trades_today, fired_this_cycle=trade_placed_this_cycle)

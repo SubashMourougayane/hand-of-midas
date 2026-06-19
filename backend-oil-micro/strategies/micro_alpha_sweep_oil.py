@@ -127,10 +127,17 @@ def generate_signals(oil_h1: pd.DataFrame, oil_m3: pd.DataFrame, daily_bias: dic
                         if sweep_dir == "bearish" and bias != "bearish":
                             continue
 
+                    # Phase 4 parity contract: m3_window must contain the FULL
+                    # expected bar count. If short, skip without consuming
+                    # sweep (BT has full history; live retries next cron when
+                    # more M3 bars arrive). Discovered Phase 4 / Gold Micro
+                    # 06-12 21:33 vs 21:45 mismatch — applies here too.
                     eng_end = sbar_ts + timedelta(hours=cfg["engulfing_window_hours"])
                     m3_window = oil_m3[(oil_m3.index > sbar_ts) & (oil_m3.index <= eng_end)]
-                    if len(m3_window) < 3:
-                        traded_sweeps.add(sk)
+                    expected_m3_bars = int(cfg["engulfing_window_hours"] * 20)  # 20 bars/hr at M3
+                    if len(m3_window) < expected_m3_bars:
+                        if len(m3_window) < 3:
+                            traded_sweeps.add(sk)
                         continue
 
                     start_idx = 2 if cfg["skip_first_bar"] else 1

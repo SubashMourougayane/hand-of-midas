@@ -148,9 +148,15 @@ def run_backtest(
 
     if "micro_alpha_sweep" in strategies:
         np.random.seed(seed)
+        # Phase 4: pass MICRO_ALPHA_SWEEP cfg explicitly. Strategy was reading
+        # backend.config.ALPHA_SWEEP (Gold Macro's keys). MICRO_ALPHA_SWEEP
+        # has 'min_range' instead of 'asia_min_range'. Strategy now resolves
+        # both via _cfg_min_range helper. Master RCA D2 fix.
+        from config import MICRO_ALPHA_SWEEP as _gold_micro_cfg
         all_signals.extend(micro_alpha_sweep.generate_signals(
             gold_h1, gold_m3, daily_bias,
             disable_market_close=disable_market_close,
+            cfg=_gold_micro_cfg,
         ))
 
     all_signals.sort(key=lambda x: x.date)
