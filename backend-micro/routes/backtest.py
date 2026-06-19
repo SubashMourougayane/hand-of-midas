@@ -25,7 +25,12 @@ _runs = {}  # run_id -> {"status": "running"|"done"|"error", "progress": [...], 
 
 
 class BacktestRequest(BaseModel):
-    strategies: list[str] = Field(default=["micro_alpha_sweep", "mean_rev", "cross_market"])
+    # Phase 6 retire (2026-06-19): mean_rev + cross_market dropped from
+    # default. Gold Micro now runs only the live strategy. This also makes
+    # the saved run match the strict-equality filter at line 370 / trades.py
+    # (strategies = ['micro_alpha_sweep']) so the /trades and /backtest
+    # pages render data instead of "No backtest results in DB".
+    strategies: list[str] = Field(default=["micro_alpha_sweep"])
     start_date: str = Field(default="2020-01-01")
     end_date: str = Field(default="2026-12-31")
     capital: float = Field(default=5000.0)

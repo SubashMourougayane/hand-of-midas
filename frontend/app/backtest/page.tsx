@@ -21,22 +21,21 @@ import {
 } from "@/components/ui";
 import { cn } from "@/components/ui/cn";
 
+// Phase 6 retire (2026-06-19): mean_rev + cross_market dropped from
+// the strategy picker. Both Micros (the only live systems) run only
+// alpha_sweep variants.
 const STRATEGIES = [
   { id: "alpha_sweep", label: "Alpha-Sweep", color: "var(--color-info)" },
-  { id: "mean_rev", label: "Mean-Rev", color: "var(--color-win)" },
-  { id: "cross_market", label: "Cross-Market", color: "var(--color-warn)" },
 ];
 
 const STRATEGY_META: Record<string, { label: string; color: string }> = {
   alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
   micro_alpha_sweep: { label: "Alpha", color: "var(--color-info)" },
   micro_alpha_sweep_oil: { label: "Alpha", color: "var(--color-info)" },
-  mean_rev: { label: "MRev", color: "var(--color-win)" },
-  cross_market: { label: "Cross", color: "var(--color-warn)" },
 };
 
 function strategyTag(strategy: string) {
-  const key = Object.keys(STRATEGY_META).find((k) => strategy.includes(k)) ?? "cross_market";
+  const key = Object.keys(STRATEGY_META).find((k) => strategy.includes(k)) ?? "alpha_sweep";
   const meta = STRATEGY_META[key];
   return (
     <span className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color: meta.color }}>
@@ -76,7 +75,8 @@ export default function BacktestPage() {
   const [endDate, setEndDate] = useState("2026-05-21");
   const [capital, setCapital] = useState(5000);
   const [riskPct, setRiskPct] = useState(3.0);
-  const [selectedStrategies, setSelectedStrategies] = useState(["alpha_sweep", "mean_rev", "cross_market"]);
+  // Phase 6 retire: only alpha_sweep variants run live. mean_rev + cross_market dropped.
+  const [selectedStrategies, setSelectedStrategies] = useState(["alpha_sweep"]);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
