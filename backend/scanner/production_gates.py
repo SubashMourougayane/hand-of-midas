@@ -219,6 +219,32 @@ def update_state_after_fire(state: GateState, signal, *, expected_exit_seconds: 
     state.consumed_sweeps.add(make_sweep_key(signal))
 
 
+# Narrow set of skip reasons that ARM the 5-min cooldown — must match live's
+# Issue #19 fix (2026-06-15) at backend-{micro,oil-micro}/scanner/scheduler.py.
+# All other skip reasons (bias_block, range_too_small, risk_out_of_band,
+# tp_too_close, etc.) do NOT arm cooldown — strategy-filtered, not noise.
+_COOLDOWN_ARMING_SKIP_REASONS = frozenset({
+    "sl_too_close_to_price",
+})
+
+_COOLDOWN_ARMING_PREFIXES = ("order_error", "oanda_error")
+
+
+def cooldown_arms_on_skip(skip_reason: Optional[str]) -> bool:
+    """Returns True if `skip_reason` should arm the 5-min cooldown.
+
+    Live (per Issue #19): cooldown engages on FILL or on these specific
+    failure-mode skip reasons that imply an actual order attempt happened.
+    Bias/risk/range filters DO NOT arm cooldown — those are 'didn't even
+    try' filters.
+    """
+    if skip_reason is None:
+        return False
+    if skip_reason in _COOLDOWN_ARMING_SKIP_REASONS:
+        return True
+    return any(skip_reason.startswith(p) for p in _COOLDOWN_ARMING_PREFIXES)
+
+
 def update_state_after_exit(state: GateState, *, pnl_dollar: float, equity_after: float) -> None:
     """Call AFTER a trade exits with a known P&L.
 

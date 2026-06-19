@@ -22,6 +22,7 @@ from backend.scanner.production_gates import (
     update_state_after_fire,
     update_state_after_exit,
     reset_for_new_day,
+    cooldown_arms_on_skip,
 )
 
 
@@ -308,3 +309,48 @@ def test_apply_gates_is_pure_for_same_input():
     s2 = GateState(day_filled_trades=2)
     sig = _sig("2026-06-17T10:00:00")
     assert apply_gates(sig, s1, cfg=CFG) == apply_gates(sig, s2, cfg=CFG)
+
+
+# ─── Cooldown-arming-skip semantics (matches live Issue #19) ────
+
+
+def test_cooldown_arms_on_fire_implicitly():
+    """update_state_after_fire ALWAYS sets last_signal_time. That's the FIRE path."""
+    s = GateState()
+    sig = _sig("2026-06-17T10:00:00", sweep_time="2026-06-17T09:00:00", start_hour=8)
+    update_state_after_fire(s, sig, expected_exit_seconds=240)
+    assert s.last_signal_time == sig.date
+
+
+def test_cooldown_arms_on_sl_too_close():
+    """Per Issue #19: sl_too_close_to_price arms cooldown."""
+    assert cooldown_arms_on_skip("sl_too_close_to_price") is True
+
+
+def test_cooldown_arms_on_order_error():
+    """Per Issue #19: any 'order_error*' skip arms cooldown."""
+    assert cooldown_arms_on_skip("order_error_5004") is True
+    assert cooldown_arms_on_skip("order_error_timeout") is True
+
+
+def test_cooldown_arms_on_oanda_error():
+    """Per Issue #19: any 'oanda_error*' skip arms cooldown."""
+    assert cooldown_arms_on_skip("oanda_error_522") is True
+
+
+def test_cooldown_does_not_arm_on_bias_block():
+    """Bias filter blocks are 'didn't even try' — no cooldown."""
+    assert cooldown_arms_on_skip("bias_block") is False
+
+
+def test_cooldown_does_not_arm_on_range_too_small():
+    assert cooldown_arms_on_skip("range_too_small") is False
+
+
+def test_cooldown_does_not_arm_on_tp_too_close():
+    assert cooldown_arms_on_skip("tp_too_close") is False
+
+
+def test_cooldown_does_not_arm_on_none():
+    assert cooldown_arms_on_skip(None) is False
+    assert cooldown_arms_on_skip("") is False
