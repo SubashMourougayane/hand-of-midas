@@ -158,12 +158,11 @@ def execute_signal(strategy: str, direction: str, entry_price: float, sl_price: 
 
     dd_state = _get_dd_state()
 
-    # Daily max loss check
-    if DD_PROTECTION["daily_max_loss"] and daily_pnl <= -DD_PROTECTION["daily_max_loss"]:
-        _log_signal(strategy, direction, entry_price, sl_price, tp_price, taken=False, skip_reason="daily_max_loss")
-        _log_journal(trade_ref, strategy, "SIGNAL_SKIPPED", entry_price, {"reason": "daily_max_loss", "daily_pnl": daily_pnl})
-        print(f"  [MICRO] Signal SKIPPED: daily_max_loss (${daily_pnl:.0f})")
-        return None
+    # Phase 6 #9 (2026-06-19): daily_max_loss check removed — was dead code
+    # by the same logic as the scheduler's pre-scan check (only counted
+    # CLOSED trades, missed unrealized losses, already capped by
+    # max_trades_per_day). _should_skip() below handles consecutive-loss
+    # pause via DD_STATE — that's the real DD protection.
 
     skip_reason = _should_skip(dd_state)
     if skip_reason:

@@ -65,8 +65,10 @@ YEARLY_CAPITAL = 5000.0
 DD_STATE_ID = 4  # Separate DD state for Oil Micro (Gold=1, Oil Macro=2, Gold Micro=3, Oil Micro=4)
 TRADE_REF_PREFIX = "OIL-MI-"
 
+# Phase 6 #9 (2026-06-19): removed dead 'daily_max_loss' key — gate it
+# powered was dead code (only counted realized closed-trade pnl, missed
+# unrealized losses, already capped by max_trades_per_day=3).
 DD_PROTECTION = {
-    "daily_max_loss": 400,
     "half_after_consecutive": 3,
     "consecutive_loss_pause": 5,
     "pause_signals": 2,

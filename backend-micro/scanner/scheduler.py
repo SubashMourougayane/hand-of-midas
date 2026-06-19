@@ -119,16 +119,18 @@ def micro_sweep_job():
     if _traded_sweeps["date"] != today:
         _traded_sweeps = {"date": today, "keys": set()}
 
-    # Daily max loss check — query ACTUAL daily P&L from DB (not local variable)
+    # Sync local state with DB-realized daily PnL.
+    # Phase 6 #9 (2026-06-19): the daily_max_loss check that used to be
+    # below this query was dead code — only counted CLOSED trades with
+    # pnl_usd populated, missed open-position unrealized losses, and was
+    # already capped by max_trades_per_day=3. Removed. The pnl read still
+    # feeds execute_signal(daily_pnl=...) downstream for journal context.
     daily_pnl_rows = execute(
         f"SELECT COALESCE(SUM(pnl_usd), 0) as daily_pnl FROM gd_trades WHERE trade_ref LIKE '{TRADE_REF_PREFIX}%%' AND exit_time::date = %s AND pnl_usd IS NOT NULL",
         (today,), fetch=True
     )
     actual_daily_pnl = float(daily_pnl_rows[0]["daily_pnl"]) if daily_pnl_rows else 0
     _daily_state["pnl"] = actual_daily_pnl  # Sync local state with DB reality
-    if DD_PROTECTION["daily_max_loss"] and actual_daily_pnl <= -DD_PROTECTION["daily_max_loss"]:
-        _log.warn("GATE", "daily_max_loss_hit", daily_pnl=actual_daily_pnl, max=-DD_PROTECTION["daily_max_loss"])
-        return
 
     active_windows = _get_active_windows(now)
     if not active_windows:
