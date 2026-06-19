@@ -230,7 +230,11 @@ async def api_backtest(req: BacktestRequest):
 
 
 def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
-    execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies @> %s", (MICRO_STRATEGIES_FILTER,))
+    # M1/M2 fix (2026-06-19): exact-equality on strategies array. Was @>
+    # which over-matched combined-strategy runs and caused both Micros to
+    # share BT data. Now Oil Micro only marks ['micro_alpha_sweep_oil']
+    # runs as not-latest.
+    execute("UPDATE gd_backtest_runs SET is_latest = FALSE WHERE is_latest = TRUE AND strategies = %s", (MICRO_STRATEGIES_FILTER,))
 
     run_id = insert_returning(
         """INSERT INTO gd_backtest_runs
@@ -292,7 +296,8 @@ def _save_backtest_to_db(req, stats, trades, equity_curve, duration_ms):
 def get_latest_backtest():
     try:
         runs = execute(
-            "SELECT * FROM gd_backtest_runs WHERE is_latest = TRUE AND strategies @> %s ORDER BY created_at DESC LIMIT 1",
+            # M1/M2 fix: exact-equality so Oil Micro only sees its own runs
+            "SELECT * FROM gd_backtest_runs WHERE strategies = %s ORDER BY created_at DESC LIMIT 1",
             (MICRO_STRATEGIES_FILTER,),
             fetch=True
         )

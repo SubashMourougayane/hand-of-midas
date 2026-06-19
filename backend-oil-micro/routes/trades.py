@@ -45,10 +45,18 @@ def get_backtest_trades(
     result: str = Query(default=None),
     year: int = Query(default=None),
 ):
-    """Load backtest trades with pagination and server-side filtering."""
+    """Load backtest trades with pagination and server-side filtering.
+
+    M1/M2 fix (UI mismatch audit 2026-06-19): the previous query used
+    `strategies @> %s` (contains-subset) which matched a combined run
+    [micro_alpha_sweep_oil, micro_alpha_sweep, mean_rev, cross_market]
+    AS WELL AS a pure [micro_alpha_sweep_oil] run. Both Micros got the
+    same combined run. Now we use exact-equality `strategies = %s` so
+    Oil Micro only sees runs whose strategies = ['micro_alpha_sweep_oil'].
+    """
     try:
         runs = execute(
-            "SELECT id FROM gd_backtest_runs WHERE is_latest = TRUE AND strategies @> %s ORDER BY created_at DESC LIMIT 1",
+            "SELECT id FROM gd_backtest_runs WHERE strategies = %s ORDER BY created_at DESC LIMIT 1",
             (MICRO_STRATEGIES_FILTER,), fetch=True
         )
         if not runs:
