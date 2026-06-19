@@ -689,6 +689,73 @@ I'll need to:
 
 **Stopping A10 here.** Hypothesis-only progress is anti-bible.
 
+#### Step 7: Tape replay PROVES A10 partial story (2026-06-20 IST late session)
+
+**With tape server + sys.modules surgery installed, called `sched.micro_sweep_job()` at tape time 14:09 UTC. Result:**
+
+```
+2026-06-19T14:09 | SCAN | tick | windows=3 trades_today=0 daily_pnl=0
+2026-06-19T14:09 | F28-BIAS | bias_resolved | mode=neutral computed=bearish effective=neutral
+2026-06-19T14:09 | SCAN | signals_from_strategy | count=0 bias=neutral
+2026-06-19T14:09 | SCAN | complete | trades_today=0 fired_this_cycle=false
+```
+
+**At 14:09 UTC, the strategy emits ZERO signals.** Confirmed via direct call.
+
+**Tested progressively wider windows ending at 14:09 UTC** — even with full M3 + H1 history, the 14:09 LONG signal does NOT appear. Why?
+
+Strategy iteration logic (`backend/strategies/micro_alpha_sweep.py:101-167`):
+```python
+for bar_ts, bar in day_h1.iterrows():
+    now_hour = bar_ts.hour
+    for start_hour in range(0, 24, 2):
+        end_hour = (start_hour + 4) % 24
+        # Check if consolidation is done
+        if not _hour_past(now_hour, end_hour):
+            continue
+```
+
+`_hour_past(current, target) = 0 < (current-target)%24 <= 12`. For window `start_hour=10, end_hour=14`:
+- At bar_ts=14:00 UTC: `_hour_past(14, 14) = 0` → returns FALSE → "consol not done" → skip
+- At bar_ts=15:00 UTC: `_hour_past(15, 14) = 1` → returns TRUE → consol is done → emit signal at sweep_time=14:00 (engulfing dated 14:09)
+
+**The 14:00 H1 bar at hour=14 itself does NOT trigger consolidation completion.** Strategy needs the 15:00 H1 bar present to fire the 14:09 signal.
+
+**Live's 14:12 cron does NOT have the 15:00 H1 bar yet** (it doesn't exist in the broker view until 15:00 UTC closes).
+
+**Live's 15:00 / 15:03 cron WOULD have:**
+- Tested via tape server: at clock=15:00, signals=1 (the 14:09 LONG)
+- At clock=15:03 (next cron), signals=1 still
+- Through 16:30, signals=1
+
+So **live's 15:00 cron should have fired the 14:09 LONG**. Yet `gd_signals` table for 2026-06-19 has only 2 rows: 03:00 UTC and 08:15 UTC. **No row for any 15:00+ attempt.** Live's strategy returned the signal — but live's gate loop rejected/skipped it before reaching `_log_signal()`.
+
+**Where it could have died:**
+- `signal.date.to_pydatetime() > now` — signal date 14:09 < now 15:00, so no.
+- `signal_missing_sweep_metadata` — no, has metadata.
+- `_traded_sweeps['keys']` check — sweep_key `2026-06-19T14:00:00+00:00_10_bullish` is NOT in today's gd_traded_sweeps rows (verified earlier). So no.
+- DB open_micro check — `gd_trades` has GD-MI-457d1578 closed 04:07, GD-MI-a94ebe4a closed 12:16. Both have `exit_time IS NOT NULL`. Pass.
+- `mt5_open` (broker) — would need to check live's `_open_orders.json` at 15:00 cron. May have had an orphan position from 03:00/08:15 trades that hadn't closed cleanly.
+
+**🚨 F-A10.2 PROBABLE CULPRIT (MUST verify Monday with instrumentation):** the `mt5 get_open_trades()` cross-check at scheduler line 393 returns broker's open positions. If MT5 still reported the GD-MI-a94ebe4a position as "open" past its real close at 12:16 (broker / DWX file lag, orphan, etc.), live would skip every cron after that thinking position was still open.
+
+OR
+
+**🚨 F-A10.3 PROBABLE CULPRIT (alt):** live's startup_cooldown_until value, set at service start. We restarted at 17:57 UTC = the post-deploy process. The earlier process (running through the day) might have hit different gates.
+
+**Both are testable Monday with debug API instrumentation in real time. Cannot resolve from current artifacts.**
+
+#### Step 8: A10 STATUS
+
+- **Verified:** strategy DOES emit the BT-fired signals (14:09, 16:27 etc.) when given enough H1 history. Tape replay produced this output.
+- **Verified:** live's cron at 15:00 UTC, fed via tape, produces 1 signal in `signals_from_strategy`.
+- **Unverified:** which downstream gate rejected the signal in PRODUCTION (different process, real broker view).
+- **Hypotheses (F-A10.2, F-A10.3):** mt5 orphan blocking, startup cooldown semantics — testable Monday.
+
+**A10 fix path:** instrumentation. Add `_log_journal` events for every gate decision in scheduler (`mt5_open_skip`, `cooldown_active`, `startup_cooldown`, `db_open_skip`). Then a single Monday cron tick produces the answer.
+
+**This is exactly what the audit doc Process Rule 5 said.** Phase 7 nightly reconciler. We have to BUILD it. Adding to the program.
+
 ### RCA (Stage 2)
 _pending VERIFY..._
 
