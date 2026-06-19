@@ -41,7 +41,7 @@ REPO_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
 
-SIGNAL_MATCH_WINDOW_SECS = 720  # ±12 min
+SIGNAL_MATCH_WINDOW_SECS = 3600  # ±60 min — covers BT engulfing-time anchor vs replay/live cron-tick placement-time anchor difference
 
 
 # ────────────────────────────────────────────────────────────────────

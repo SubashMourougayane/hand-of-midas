@@ -872,6 +872,81 @@ Live can't do this. Live's cron at 09:00 (or 09:03) sees the signal, sends limit
 
 **Path 3 is correct.** This is the surgical fix.
 
+#### Step 10: BT-LOOKAHEAD SHIPPED (2026-06-20 IST 04:50). HONEST NUMBERS.
+
+Strategy + engine patches landed (commit `20e01b8` on `feature/tape-replay-server`). Re-ran 7yr backtests:
+
+| System     | Pre-fix       | Post-fix      | Δ                     |
+|------------|--------------:|--------------:|-----------------------:|
+| Gold Micro | $810,734      | $685,615      | **−$125k (−15%)**      |
+| Oil Micro  | $2,225,070    | $1,734,088    | **−$491k (−22%)**      |
+| Combined   | $3,035,804    | **$2,419,703**| **−$616k (−20%)**      |
+
+**The honest 7yr is $2.42M, not $3.04M.** $3M was inflated by 20%.
+
+Filter #27 fill rates now realistic:
+- Gold: 62.4% (was effectively 100% with lookahead)
+- Oil: 82.9% (was effectively 100%)
+
+#### Step 11: TR-4 three-way diff harness shipped (commit `e67645f`)
+
+`scripts/replay_three_way_diff.py` — pulls live trades from VPS, runs corrected BT in-process, loads replay trades from `golddigger_replay`. Buckets all 3 sources into 7 sets (LBR / LB / LR / BR / L_only / B_only / R_only) and renders side-by-side per anchor signal-time.
+
+Jun 19 post-deploy diff (Gold Micro):
+- LIVE: 0 trades, $0
+- BT (corrected): 1 trade (16:27 SHORT, +$382.75)
+- REPLAY: 3 attempts, 0 fills, $0
+
+**Live and replay agree on $0** (both honest cron-driven). BT post-fix still has a residual 3-min cron-lag advantage. Match logic groups them in `B_only` / `R_only` buckets where signal_time delta > 12 min.
+
+Pre-deploy live trades (01:00 UTC LONG, 06:15 UTC LONG) used **OLD pre-Phase-6 sweep_key format** (`<ts>_<dir>` not `<ts>_<window>_<dir>`). They're not reproducible in current BT. **L_only bucket on those trades is expected** — different code generated them.
+
+#### Conclusion
+
+BT-LOOKAHEAD bug fixed. $3M number is now $2.42M honest. Three-way diff harness is the canonical parity tool going forward.
+
+Residual divergences after this fix:
+- Cron-tick lag (replay vs live ~3min, BT vs replay ~3-15min for window-cron alignment)
+- Broker-physics axes (latency, rejection, slippage) per audit E1-E4
+- Macro currently disabled; same lookahead exists in alpha_sweep.py (F-LOOKAHEAD.3)
+
+#### Step 12: WEEK-LONG TR-5 RESULTS — even with fix, BT vs reality is wide
+
+Ran replay over Jun 13-20 Gold Micro (10,081 1-min ticks). Three-way diff:
+
+| Bucket | Count |
+|---|---|
+| LBR (3-way agree) | 1 |
+| LR | 1 |
+| BR (BT+Replay see, Live missed) | 7 |
+| L_only (live trades not reproducible) | 13 |
+| B_only (BT only) | 4 |
+| R_only (replay attempts, no fills) | 19 |
+
+**P&L by source for the week:**
+- LIVE: −$602.48 (15 actual trades)
+- BT (corrected): +$1,887.04 (12 trades)
+- REPLAY (cron-driven live code): $0 (28 attempts, 0 fills)
+
+**🚨 GAP ANALYSIS:**
+- BT vs LIVE delta: +$2489.52 / week of imaginary P&L
+- Replay 0 fills means ~all signals TTL-expire under cron-pace placement
+
+**Interpretation:** BT-corrected still overstates by another factor ~5x because:
+1. BT's fill model walks bars after `emit_h1+1 m3 bar` (~3 min after H1 close)
+2. Live places via cron tick + broker latency (~3-10 min after H1 close)
+3. Limit price is set BEFORE these delays. Market moves past limit during the gap.
+4. BT's fill rate ~62% becomes live's effective ~10-20%
+
+**Honest live capture estimate** based on this week + Jun 19 single-day data:
+- BT projects $685k/7yr Gold Micro
+- Real capture ~10-30% of corrected BT
+- **Honest forward projection: $70k-$200k/7yr Gold Micro ≈ $10-30k/year**
+
+This is consistent with what live has actually delivered.
+
+**🚩 F-LOOKAHEAD.4 — there's a SECOND lookahead/cron-lag axis:** the time between `emit_h1_bar` (BT's anchor) and "cron tick that places the order" (live's reality). 0-3 min on average, can be longer if window-active timing misaligns. This is broker-physics-adjacent but real.
+
 **🚩 F-A10.4 ARCHITECTURAL WIN:** Tape replay just paid for itself. ONE day of replay surfaced a structural bug in BT that years of normal backtests missed. The tape replay server is the right tool — it forced live and BT to use the same "now" axis and the divergence became unmissable.
 
 **🚩 F-A10.5 SECONDARY:** GraceTTL exit_time stamps are also tape-time-correct (e.g. `06:05 IST`). Cross-day boundary tracking, daily reset, position lifecycle: all working. **The tape replay infrastructure ITSELF is parity-correct.** This is the tooling we need.

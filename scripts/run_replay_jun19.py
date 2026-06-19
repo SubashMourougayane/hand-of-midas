@@ -53,9 +53,14 @@ def main():
     # oil-micro's scheduler module. Single-system per-replay for now.
     # Will solve multi-system in a later iteration.
 
-    # 5. Run Jun 19 from 00:00 UTC to 18:30 UTC (after the latest BT post-deploy trade)
-    start = datetime(2026, 6, 19, 0, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 6, 19, 18, 30, tzinfo=timezone.utc)
+    # 5. Run Jun 13-20 from 00:00 UTC (full week)
+    import sys
+    if "--week" in sys.argv:
+        start = datetime(2026, 6, 13, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 20, 0, 0, tzinfo=timezone.utc)
+    else:
+        start = datetime(2026, 6, 19, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 6, 19, 18, 30, tzinfo=timezone.utc)
     print(f"\nRunning replay from {start} to {end}...")
     result = session.run(start, end)
 
