@@ -311,6 +311,20 @@ def run_backtest(
             continue
 
         pnl_dollar = result.pnl_per_unit * units
+        # Phase 6 #10: subtract commission + swap from pnl_dollar so BT
+        # equity reflects realistic broker costs. JustMarkets ECN XAU_USD:
+        # $6/lot RT + $2/lot/night long swap, $1/lot/night short swap.
+        from backend.scanner.production_gates import compute_broker_costs
+        from config import BROKER_COSTS
+        _costs = compute_broker_costs(
+            units=units,
+            direction=signal.direction,
+            bars_held=result.bars_held,
+            broker_costs=BROKER_COSTS,
+            bar_minutes=3,
+            entry_hour_utc=signal.date.hour,
+        )
+        pnl_dollar -= _costs["total"]
         update_after_trade(state, pnl_dollar)
         daily_pnl += pnl_dollar
         last_signal_time = signal.date  # Update cooldown tracker

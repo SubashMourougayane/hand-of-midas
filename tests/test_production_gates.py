@@ -23,7 +23,23 @@ from backend.scanner.production_gates import (
     update_state_after_exit,
     reset_for_new_day,
     cooldown_arms_on_skip,
+    compute_broker_costs,
 )
+
+
+OIL_COSTS = {
+    "lot_size": 100,
+    "commission_per_lot_rt": 7.0,
+    "swap_long_per_lot_per_night": -3.0,
+    "swap_short_per_lot_per_night": -1.0,
+}
+
+GOLD_COSTS = {
+    "lot_size": 100,
+    "commission_per_lot_rt": 6.0,
+    "swap_long_per_lot_per_night": -2.0,
+    "swap_short_per_lot_per_night": -1.0,
+}
 
 
 # ─── Test fixtures ──────────────────────────────────────────
@@ -354,3 +370,126 @@ def test_cooldown_does_not_arm_on_tp_too_close():
 def test_cooldown_does_not_arm_on_none():
     assert cooldown_arms_on_skip(None) is False
     assert cooldown_arms_on_skip("") is False
+
+
+# ─── Broker costs (Phase 6 #10) ───────────────────────────
+
+
+def test_oil_commission_220_units_short_3min_trade():
+    """Typical Oil Micro trade — 220 units (~2.2 lots), short, 3min hold."""
+    costs = compute_broker_costs(
+        units=220.0, direction="short", bars_held=1,
+        broker_costs=OIL_COSTS,
+    )
+    # 2.2 lots × $7/lot RT = $15.40
+    assert costs["lots"] == pytest.approx(2.2)
+    assert costs["commission"] == pytest.approx(15.4)
+    # bars_held=1 = 3min — no overnight crossing
+    assert costs["nights_crossed"] == 0
+    assert costs["swap"] == 0.0
+    assert costs["total"] == pytest.approx(15.4)
+
+
+def test_gold_commission_500_units_long():
+    """Gold Micro typical 500-unit (5-lot) trade."""
+    costs = compute_broker_costs(
+        units=500.0, direction="long", bars_held=5,
+        broker_costs=GOLD_COSTS,
+    )
+    # 5 lots × $6/lot RT = $30
+    assert costs["lots"] == pytest.approx(5.0)
+    assert costs["commission"] == pytest.approx(30.0)
+    assert costs["swap"] == 0.0
+
+
+def test_swap_overnight_long_oil():
+    """Trade held >24hr with entry at 12:00 — crosses 1 rollover."""
+    costs = compute_broker_costs(
+        units=200.0, direction="long",
+        bars_held=480,  # 480 × 3min = 1440min = 24hr
+        broker_costs=OIL_COSTS,
+        entry_hour_utc=12,
+    )
+    # 24hr at entry 12:00 → ends at 12:00 next day → crosses 1 rollover
+    # Lots = 2, swap_long = -$3/lot/night, 1 night crossed → cost = $6
+    assert costs["nights_crossed"] >= 1
+    assert costs["swap"] == pytest.approx(2.0 * 3.0 * costs["nights_crossed"])
+    assert costs["total"] == pytest.approx(costs["commission"] + costs["swap"])
+
+
+def test_swap_short_smaller_than_long():
+    """Short oil swap is cheaper than long oil swap."""
+    long_cost = compute_broker_costs(
+        units=200.0, direction="long", bars_held=480,
+        broker_costs=OIL_COSTS, entry_hour_utc=12,
+    )
+    short_cost = compute_broker_costs(
+        units=200.0, direction="short", bars_held=480,
+        broker_costs=OIL_COSTS, entry_hour_utc=12,
+    )
+    assert short_cost["swap"] < long_cost["swap"]
+
+
+def test_intraday_no_swap():
+    """Trade held 4 hours mid-day (entry 10am, hold 4hr) → no rollover."""
+    costs = compute_broker_costs(
+        units=200.0, direction="long", bars_held=80,  # 4hr
+        broker_costs=OIL_COSTS, entry_hour_utc=10,
+    )
+    assert costs["nights_crossed"] == 0
+    assert costs["swap"] == 0.0
+
+
+def test_late_day_entry_short_hold_no_swap():
+    """Entry at 22:00 UTC, 1hr hold → ends 23:00, no rollover crossed."""
+    costs = compute_broker_costs(
+        units=200.0, direction="long", bars_held=20,  # 1hr
+        broker_costs=OIL_COSTS, entry_hour_utc=22,
+    )
+    # Entry 22:00, end 23:00 — rollover at 00:00 NOT crossed
+    assert costs["nights_crossed"] == 0
+
+
+def test_late_day_entry_long_hold_crosses_rollover():
+    """Entry at 22:00 UTC, 4hr hold → crosses 00:00 rollover."""
+    costs = compute_broker_costs(
+        units=200.0, direction="long", bars_held=80,  # 4hr
+        broker_costs=OIL_COSTS, entry_hour_utc=22,
+    )
+    # Entry 22:00 + 4hr = 02:00 next day → 1 rollover crossed
+    assert costs["nights_crossed"] == 1
+    assert costs["swap"] == pytest.approx(2.0 * 3.0)  # 2 lots × $3 × 1 night
+
+
+def test_zero_bars_held_only_commission():
+    """Edge case: bars_held=0 (DATA_END or instant fill+exit) — commission only."""
+    costs = compute_broker_costs(
+        units=200.0, direction="long", bars_held=0,
+        broker_costs=OIL_COSTS,
+    )
+    assert costs["nights_crossed"] == 0
+    assert costs["swap"] == 0.0
+    assert costs["commission"] == pytest.approx(2.0 * 7.0)  # 2 lots × $7
+    assert costs["total"] == pytest.approx(14.0)
+
+
+def test_fractional_lots_handled():
+    """Position size may be fractional lots (e.g. 50 units = 0.5 lots)."""
+    costs = compute_broker_costs(
+        units=50.0, direction="long", bars_held=1,
+        broker_costs=OIL_COSTS,
+    )
+    assert costs["lots"] == pytest.approx(0.5)
+    assert costs["commission"] == pytest.approx(0.5 * 7.0)
+
+
+def test_total_equals_commission_plus_swap():
+    """Sanity: total = commission + swap, always."""
+    for direction in ["long", "short"]:
+        for bars in [1, 80, 480, 1000]:
+            costs = compute_broker_costs(
+                units=200.0, direction=direction, bars_held=bars,
+                broker_costs=OIL_COSTS, entry_hour_utc=12,
+            )
+            assert costs["total"] == pytest.approx(costs["commission"] + costs["swap"]), \
+                f"direction={direction} bars={bars}: total mismatch"

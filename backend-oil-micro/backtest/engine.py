@@ -502,6 +502,21 @@ def run_backtest(
         day_filled_trades += 1  # Cap rework Jun 18: count only filled trades
 
         pnl_dollar = result["pnl_per_unit"] * units
+        # Phase 6 #10: subtract commission + swap from pnl_dollar so BT
+        # equity reflects realistic broker costs (live applies these
+        # automatically). JustMarkets ECN BCO_USD: $7/lot RT + $3/lot/night
+        # long swap, $1/lot/night short swap.
+        from backend.scanner.production_gates import compute_broker_costs
+        from config import BROKER_COSTS
+        _costs = compute_broker_costs(
+            units=units,
+            direction=signal.direction,
+            bars_held=result["bars_held"],
+            broker_costs=BROKER_COSTS,
+            bar_minutes=3,
+            entry_hour_utc=signal.date.hour,
+        )
+        pnl_dollar -= _costs["total"]
         equity += pnl_dollar
         equity = max(equity, 0)
         daily_pnl += pnl_dollar

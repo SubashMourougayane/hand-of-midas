@@ -74,6 +74,17 @@ DD_PROTECTION = {
     "pause_signals": 2,
 }
 
+# Phase 6 #10 (2026-06-19): commission + swap for BT realism.
+# JustMarkets ECN BCO_USD typical rates. BT applies these costs to make
+# numbers comparable to live broker P&L. Live applies real broker fees
+# automatically — not a code path on live side.
+BROKER_COSTS = {
+    "lot_size": 100,                 # 100 units = 1 lot (standard ECN)
+    "commission_per_lot_rt": 7.0,    # round-trip USD per lot (entry + exit)
+    "swap_long_per_lot_per_night": -3.0,    # negative = paid daily for long oil
+    "swap_short_per_lot_per_night": -1.0,   # negative = paid daily for short oil
+}
+
 
 # Slippage Model — Deterministic (Filter #11, 2026-06-12). See backend/config.py.
 # Oil Micro uses different multipliers; preserves expected slippage = 0.03 + br*0.01 + 0.0025.

@@ -79,6 +79,17 @@ DD_PROTECTION = {
     "pause_signals": 2,
 }
 
+# Phase 6 #10 (2026-06-19): commission + swap for BT realism.
+# JustMarkets ECN XAU_USD typical rates. BT applies these costs to make
+# numbers comparable to live broker P&L. Live applies real broker fees
+# automatically — not a code path on live side.
+BROKER_COSTS = {
+    "lot_size": 100,                 # 100 units (oz) = 1 lot
+    "commission_per_lot_rt": 6.0,    # round-trip USD per lot (entry + exit)
+    "swap_long_per_lot_per_night": -2.0,    # negative = paid daily for long gold
+    "swap_short_per_lot_per_night": -1.0,   # negative = paid daily for short gold
+}
+
 
 # Slippage Model — Deterministic (Filter #11, 2026-06-12). See backend/config.py.
 def slippage(bar_range: float) -> float:

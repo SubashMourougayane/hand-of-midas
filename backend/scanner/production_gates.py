@@ -276,3 +276,73 @@ def reset_for_new_day(state: GateState, new_date) -> None:
     state.day_filled_trades = 0
     state.day_pnl = 0.0
     state.current_date = new_date
+
+
+# ─── Phase 6 #10 — broker costs (commission + swap) ──────────
+
+
+def compute_broker_costs(
+    units: float,
+    direction: str,
+    bars_held: int,
+    *,
+    broker_costs: dict,
+    bar_minutes: int = 3,
+    rollover_hour_utc: int = 0,
+    entry_hour_utc: int = 12,
+) -> dict:
+    """Compute commission + swap for a closed BT trade.
+
+    Returns:
+        dict {commission, swap, total} — all dollar amounts (positive = cost).
+
+    Args:
+        units: position size in instrument units
+        direction: "long" or "short"
+        bars_held: number of M3 bars (or whatever bar_minutes scale) held
+        broker_costs: dict from config — must have lot_size, commission_per_lot_rt,
+            swap_long_per_lot_per_night, swap_short_per_lot_per_night.
+        bar_minutes: 3 for M3 (default).
+        rollover_hour_utc: broker rollover (00:00 UTC for most ECN brokers).
+        entry_hour_utc: hour the trade entered (used to count overnight crossings).
+            Defaults to 12 (mid-day) for the simple case where BT doesn't pass it.
+
+    Commission semantics:
+        Round-trip per lot (entry + exit combined). Charged once per closed trade.
+
+    Swap semantics:
+        Paid for each rollover crossed while position was open.
+        Approximation: minutes_held / 1440 (= days_held), rounded down + 1
+        if any rollover was crossed. Conservative — slightly over-charges.
+        For sub-day trades: no swap (most Micro trades are <4hr, no swap).
+    """
+    lot_size = broker_costs["lot_size"]
+    lots = units / lot_size
+
+    # Commission — round-trip per lot
+    commission = lots * broker_costs["commission_per_lot_rt"]
+
+    # Swap — only if trade held overnight (approximate)
+    minutes_held = bars_held * bar_minutes
+    nights_crossed = minutes_held // 1440  # full 24hr cycles
+    # Add 1 if entry-hour straddled rollover (entry before, exit after)
+    # Conservative: assume any trade with bars_held > rollover-distance crossed
+    if minutes_held >= (24 - entry_hour_utc) * 60 and nights_crossed == 0:
+        nights_crossed = 1
+
+    if direction == "long":
+        swap_per_lot = broker_costs["swap_long_per_lot_per_night"]
+    else:
+        swap_per_lot = broker_costs["swap_short_per_lot_per_night"]
+    # swap_per_lot is negative (cost). Multiply by nights crossed and lots.
+    # Return as POSITIVE cost.
+    swap = -lots * swap_per_lot * nights_crossed  # negate to express as cost
+
+    total = commission + swap
+    return {
+        "commission": commission,
+        "swap": swap,
+        "total": total,
+        "lots": lots,
+        "nights_crossed": nights_crossed,
+    }
