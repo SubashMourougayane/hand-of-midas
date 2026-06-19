@@ -23,7 +23,7 @@ from __future__ import annotations
 import importlib
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -98,6 +98,89 @@ class ReplayRunner:
             )):
                 del sys.modules[k]
         importlib.invalidate_caches()
+
+    def install_db_clock_patch(self, tape) -> None:
+        """Replace backend.db.execute with one that:
+        (1) rewrites NOW()/CURRENT_TIMESTAMP/CURRENT_DATE in SQL → tape-time
+            literals, AND
+        (2) for INSERTs into gd_signals / gd_traded_sweeps / gd_journal /
+            gd_trades, injects an explicit timestamp column = tape time
+            so the table's `DEFAULT NOW()` doesn't fire wall-clock.
+
+        Why: many tables have `timestamp TIMESTAMPTZ DEFAULT NOW()` set at
+        the schema level. Live's `_log_signal` etc. INSERT WITHOUT supplying
+        timestamp → Postgres NOW() fires (wall clock). Python patches can't
+        intercept Postgres-side defaults. Solution: rewrite the INSERT in
+        flight to add the column.
+        """
+        import re as _re
+
+        backend_db = importlib.import_module("backend.db")
+        _orig_execute = backend_db.execute
+
+        def _tape_now_lit() -> str:
+            return f"'{tape.current_time().isoformat()}'::timestamptz"
+
+        def _tape_today_lit() -> str:
+            return f"'{tape.current_time().date().isoformat()}'::date"
+
+        _NOW_PAT = _re.compile(r"\bNOW\s*\(\s*\)", _re.IGNORECASE)
+        _CURRENT_TS_PAT = _re.compile(r"\bCURRENT_TIMESTAMP\b", _re.IGNORECASE)
+        _CURRENT_DATE_PAT = _re.compile(r"\bCURRENT_DATE\b", _re.IGNORECASE)
+
+        # Tables with DEFAULT NOW() column that we need to override with
+        # tape-time. Map: table_name → (column_name, default_kind).
+        # default_kind: "timestamp" → tape now ISO, "date" → tape date.
+        _DEFAULT_NOW_TABLES = {
+            "gd_signals":         ("timestamp",   "timestamp"),
+            "gd_traded_sweeps":   ("consumed_at", "timestamp"),
+            "gd_journal":         ("timestamp",   "timestamp"),
+            # gd_trades has entry_time = NOW() in INSERT statement (not default),
+            # so SQL rewriter handles it.
+        }
+
+        # Pattern: INSERT INTO <table> (col1, col2, ...) VALUES (%s, %s, ...)
+        _INSERT_PAT = _re.compile(
+            r"\bINSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)",
+            _re.IGNORECASE | _re.DOTALL,
+        )
+
+        def _inject_default_column(sql: str) -> str:
+            """If SQL is INSERT into a default-NOW table and doesn't already
+            include the auto-timestamp column, inject it with tape-time literal.
+            """
+            m = _INSERT_PAT.search(sql)
+            if not m:
+                return sql
+            table = m.group(1).lower()
+            cols_str = m.group(2)
+            vals_str = m.group(3)
+            spec = _DEFAULT_NOW_TABLES.get(table)
+            if not spec:
+                return sql
+            col_name, kind = spec
+            # If already in column list, leave alone
+            if col_name in [c.strip().lower() for c in cols_str.split(",")]:
+                return sql
+            now_lit = _tape_now_lit() if kind == "timestamp" else _tape_today_lit()
+            new_cols = f"{col_name}, {cols_str}"
+            new_vals = f"{now_lit}, {vals_str}"
+            new_sql = sql[:m.start()] + f"INSERT INTO {table} ({new_cols}) VALUES ({new_vals})" + sql[m.end():]
+            return new_sql
+
+        def _rewrite_sql(sql: str) -> str:
+            now_lit = _tape_now_lit()
+            today_lit = _tape_today_lit()
+            sql2 = _NOW_PAT.sub(now_lit, sql)
+            sql2 = _CURRENT_TS_PAT.sub(now_lit, sql2)
+            sql2 = _CURRENT_DATE_PAT.sub(today_lit, sql2)
+            sql2 = _inject_default_column(sql2)
+            return sql2
+
+        def _patched_execute(sql: str, params=None, fetch=False):
+            return _orig_execute(_rewrite_sql(sql), params, fetch)
+
+        backend_db.execute = _patched_execute
 
     def install_broker_stub(self, broker) -> None:
         """Replace backend.execution.mt5_executor with a stub that delegates
@@ -182,3 +265,150 @@ class ReplayRunner:
             sys.path.insert(0, REPO_ROOT)
 
         return importlib.import_module("scanner.scheduler")
+
+
+# ────────────────────────────────────────────────────────────────────
+# Driver: walks tape clock + fires live cron jobs at exact cadence.
+# ────────────────────────────────────────────────────────────────────
+
+@dataclass
+class ReplaySession:
+    """Holds the running state of one replay (one or more systems on one tape)."""
+    tape: object  # TapeServer
+    broker: object  # FakeBroker
+    runners: dict[str, ReplayRunner] = field(default_factory=dict)
+    schedulers: dict[str, object] = field(default_factory=dict)
+    # Track when each cron job last fired in tape time, so we can replay
+    # APScheduler's "*/3 min" / "* min" / "30s" cadences deterministically.
+    _last_run: dict[str, datetime] = field(default_factory=dict)
+    # Verbose: print every cron tick
+    verbose: bool = False
+
+    def add_system(self, system: str, pkg_dir: str, instrument: str,
+                    bias_mode: str = "neutral") -> None:
+        """Install a system runner. ORDER MATTERS — first system installed
+        gets first sys.path priority. Pattern from existing parity tests."""
+        runner = ReplayRunner(
+            system=system, pkg_dir=pkg_dir, instrument=instrument, bias_mode=bias_mode,
+        )
+        runner.setup_env()
+        runner.install_broker_stub(self.broker)
+        runner.install_db_clock_patch(self.tape)
+        sched = runner.import_live_scheduler()
+        runner.patch_live_clock(self.tape)
+        # Force daily state to reset for tape's start date
+        sched._daily_state["date"] = None
+        sched._traded_sweeps["date"] = None
+        if hasattr(sched, "_startup_cooldown_until"):
+            sched._startup_cooldown_until = None  # disable C8 startup gate
+        self.runners[system] = runner
+        self.schedulers[system] = sched
+
+    def run(self, start: datetime, end: datetime, *,
+            sweep_minute_cadence: int = 3,
+            position_monitor_minute_cadence: int = 1,
+            pending_minute_cadence: int = 1,  # interval=30s in prod; we fire every minute
+            ) -> dict:
+        """Walk tape clock from start to end, firing jobs at cadence.
+
+        Approach:
+          - Step 1 minute at a time (smallest cadence we model).
+          - At each step, advance tape clock + bridge.tick().
+          - If tape minute % sweep_cadence == 0 → fire micro_sweep_job() for
+            every system.
+          - Every minute → fire position_monitor_job() for every system.
+          - Every pending_minute_cadence → fire pending_order_monitor_job().
+        Returns: {"steps": int, "events": [...]}
+        """
+        from datetime import timedelta
+        start_utc = self._to_utc(start)
+        end_utc = self._to_utc(end)
+        if end_utc <= start_utc:
+            raise ValueError(f"end {end_utc} must be after start {start_utc}")
+
+        self.tape.set_clock(start_utc)
+        steps = 0
+        events: list[dict] = []
+        clock = start_utc
+        prev_date = clock.date()
+
+        while clock <= end_utc:
+            # Advance tape + resolve any in-flight broker events
+            self.tape.advance_to(clock)
+            tick_events = self.broker.tick()
+            for e in tick_events:
+                e["clock"] = clock.isoformat()
+                events.append(e)
+                if self.verbose and tick_events:
+                    print(f"  [{clock.isoformat()}] broker_event: {e}")
+
+            # Daily reset on date change
+            if clock.date() != prev_date:
+                for sched in self.schedulers.values():
+                    sched._daily_state["date"] = None
+                    sched._traded_sweeps["date"] = None
+                prev_date = clock.date()
+
+            # ── Sweep poll: every `sweep_minute_cadence` minutes
+            if clock.minute % sweep_minute_cadence == 0:
+                for system, sched in self.schedulers.items():
+                    try:
+                        sched.micro_sweep_job()
+                    except Exception as e:
+                        events.append({
+                            "clock": clock.isoformat(),
+                            "system": system,
+                            "type": "ERROR_SWEEP",
+                            "err": f"{type(e).__name__}: {e}",
+                        })
+                        if self.verbose:
+                            import traceback; traceback.print_exc()
+
+            # ── Position monitor: every minute
+            if clock.minute % position_monitor_minute_cadence == 0:
+                for system, sched in self.schedulers.items():
+                    try:
+                        sched.position_monitor_job()
+                    except Exception as e:
+                        events.append({
+                            "clock": clock.isoformat(),
+                            "system": system,
+                            "type": "ERROR_POSMON",
+                            "err": f"{type(e).__name__}: {e}",
+                        })
+                        if self.verbose:
+                            import traceback; traceback.print_exc()
+
+            # ── Pending order monitor (Filter #27)
+            if clock.minute % pending_minute_cadence == 0:
+                for system, sched in self.schedulers.items():
+                    if hasattr(sched, "pending_order_monitor_job"):
+                        try:
+                            sched.pending_order_monitor_job()
+                        except Exception as e:
+                            events.append({
+                                "clock": clock.isoformat(),
+                                "system": system,
+                                "type": "ERROR_PENDINGMON",
+                                "err": f"{type(e).__name__}: {e}",
+                            })
+
+            # Daily recon at 00:05 UTC (matches live cron)
+            if clock.hour == 0 and clock.minute == 5:
+                for system, sched in self.schedulers.items():
+                    if hasattr(sched, "daily_recon_job"):
+                        try:
+                            sched.daily_recon_job()
+                        except Exception:
+                            pass  # daily recon is non-critical for parity
+
+            steps += 1
+            clock = clock + timedelta(minutes=1)
+
+        return {"steps": steps, "events": events}
+
+    @staticmethod
+    def _to_utc(ts: datetime) -> datetime:
+        if ts.tzinfo is None:
+            return ts.replace(tzinfo=timezone.utc)
+        return ts.astimezone(timezone.utc)

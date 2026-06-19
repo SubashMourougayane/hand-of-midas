@@ -756,6 +756,58 @@ OR
 
 **This is exactly what the audit doc Process Rule 5 said.** Phase 7 nightly reconciler. We have to BUILD it. Adding to the program.
 
+---
+
+#### Step 9: TAPE REPLAY SHIPPED (2026-06-20 IST 04:00). HUGE FINDING.
+
+**TR-3 cron-loop driver built. First end-to-end Jun 19 replay run.**
+
+Result on golddigger_replay (single-system, gold-micro, Jun 19 00:00 → 18:30 UTC):
+- 7 live signals emitted, 7 limit orders placed, 7 in `gd_traded_sweeps`
+- ALL 7 limit orders TTL-expired (none filled)
+- 6 trades recorded with `LIMIT_TTL_EXPIRED_GRACE` exit reason
+- 1 signal at 23:15 rejected with `limit_price_through_market`
+
+**Cross-walked one trade with raw bars:**
+- BT replay: GD-MI 08:09 LONG @ 4130.29 → tp_partial+expired → +$1549.32
+- Replay: same signal placed limit @ 4129.26 at 09:00 UTC, walked bars 09:00 → 09:15, lowest bid_low = 4133.69. **Limit never touched in TTL.**
+- BT walked bars 08:12 → 08:24 (BT's bar_idx = signal.date = 08:09, TTL=5 bars after). Bar 08:12 had bid_low=4127.25 ≤ 4129.26. **BT filled at 08:12.**
+
+🚨 **A10 ROOT CAUSE: BT HAS STRUCTURAL LOOKAHEAD IN F27 FILL MODEL.**
+
+The strategy iterates `for bar_ts, bar in day_h1.iterrows()`. For each h1 `bar_ts`, it gates by `if not _hour_past(now_hour, end_hour): continue`. For window start=4 end=8, `_hour_past(8, 8)=0` False → consol incomplete. At bar_ts=09:00 UTC, `_hour_past(9, 8)=1` True → consol complete → emit signal dated **engulfing M3 bar (08:09 UTC)**.
+
+BT engine then takes signal.date=08:09 and bar_idx=08:09 in M3 dataframe and walks `bar_idx+1 → bar_idx+TTL` for fill detection. **BT's "now" at fill simulation is 08:09**. But the signal was actually generated at h1 bar_ts=09:00. **BT effectively walks bars 08:12-08:24 looking for fills FOR a signal it learned about at 09:00.** 51-minute reverse lookahead.
+
+Live can't do this. Live's cron at 09:00 (or 09:03) sees the signal, sends limit price to broker NOW (09:03+). Broker walks forward from 09:03. By then market has moved.
+
+**MEASURED IMPACT (Jun 19 only, Gold Micro, replay vs BT):**
+- BT: 4 trades (2 incl pre-deploy 08:09 LONG, post-deploy 14:09 LONG, 16:27 SHORT). +$2006 cumulative across all 4.
+- Replay (live code): 7 attempts, 0 fills, $0.
+
+**This isn't "today's gap." It's a structural BT-side parity bug.** Every BT trade with F27 limit-mode is exposed.
+
+**Three immediate paths:**
+
+1. **Fix BT lookahead** — F27 limit fill model should walk bars from `signal.date + (h1_now - signal.date)` not `signal.date`. Concretely: BT must respect "first cron tick AFTER consol completes." This will drop BT 7yr P&L MATERIALLY (the $3.04M honest number is honest no longer).
+
+2. **Accept the gap, recalibrate** — every F27 trade in BT has lookahead. BT projects a ceiling. Live is the reality. Stop using BT for ship decisions on F27-enabled systems until lookahead is fixed.
+
+3. **Move signal-emit timing in BT to match live** — strategy's iteration shouldn't return signals dated to engulfing M3 bar; should return them dated to the h1 bar that CAUSED the emission. Then bar_idx = h1_bar_ts (not engulfing M3) and fill walks from there.
+
+**Path 3 is correct.** This is the surgical fix.
+
+**🚩 F-A10.4 ARCHITECTURAL WIN:** Tape replay just paid for itself. ONE day of replay surfaced a structural bug in BT that years of normal backtests missed. The tape replay server is the right tool — it forced live and BT to use the same "now" axis and the divergence became unmissable.
+
+**🚩 F-A10.5 SECONDARY:** GraceTTL exit_time stamps are also tape-time-correct (e.g. `06:05 IST`). Cross-day boundary tracking, daily reset, position lifecycle: all working. **The tape replay infrastructure ITSELF is parity-correct.** This is the tooling we need.
+
+#### Next steps
+
+1. Verify F27 lookahead by reading BT engine's `bar_idx` calculation for the signal — done.
+2. Either fix path 3 or accept gap — needs decision.
+3. Run full Jun 13-20 replay once parity question is settled — we have the tooling.
+4. Build the three-way diff harness (TR-4) — unblocked.
+
 ### RCA (Stage 2)
 _pending VERIFY..._
 
