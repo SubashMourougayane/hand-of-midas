@@ -129,17 +129,42 @@ def _should_skip(dd_state: dict) -> Optional[str]:
 
 
 def _get_risk_multiplier(dd_state: dict, nav_usd: float) -> float:
+    """Risk multiplier matching BT logic.
+
+    BT uses `np.mean(equity_history[-20:])` — true 20-period MA of
+    post-trade equity values.
+
+    Phase 6 #6 (2026-06-19): live used to compute a MIDPOINT, not an MA:
+        equity_ma = (equity_20_ago + nav_usd) / 2
+    That's a 2-point average. BT's average uses all 20 intermediate
+    equity values. Different math → different gate decisions on
+    inflection days. Fixed by reconstructing the 20 equity values from
+    the per-trade pnl_usd and averaging them.
+
+    Algorithm:
+        1. Fetch last 20 closed trade pnls in CHRONOLOGICAL order
+        2. equity_at_trade_minus_20 = nav_now - sum(20 pnls)
+        3. Walk forward, accumulate, save each post-trade equity in list
+        4. Average that list → matches BT's mean(equity_history[-20:])
+    """
     mult = 1.0
     if dd_state["consecutive_losses"] >= DD_PROTECTION["half_after_consecutive"]:
         mult = 0.5
     rows = execute(
-        f"SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY exit_time DESC LIMIT 20",
+        f"SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY exit_time ASC LIMIT 20",
         fetch=True
     )
     if len(rows) >= 20:
-        cumulative_pnl = sum(float(r["pnl_usd"] or 0) for r in rows)
-        equity_20_ago = nav_usd - cumulative_pnl
-        equity_ma = (equity_20_ago + nav_usd) / 2
+        # Most recent 20 closed trades, in chronological order
+        pnls = [float(r["pnl_usd"] or 0) for r in rows]
+        equity_before_window = nav_usd - sum(pnls)
+        equity_history = []
+        running = equity_before_window
+        for p in pnls:
+            running += p
+            equity_history.append(running)
+        # Phase 6 #6: TRUE 20-period MA (matches BT's np.mean(equity_history[-20:]))
+        equity_ma = sum(equity_history) / len(equity_history)
         if nav_usd < equity_ma:
             mult *= 0.5
     return mult

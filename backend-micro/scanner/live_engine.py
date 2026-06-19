@@ -127,19 +127,33 @@ def _should_skip(dd_state: dict) -> Optional[str]:
 
 
 def _get_risk_multiplier(dd_state: dict, nav_usd: float) -> float:
-    """Half risk after 3 consecutive losses OR if account is declining."""
+    """Half risk after 3 consecutive losses OR if account is declining.
+
+    Phase 6 #6 (2026-06-19): equity-MA fix. Live used to compute a
+    MIDPOINT (eq_20_ago + nav) / 2 — 2-point average. BT uses true
+    20-period MA via np.mean(equity_history[-20:]). Different math →
+    different gate decisions on inflection days. Live now reconstructs
+    the 20 equity points from per-trade pnls and averages them — exact
+    match with BT.
+    """
     mult = 1.0
     if dd_state["consecutive_losses"] >= DD_PROTECTION["half_after_consecutive"]:
         mult = 0.5
-    # Equity MA: compare live NAV against average of last 20 trade exits
     rows = execute(
-        f"SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY exit_time DESC LIMIT 20",
+        f"SELECT pnl_usd FROM gd_trades WHERE exit_time IS NOT NULL AND trade_ref LIKE '{TRADE_REF_PREFIX}%%' ORDER BY exit_time ASC LIMIT 20",
         fetch=True
     )
     if len(rows) >= 20:
-        cumulative_pnl = sum(float(r["pnl_usd"] or 0) for r in rows)
-        equity_20_ago = nav_usd - cumulative_pnl
-        equity_ma = (equity_20_ago + nav_usd) / 2
+        # Most recent 20 closed trades in chronological order.
+        pnls = [float(r["pnl_usd"] or 0) for r in rows]
+        equity_before_window = nav_usd - sum(pnls)
+        equity_history = []
+        running = equity_before_window
+        for p in pnls:
+            running += p
+            equity_history.append(running)
+        # TRUE 20-period MA (matches BT's np.mean(equity_history[-20:]))
+        equity_ma = sum(equity_history) / len(equity_history)
         if nav_usd < equity_ma:
             mult *= 0.5
     return mult
