@@ -115,8 +115,13 @@ export default function JournalPage() {
           const params: Record<string, unknown> = { limit: 100 };
           if (filter.strategy) params.strategy = filter.strategy;
           if (filter.event_type) params.event_type = filter.event_type;
-          const data = await client(svc).journal<{ events?: JournalEvent[] }>(params);
-          if (!cancelled) setEvents(data?.events ?? []);
+          // M3 fix (2026-06-19): both Micros' /journal/events return a bare
+          // list, but Gold Macro returned {events: [...]}. Accept both shapes.
+          const data = await client(svc).journal<JournalEvent[] | { events?: JournalEvent[] }>(params);
+          if (!cancelled) {
+            const list = Array.isArray(data) ? data : (data?.events ?? []);
+            setEvents(list);
+          }
         } else {
           const params: Record<string, unknown> = { source: "backtest", limit: 500 };
           if (filter.strategy) params.strategy = filter.strategy;
