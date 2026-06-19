@@ -1,0 +1,155 @@
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+XAU/USD
+·
+GOLD MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Live
+
+Real-time trading dashboard — XAU/USD
+
+SCHEDULER ACTIVE
+F28 · BIAS NEUTRAL
+Updated · 8:42:50 PM
+🔍
+Scanning
+Rolling windows active (22:00–21:00 UTC)
+08:42:51 pm IST
+8:42 pm
+NY
+✕
+Asia
+London
+Overlap
+NY
+Alpha-Sweep
+Alpha-Sweep
+12 AM
+2 AM
+4 AM
+6 AM
+8 AM
+10 AM
+12 PM
+2 PM
+4 PM
+6 PM
+8 PM
+10 PM
+12 AM
+Alpha-Sweep (9:30 AM – 1:30 AM)
+Daily Scan (3:30 AM)
+✕
+Closed (3:00–3:30 AM)
+Now
+Monitor (24/7)
+MICRO SCANNER
+$4150.70
+NEUTRAL
+2/3
+3:30 AM – 7:30 AM
+Building consolidation range (price ranging)
+5:30 AM – 9:30 AM
+⚡ bullish sweep found but no engulfing formed in time
+Range $52 · Wick $4133
+7:30 AM – 11:30 AM
+Window closed — no opportunity
+Range $64
+9:30 AM – 1:30 PM
+⚡ bearish sweep found but no engulfing formed in time
+Range $41 · Wick $4183
+11:30 AM – 3:30 PM
+until 9:30 PM
+⚡ bearish sweep detected → searching for engulfing candle…
+Range $46 · Wick $4183
+1:30 PM – 5:30 PM
+until 11:30 PM
+⚡ bearish sweep detected → searching for engulfing candle…
+Range $37 · Wick $4183
+3:30 PM – 7:30 PM
+until 1:30 AM
+Scanning for price to sweep beyond range and snap back
+Range $41
+5:30 PM – 9:30 PM
+Building consolidation range (price ranging)
+7:30 PM – 11:30 PM
+Building consolidation range (price ranging)
+9:30 PM – 1:30 AM
+Building consolidation range (price ranging)
+XAU/USD
+$4,150.54
+Spread $0.10 · Tradeable
+ACCOUNT NAV
+$8,637
+USD
+OPEN POSITIONS
+0
+No positions
+DD PROTECTION
+Clear
+Streak 0 · Equity $8,637
+RECENT SIGNALS
+10
+TIME	STRATEGY	DIR	ENTRY	STATUS
+19 Jun, 11:45	
+Alpha	LONG	$4142	TAKEN
+19 Jun, 06:30	
+Alpha	LONG	$4188	TAKEN
+19 Jun, 01:15	
+Alpha	LONG	$4207	TAKEN
+18 Jun, 19:48	
+Alpha	LONG	$4242	TAKEN
+18 Jun, 12:30	
+Alpha	LONG	$4300	TAKEN
+17 Jun, 14:18	
+Alpha	LONG	$4326	Skip · sl_too_close_to_price
+16 Jun, 10:30	
+Alpha	SHORT	$4323	TAKEN
+16 Jun, 06:27	
+Alpha	LONG	$4319	TAKEN
+16 Jun, 05:15	
+Alpha	LONG	$4319	TAKEN
+16 Jun, 03:33	
+Alpha	LONG	$4323	Skip · sl_too_close_to_price
+RECENT CLOSED TRADES
+10
+STRATEGY	SIDE	P&L	EXIT	TIME
+
+Alpha	LONG	+$90	MAX_HOLD	19 Jun, 15:46
+
+Alpha	LONG	$-156	SL	19 Jun, 07:37
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	19 Jun, 01:30
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 20:03
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 12:45
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	17 Jun, 15:31
+
+Alpha	SHORT	+$0	LIMIT_TTL_EXPIRED	17 Jun, 14:15
+
+Alpha	SHORT	$-158	SL	17 Jun, 06:35
+
+Alpha	SHORT	+$161	EXPERT	16 Jun, 11:29
+
+Alpha	LONG	+$171	MAX_HOLD	16 Jun, 10:28
+TRADING SCHEDULE
+UTC
+CROSS-MARKET + MEAN-REV
+22:00 UTC daily
+Checks 6 inter-market signals + dip-buy conditions
+ALPHA-SWEEP
+08:00–20:00 UTC · every 3 min
+Monitors London + NY session for Asia sweep + M3 engulfing
+POSITION MONITOR
+Every 1 min
+Checks SL/TP fills, break-even stops

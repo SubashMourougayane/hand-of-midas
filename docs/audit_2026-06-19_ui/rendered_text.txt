@@ -1,0 +1,1989 @@
+
+================================================================================
+home — https://midas.subashtrades.in/
+================================================================================
+
+Hand of Midas
+Strategy
+Performance
+Deck
+Robustness
+Journey
+Login
+HAND OF MIDAS
+PERFORMANCE
+THE THESIS
+EDGE
+GET STARTED
+QUANTITATIVE COMMODITIES · LIVE SINCE JUNE 2026
+Hand of Midas
+
+A quantitative trading system for Gold and Brent Crude.
+Four engines. One thesis: Asia consolidation, swept and faded.
+
+$4.74M
+21-YR BACKTEST P&L
+71.6%
+WIN RATE · 10,479 TRADES
+4.6x
+AVG PROFIT FACTOR
+VIEW PERFORMANCE
+→
+READ THE PLAYBOOK
+PER-SYSTEM PERFORMANCE
+Four engines. Independently measured.
+
+Two markets — Gold and Brent Crude — each trades on two timeframes: a once-daily session sweep and a rolling four-hour micro structure. Same thesis, four expressions, twenty-one years of receipts.
+
+ALL SYSTEMS
+GOLD MICRO
+OIL MICRO
+$4.74M
+TOTAL P&L
+—
+PROFIT FACTOR
+71.6%
+WIN RATE
+10,479
+TRADES
+CUMULATIVE P&L · ALL SYSTEMS
+Across 21 years of out-of-sample data
+Hover the curve for any year
+$0
+$1.6M
+$3.1M
+$4.7M
+’05
+’09
+’13
+’17
+’21
+’25
+’26
+THE THESIS
+Liquidity sweeps the asleep, then reverses.
+
+Asia hours form a tight range while Western markets sleep. When London opens, price often runs that range's extremes to harvest stops — and then turns. We trade the turn, not the run.
+
+01
+Range Forms
+
+We measure Asia's session high and low. A rangebound block while the West sleeps.
+
+02
+Sweep Detected
+
+Price punches through the range to clear stops, then closes back inside. A failed breakout.
+
+03
+Engulfing Confirms
+
+Three-minute engulfing candle in the reversal direction. Now we have a setup.
+
+04
+Enter, Manage, Exit
+
+Fixed stop. Half-position banked at half-target. Runner trails toward the structure exit.
+
+EDGE ATTRIBUTION
+Where the edge lives.
+Directional bias
+
+Yesterday's daily candle gates today's side. We don't fade conviction; we fade exhaustion.
+
+Fill management
+
+Half off at break-even·five. Trail behind structure on the runner. The biggest gains come not from picking — but from holding.
+
+Drawdown discipline
+
+Three losses cuts position in half. Five losses pauses the system entirely. The book recovers before it scales.
+
+The numbers are public. The system is live.
+
+Read the playbook. Audit the performance. Reach out if it interests you.
+
+VIEW FULL PERFORMANCE
+→
+STRATEGY PLAYBOOK
+Hand of Midas — by Subash Mourougayane
+Playbook
+Performance
+Login
+Contact
+
+Backtest results are based on simulated execution against historical OHLC data with modeled spread and slippage. Past performance does not guarantee future returns. Live trading commenced June 2026.
+
+================================================================================
+live_micro — https://midas.subashtrades.in/live?sys=micro
+================================================================================
+
+FAILED: TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://midas.subashtrades.in/live?sys=micro", waiting until "networkidle"
+
+
+================================================================================
+live_oilmi — https://midas.subashtrades.in/live?sys=oil-micro
+================================================================================
+
+FAILED: TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://midas.subashtrades.in/live?sys=oil-micro", waiting until "networkidle"
+
+
+================================================================================
+trades_micro — https://midas.subashtrades.in/trades?sys=micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+XAU/USD
+·
+GOLD MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Trades
+
+Live execution and backtested results
+
+Live
+Backtest
+All Strategies
+Alpha-Sweep
+Micro Alpha-Sweep
+Mean-Rev
+Cross-Market
+All Sides
+Long
+Short
+All Results
+Winners
+Losers
+All Years
+2006
+2007
+2008
+2009
+2010
+2011
+2012
+2013
+2014
+2015
+2016
+2017
+2018
+2019
+2020
+2021
+2022
+2023
+2024
+2025
+2026
+DATE	STRATEGY	SIDE	ENTRY	EXIT	P&L	R	EXIT	HELD
+01 May 2020	
+Alpha	LONG	$1677	$1673	$-34	-0.2R	EXPIRED	4.0hrs
+02 May 2020	
+Alpha	SHORT	$1699	$1699	+$10	+0.1R	EXPIRED	4.0hrs
+04 May 2020	
+Alpha	SHORT	$1708	$1709	$-1	0.0R	SL	39min
+04 May 2020	
+Alpha	SHORT	$1706	$1699	+$208	+1.1R	TP_PARTIAL+TP	1.1hrs
+04 May 2020	
+Alpha	LONG	$1701	$1707	+$153	+0.8R	TP_PARTIAL+TP	54min
+05 May 2020	
+Alpha	SHORT	$1702	$1700	+$98	+0.5R	TP_PARTIAL+EXPIRED	4.0hrs
+06 May 2020	
+Alpha	SHORT	$1707	$1707	$-2	0.0R	SL	3.7hrs
+06 May 2020	
+Alpha	LONG	$1702	$1701	+$56	+0.3R	TP_PARTIAL+SL	1.9hrs
+06 May 2020	
+Alpha	LONG	$1694	$1682	$-100	-0.5R	SL	1.9hrs
+06 May 2020	
+Alpha	LONG	$1687	$1685	$-18	-0.1R	EXPIRED	4.0hrs
+07 May 2020	
+MRev	LONG	$1688	$1716	+$157	+1.0R	EXPIRED	4d
+11 May 2020	
+Cross	LONG	$1699	$1684	$-30	-0.3R	EXPIRED	19d
+01 Jun 2020	
+Cross	LONG	$1742	$1696	$-110	-1.0R	SL	2d
+03 Jun 2020	
+Cross	LONG	$1700	$1779	+$173	+1.6R	EXPIRED	19d
+22 Jun 2020	
+Alpha	SHORT	$1760	$1760	+$161	+0.7R	TP_PARTIAL+SL	1.1hrs
+23 Jun 2020	
+Cross	LONG	$1769	$1817	+$104	+0.9R	EXPIRED	19d
+13 Jul 2020	
+Alpha	LONG	$1806	$1805	+$66	+0.3R	TP_PARTIAL+SL	39min
+14 Jul 2020	
+Cross	LONG	$1810	$1889	+$235	+2.0R	TP	7d
+21 Jul 2020	
+Cross	LONG	$1842	$1916	+$245	+2.0R	TP	4d
+27 Jul 2020	
+Alpha	SHORT	$1941	$1933	+$257	+1.0R	TP_PARTIAL+TP	1.2hrs
+28 Jul 2020	
+Alpha	SHORT	$1937	$1945	$-122	-0.5R	SL	42min
+29 Jul 2020	
+Alpha	SHORT	$1958	$1963	$-120	-0.5R	SL	1.3hrs
+29 Jul 2020	
+Cross	LONG	$1972	$1915	$-128	-1.0R	SL	9d
+07 Aug 2020	
+Alpha	LONG	$2056	$2056	$-1	0.0R	SL	39min
+10 Aug 2020	
+Alpha	SHORT	$2048	$2030	+$337	+2.7R	TP_PARTIAL+TP	1.9hrs
+11 Aug 2020	
+Alpha	LONG	$2026	$2021	$-122	-0.5R	SL	3.0hrs
+12 Aug 2020	
+Alpha	LONG	$1917	$1907	$-118	-0.5R	SL	1.4hrs
+12 Aug 2020	
+Alpha	LONG	$1914	$1913	$-1	0.0R	SL	2.6hrs
+12 Aug 2020	
+Alpha	LONG	$1917	$1904	$-58	-0.5R	SL	2.4hrs
+12 Aug 2020	
+Alpha	LONG	$1889	$1869	$-57	-0.5R	SL	2.2hrs
+12 Aug 2020	
+Alpha	SHORT	$1930	$1947	$-57	-0.5R	SL	3.5hrs
+13 Aug 2020	
+Alpha	SHORT	$1934	$1924	+$108	+0.9R	TP_PARTIAL+TP	51min
+13 Aug 2020	
+Alpha	LONG	$1925	$1935	+$303	+1.2R	TP_PARTIAL+TP	45min
+13 Aug 2020	
+Alpha	SHORT	$1944	$1960	$-120	-0.5R	SL	3.5hrs
+14 Aug 2020	
+Alpha	LONG	$1951	$1950	+$120	+0.5R	TP_PARTIAL+SL	1.2hrs
+14 Aug 2020	
+Alpha	LONG	$1946	$1945	+$158	+0.6R	TP_PARTIAL+SL	1.1hrs
+14 Aug 2020	
+Alpha	LONG	$1950	$1954	+$140	+0.5R	TP_PARTIAL+EXPIRED	4.0hrs
+17 Aug 2020	
+Alpha	SHORT	$1940	$1945	$-128	-0.5R	SL	2.6hrs
+17 Aug 2020	
+Alpha	SHORT	$1944	$1950	$-125	-0.5R	SL	24min
+18 Aug 2020	
+Cross	LONG	$2002	$1956	$-60	-0.5R	EXPIRED	19d
+07 Sept 2020	
+Alpha	LONG	$1927	$1932	+$107	+0.8R	TP_PARTIAL+TP	2.6hrs
+08 Sept 2020	
+MRev	LONG	$1931	$1956	+$131	+0.7R	EXPIRED	4d
+14 Sept 2020	
+MRev	LONG	$1942	$1949	+$49	+0.2R	EXPIRED	4d
+18 Sept 2020	
+Alpha	SHORT	$1959	$1951	+$336	+1.2R	TP_PARTIAL+TP	1.6hrs
+22 Sept 2020	
+Alpha	LONG	$1905	$1905	$-2	0.0R	SL	2.0hrs
+22 Sept 2020	
+Alpha	SHORT	$1914	$1915	$-2	0.0R	SL	33min
+22 Sept 2020	
+Alpha	SHORT	$1914	$1902	+$535	+1.9R	TP_PARTIAL+TP	27min
+23 Sept 2020	
+Alpha	SHORT	$1892	$1877	+$747	+2.4R	TP_PARTIAL+TP	3.4hrs
+24 Sept 2020	
+Alpha	LONG	$1861	$1856	$-157	-0.5R	SL	1.1hrs
+24 Sept 2020	
+Alpha	LONG	$1859	$1851	$-153	-0.5R	SL	1.4hrs
+Showing 1–50 of 1,151
+«
+‹
+1 / 24
+›
+»
+
+================================================================================
+trades_oilmi — https://midas.subashtrades.in/trades?sys=oil-micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Trades
+
+Live execution and backtested results
+
+Live
+Backtest
+All Strategies
+Alpha-Sweep
+Micro Alpha-Sweep
+Mean-Rev
+Cross-Market
+All Sides
+Long
+Short
+All Results
+Winners
+Losers
+All Years
+2006
+2007
+2008
+2009
+2010
+2011
+2012
+2013
+2014
+2015
+2016
+2017
+2018
+2019
+2020
+2021
+2022
+2023
+2024
+2025
+2026
+DATE	STRATEGY	SIDE	ENTRY	EXIT	P&L	R	EXIT	HELD
+01 May 2020	
+Alpha	LONG	$1677	$1673	$-34	-0.2R	EXPIRED	4.0hrs
+02 May 2020	
+Alpha	SHORT	$1699	$1699	+$10	+0.1R	EXPIRED	4.0hrs
+04 May 2020	
+Alpha	SHORT	$1708	$1709	$-1	0.0R	SL	39min
+04 May 2020	
+Alpha	SHORT	$1706	$1699	+$208	+1.1R	TP_PARTIAL+TP	1.1hrs
+04 May 2020	
+Alpha	LONG	$1701	$1707	+$153	+0.8R	TP_PARTIAL+TP	54min
+05 May 2020	
+Alpha	SHORT	$1702	$1700	+$98	+0.5R	TP_PARTIAL+EXPIRED	4.0hrs
+06 May 2020	
+Alpha	SHORT	$1707	$1707	$-2	0.0R	SL	3.7hrs
+06 May 2020	
+Alpha	LONG	$1702	$1701	+$56	+0.3R	TP_PARTIAL+SL	1.9hrs
+06 May 2020	
+Alpha	LONG	$1694	$1682	$-100	-0.5R	SL	1.9hrs
+06 May 2020	
+Alpha	LONG	$1687	$1685	$-18	-0.1R	EXPIRED	4.0hrs
+07 May 2020	
+MRev	LONG	$1688	$1716	+$157	+1.0R	EXPIRED	4d
+11 May 2020	
+Cross	LONG	$1699	$1684	$-30	-0.3R	EXPIRED	19d
+01 Jun 2020	
+Cross	LONG	$1742	$1696	$-110	-1.0R	SL	2d
+03 Jun 2020	
+Cross	LONG	$1700	$1779	+$173	+1.6R	EXPIRED	19d
+22 Jun 2020	
+Alpha	SHORT	$1760	$1760	+$161	+0.7R	TP_PARTIAL+SL	1.1hrs
+23 Jun 2020	
+Cross	LONG	$1769	$1817	+$104	+0.9R	EXPIRED	19d
+13 Jul 2020	
+Alpha	LONG	$1806	$1805	+$66	+0.3R	TP_PARTIAL+SL	39min
+14 Jul 2020	
+Cross	LONG	$1810	$1889	+$235	+2.0R	TP	7d
+21 Jul 2020	
+Cross	LONG	$1842	$1916	+$245	+2.0R	TP	4d
+27 Jul 2020	
+Alpha	SHORT	$1941	$1933	+$257	+1.0R	TP_PARTIAL+TP	1.2hrs
+28 Jul 2020	
+Alpha	SHORT	$1937	$1945	$-122	-0.5R	SL	42min
+29 Jul 2020	
+Alpha	SHORT	$1958	$1963	$-120	-0.5R	SL	1.3hrs
+29 Jul 2020	
+Cross	LONG	$1972	$1915	$-128	-1.0R	SL	9d
+07 Aug 2020	
+Alpha	LONG	$2056	$2056	$-1	0.0R	SL	39min
+10 Aug 2020	
+Alpha	SHORT	$2048	$2030	+$337	+2.7R	TP_PARTIAL+TP	1.9hrs
+11 Aug 2020	
+Alpha	LONG	$2026	$2021	$-122	-0.5R	SL	3.0hrs
+12 Aug 2020	
+Alpha	LONG	$1917	$1907	$-118	-0.5R	SL	1.4hrs
+12 Aug 2020	
+Alpha	LONG	$1914	$1913	$-1	0.0R	SL	2.6hrs
+12 Aug 2020	
+Alpha	LONG	$1917	$1904	$-58	-0.5R	SL	2.4hrs
+12 Aug 2020	
+Alpha	LONG	$1889	$1869	$-57	-0.5R	SL	2.2hrs
+12 Aug 2020	
+Alpha	SHORT	$1930	$1947	$-57	-0.5R	SL	3.5hrs
+13 Aug 2020	
+Alpha	SHORT	$1934	$1924	+$108	+0.9R	TP_PARTIAL+TP	51min
+13 Aug 2020	
+Alpha	LONG	$1925	$1935	+$303	+1.2R	TP_PARTIAL+TP	45min
+13 Aug 2020	
+Alpha	SHORT	$1944	$1960	$-120	-0.5R	SL	3.5hrs
+14 Aug 2020	
+Alpha	LONG	$1951	$1950	+$120	+0.5R	TP_PARTIAL+SL	1.2hrs
+14 Aug 2020	
+Alpha	LONG	$1946	$1945	+$158	+0.6R	TP_PARTIAL+SL	1.1hrs
+14 Aug 2020	
+Alpha	LONG	$1950	$1954	+$140	+0.5R	TP_PARTIAL+EXPIRED	4.0hrs
+17 Aug 2020	
+Alpha	SHORT	$1940	$1945	$-128	-0.5R	SL	2.6hrs
+17 Aug 2020	
+Alpha	SHORT	$1944	$1950	$-125	-0.5R	SL	24min
+18 Aug 2020	
+Cross	LONG	$2002	$1956	$-60	-0.5R	EXPIRED	19d
+07 Sept 2020	
+Alpha	LONG	$1927	$1932	+$107	+0.8R	TP_PARTIAL+TP	2.6hrs
+08 Sept 2020	
+MRev	LONG	$1931	$1956	+$131	+0.7R	EXPIRED	4d
+14 Sept 2020	
+MRev	LONG	$1942	$1949	+$49	+0.2R	EXPIRED	4d
+18 Sept 2020	
+Alpha	SHORT	$1959	$1951	+$336	+1.2R	TP_PARTIAL+TP	1.6hrs
+22 Sept 2020	
+Alpha	LONG	$1905	$1905	$-2	0.0R	SL	2.0hrs
+22 Sept 2020	
+Alpha	SHORT	$1914	$1915	$-2	0.0R	SL	33min
+22 Sept 2020	
+Alpha	SHORT	$1914	$1902	+$535	+1.9R	TP_PARTIAL+TP	27min
+23 Sept 2020	
+Alpha	SHORT	$1892	$1877	+$747	+2.4R	TP_PARTIAL+TP	3.4hrs
+24 Sept 2020	
+Alpha	LONG	$1861	$1856	$-157	-0.5R	SL	1.1hrs
+24 Sept 2020	
+Alpha	LONG	$1859	$1851	$-153	-0.5R	SL	1.4hrs
+Showing 1–50 of 1,151
+«
+‹
+1 / 24
+›
+»
+
+================================================================================
+journal_micro — https://midas.subashtrades.in/journal?sys=micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+XAU/USD
+·
+GOLD MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Journal
+
+Event log and trade narratives
+
+Live events
+Backtest journal
+All Strategies
+Alpha-Sweep
+Mean-Rev
+Cross-Market
+System
+All Events
+Entry
+Exit
+Skipped
+Break-Even
+Errors
+Daily Scan
+Refresh
+LIVE EVENTS
+0 of last 100
+
+No events yet
+
+System will log at next scheduled scan (22:00 UTC or 08:00–10:30 UTC).
+
+================================================================================
+journal_oilmi — https://midas.subashtrades.in/journal?sys=oil-micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Journal
+
+Event log and trade narratives
+
+Live events
+Backtest journal
+All Strategies
+Alpha-Sweep
+Mean-Rev
+Cross-Market
+System
+All Events
+Entry
+Exit
+Skipped
+Break-Even
+Errors
+Daily Scan
+Refresh
+LIVE EVENTS
+0 of last 100
+
+No events yet
+
+System will log at next scheduled scan (22:00 UTC or 08:00–10:30 UTC).
+
+================================================================================
+backtest_micro — https://midas.subashtrades.in/backtest?sys=micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+XAU/USD
+·
+GOLD MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Backtest
+
+V4 + V7 + V8 Portfolio · Fresh capital each year · Honest fills
+
+START
+2020-05-01
+END
+2026-06-18
+CAPITAL
+RISK %
+STRATEGIES
+Alpha-Sweep
+Mean-Rev
+Cross-Market
+Run Backtest
+TOTAL P&L
++$363,105
+₹3,51,55,851
+WIN RATE
+62.6%
+721W / 430L
+PROFIT FACTOR
+5.42
+MAX DD
+-7.1%
+TRADES
+1,151
+164/year
+R:R
+1 : 3.23
+AVG WIN
++$618
+₹59,791
+AVG LOSS
+−$191
+₹18,497
+STRATEGY BREAKDOWN
+STRATEGY	TRADES	WR	PF	P&L
+
+Alpha	1048	62.8%	6.38	+$341,273(₹3,30,42,062)
+
+MRev	26	57.7%	1.53	+$3,959(₹3,83,301)
+
+Cross	77	62.3%	2.58	+$17,873(₹17,30,489)
+SESSION BREAKDOWN
+by entry time IST
+🇯🇵
+TOKYO
+3:30 AM – 1:30 PM
+TRADES
+308
+WIN RATE
+57.1%
+P&L
+$104,625
+$/MONTH
+$1246
+PF
+4.22
+🇬🇧
+LONDON
+1:30 PM – 6:30 PM
+TRADES
+319
+WIN RATE
+66.1%
+P&L
+$105,766
+$/MONTH
+$1259
+PF
+6.06
+⚡
+OVERLAP
+6:30 PM – 10:30 PM
+TRADES
+345
+WIN RATE
+66.7%
+P&L
+$111,908
+$/MONTH
+$1332
+PF
+10.21
+🇺🇸
+NEW YORK
+10:30 PM – 3:30 AM
+TRADES
+179
+WIN RATE
+58.1%
+P&L
+$40,807
+$/MONTH
+$486
+PF
+3.45
+EQUITY CURVE
+cumulative P&L
+$-125k
+$0k
+$125k
+$250k
+$375k
+DAILY P&L CALENDAR
++$82657 (₹80,02,825)
+2026
+Jan 26
++$2038
+M
+T
+W
+T
+F
+2
+5
+6
+7
+8
+9
+12
+22
+26
+28
+29
+30
+Feb 26
++$2954
+M
+T
+W
+T
+F
+2
+3
+4
+5
+6
+10
+Mar 26
++$21177
+M
+T
+W
+T
+F
+2
+3
+4
+5
+6
+16
+17
+18
+20
+23
+24
+25
+26
+27
+30
+31
+Apr 26
++$43172
+M
+T
+W
+T
+F
+1
+2
+6
+7
+8
+9
+10
+13
+14
+15
+16
+17
+20
+21
+22
+23
+24
+28
+29
+30
+May 26
++$13317
+M
+T
+W
+T
+F
+1
+4
+5
+6
+7
+8
+12
+13
+14
+15
+18
+19
+20
+21
+22
+25
+26
+YEAR-BY-YEAR
+YEAR	TRADES	WR	START	END	P&L ($)	P&L (₹)	RETURN
+2020	96	54%	$5,000	$12,926	+$7,926	₹7,67,412	+158.5%
+2021	153	74%	$5,000	$43,141	+$38,141	₹36,92,803	+762.8%
+2022	162	68%	$5,000	$46,293	+$41,293	₹39,97,999	+825.9%
+2023	125	70%	$5,000	$29,241	+$24,241	₹23,47,017	+484.8%
+2024	219	66%	$5,000	$68,134	+$63,134	₹61,12,668	+1262.7%
+2025	212	56%	$5,000	$110,713	+$105,713	₹1,02,35,129	+2114.3%
+2026	184	52%	$5,000	$87,657	+$82,657	₹80,02,825	+1653.1%
+TRADES
+50 of 1,151
+#	DATE	STRATEGY	SIDE	ENTRY	EXIT	P&L	R	HELD	EXIT
+1	01 May 2020	
+Alpha	LONG	$1677	$1673	$-34	-0.2R	4.0hrs	EXPIRED
+2	02 May 2020	
+Alpha	SHORT	$1699	$1699	+$10	+0.1R	4.0hrs	EXPIRED
+3	04 May 2020	
+Alpha	SHORT	$1708	$1709	$-1	0.0R	39min	SL
+4	04 May 2020	
+Alpha	SHORT	$1706	$1699	+$208	+1.1R	1.1hrs	TP_PARTIAL+TP
+5	04 May 2020	
+Alpha	LONG	$1701	$1707	+$153	+0.8R	54min	TP_PARTIAL+TP
+6	05 May 2020	
+Alpha	SHORT	$1702	$1700	+$98	+0.5R	4.0hrs	TP_PARTIAL+EXPIRED
+7	06 May 2020	
+Alpha	SHORT	$1707	$1707	$-2	0.0R	3.7hrs	SL
+8	06 May 2020	
+Alpha	LONG	$1702	$1701	+$56	+0.3R	1.9hrs	TP_PARTIAL+SL
+9	06 May 2020	
+Alpha	LONG	$1694	$1682	$-100	-0.5R	1.9hrs	SL
+10	06 May 2020	
+Alpha	LONG	$1687	$1685	$-18	-0.1R	4.0hrs	EXPIRED
+11	07 May 2020	
+MRev	LONG	$1688	$1716	+$157	+1.0R	4d	EXPIRED
+12	11 May 2020	
+Cross	LONG	$1699	$1684	$-30	-0.3R	19d	EXPIRED
+13	01 Jun 2020	
+Cross	LONG	$1742	$1696	$-110	-1.0R	2d	SL
+14	03 Jun 2020	
+Cross	LONG	$1700	$1779	+$173	+1.6R	19d	EXPIRED
+15	22 Jun 2020	
+Alpha	SHORT	$1760	$1760	+$161	+0.7R	1.1hrs	TP_PARTIAL+SL
+16	23 Jun 2020	
+Cross	LONG	$1769	$1817	+$104	+0.9R	19d	EXPIRED
+17	13 Jul 2020	
+Alpha	LONG	$1806	$1805	+$66	+0.3R	39min	TP_PARTIAL+SL
+18	14 Jul 2020	
+Cross	LONG	$1810	$1889	+$235	+2.0R	7d	TP
+19	21 Jul 2020	
+Cross	LONG	$1842	$1916	+$245	+2.0R	4d	TP
+20	27 Jul 2020	
+Alpha	SHORT	$1941	$1933	+$257	+1.0R	1.2hrs	TP_PARTIAL+TP
+21	28 Jul 2020	
+Alpha	SHORT	$1937	$1945	$-122	-0.5R	42min	SL
+22	29 Jul 2020	
+Alpha	SHORT	$1958	$1963	$-120	-0.5R	1.3hrs	SL
+23	29 Jul 2020	
+Cross	LONG	$1972	$1915	$-128	-1.0R	9d	SL
+24	07 Aug 2020	
+Alpha	LONG	$2056	$2056	$-1	0.0R	39min	SL
+25	10 Aug 2020	
+Alpha	SHORT	$2048	$2030	+$337	+2.7R	1.9hrs	TP_PARTIAL+TP
+26	11 Aug 2020	
+Alpha	LONG	$2026	$2021	$-122	-0.5R	3.0hrs	SL
+27	12 Aug 2020	
+Alpha	LONG	$1917	$1907	$-118	-0.5R	1.4hrs	SL
+28	12 Aug 2020	
+Alpha	LONG	$1914	$1913	$-1	0.0R	2.6hrs	SL
+29	12 Aug 2020	
+Alpha	LONG	$1917	$1904	$-58	-0.5R	2.4hrs	SL
+30	12 Aug 2020	
+Alpha	LONG	$1889	$1869	$-57	-0.5R	2.2hrs	SL
+31	12 Aug 2020	
+Alpha	SHORT	$1930	$1947	$-57	-0.5R	3.5hrs	SL
+32	13 Aug 2020	
+Alpha	SHORT	$1934	$1924	+$108	+0.9R	51min	TP_PARTIAL+TP
+33	13 Aug 2020	
+Alpha	LONG	$1925	$1935	+$303	+1.2R	45min	TP_PARTIAL+TP
+34	13 Aug 2020	
+Alpha	SHORT	$1944	$1960	$-120	-0.5R	3.5hrs	SL
+35	14 Aug 2020	
+Alpha	LONG	$1951	$1950	+$120	+0.5R	1.2hrs	TP_PARTIAL+SL
+36	14 Aug 2020	
+Alpha	LONG	$1946	$1945	+$158	+0.6R	1.1hrs	TP_PARTIAL+SL
+37	14 Aug 2020	
+Alpha	LONG	$1950	$1954	+$140	+0.5R	4.0hrs	TP_PARTIAL+EXPIRED
+38	17 Aug 2020	
+Alpha	SHORT	$1940	$1945	$-128	-0.5R	2.6hrs	SL
+39	17 Aug 2020	
+Alpha	SHORT	$1944	$1950	$-125	-0.5R	24min	SL
+40	18 Aug 2020	
+Cross	LONG	$2002	$1956	$-60	-0.5R	19d	EXPIRED
+41	07 Sept 2020	
+Alpha	LONG	$1927	$1932	+$107	+0.8R	2.6hrs	TP_PARTIAL+TP
+42	08 Sept 2020	
+MRev	LONG	$1931	$1956	+$131	+0.7R	4d	EXPIRED
+43	14 Sept 2020	
+MRev	LONG	$1942	$1949	+$49	+0.2R	4d	EXPIRED
+44	18 Sept 2020	
+Alpha	SHORT	$1959	$1951	+$336	+1.2R	1.6hrs	TP_PARTIAL+TP
+45	22 Sept 2020	
+Alpha	LONG	$1905	$1905	$-2	0.0R	2.0hrs	SL
+46	22 Sept 2020	
+Alpha	SHORT	$1914	$1915	$-2	0.0R	33min	SL
+47	22 Sept 2020	
+Alpha	SHORT	$1914	$1902	+$535	+1.9R	27min	TP_PARTIAL+TP
+48	23 Sept 2020	
+Alpha	SHORT	$1892	$1877	+$747	+2.4R	3.4hrs	TP_PARTIAL+TP
+49	24 Sept 2020	
+Alpha	LONG	$1861	$1856	$-157	-0.5R	1.1hrs	SL
+50	24 Sept 2020	
+Alpha	LONG	$1859	$1851	$-153	-0.5R	1.4hrs	SL
+Show 50 more · 1,101 remaining
+
+Computed in 551.6s
+
+$-125k
+
+================================================================================
+backtest_oilmi — https://midas.subashtrades.in/backtest?sys=oil-micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Backtest
+
+V4 + V7 + V8 Portfolio · Fresh capital each year · Honest fills
+
+START
+2020-05-01
+END
+2026-06-18
+CAPITAL
+RISK %
+STRATEGIES
+Alpha-Sweep
+Mean-Rev
+Cross-Market
+Run Backtest
+TOTAL P&L
++$363,105
+₹3,51,55,851
+WIN RATE
+62.6%
+721W / 430L
+PROFIT FACTOR
+5.42
+MAX DD
+-7.1%
+TRADES
+1,151
+164/year
+R:R
+1 : 3.23
+AVG WIN
++$618
+₹59,791
+AVG LOSS
+−$191
+₹18,497
+STRATEGY BREAKDOWN
+STRATEGY	TRADES	WR	PF	P&L
+
+Alpha	1048	62.8%	6.38	+$341,273(₹3,30,42,062)
+
+MRev	26	57.7%	1.53	+$3,959(₹3,83,301)
+
+Cross	77	62.3%	2.58	+$17,873(₹17,30,489)
+EQUITY CURVE
+cumulative P&L
+$-125k
+$0k
+$125k
+$250k
+$375k
+DAILY P&L CALENDAR
++$82657 (₹80,02,825)
+2026
+Jan 26
++$2038
+M
+T
+W
+T
+F
+2
+5
+6
+7
+8
+9
+12
+22
+26
+28
+29
+30
+Feb 26
++$2954
+M
+T
+W
+T
+F
+2
+3
+4
+5
+6
+10
+Mar 26
++$21177
+M
+T
+W
+T
+F
+2
+3
+4
+5
+6
+16
+17
+18
+20
+23
+24
+25
+26
+27
+30
+31
+Apr 26
++$43172
+M
+T
+W
+T
+F
+1
+2
+6
+7
+8
+9
+10
+13
+14
+15
+16
+17
+20
+21
+22
+23
+24
+28
+29
+30
+May 26
++$13317
+M
+T
+W
+T
+F
+1
+4
+5
+6
+7
+8
+12
+13
+14
+15
+18
+19
+20
+21
+22
+25
+26
+YEAR-BY-YEAR
+YEAR	TRADES	WR	START	END	P&L ($)	P&L (₹)	RETURN
+2020	96	54%	$5,000	$12,926	+$7,926	₹7,67,412	+158.5%
+2021	153	74%	$5,000	$43,141	+$38,141	₹36,92,803	+762.8%
+2022	162	68%	$5,000	$46,293	+$41,293	₹39,97,999	+825.9%
+2023	125	70%	$5,000	$29,241	+$24,241	₹23,47,017	+484.8%
+2024	219	66%	$5,000	$68,134	+$63,134	₹61,12,668	+1262.7%
+2025	212	56%	$5,000	$110,713	+$105,713	₹1,02,35,129	+2114.3%
+2026	184	52%	$5,000	$87,657	+$82,657	₹80,02,825	+1653.1%
+TRADES
+50 of 1,151
+#	DATE	STRATEGY	SIDE	ENTRY	EXIT	P&L	R	HELD	EXIT
+1	01 May 2020	
+Alpha	LONG	$1677	$1673	$-34	-0.2R	4.0hrs	EXPIRED
+2	02 May 2020	
+Alpha	SHORT	$1699	$1699	+$10	+0.1R	4.0hrs	EXPIRED
+3	04 May 2020	
+Alpha	SHORT	$1708	$1709	$-1	0.0R	39min	SL
+4	04 May 2020	
+Alpha	SHORT	$1706	$1699	+$208	+1.1R	1.1hrs	TP_PARTIAL+TP
+5	04 May 2020	
+Alpha	LONG	$1701	$1707	+$153	+0.8R	54min	TP_PARTIAL+TP
+6	05 May 2020	
+Alpha	SHORT	$1702	$1700	+$98	+0.5R	4.0hrs	TP_PARTIAL+EXPIRED
+7	06 May 2020	
+Alpha	SHORT	$1707	$1707	$-2	0.0R	3.7hrs	SL
+8	06 May 2020	
+Alpha	LONG	$1702	$1701	+$56	+0.3R	1.9hrs	TP_PARTIAL+SL
+9	06 May 2020	
+Alpha	LONG	$1694	$1682	$-100	-0.5R	1.9hrs	SL
+10	06 May 2020	
+Alpha	LONG	$1687	$1685	$-18	-0.1R	4.0hrs	EXPIRED
+11	07 May 2020	
+MRev	LONG	$1688	$1716	+$157	+1.0R	4d	EXPIRED
+12	11 May 2020	
+Cross	LONG	$1699	$1684	$-30	-0.3R	19d	EXPIRED
+13	01 Jun 2020	
+Cross	LONG	$1742	$1696	$-110	-1.0R	2d	SL
+14	03 Jun 2020	
+Cross	LONG	$1700	$1779	+$173	+1.6R	19d	EXPIRED
+15	22 Jun 2020	
+Alpha	SHORT	$1760	$1760	+$161	+0.7R	1.1hrs	TP_PARTIAL+SL
+16	23 Jun 2020	
+Cross	LONG	$1769	$1817	+$104	+0.9R	19d	EXPIRED
+17	13 Jul 2020	
+Alpha	LONG	$1806	$1805	+$66	+0.3R	39min	TP_PARTIAL+SL
+18	14 Jul 2020	
+Cross	LONG	$1810	$1889	+$235	+2.0R	7d	TP
+19	21 Jul 2020	
+Cross	LONG	$1842	$1916	+$245	+2.0R	4d	TP
+20	27 Jul 2020	
+Alpha	SHORT	$1941	$1933	+$257	+1.0R	1.2hrs	TP_PARTIAL+TP
+21	28 Jul 2020	
+Alpha	SHORT	$1937	$1945	$-122	-0.5R	42min	SL
+22	29 Jul 2020	
+Alpha	SHORT	$1958	$1963	$-120	-0.5R	1.3hrs	SL
+23	29 Jul 2020	
+Cross	LONG	$1972	$1915	$-128	-1.0R	9d	SL
+24	07 Aug 2020	
+Alpha	LONG	$2056	$2056	$-1	0.0R	39min	SL
+25	10 Aug 2020	
+Alpha	SHORT	$2048	$2030	+$337	+2.7R	1.9hrs	TP_PARTIAL+TP
+26	11 Aug 2020	
+Alpha	LONG	$2026	$2021	$-122	-0.5R	3.0hrs	SL
+27	12 Aug 2020	
+Alpha	LONG	$1917	$1907	$-118	-0.5R	1.4hrs	SL
+28	12 Aug 2020	
+Alpha	LONG	$1914	$1913	$-1	0.0R	2.6hrs	SL
+29	12 Aug 2020	
+Alpha	LONG	$1917	$1904	$-58	-0.5R	2.4hrs	SL
+30	12 Aug 2020	
+Alpha	LONG	$1889	$1869	$-57	-0.5R	2.2hrs	SL
+31	12 Aug 2020	
+Alpha	SHORT	$1930	$1947	$-57	-0.5R	3.5hrs	SL
+32	13 Aug 2020	
+Alpha	SHORT	$1934	$1924	+$108	+0.9R	51min	TP_PARTIAL+TP
+33	13 Aug 2020	
+Alpha	LONG	$1925	$1935	+$303	+1.2R	45min	TP_PARTIAL+TP
+34	13 Aug 2020	
+Alpha	SHORT	$1944	$1960	$-120	-0.5R	3.5hrs	SL
+35	14 Aug 2020	
+Alpha	LONG	$1951	$1950	+$120	+0.5R	1.2hrs	TP_PARTIAL+SL
+36	14 Aug 2020	
+Alpha	LONG	$1946	$1945	+$158	+0.6R	1.1hrs	TP_PARTIAL+SL
+37	14 Aug 2020	
+Alpha	LONG	$1950	$1954	+$140	+0.5R	4.0hrs	TP_PARTIAL+EXPIRED
+38	17 Aug 2020	
+Alpha	SHORT	$1940	$1945	$-128	-0.5R	2.6hrs	SL
+39	17 Aug 2020	
+Alpha	SHORT	$1944	$1950	$-125	-0.5R	24min	SL
+40	18 Aug 2020	
+Cross	LONG	$2002	$1956	$-60	-0.5R	19d	EXPIRED
+41	07 Sept 2020	
+Alpha	LONG	$1927	$1932	+$107	+0.8R	2.6hrs	TP_PARTIAL+TP
+42	08 Sept 2020	
+MRev	LONG	$1931	$1956	+$131	+0.7R	4d	EXPIRED
+43	14 Sept 2020	
+MRev	LONG	$1942	$1949	+$49	+0.2R	4d	EXPIRED
+44	18 Sept 2020	
+Alpha	SHORT	$1959	$1951	+$336	+1.2R	1.6hrs	TP_PARTIAL+TP
+45	22 Sept 2020	
+Alpha	LONG	$1905	$1905	$-2	0.0R	2.0hrs	SL
+46	22 Sept 2020	
+Alpha	SHORT	$1914	$1915	$-2	0.0R	33min	SL
+47	22 Sept 2020	
+Alpha	SHORT	$1914	$1902	+$535	+1.9R	27min	TP_PARTIAL+TP
+48	23 Sept 2020	
+Alpha	SHORT	$1892	$1877	+$747	+2.4R	3.4hrs	TP_PARTIAL+TP
+49	24 Sept 2020	
+Alpha	LONG	$1861	$1856	$-157	-0.5R	1.1hrs	SL
+50	24 Sept 2020	
+Alpha	LONG	$1859	$1851	$-153	-0.5R	1.4hrs	SL
+Show 50 more · 1,101 remaining
+
+Computed in 551.6s
+
+$-125k
+
+================================================================================
+settings_micro — https://midas.subashtrades.in/settings?sys=micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+XAU/USD
+·
+GOLD MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Settings
+
+GoldDigger — Strategy parameters and execution configuration (read-only)
+
+RISK ALLOCATION
+STRATEGY	RISK %	MAX POSITION
+
+Alpha-Sweep	4%	100 oz
+
+Mean-Rev	3%	100 oz
+
+Cross-Market	2%	100 oz
+ALPHA-SWEEPXAU/USD
+Asia min range
+$5.00
+Sweep threshold
+$2.00
+SL buffer
+$0.30
+Min SL distance
+$5.00
+TP multiplier
+2.0x Asia range
+Break-even trigger
+50% to TP
+Max hold
+80 bars (~4h)
+Skip first bar
+YES
+MEAN-REV
+Condition 1 threshold
+-0.4
+Condition 2 threshold
+-0.8
+SL range multiplier
+1.0x avg 10d range
+Max hold
+5 days
+Direction
+Long only
+CROSS-MARKET
+Consensus threshold
+0.30
+Return threshold
+0.5%
+SL
+2x ATR(14)
+TP
+4x ATR(14)
+Max hold
+20 days
+Direction
+Long only
+Weights
+EUR:2 US10Y:3 SPX:1 Ag:2 Oil:1 US2Y:2
+DD PROTECTION
+50-MA filter
+Blocks Mean-Rev + Cross longs below MA
+Halve size after
+3 consecutive losses
+Pause signals after
+5 consecutive losses (skip 2)
+Equity MA period
+20 trades
+Max hold kill
+80 bars (position monitor)
+OANDA CONNECTION
+LIVE · DEMO
+Account
+101-004-39331014-001
+Type
+Practice (Demo)
+Instrument
+XAU_USD
+Backend port
+5053
+
+================================================================================
+settings_oilmi — https://midas.subashtrades.in/settings?sys=oil-micro
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Settings
+
+OilMiner — Strategy parameters and execution configuration (read-only)
+
+RISK ALLOCATION
+STRATEGY	RISK %	MAX POSITION
+
+Alpha-Sweep	4%	5,000 barrels
+ALPHA-SWEEPBCO/USD
+Asia min range
+$0.50
+Sweep threshold
+$0.20
+SL buffer
+$0.03
+Min SL distance
+$0.10
+TP multiplier
+2.0x Asia range
+Break-even trigger
+50% to TP
+Max hold
+80 bars (~4h)
+Skip first bar
+YES
+DD PROTECTION
+Halve size after
+3 consecutive losses
+Pause signals after
+5 consecutive losses (skip 2)
+Equity MA period
+20 trades
+Max hold kill
+80 bars (position monitor)
+OANDA CONNECTION
+LIVE · DEMO
+Account
+101-004-39331014-001
+Type
+Practice (Demo)
+Instrument
+BCO_USD
+Backend port
+5054
+
+================================================================================
+architecture — https://midas.subashtrades.in/architecture
+================================================================================
+
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+System Architecture
+
+Hand Of Midas — Multi-asset algorithmic trading engine
+
+Overview
+Strategies
+Execution
+Risk
+Data
+Schedule
+COMPLETE SYSTEM FLOW — LONDON + NY SESSION (08:00-20:00 UTC)
+OANDA API
+H1 + M3 + Daily
+candles
+Scheduler
+every 3 min
+analyze
+Alpha-Sweep
+sweep + engulf
+signal?
+DD Protection
+pause / halve
+pass?
+Position Sizing
+4% risk × mult
+units
+OANDA Order
+market + SL + TP
+filled
+Price Stream
+tick-by-tick
+50% TP?
+Break-Even
+SL → entry
+wait
+Exit Detect
+SL / TP / MaxHold
+2
+INSTRUMENTS
+XAU/USD + BCO/USD
+3
+STRATEGIES
+Alpha + MeanRev + Cross
+$640K
+BACKTEST (20yr)
+Gold $325K + Oil $315K
+3 min
+SCAN INTERVAL
+London + NY session
+ARCHITECTURE — SEPARATE BACKENDS, SHARED FRONTEND
+GOLD BACKEND :5053
+Alpha-Sweep (London)
+Mean-Rev (Daily dip)
+Cross-Market (6 instruments)
+Position monitor (1 min)
+Price stream (XAU_USD)
+OIL BACKEND :5054
+Alpha-Sweep (London)
+Position monitor (1 min)
+Price stream (BCO_USD)
+Independent DD state
+SHARED
+Frontend :3001 (Next.js)
+OANDA account (GBP)
+PostgreSQL (golddigger)
+fill_model.py (backtest parity)
+Telegram notifications
+
+================================================================================
+report — https://midas.subashtrades.in/report
+================================================================================
+
+Hand of Midas
+Strategy
+Performance
+Deck
+Robustness
+Journey
+Login
+PERFORMANCE REPORT · 2006–2026
+Twenty-one years of receipts.
+
+Out-of-sample backtest with production filter management applied. Each calendar year begins with a fresh $10,000 capital base. Drawdown protection halves position size after three consecutive losses; the system pauses after five.
+
+REALIZED P&L
+$4.74M
+TRADES
+10,479
+WIN RATE
+71.6%
+AVG PROFIT FACTOR
+4.6x
+ALL SYSTEMS
+GOLD MICRO
+OIL MICRO
+$4.74M
+TOTAL P&L
+—
+PROFIT FACTOR
+71.6%
+WIN RATE
+10,479
+TRADES
+CUMULATIVE P&L · ALL SYSTEMS
+21-year out-of-sample track
+Hover to inspect any year
+$0
+$1.6M
+$3.1M
+$4.7M
+’05
+’09
+’13
+’17
+’21
+’25
+’26
+YEARLY P&L
+21 years of data
+Profit
+$3.16M
+’06
+’09
+’12
+’15
+’18
+’21
+’24
+
+Yearly bars shown for Oil Micro (largest contributor). Switch tabs above for per-system yearly breakdown.
+
+All four systems, side by side.
+SYSTEM	TRADES	WIN RATE	PROFIT FACTOR	TOTAL P&L
+
+Gold Micro
+	1,916	74.5%	4.43x	$335k
+
+Oil Micro
+	4,641	77.2%	5.73x	$3.16M
+Aggregate	10,479	71.6%	—	$4.74M
+METHODOLOGY
+
+All numbers from a tick-aware bar-level fill simulation against H1/M3 historical data from the same broker that handles live execution. Spread, slippage, and broker maintenance halts are modeled.
+
+PRODUCTION FILTERS
+
+Five filter modules ship with the live system. Cumulative shipped P&L impact: $1.55M over 21 years, on top of the raw-strategy baseline.
+
+LIVE TRACK RECORD
+
+Live trading commenced June 2026 on a JustMarkets MT5 demo. Sample size is small; numbers shown represent the validated backtest distribution that live behavior is sampling from.
+
+HOW THE STRATEGY WORKS
+→
+← BACK TO HOME
+
+Past performance does not guarantee future returns. Backtest figures are simulated.
+
+================================================================================
+playbook — https://midas.subashtrades.in/playbook
+================================================================================
+
+Hand of Midas
+Strategy
+Performance
+Deck
+Robustness
+Journey
+Login
+STRATEGY PLAYBOOK
+A liquidity sweep, then a fade.
+
+One thesis underpins all four engines. Asia-session price action forms a tight range while Western markets sleep. When London opens, that range's extremes get tested — often violently. We trade the failed test, not the breakout.
+
+THE SETUP
+Three confirmations. One entry.
+ASIA HIGH
+ASIA LOW
+Asia range
+SWEEP
+ENGULFING
+ENTRY
+TARGET
+ASIA SESSION
+LONDON / NY OVERLAP
+01
+The range
+
+Asia hours form a high and a low. We measure the box during the overnight window when liquidity is thin and conviction is low.
+
+02
+The sweep
+
+Price punches through one extreme — running stops resting just above or below the range — then closes back inside. A failed breakout is the tell.
+
+03
+The engulfing
+
+A three-minute candle in the reversal direction whose body engulfs the prior bar. Now we have alignment: range + sweep + reversal candle.
+
+RISK FRAME
+Small loss. Banked half. Trail the runner.
+
+The hardest part of trend-following isn't finding the trade. It's holding it. Five filter modules in production make sure we lock in early profit and let the winning side breathe.
+
+Fixed stop, anchored to structure
+
+Stop loss sits a few points beyond the sweep wick — the level the market just rejected. If it gets retested, the thesis is invalid and we exit small.
+
+Break-even at 35% to target
+
+Once price moves 35% of the way to take-profit, the stop slides to entry. The trade becomes free.
+
+Half off at 50% to target
+
+At halfway, half the position closes for a guaranteed gain. The runner stays alive on a free trade.
+
+Drawdown halve at three losses
+
+Three consecutive stops cuts position size in half. Five pauses the system entirely. Books recover before they scale back up.
+
+Per-bar deterministic slippage
+
+Backtest fill model is bit-identical between runs. What you see in the historical equity curve is what live trading samples from.
+
+WHY TWO ENGINES
+One thesis. Two expressions.
+
+The same pattern repeats across two markets. Rather than trade one of them well, we trade both with the same risk frame.
+
+Gold Micro
+ROLLING 4-HOUR WINDOWS
+
+Same thesis on a faster timebox. Each four-hour consolidation produces its own range, swept and faded as a fresh setup. Multiple trades per day.
+
+Oil Micro
+ROLLING 4-HOUR WINDOWS
+
+Brent Crude on the faster timebox. Highest absolute P&L contributor of the four. Roughly 77% win rate at backtest scale.
+
+THE DISCIPLINE
+What we won't do.
+We don't curve-fit
+
+Every filter that ships passes a 21-year out-of-sample backtest with a positive aggregate. Eight signal-pruning candidates that ‘felt right’ were rejected by data.
+
+We don't override
+
+No human discretion mid-trade. The strategy is fully deterministic. If a setup fires and the gates pass, the trade goes; if they don't, no manual intervention.
+
+We don't chase sample size
+
+Three losses in a row halves the size — without exception. The system is allowed to be wrong; we don't double down to break a streak.
+
+We don't pretend
+
+Backtests model spread, slippage, and broker maintenance halts. Live execution uses the same fill model. No phantom trade can pass our books.
+
+The numbers are public.
+
+Twenty-one years of out-of-sample backtest, four systems, ten thousand trades, in one report.
+
+VIEW FULL PERFORMANCE
+→
+← BACK TO HOME
+
+Past performance does not guarantee future returns. Backtest figures are simulated.
+
+================================================================================
+deck — https://midas.subashtrades.in/deck
+================================================================================
+
+Hand of Midas
+Strategy
+Performance
+Deck
+Robustness
+Journey
+Login
+INVESTOR DECK · 2026
+Hand of Midas
+
+A quantitative trading system for Gold and Brent Crude. Four engines, one thesis, twenty-one years of out-of-sample receipts.
+
+71.6%
+WIN RATE (21 YR)
+10,479
+TRADES
+$226k
+AVG / YR · $5K BASE
+< 1.8%
+MAX INTRA-YR DD
+
+Live since June 2026 on JustMarkets MT5 demo · Solo-built · 21yr backtest re-runnable from CSV by anyone with the repo · No black box. No promises. Just receipts.
+
+THE PROBLEM WITH RETAIL TRADING
+Most systems lose by design.
+
+Backtests overfit. Strategies based on intuition collapse. Position sizing scales ego. Slippage and fees compound silently. The five-year survival rate of retail algorithmic trading systems is rounding-error close to zero — and the survivors usually got lucky on regime, not skill.
+
+Curve-fitting
+
+Optimized to history. The first regime change wipes out the alpha. We checked: nine signal-pruning hypotheses tested, all failed when run on real 21yr data.
+
+Hidden execution drag
+
+Backtests assume zero slippage. Live broker spreads widen 3–5× during news. Theoretical PF 5 becomes live PF 2 once friction is honest.
+
+Survivorship bias
+
+The systems you read about are the ones that survived. The ones that died are silent. Honest validation requires testing on every year — including the bad ones.
+
+THE THESIS
+A liquidity sweep, then a fade.
+
+Asia hours form a tight range while Western markets sleep. When London opens, price often punches through that range's extremes — to harvest stop orders clustered just outside — and then turns. We trade the turn, not the run.
+
+Range Forms
+
+Measure Asia's session high and low. A consolidation block while the West sleeps.
+
+Sweep Detected
+
+Price punches through the range to clear stops, then closes back inside. A failed breakout.
+
+Engulfing Confirms
+
+Three-minute engulfing candle in the reversal direction. Now we have a setup.
+
+Enter, Manage, Exit
+
+Fixed stop. Half-position banked at half-target. Runner trails toward structure exit.
+
+THE NUMBERS · 21 YEARS OUT-OF-SAMPLE
+Edge, framed honestly.
+
+Backtest engine resets capital to $5,000 every January 1 — a yearly stress test, not a compounding curve. Below: dollar P&L per system on a fresh $5k base, summed across 21 years. Live execution drag (slippage, news spreads, broker rejections) typically eats 30–50% of theoretical.
+
+GOLD MICRO
+$0k
+1916 trades · WR 74.5% · PF 4.43
+OIL MICRO
+$0.00M
+4641 trades · WR 77.2% · PF 5.73
+AGGREGATE · BOTH SYSTEMS
+$0.00M
+6,557 trades · 76.4% win rate · max intra-year drawdown under 2%
+REALISTIC LIVE
+$1.0M – $1.8M
+After 30–50% execution-drag haircut
+
+Methodology and full per-year breakdown: Performance Report →
+
+ARCHITECTURE
+Two engines. Two markets. One timeframe.
+
+Same fade thesis, two expressions across two markets. The cross-market diversification is the risk control — when one engine misses the setup, the other catches it.
+
+Gold Micro
+
+XAU/USD · rolling 4-hour micro structure · multiple intraday opportunities
+
+Oil Micro
+
+BCO/USD · rolling 4-hour micro structure · highest-volume engine
+
+RISK FRAME
+What we won't do.
+
+Edge dies at the SL. Discipline doesn't.
+
+Hard stop on every trade
+
+No discretionary holds. Server-side SL with the broker. The market closes our trade if we're wrong; we don't pray.
+
+4% NAV per trade, capped
+
+Position sizing is risk-based, not lot-based. MAX_UNITS hard cap (5,000 barrels Oil / 100 oz Gold) prevents runaway compounding into oversized notional.
+
+DD circuit breaker
+
+Three consecutive losses halve risk. Five consecutive losses pause the system entirely. The book recovers before it scales.
+
+No martingale, no averaging-down
+
+One position per system at a time. Lost trades stay lost. No recovery doubling — the most common retail account-killer.
+
+No black-box ML
+
+The strategy is 1.5 parameters wide and fully auditable. You can run the 21-year backtest from the repo's CSVs in 30 seconds and verify every trade.
+
+No promises
+
+Past performance is not future returns. Backtest is theoretical; live haircut is real. Calibration to live data is in progress.
+
+STAGE
+Live since June 2026. Solo-built. Transparent.
+
+One person, full-stack: strategy research, backtest engine, live broker integration, operations, dashboard. No team to dilute conviction, no fund vehicle yet, no opaque architecture. Currently running on a JustMarkets MT5 demo account on a dedicated VPS.
+
+0
+COMMITS
+Single-person history
+0+
+FILTER SWEEPS RUN
+4 shipped · 21 stashed
+0
+AUDIT-CLASS BUGS CAUGHT
+Found pessimistically · 20 fixed
+< 0.0%
+MAX INTRA-YEAR DD
+Across all 21 years
+
+The infrastructure is built to be inspected. Live state, broker positions, and strategy decisions are queryable through a debug API. Every filter that shipped or stashed has a documented before/after on real 21-year data — no replay tools, no hand-tuned numbers.
+
+Full technical detail: Robustness report →
+
+The numbers are public. The system is live.
+
+Read the playbook. Audit the performance. Inspect the robustness. Reach out if it interests you.
+
+REACH OUT
+→
+STRATEGY PLAYBOOK
+Hand of Midas — by Subash Mourougayane
+Playbook
+Performance
+Robustness
+Journey
+Contact
+
+Backtest results are based on simulated execution against historical OHLC data with modeled spread. Past performance does not guarantee future returns. Live trading commenced June 2026. Realistic live haircut: 30–50% of theoretical, refined as live data accumulates.
+
+================================================================================
+robustness — https://midas.subashtrades.in/robustness
+================================================================================
+
+Hand of Midas
+Strategy
+Performance
+Deck
+Robustness
+Journey
+Login
+HOW WE GOT HERE
+Robustness.
+
+A trading system is only as honest as its validation discipline. Here's every hypothesis we tested, every guard we built, every check that runs before any change ships.
+
+436
+COMMITS
+Single-person history
+25
+FILTER SWEEPS RUN
+4 shipped, 21 stashed
+84
+POSTMORTEM DOCS
+Bug reports & analyses
+21
+YEARS BACKTESTED
+2006 → 2026, OHLC CSVs
+BACKTEST DISCIPLINE
+Every change runs the real engine on real data.
+
+The backtest engine consumes the same OHLC CSVs the live scanner consumes. Same signal generation. Same fill model. Same DD protection. No replay tools, no hand-tuned numbers. Reproducible by anyone with the repo in 30 seconds.
+
+2.4M
+M3 BARS
+Per system, 21 years
+113K
+H1 BARS
+OHLC, OANDA-aligned
+5.6K
+DAILY BARS
+Bias source
+10,479
+BACKTEST TRADES
+Across 4 systems
+71.6%
+AGGREGATE WR
+Across all 21 years
+< 2%
+MAX INTRA-YEAR DD
+Equity smoothness
+
+Every filter, every config change, every refactor must run the full 21-year backtest pre-and-post and demonstrate measurable improvement on real data — not on selective slices, not on synthetic replays. If the numbers don't move, the change doesn't ship.
+
+FILTER SWEEPS
+25 hypotheses tested. 4 shipped. 21 stashed.
+
+The default position on every new idea is no. Each filter goes through the same pipeline: branch, instrument, run real backtest pre/post on all four systems, decide ship or stash based on the cumulative dollar impact across 21 years. No selective ship. No retroactive justification.
+
+SHIPPED FILTERS · CUMULATIVE IMPACT
+Filter #5 · Earlier break-even arming
+
+BE 50% → 35% on 3 of 4 systems. Triggered after backtest showed asymmetric protection vs reward.
+
++$179k
+Filter #6 · Trailing SL after BE armed
+
+Sweep showed negative impact across the live systems — gate stashed. Per-system precision over global ship.
+
+stashed
+Filter #7 · Partial TP at midpoint
+
+Bank 50% of position at half-target, runner takes full TP/SL. All 4 systems ship. Largest single contributor.
+
++$1.26M
+Gold Micro · 21-22 UTC market close drop
+
+Inherited bug from Oil Micro config. After fix, +42 trades, PF 4.40 → 4.52.
+
++$27k
+Cumulative shipped impact (21 years)
++$1.547M
+Stashed: signal-pruning
+
+Every signal-side filter we tested — first-sweep-of-day, R:R bounds, anti-trend extension, engulfing-of-doji, wick-rejection thresholds, prev-bar pollution cleanup, TP feasibility — failed on real data. Roughly nine disproven mechanisms.
+
+Conclusion: directional truth is already encoded by sweep + bias. Trying to filter the entry hurts more winners than losers.
+
+Stashed: bias-source variants
+
+Tested today's intraday data instead of yesterday's daily candle (Asia, pre-session, lookahead). Macro systems lose $116k–$237k per 21 years. Micros marginal. Stashed.
+
+The yesterday-anchored bias filter remains the most edge-positive choice.
+
+AUDIT FRAMEWORK
+Bugs are caught pessimistically.
+
+When a class of bug is found, we don't just fix the one instance. We treat it as a pattern, audit all four backends in parallel, and write up every sibling we find. Recent example: a single dedup-guard typo led to a 24-issue silent-fail audit.
+
+0
+ISSUES FOUND
+Audit framework
+0
+FIXED + SHIPPED
+Verified on VPS
+0
+ACCEPTED AS-IS
+Documented decision
+0
+NOT-A-BUG
+Intentional pattern
+PER-ISSUE FRAMEWORK
+
+RCA — read the actual code, confirm whether the claim holds.
+
+Cross-check — does the same pattern exist in the other 3 backends?
+
+Verdict — REAL · NOT-REAL · PARTIAL · accepted-as-is.
+
+Fix — minimal change, ship, verify on VPS.
+
+Sign-off — record final state in audit doc with commit reference.
+
+LIVE ↔ BACKTEST PARITY
+The two paths must agree.
+
+The live scanner and backtest engine are parallel implementations of the same strategy. A drift between them is a strategy bug — and they've happened. Every drift bug ever caught has a postmortem, a regression test, and a parity-harness check.
+
+Parity harness
+
+Runs in 25 seconds. Compares signal generation between live scanner and backtest signal generator across all 4 systems. Soft-gate fails build on catastrophic drift.
+
+Calibration plan
+
+Live execution drag (slippage, news spreads, downtime, broker rejection) is not in the backtest. Plan: 3-tier dashboard (Theoretical / Live Calibrated / Live Actual). Deferred until clean live data accumulates.
+
+Parity-tested filters
+
+Every shipped filter has run against the parity harness with 100% direction agreement and acceptable signal-count delta.
+
+Replay harness — proposed
+
+Future work: run live scanner code directly against historical OHLC, mock-broker fills, validate trade-by-trade against backtest. The definitive regression test for execution drift.
+
+DEFENSE IN DEPTH
+Multiple guards. Multiple layers.
+
+One guard can fail silently for 18 days before it bites. The fix is layered guards that catch the same class of failure at different points in the pipeline.
+
+Open-position dedup at scheduler level
+
+Won't fire a new entry while one is open. Strategy-IN-list filter.
+
+Open-position dedup at execute_signal level
+
+Defense-in-depth. If scheduler check is bypassed (refactor, edge case), execute_signal still blocks.
+
+Persistent sweep blacklist (DB-backed)
+
+Once a sweep is consumed (taken or window-expired), DB row prevents re-fire — even after service restart.
+
+Equity sanity floor ($100)
+
+Refuses to size if account NAV is corrupt or below floor. Protects against bad broker data.
+
+Position cap (5,000 barrels / 100 oz)
+
+Hard cap on units regardless of equity. Truncates runaway compounding.
+
+DD circuit breakers (3 / 5 losses)
+
+Halve risk after 3 consecutive losses, pause entirely after 5. The book recovers before it scales.
+
+WHAT WE DON'T CLAIM
+Honest limits.
+Backtest is theoretical, not real.
+
+The 21-year backtest assumes zero slippage, perfect fills, no service downtime, no broker rejections. Live haircut is typically 30–50%. Honest framing: lead with dollar P&L on $5k base, not multiplicative percentages.
+
+Live data is still accumulating.
+
+Live trading commenc

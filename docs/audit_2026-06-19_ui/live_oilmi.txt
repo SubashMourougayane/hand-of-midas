@@ -1,0 +1,155 @@
+Hand of Midas
+LIVE
+Gold Micro
+Oil Micro
+BCO/USD
+·
+OIL MICRO
+S
+Live
+Trades
+Journal
+Backtest
+Architecture
+Settings
+Live
+
+Real-time trading dashboard — BCO/USD
+
+SCHEDULER ACTIVE
+F28 · BIAS NEUTRAL
+Updated · 8:42:56 PM
+🔍
+Scanning
+Rolling windows active (22:00–21:00 UTC)
+08:42:57 pm IST
+8:42 pm
+NY
+✕
+Asia
+London
+Overlap
+NY
+Alpha-Sweep
+Alpha-Sweep
+12 AM
+2 AM
+4 AM
+6 AM
+8 AM
+10 AM
+12 PM
+2 PM
+4 PM
+6 PM
+8 PM
+10 PM
+12 AM
+Alpha-Sweep (9:30 AM – 1:30 AM)
+Daily Scan (3:30 AM)
+✕
+Closed (3:00–3:30 AM)
+Now
+Monitor (24/7)
+MICRO SCANNER
+$79.80
+NEUTRAL
+1/3
+3:30 AM – 7:30 AM
+Building consolidation range (price ranging)
+5:30 AM – 9:30 AM
+Window closed — no opportunity
+Range $1
+7:30 AM – 11:30 AM
+Window closed — no opportunity
+Range $1
+9:30 AM – 1:30 PM
+Window closed — no opportunity
+Range $1
+11:30 AM – 3:30 PM
+until 9:30 PM
+⚡ bullish sweep detected → searching for engulfing candle…
+Range $1 · Wick $78
+1:30 PM – 5:30 PM
+until 11:30 PM
+⚡ bullish sweep detected → searching for engulfing candle…
+Range $1 · Wick $78
+3:30 PM – 7:30 PM
+until 1:30 AM
+⚡ bullish sweep detected → searching for engulfing candle…
+Range $3 · Wick $76
+5:30 PM – 9:30 PM
+Building consolidation range (price ranging)
+7:30 PM – 11:30 PM
+Building consolidation range (price ranging)
+9:30 PM – 1:30 AM
+Building consolidation range (price ranging)
+BCO/USD
+$79.81
+Spread $0.11 · Tradeable
+ACCOUNT NAV
+$8,637
+USD
+OPEN POSITIONS
+0
+No positions
+DD PROTECTION
+1 losses
+Streak 1 · Equity $8,637
+RECENT SIGNALS
+10
+TIME	STRATEGY	DIR	ENTRY	STATUS
+19 Jun, 08:30	
+Alpha	SHORT	$79	TAKEN
+19 Jun, 00:33	
+Alpha	SHORT	$79	TAKEN
+18 Jun, 22:12	
+Alpha	LONG	$78	Skip · limit_price_through_market
+18 Jun, 20:57	
+Alpha	LONG	$77	TAKEN
+18 Jun, 20:12	
+Alpha	LONG	$77	TAKEN
+18 Jun, 17:48	
+Alpha	SHORT	$78	TAKEN
+18 Jun, 12:48	
+Alpha	LONG	$78	TAKEN
+18 Jun, 12:30	
+Alpha	LONG	$77	TAKEN
+18 Jun, 06:30	
+Alpha	LONG	$78	TAKEN
+16 Jun, 12:27	
+Alpha	LONG	$82	TAKEN
+RECENT CLOSED TRADES
+10
+STRATEGY	SIDE	P&L	EXIT	TIME
+
+Alpha	SHORT	$-308	SL	19 Jun, 10:37
+
+Alpha	SHORT	+$0	LIMIT_TTL_EXPIRED	19 Jun, 00:48
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 21:12
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 20:27
+
+Alpha	SHORT	+$3	SL	18 Jun, 18:46
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 13:03
+
+Alpha	LONG	+$0	LIMIT_TTL_EXPIRED	18 Jun, 12:45
+
+Alpha	LONG	$-360	SL	18 Jun, 06:55
+
+Alpha	SHORT	$-307	SL	17 Jun, 17:47
+
+Alpha	SHORT	$-319	SL	17 Jun, 17:21
+TRADING SCHEDULE
+UTC
+CROSS-MARKET + MEAN-REV
+22:00 UTC daily
+Checks 6 inter-market signals + dip-buy conditions
+ALPHA-SWEEP
+08:00–20:00 UTC · every 3 min
+Monitors London + NY session for Asia sweep + M3 engulfing
+POSITION MONITOR
+Every 1 min
+Checks SL/TP fills, break-even stops
