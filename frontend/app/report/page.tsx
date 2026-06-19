@@ -31,11 +31,11 @@ type SystemBlock = {
 };
 const data = bt as unknown as Record<SystemKey, SystemBlock>;
 
+// Macros retired 2026-06-19. Keys retained in SystemKey type for backward
+// compat with backtest.json structure; runtime SYSTEMS list shows Micros only.
 const SYSTEMS: { key: SystemKey; short: string; tone: string }[] = [
   { key: "aggregate", short: "All Systems", tone: "var(--color-brass)" },
-  { key: "gold", short: "Gold Macro", tone: "var(--color-sys-gold)" },
   { key: "micro", short: "Gold Micro", tone: "var(--color-sys-gold-micro)" },
-  { key: "oil", short: "Oil Macro", tone: "var(--color-sys-oil)" },
   { key: "oil-micro", short: "Oil Micro", tone: "var(--color-sys-oil-micro)" },
 ];
 

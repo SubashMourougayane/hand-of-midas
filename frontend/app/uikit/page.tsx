@@ -215,9 +215,7 @@ export default function UIKitPage() {
               <Badge tone="loss">loss</Badge>
               <Badge tone="info">info</Badge>
               <Badge tone="warn">brass</Badge>
-              <Badge tone="system" systemColor="var(--color-sys-gold)">Gold Macro</Badge>
               <Badge tone="system" systemColor="var(--color-sys-gold-micro)">Gold Micro</Badge>
-              <Badge tone="system" systemColor="var(--color-sys-oil)">Oil Macro</Badge>
               <Badge tone="system" systemColor="var(--color-sys-oil-micro)">Oil Micro</Badge>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">

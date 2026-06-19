@@ -367,8 +367,8 @@ export default function RobustnessPage() {
                     },
                     {
                       name: "Filter #6 · Trailing SL after BE armed",
-                      detail: "Oil Macro only. Other 3 systems excluded after sweep showed negative impact. Per-system precision over global ship.",
-                      impact: "+$80k",
+                      detail: "Sweep showed negative impact across the live systems — gate stashed. Per-system precision over global ship.",
+                      impact: "stashed",
                     },
                     {
                       name: "Filter #7 · Partial TP at midpoint",

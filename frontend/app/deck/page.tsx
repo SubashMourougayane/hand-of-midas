@@ -410,11 +410,9 @@ export default function DeckPage() {
 
             <Reveal delay={240}>
               <div className="mt-12 overflow-hidden rounded-[2px] border border-[var(--color-border)] bg-[var(--color-surface-1)]">
-                <div className="grid grid-cols-1 gap-px bg-[var(--color-border)] sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-px bg-[var(--color-border)] sm:grid-cols-2">
                   {[
-                    { name: "Gold Macro", n: 2239, wr: "65.5%", pf: "3.51", pnlValue: 425, pnlFmt: (v: number) => `$${Math.round(v)}k` },
                     { name: "Gold Micro", n: 1916, wr: "74.5%", pf: "4.43", pnlValue: 335, pnlFmt: (v: number) => `$${Math.round(v)}k` },
-                    { name: "Oil Macro", n: 1683, wr: "61.1%", pf: "4.70", pnlValue: 826, pnlFmt: (v: number) => `$${Math.round(v)}k` },
                     { name: "Oil Micro", n: 4641, wr: "77.2%", pf: "5.73", pnlValue: 3.16, pnlFmt: (v: number) => `$${v.toFixed(2)}M` },
                   ].map((s) => (
                     <div key={s.name} className="bg-[var(--color-bg)] p-6">
@@ -437,13 +435,13 @@ export default function DeckPage() {
                   <div className="flex flex-wrap items-baseline justify-between gap-3">
                     <div>
                       <div className="text-[11.5px] uppercase tracking-[0.18em] text-[var(--color-text-dim)]">
-                        Aggregate · all 4 systems
+                        Aggregate · both systems
                       </div>
                       <div className="num mt-2 text-[36px] font-semibold tracking-tight text-[var(--color-brass)]">
-                        <CountUp to={4.74} format={(v) => `$${v.toFixed(2)}M`} duration={2200} />
+                        <CountUp to={3.50} format={(v) => `$${v.toFixed(2)}M`} duration={2200} />
                       </div>
                       <div className="mt-1 text-[12px] text-[var(--color-text-muted)]">
-                        10,479 trades · 71.6% win rate · max intra-year drawdown under 2%
+                        6,557 trades · 76.4% win rate · max intra-year drawdown under 2%
                       </div>
                     </div>
                     <div className="text-right">
@@ -451,7 +449,7 @@ export default function DeckPage() {
                         Realistic live
                       </div>
                       <div className="num mt-2 text-[28px] font-semibold tracking-tight text-[var(--color-text)]">
-                        $1.4M – $2.4M
+                        $1.0M – $1.8M
                       </div>
                       <div className="mt-1 text-[12px] text-[var(--color-text-muted)]">
                         After 30–50% execution-drag haircut
@@ -478,20 +476,19 @@ export default function DeckPage() {
           <div className="mx-auto max-w-5xl px-6 py-24 md:py-32">
             <Reveal>
               <Eyebrow>Architecture</Eyebrow>
-              <Display>Four engines. Two markets. Two timeframes.</Display>
+              <Display>Two engines. Two markets. One timeframe.</Display>
             </Reveal>
             <Reveal delay={120}>
               <Lead className="max-w-3xl">
-                Same fade thesis, four expressions. The diversification across market and timeframe
-                is the risk control — when one engine misses the setup, another catches it.
+                Same fade thesis, two expressions across two markets. The cross-market
+                diversification is the risk control — when one engine misses the setup,
+                the other catches it.
               </Lead>
             </Reveal>
             <Reveal delay={240}>
               <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2">
                 {[
-                  { sys: "Gold Macro", desc: "XAU/USD · 3-min scan during London + NY (08-20 UTC) · once-per-day session sweep", color: "#fbbf24" },
                   { sys: "Gold Micro", desc: "XAU/USD · rolling 4-hour micro structure · multiple intraday opportunities", color: "#f59e0b" },
-                  { sys: "Oil Macro", desc: "BCO/USD · 3-min scan during London + NY · once-per-day session sweep", color: "#60a5fa" },
                   { sys: "Oil Micro", desc: "BCO/USD · rolling 4-hour micro structure · highest-volume engine", color: "#38bdf8" },
                 ].map((e, i) => (
                   <Reveal key={e.sys} delay={120 + i * 60}>

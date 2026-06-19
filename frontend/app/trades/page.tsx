@@ -151,8 +151,8 @@ export default function TradesPage() {
       header: "Mode",
       // O2: pending vs live distinction. Filled (live) = empty so it doesn't
       // clutter every row; pending = subdued PENDING badge so operator can
-      // skim "did this fill or not?". Limit-shipped backends populate the
-      // field; Gold Macro always emits "live" (no F27 there yet).
+      // skim "did this fill or not?". Both Micros (the only live systems
+      // post-2026-06-19) populate the field via Filter #27 limit-order pre-walk.
       cell: (t) => (
         t.mode === "pending" ? (
           <span className="px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider rounded border border-[var(--color-border)] text-[var(--color-text-dim)]">

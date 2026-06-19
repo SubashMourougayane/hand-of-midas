@@ -564,10 +564,6 @@ export default function PlaybookPage() {
                 body: "At halfway, half the position closes for a guaranteed gain. The runner stays alive on a free trade.",
               },
               {
-                title: "Trailing exit on Oil Macro",
-                body: "After break-even arms, Oil Macro&apos;s runner trails behind the structure. Slow to react, fast to lock. Other systems trade choppier; trailing kills more good trades than it saves.",
-              },
-              {
                 title: "Drawdown halve at three losses",
                 body: "Three consecutive stops cuts position size in half. Five pauses the system entirely. Books recover before they scale back up.",
               },
@@ -594,37 +590,24 @@ export default function PlaybookPage() {
           </div>
         </section>
 
-        {/* Why four */}
+        {/* Why two */}
         <section className="mt-28 md:mt-32">
           <Reveal>
-            <Eyebrow>Why Four Engines</Eyebrow>
-            <Display size="md">One thesis. Four expressions.</Display>
+            <Eyebrow>Why Two Engines</Eyebrow>
+            <Display size="md">One thesis. Two expressions.</Display>
             <Lead>
-              The same pattern repeats on different timeframes and in different
-              markets. Rather than trade one of them well, we trade all four with the
-              same risk frame.
+              The same pattern repeats across two markets. Rather than trade one
+              of them well, we trade both with the same risk frame.
             </Lead>
           </Reveal>
 
           <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-[2px] bg-[var(--color-border)] md:grid-cols-2">
             {[
               {
-                tone: "var(--color-sys-gold)",
-                name: "Gold Macro",
-                cadence: "Once-daily · NY session",
-                body: "The classic. Trades the Asia high/low sweep on Gold during London-NY overlap. One trade attempt per day. Highest-conviction setups.",
-              },
-              {
                 tone: "var(--color-sys-gold-micro)",
                 name: "Gold Micro",
                 cadence: "Rolling 4-hour windows",
                 body: "Same thesis on a faster timebox. Each four-hour consolidation produces its own range, swept and faded as a fresh setup. Multiple trades per day.",
-              },
-              {
-                tone: "var(--color-sys-oil)",
-                name: "Oil Macro",
-                cadence: "Once-daily · NY session",
-                body: "Brent Crude version of Gold Macro. Liquidity profile differs — wider stops, longer hold, trail-after-BE works here where it fails elsewhere.",
               },
               {
                 tone: "var(--color-sys-oil-micro)",
