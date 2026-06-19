@@ -20,6 +20,8 @@ set PYTHONIOENCODING=utf-8
 REM Kill any existing processes on our ports
 REM Macro ports 5053+5054 retired 2026-06-19 — kill loop kept so legacy
 REM processes get cleaned if they were started manually.
+REM General service on 5050 hosts cross-cutting routes (auth + aggregate debug).
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5050" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5053" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5054" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":5055" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
@@ -32,6 +34,7 @@ REM Use PowerShell to get a deterministic timestamp.
 for /f "delims=" %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmm"') do set "TS=%%i"
 echo [LOG ROTATE] timestamp=%TS%
 REM Rotate legacy Macro logs too (in case they exist from prior runs).
+if exist logs\general.log ren logs\general.log general.%TS%.log
 if exist logs\gold.log ren logs\gold.log gold.%TS%.log
 if exist logs\oil.log ren logs\oil.log oil.%TS%.log
 if exist logs\micro.log ren logs\micro.log micro.%TS%.log
@@ -61,15 +64,19 @@ REM echo [2/3] Starting Oil Macro Backend (port 5054)...
 REM start /B cmd /c "cd /d C:\hand-of-midas\backend-oil && python -m uvicorn main:app --host 0.0.0.0 --port 5054 > ..\logs\oil.log 2>&1"
 REM echo       OK
 
-echo [1/3] Starting Gold Micro Backend (port 5055)...
+echo [1/4] Starting General Backend (port 5050) — auth + aggregate debug...
+start /B cmd /c "cd /d C:\hand-of-midas\backend-general && python -m uvicorn main:app --host 0.0.0.0 --port 5050 > ..\logs\general.log 2>&1"
+echo       OK
+
+echo [2/4] Starting Gold Micro Backend (port 5055)...
 start /B cmd /c "cd /d C:\hand-of-midas\backend-micro && python -m uvicorn main:app --host 0.0.0.0 --port 5055 > ..\logs\micro.log 2>&1"
 echo       OK
 
-echo [2/3] Starting Oil Micro Backend (port 5056)...
+echo [3/4] Starting Oil Micro Backend (port 5056)...
 start /B cmd /c "cd /d C:\hand-of-midas\backend-oil-micro && python -m uvicorn main:app --host 0.0.0.0 --port 5056 > ..\logs\oil-micro.log 2>&1"
 echo       OK
 
-echo [3/3] Starting Frontend (port 3001)...
+echo [4/4] Starting Frontend (port 3001)...
 start /B cmd /c "cd /d C:\hand-of-midas\frontend && npx next start -p 3001 > ..\logs\frontend.log 2>&1"
 echo       OK
 
@@ -78,15 +85,16 @@ echo ============================================
 echo   ALL SYSTEMS ONLINE
 echo ============================================
 echo.
+echo   General:    http://localhost:5050   (auth + /api/debug/* + /api/health)
 echo   Gold Micro: http://localhost:5055
 echo   Oil Micro:  http://localhost:5056
 echo   Frontend:   http://localhost:3001
 echo   (Macros retired 2026-06-19 — see start-win.bat header)
 echo.
-echo   Logs: logs\micro.log, logs\oil-micro.log, logs\frontend.log
+echo   Logs: logs\general.log, logs\micro.log, logs\oil-micro.log, logs\frontend.log
 echo.
 echo   Tailing all logs (Ctrl+C to stop)...
 echo ============================================
 echo.
 
-powershell -Command "Get-Content logs\micro.log, logs\oil-micro.log -Wait -Tail 5"
+powershell -Command "Get-Content logs\general.log, logs\micro.log, logs\oil-micro.log -Wait -Tail 5"
