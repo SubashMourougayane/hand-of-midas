@@ -166,8 +166,10 @@ def run_backtest(
     end_ts = pd.Timestamp(end_date, tz="UTC")
     all_signals = [s for s in all_signals if start_ts <= s.date <= end_ts]
 
-    # DD protection config (matches live)
-    DAILY_MAX_LOSS = 400
+    # DD protection config (matches live).
+    # Phase 6 #9 (2026-06-19): DAILY_MAX_LOSS deleted — live's gate of the
+    # same name was dead code (audit_critical_bugs_may29). Removed both
+    # sides for parity. max_trades_per_day=3 caps daily loss at ~3×risk.
     HALF_AFTER_CONSECUTIVE = 3
     COOLDOWN_SECONDS = 300  # 5-minute cooldown between signals (matches live)
 
@@ -222,9 +224,7 @@ def run_backtest(
         if position_exit_time and signal.date < position_exit_time:
             continue
 
-        # Daily max loss circuit breaker (same as live)
-        if daily_pnl <= -DAILY_MAX_LOSS:
-            continue
+        # Phase 6 #9: DAILY_MAX_LOSS check deleted — see comment at top of fn.
 
         if state.equity < 100:
             continue

@@ -365,8 +365,10 @@ def run_backtest(
     end_ts = pd.Timestamp(end_date, tz="UTC")
     all_signals = [s for s in all_signals if start_ts <= s.date <= end_ts]
 
-    # Execute with DD protection
-    DAILY_MAX_LOSS = 400
+    # Execute with DD protection.
+    # Phase 6 #9 (2026-06-19): DAILY_MAX_LOSS deleted — live's gate of the
+    # same name was dead code (audit_critical_bugs_may29). Removed both
+    # sides for parity. max_trades_per_day=3 caps daily loss at ~3×risk.
     COOLDOWN_SECONDS = 300
 
     np.random.seed(seed)
@@ -420,8 +422,7 @@ def run_backtest(
         if position_exit_time and signal.date < position_exit_time:
             continue
 
-        if daily_pnl <= -DAILY_MAX_LOSS:
-            continue
+        # Phase 6 #9: DAILY_MAX_LOSS check deleted — see comment at top of fn.
 
         if equity < 100:
             continue
