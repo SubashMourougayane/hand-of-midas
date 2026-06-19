@@ -170,10 +170,16 @@ def test_oil_micro_signal_to_trade_pipeline(oil_micro_modules):
 
 
 def test_oil_micro_no_phantom_trades(oil_micro_modules):
-    """Every BT trade must have entry/exit prices that exist in the
-    real M3 OHLC for the trade window (no phantom fills).
+    """Every BT trade exit price must exist in real M3 OHLC for the
+    trade window (no phantom fills).
 
-    Spot-checks 3 random trades. Burn-rule guard.
+    Burn-rule guard. Phase 6 F6 (2026-06-19): broadened from "SL only"
+    to "any exit" — Filter #7 partial + Filter #5 BE often turn pure
+    SL exits into PARTIAL+BE_SL which still need OHLC reachability.
+
+    Skip-conditions:
+      - MAX_HOLD/DATA_END/expired: time-based exit at last-bar close,
+        always valid by construction.
     """
     engine, strategy, cfg_mod = oil_micro_modules
     result = engine.run_backtest(bias_mode="neutral")
@@ -181,30 +187,56 @@ def test_oil_micro_no_phantom_trades(oil_micro_modules):
     data = engine._get_cached_data()
     oil_m3 = data["oil_m3"]
 
-    # Check first 3 SL trades (deterministic, no F27 fill complexity)
-    sl_trades = [t for t in result.trades if t.status == "SL"][:3]
-    if not sl_trades:
-        pytest.skip("No SL trades in BT result for spot check")
+    start = pd.Timestamp("2026-06-11", tz="UTC")
+    end = pd.Timestamp("2026-06-18 23:59:59", tz="UTC")
+    window_trades = [
+        t for t in result.trades
+        if start <= pd.Timestamp(t.date) <= end
+    ]
 
-    for t in sl_trades:
-        # Entry bar must exist in M3
+    SLIPPAGE_TOLERANCE = 0.5  # Oil Micro: $0.50 (price ~$80, ~0.6%)
+
+    checked = 0
+    for t in window_trades[:3]:
         entry_ts = pd.Timestamp(t.date)
         assert entry_ts in oil_m3.index, f"trade {t.date}: entry bar not in M3"
 
-        # SL exit price must be reachable in some bar in trade lifetime
-        # (within bar_high range for SHORT, bar_low range for LONG)
         bar_idx = oil_m3.index.get_loc(entry_ts)
         end_idx = min(bar_idx + t.bars_held + 1, len(oil_m3) - 1)
         bars = oil_m3.iloc[bar_idx:end_idx + 1]
-        if t.direction == "LONG":
+
+        # Time-based exits — always valid (close of bar)
+        if any(reason in t.status for reason in ("MAX_HOLD", "DATA_END", "expired")):
+            checked += 1
+            continue
+
+        is_sl_side = "SL" in t.status
+        is_tp_side = "TP" in t.status and "SL" not in t.status
+
+        if t.direction == "LONG" and is_sl_side:
             min_low = bars["bid_low"].min()
-            assert t.exit_price >= min_low - 0.5, (
-                f"trade {t.date} LONG SL exit={t.exit_price} below "
-                f"min bid_low={min_low} (slippage tolerance 0.5)"
+            assert t.exit_price >= min_low - SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} LONG {t.status} exit={t.exit_price} below "
+                f"min bid_low={min_low} (tol={SLIPPAGE_TOLERANCE})"
             )
-        else:
+        elif t.direction == "SHORT" and is_sl_side:
             max_high = bars["ask_high"].max()
-            assert t.exit_price <= max_high + 0.5, (
-                f"trade {t.date} SHORT SL exit={t.exit_price} above "
-                f"max ask_high={max_high} (slippage tolerance 0.5)"
+            assert t.exit_price <= max_high + SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} SHORT {t.status} exit={t.exit_price} above "
+                f"max ask_high={max_high} (tol={SLIPPAGE_TOLERANCE})"
             )
+        elif t.direction == "LONG" and is_tp_side:
+            max_high = bars["bid_high"].max()
+            assert t.exit_price <= max_high + SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} LONG {t.status} exit={t.exit_price} above "
+                f"max bid_high={max_high} (TP-side)"
+            )
+        elif t.direction == "SHORT" and is_tp_side:
+            min_low = bars["ask_low"].min()
+            assert t.exit_price >= min_low - SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} SHORT {t.status} exit={t.exit_price} below "
+                f"min ask_low={min_low} (TP-side)"
+            )
+        checked += 1
+
+    assert checked >= 3, f"only checked {checked}/3 trades — window too small?"

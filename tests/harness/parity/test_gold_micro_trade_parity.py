@@ -109,19 +109,43 @@ def test_gold_micro_trade_outcome_deterministic(gold_micro_modules):
 
 
 def test_gold_micro_no_phantom_trades(gold_micro_modules):
-    """Spot-check 3 SL trades — exit price must exist in real M3 OHLC."""
+    """Spot-check 3 trades — exit price must exist in real M3 OHLC.
+
+    Burn-rule guard: BT exit price has to be a price that actually
+    occurred during the trade. No phantom fills.
+
+    Phase 6 F6 fix (2026-06-19): filter was `status == "SL"` only and
+    skipped when none. Gold Micro Jun 11-18 has no pure-SL exits
+    (Filter #7 partial + Filter #5 BE dominate). Broadened to check
+    ANY trade in window — same OHLC reachability guarantee for every
+    exit reason.
+
+    Skip-conditions per exit reason:
+      - SL / BE_SL / PARTIAL+SL / PARTIAL+BE_SL: exit hit by ask_high
+        (SHORT) or bid_low (LONG) within trade window — same physical
+        check.
+      - TP / PARTIAL+TP: exit hit by bid_high (LONG) or ask_low (SHORT).
+      - MAX_HOLD / PARTIAL+MAX_HOLD / DATA_END: exit at last-bar close,
+        which is always in OHLC by construction. Skip OHLC bounds.
+    """
     engine, strategy, cfg_mod = gold_micro_modules
     result = engine.run_backtest(strategies=["micro_alpha_sweep"], bias_mode="neutral")
 
     data = engine._get_cached_data()
     gold_m3 = data["gold_m3"]
 
-    # Look for SL trades (most deterministic — no partial/BE)
-    sl_trades = [t for t in result.trades if t.status == "SL"][:3]
-    if not sl_trades:
-        pytest.skip("No SL trades for spot check")
+    start = pd.Timestamp("2026-06-11", tz="UTC")
+    end = pd.Timestamp("2026-06-18 23:59:59", tz="UTC")
+    window_trades = [
+        t for t in result.trades
+        if start <= pd.Timestamp(t.date) <= end
+    ]
 
-    for t in sl_trades:
+    # Tolerance for slippage — Gold has $4000+ price so 5.0 ≈ 0.12%
+    SLIPPAGE_TOLERANCE = 5.0
+
+    checked = 0
+    for t in window_trades[:3]:
         entry_ts = pd.Timestamp(t.date)
         assert entry_ts in gold_m3.index, f"trade {t.date}: entry bar not in M3"
 
@@ -129,16 +153,40 @@ def test_gold_micro_no_phantom_trades(gold_micro_modules):
         end_idx = min(bar_idx + t.bars_held + 1, len(gold_m3) - 1)
         bars = gold_m3.iloc[bar_idx:end_idx + 1]
 
-        # Tolerance — Gold has bigger numbers ($4000+) so tolerance scales
-        if t.direction == "LONG":
+        # Skip OHLC reachability check for time-based exits (always valid by construction)
+        if any(reason in t.status for reason in ("MAX_HOLD", "DATA_END", "expired")):
+            checked += 1
+            continue
+
+        # SL-side exits: LONG exits at bid_low extreme; SHORT at ask_high extreme
+        # TP-side exits: LONG exits at bid_high; SHORT at ask_low
+        is_sl_side = "SL" in t.status
+        is_tp_side = "TP" in t.status and "SL" not in t.status
+
+        if t.direction == "LONG" and is_sl_side:
             min_low = bars["bid_low"].min()
-            assert t.exit_price >= min_low - 5.0, (
-                f"trade {t.date} LONG SL exit={t.exit_price} below "
-                f"min bid_low={min_low}"
+            assert t.exit_price >= min_low - SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} LONG {t.status} exit={t.exit_price} below "
+                f"min bid_low={min_low} (tol={SLIPPAGE_TOLERANCE})"
             )
-        else:
+        elif t.direction == "SHORT" and is_sl_side:
             max_high = bars["ask_high"].max()
-            assert t.exit_price <= max_high + 5.0, (
-                f"trade {t.date} SHORT SL exit={t.exit_price} above "
-                f"max ask_high={max_high}"
+            assert t.exit_price <= max_high + SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} SHORT {t.status} exit={t.exit_price} above "
+                f"max ask_high={max_high} (tol={SLIPPAGE_TOLERANCE})"
             )
+        elif t.direction == "LONG" and is_tp_side:
+            max_high = bars["bid_high"].max()
+            assert t.exit_price <= max_high + SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} LONG {t.status} exit={t.exit_price} above "
+                f"max bid_high={max_high} (TP-side check)"
+            )
+        elif t.direction == "SHORT" and is_tp_side:
+            min_low = bars["ask_low"].min()
+            assert t.exit_price >= min_low - SLIPPAGE_TOLERANCE, (
+                f"trade {t.date} SHORT {t.status} exit={t.exit_price} below "
+                f"min ask_low={min_low} (TP-side check)"
+            )
+        checked += 1
+
+    assert checked >= 3, f"only checked {checked}/3 trades — window too small?"
