@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from config import OANDA_TOKEN, OANDA_ACCOUNT, OANDA_URL, EXECUTOR, TRADE_REF_PREFIX
 from backend.execution import modify_stop_loss
-from backend.db import execute
+from backend.db import execute, safe_json_dumps
 from config import MICRO_ALPHA_SWEEP
 
 _running = False
@@ -17,9 +17,14 @@ _latest_price = {"bid": 0.0, "ask": 0.0}
 
 
 def _log_journal(trade_ref, strategy, event_type, price=None, context=None):
+    # C2 (2026-06-19): use safe_json_dumps. Raw json.dumps crashes on
+    # numpy.float64 since numpy 2.x ("np.float64(X)" repr leaks). Same class
+    # as the live save GD-MI-60f3aa09 today. OANDA price-stream is currently
+    # disabled (EXECUTOR=mt5) but this helper must be safe in case it
+    # activates or anyone adds a numpy-derived value to context.
     execute(
         "INSERT INTO gd_journal (trade_ref, strategy, event_type, price, context) VALUES (%s, %s, %s, %s, %s)",
-        (trade_ref, strategy, event_type, price, json.dumps(context) if context else None)
+        (trade_ref, strategy, event_type, price, safe_json_dumps(context))
     )
 
 
