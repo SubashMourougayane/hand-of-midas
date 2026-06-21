@@ -1,10 +1,11 @@
 node_modules/
 .next/
-data/raw/*.csv
+data/raw/**/*.csv
 __pycache__/
 *.pyc
 .env
 logs/
+.coverage
 
 # Parity harness JSON artifacts (one per run; kept locally for trend tracking,
 # not stored in git). The .gitkeep file inside parity_reports/ is intentionally
@@ -12,3 +13,5 @@ logs/
 tests/harness/parity_reports/*.json
 scripts/output/*.log
 scripts/output/*.json
+scripts/output/*.jsonl
+scripts/output/*.csv
