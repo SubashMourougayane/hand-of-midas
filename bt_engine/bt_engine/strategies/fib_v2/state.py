@@ -61,6 +61,13 @@ class FibV2State(StrategyState):
     # Setup keys (leg_name, setup_confirm_ts) already entered. Used for idempotency.
     consumed_setup_keys: set[tuple[str, pd.Timestamp]] = field(default_factory=set)
 
+    # Entry-bar dedup: (entry_ts, side, leg_name) already emitted as an Order.
+    # Used by FibV2Intraday subclass to drop multi-pivot stacks landing on the
+    # SAME M15 bar with different SL/TP geometry. Base FibV2EnsembleStrategy
+    # NEVER reads or writes this set — additive, no behavior change for base.
+    # NOTE: state.clone() returns self (perf override), so adds mutate in place.
+    consumed_entry_keys: set[tuple[pd.Timestamp, int, str]] = field(default_factory=set)
+
     # Trackers — internal buffers; safe to deep-copy.
     pivot_tracker: PivotTracker = field(default_factory=lambda: PivotTracker(lb=5))
     regime_tracker: RegimeTracker = field(default_factory=RegimeTracker)

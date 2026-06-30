@@ -33,7 +33,7 @@
         <!-- Section 1: Headline KPIs -->
         <section id="headline">
             <h2>Headline — 3-month summary by strategy</h2>
-            <div class="sub">Same signals, different exit rules. Same risk per trade. Same broker costs.</div>
+            <div class="sub">Same signals, different exit rules. <b>Sizing model:</b> $5,000 account · monthly reset · 1.5% risk ($75) per trade per symbol. Both XAU + EUR run on the same account.</div>
             <div class="kpi-grid" id="kpiGrid"></div>
         </section>
 
@@ -43,7 +43,9 @@
             <div class="sub">Net R per variant × symbol × month. Toggle metric below.</div>
             <div class="chart-card">
                 <div class="controls">
-                    <button data-metric="net_R" class="active">Net R</button>
+                    <button data-metric="dollar_pnl" class="active">$ PnL</button>
+                    <button data-metric="net_R">Net R</button>
+                    <button data-metric="return_pct">Return %</button>
                     <button data-metric="win_rate_pct">Win rate %</button>
                     <button data-metric="total_trades">Total trades</button>
                 </div>
@@ -96,9 +98,11 @@
                             <th data-sort="entry_ts">Entry</th>
                             <th data-sort="exit_ts">Exit</th>
                             <th data-sort="bars_held" class="num">Bars</th>
+                            <th data-sort="bars_held" class="num">Hold</th>
                             <th data-sort="outcome">Outcome</th>
                             <th data-sort="partial_r_locked" class="num">Partial R</th>
                             <th data-sort="net_r" class="num">Net R</th>
+                            <th data-sort="dollar_pnl" class="num">$ PnL</th>
                             <th data-sort="regime_at_entry">Regime</th>
                             <th></th>
                         </tr>
@@ -138,7 +142,7 @@
                 <div><div class="label">Bars</div><div class="value" id="metaBars"></div></div>
                 <div><div class="label">Entry price</div><div class="value" id="metaEntryPx"></div></div>
                 <div><div class="label">SL → TP</div><div class="value" id="metaSlTp"></div></div>
-                <div><div class="label">Net R</div><div class="value" id="metaNetR"></div></div>
+                <div><div class="label">Net R / $ PnL</div><div class="value" id="metaNetR"></div></div>
             </div>
             <div id="simChart"></div>
             <div class="legend">

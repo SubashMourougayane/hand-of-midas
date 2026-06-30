@@ -7,7 +7,18 @@
 // ============================================================================
 const fmt = {
     r: (v) => (v == null || isNaN(v)) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + 'R',
+    usd: (v) => {
+        if (v == null || isNaN(v)) return '—';
+        const sign = v >= 0 ? '+' : '-';
+        return sign + '$' + Math.abs(v).toLocaleString('en-US', {maximumFractionDigits: 0});
+    },
+    usd2: (v) => {
+        if (v == null || isNaN(v)) return '—';
+        const sign = v >= 0 ? '+' : '-';
+        return sign + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    },
     pct: (v) => (v == null || isNaN(v)) ? '—' : v.toFixed(1) + '%',
+    pctSigned: (v) => (v == null || isNaN(v)) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
     pf: (v) => (v == null || !isFinite(v)) ? '∞' : v.toFixed(2),
     px: (v, d=4) => (v == null) ? '—' : Number(v).toFixed(d),
     ts: (s) => {
@@ -20,6 +31,17 @@ const fmt = {
         return d.toISOString().slice(0,16).replace('T', ' ') + ' UTC';
     },
 };
+
+const SIZING_NOTE = '$5,000 account · monthly reset · 1.5% risk per trade ($75) per symbol';
+
+function fmtHold(bars) {
+    if (bars == null || isNaN(bars)) return '—';
+    const totalMin = bars * 5;
+    if (totalMin < 60) return totalMin + 'm';
+    const totalHr = totalMin / 60;
+    if (totalHr < 24) return totalHr.toFixed(1) + 'h';
+    return (totalHr / 24).toFixed(1) + 'd';
+}
 
 const VARIANT_COLORS = {
     'Baseline (no partial-TP)': '#8aa0c0',
@@ -51,6 +73,7 @@ function renderKpiCards() {
         const total = v.full_TP + v.partial_then_TP + v.partial_then_BE + v.full_SL + v.timeout;
         const seg = (k, c) => v[k] > 0 ? `<span style="background:${c};width:${(v[k]/total*100).toFixed(2)}%;" title="${k}: ${v[k]}"></span>` : '';
         const netClass = v.net_R_3mo >= 0 ? 'positive' : 'negative';
+        const pnlClass = v.dollar_pnl_3mo >= 0 ? 'positive' : 'negative';
         return `
         <div class="kpi-card">
             <h3>${v.strategy}</h3>
@@ -61,6 +84,11 @@ function renderKpiCards() {
                 <div class="kpi-cell"><div class="label">R:R</div><div class="value">${fmt.pf(v['R:R'])}</div></div>
                 <div class="kpi-cell"><div class="label">Net R (3mo)</div><div class="value ${netClass}">${fmt.r(v.net_R_3mo)}</div></div>
                 <div class="kpi-cell"><div class="label">Locked R</div><div class="value positive">+${v.partial_locked_R.toFixed(1)}R</div></div>
+            </div>
+            <div class="kpi-row" style="border-top:1px solid var(--border); padding-top:10px;">
+                <div class="kpi-cell"><div class="label">PnL 3mo</div><div class="value ${pnlClass}">${fmt.usd(v.dollar_pnl_3mo)}</div></div>
+                <div class="kpi-cell"><div class="label">Return %</div><div class="value ${pnlClass}">${fmt.pctSigned(v.return_pct_3mo)}</div></div>
+                <div class="kpi-cell"><div class="label">Yr extrapolated</div><div class="value ${pnlClass}">${fmt.usd(v.avg_year_pnl_extrapolated)}</div></div>
             </div>
             <div class="label" style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Outcome mix</div>
             <div class="kpi-stack">
@@ -102,6 +130,21 @@ function renderMonthlyChart(metric = 'net_R') {
             borderWidth: 1,
         };
     });
+    const valFmt = (v) => {
+        if (metric === 'dollar_pnl') return fmt.usd(v);
+        if (metric === 'net_R') return fmt.r(v);
+        if (metric === 'return_pct') return fmt.pctSigned(v);
+        if (metric === 'win_rate_pct') return fmt.pct(v);
+        return v;
+    };
+    const yTitle = {
+        dollar_pnl: '$ PnL ($5k account, 1.5% risk)',
+        net_R: 'Net R',
+        return_pct: 'Return %',
+        win_rate_pct: 'Win rate %',
+        total_trades: 'Total trades',
+    }[metric] || metric;
+
     if (monthlyChartObj) monthlyChartObj.destroy();
     monthlyChartObj = new Chart(ctx, {
         type: 'bar',
@@ -110,13 +153,15 @@ function renderMonthlyChart(metric = 'net_R') {
             responsive: true, maintainAspectRatio: false,
             scales: {
                 x: { ticks: { color: '#8a91a0' }, grid: { color: '#2d323d' } },
-                y: { ticks: { color: '#8a91a0' }, grid: { color: '#2d323d' },
-                     title: { display: true, text: metric, color: '#8a91a0' } },
+                y: { ticks: { color: '#8a91a0',
+                              callback: (v) => metric === 'dollar_pnl' ? fmt.usd(v) : v },
+                     grid: { color: '#2d323d' },
+                     title: { display: true, text: yTitle, color: '#8a91a0' } },
             },
             plugins: {
                 legend: { labels: { color: '#d8dadc', font: { size: 10 } } },
                 tooltip: { callbacks: {
-                    label: (c) => `${c.dataset.label}: ${metric === 'net_R' ? fmt.r(c.parsed.y) : c.parsed.y}`,
+                    label: (c) => `${c.dataset.label}: ${valFmt(c.parsed.y)}`,
                 }},
             },
         },
@@ -179,7 +224,7 @@ function renderEquityCurve() {
     const datasets = variants.map(strat => {
         let cum = 0;
         const data = sortedAll.map(t => {
-            if (t.strategy === strat) cum += t.net_r;
+            if (t.strategy === strat) cum += t.dollar_pnl;
             return cum;
         });
         return {
@@ -198,12 +243,13 @@ function renderEquityCurve() {
             responsive: true, maintainAspectRatio: false,
             scales: {
                 x: { ticks: { color: '#8a91a0', maxTicksLimit: 12 }, grid: { color: '#2d323d' } },
-                y: { ticks: { color: '#8a91a0' }, grid: { color: '#2d323d' },
-                     title: { display: true, text: 'Cumulative net R', color: '#8a91a0' } },
+                y: { ticks: { color: '#8a91a0', callback: (v) => fmt.usd(v) },
+                     grid: { color: '#2d323d' },
+                     title: { display: true, text: 'Cumulative $ PnL ($5k @ 1.5% risk)', color: '#8a91a0' } },
             },
             plugins: {
                 legend: { labels: { color: '#d8dadc', font: { size: 10 } } },
-                tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt.r(c.parsed.y)}` } },
+                tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${fmt.usd(c.parsed.y)}` } },
             },
         },
     });
@@ -384,9 +430,11 @@ function renderTradeTable() {
             <td>${fmt.ts(t.entry_ts)}</td>
             <td>${fmt.ts(t.exit_ts)}</td>
             <td class="num">${t.bars_held ?? '—'}</td>
+            <td class="num">${fmtHold(t.bars_held)}</td>
             <td><span class="pill ${outcomeKey}">${t.outcome.replace(/_/g, ' ')}</span></td>
             <td class="num ${partCls}">${t.partial_r_locked > 0 ? '+' + t.partial_r_locked.toFixed(2) + 'R' : '—'}</td>
             <td class="num ${netCls}">${fmt.r(t.net_r)}</td>
+            <td class="num ${netCls}">${fmt.usd2(t.dollar_pnl)}</td>
             <td>${t.regime_at_entry || '—'}</td>
             <td><button class="btn-sim" data-tid="${t.trade_id}">Simulate ▶</button></td>
         </tr>`;
@@ -453,12 +501,12 @@ function openSimulator(tradeId) {
     // Meta strip
     document.getElementById('metaEntry').textContent = fmt.ts(trade.entry_ts);
     document.getElementById('metaExit').textContent = fmt.ts(trade.exit_ts);
-    document.getElementById('metaBars').textContent = trade.bars_held;
+    document.getElementById('metaBars').textContent = `${trade.bars_held}  ·  ${fmtHold(trade.bars_held)}`;
     const decimals = trade.symbol.startsWith('XAU') ? 2 : 5;
     document.getElementById('metaEntryPx').textContent = fmt.px(trade.entry_price, decimals);
     document.getElementById('metaSlTp').textContent = `${fmt.px(trade.stop_price, decimals)} / ${fmt.px(trade.tp_price, decimals)}`;
     const netCell = document.getElementById('metaNetR');
-    netCell.textContent = fmt.r(trade.net_r);
+    netCell.textContent = `${fmt.r(trade.net_r)}  ·  ${fmt.usd2(trade.dollar_pnl)}`;
     netCell.className = 'value ' + (trade.net_r >= 0 ? 'positive' : 'negative');
 
     // Counter
@@ -466,12 +514,43 @@ function openSimulator(tradeId) {
     document.getElementById('barTotal').textContent = bars.length;
     document.getElementById('barTs').textContent = '—';
 
-    // Init chart
-    setupSimChart();
-    drawFibLines();
-
-    // Show modal
+    // Show modal FIRST so container has real width/height when chart inits.
     document.getElementById('simModal').classList.add('open');
+    requestAnimationFrame(() => {
+        setupSimChart();
+        drawFibLines();
+        // Pre-seed full data so something is visible immediately (and fib lines fit auto-scale).
+        // Replay then runs forward via update(), with reset clearing.
+        const initialData = bars.slice(0, Math.min(20, bars.length)).map(b => ({
+            time: b.t, open: b.o, high: b.h, low: b.l, close: b.c,
+        }));
+        simCandleSeries.setData(initialData);
+        simState.idx = initialData.length;
+        document.getElementById('barIdx').textContent = simState.idx;
+        if (initialData.length > 0) {
+            const lastBar = bars[simState.idx - 1];
+            document.getElementById('barTs').textContent = fmt.secsToUtc(lastBar.t);
+            const d = trade.symbol.startsWith('XAU') ? 2 : 5;
+            document.getElementById('rOHLC').textContent = `${lastBar.o.toFixed(d)} / ${lastBar.h.toFixed(d)} / ${lastBar.l.toFixed(d)} / ${lastBar.c.toFixed(d)}`;
+            document.getElementById('rMfe').textContent = fmt.r(lastBar.mfe);
+            document.getElementById('rMae').textContent = fmt.r(lastBar.mae);
+            document.getElementById('rUnr').textContent = fmt.r(lastBar.unr);
+            document.getElementById('rDS').textContent = fmt.r(lastBar.ds);
+            document.getElementById('rDT').textContent = lastBar.dt == null ? '—' : fmt.r(lastBar.dt);
+        }
+        // Entry marker
+        if (bars.length > 0) {
+            simState.markers.push({
+                time: bars[0].t,
+                position: trade.side === 1 ? 'belowBar' : 'aboveBar',
+                color: '#f0c050',
+                shape: trade.side === 1 ? 'arrowUp' : 'arrowDown',
+                text: 'Entry',
+            });
+            simCandleSeries.setMarkers(simState.markers);
+        }
+        simChart.timeScale().fitContent();
+    });
 }
 
 function setupSimChart() {
@@ -479,7 +558,11 @@ function setupSimChart() {
     container.innerHTML = '';
     if (simChart) { try { simChart.remove(); } catch (e) {} simChart = null; }
 
+    const w = container.clientWidth || 1200;
+    const h = container.clientHeight || 480;
+
     simChart = LightweightCharts.createChart(container, {
+        width: w, height: h,
         layout: { background: { color: '#21252d' }, textColor: '#d8dadc' },
         grid: { vertLines: { color: '#2d323d' }, horzLines: { color: '#2d323d' } },
         timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 5, barSpacing: 8 },
@@ -491,6 +574,17 @@ function setupSimChart() {
         borderUpColor: '#4eb98c', borderDownColor: '#e0584e',
         wickUpColor: '#4eb98c', wickDownColor: '#e0584e',
     });
+
+    // Resize handler
+    if (simChart._resizeHandler) window.removeEventListener('resize', simChart._resizeHandler);
+    simChart._resizeHandler = () => {
+        if (!simChart) return;
+        simChart.applyOptions({
+            width: container.clientWidth || 1200,
+            height: container.clientHeight || 480,
+        });
+    };
+    window.addEventListener('resize', simChart._resizeHandler);
 }
 
 function drawFibLines() {
@@ -541,8 +635,8 @@ function simStep() {
     document.getElementById('rDS').textContent = fmt.r(bar.ds);
     document.getElementById('rDT').textContent = bar.dt == null ? '—' : fmt.r(bar.dt);
 
-    // Entry marker on first bar
-    if (simState.idx === 1) {
+    // Entry marker on first bar (only if not already added during seed)
+    if (simState.idx === 1 && !simState.markers.some(m => m.text === 'Entry')) {
         simState.markers.push({
             time: bar.t, position: simState.trade.side === 1 ? 'belowBar' : 'aboveBar',
             color: '#f0c050', shape: simState.trade.side === 1 ? 'arrowUp' : 'arrowDown',
@@ -610,9 +704,31 @@ function simReset() {
     simPause();
     simState.idx = 0;
     simState.markers = [];
-    if (simCandleSeries) simCandleSeries.setData([]);
-    if (simCandleSeries) simCandleSeries.setMarkers([]);
-    document.getElementById('barIdx').textContent = 0;
+    if (simCandleSeries) {
+        simCandleSeries.setData([]);
+        simCandleSeries.setMarkers([]);
+    }
+    // Re-seed first 20 bars like initial open
+    const bars = simState.bars;
+    if (bars && bars.length > 0 && simCandleSeries) {
+        const seed = bars.slice(0, Math.min(20, bars.length)).map(b => ({
+            time: b.t, open: b.o, high: b.h, low: b.l, close: b.c,
+        }));
+        simCandleSeries.setData(seed);
+        simState.idx = seed.length;
+        simState.markers.push({
+            time: bars[0].t,
+            position: simState.trade.side === 1 ? 'belowBar' : 'aboveBar',
+            color: '#f0c050',
+            shape: simState.trade.side === 1 ? 'arrowUp' : 'arrowDown',
+            text: 'Entry',
+        });
+        simCandleSeries.setMarkers(simState.markers);
+        simChart.timeScale().fitContent();
+        document.getElementById('barIdx').textContent = simState.idx;
+    } else {
+        document.getElementById('barIdx').textContent = 0;
+    }
     document.getElementById('barTs').textContent = '—';
     ['rOHLC','rMfe','rMae','rUnr','rDS','rDT'].forEach(id => document.getElementById(id).textContent = '—');
 }

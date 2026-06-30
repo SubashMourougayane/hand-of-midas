@@ -1,0 +1,107 @@
+[2026-06-30 14:11:21] === Adversarial Battery: XAU Top 5 Survivors ===
+[2026-06-30 14:11:21] Sizing: $5,000 account, 1.5% risk per trade (=$75)
+[2026-06-30 14:11:21] 
+[2026-06-30 14:11:21] [load] OANDA M5 + H1 + resample to M15...
+[2026-06-30 14:11:22]   M15 bars: 485,274
+[2026-06-30 14:11:24]   lb=3: 93,095 M15 pivots
+[2026-06-30 14:11:26]   lb=5: 59,005 M15 pivots
+[2026-06-30 14:11:26] 
+[2026-06-30 14:11:26] 
+========================================================================================
+[2026-06-30 14:11:26] ### A_best_MAR: lb=3 h=12 ext=2.618 sl=0.02 london_ny any long ptp=1.0
+[2026-06-30 14:11:26] ========================================================================================
+
+[2026-06-30 14:11:26] [A_best_MAR] 0. BASELINE cost=$0.30
+[2026-06-30 14:11:27]   n=13327  PF=2.05  MAR=+10.07  WR=56.8%  net_R=+6340.9  $PnL=+475,568  pos=21/21
+[2026-06-30 14:11:28] [A_best_MAR] 1. DELAY+1 bars (15min)  n=13327  PF=2.23 (108% of baseline)  net_R=+6857.4  $PnL=+514,306  PASS
+[2026-06-30 14:11:29] [A_best_MAR] 1. DELAY+5 bars (75min)  n=13327  PF=2.49 (121% of baseline)  net_R=+7920.9  $PnL=+594,067  PASS
+[2026-06-30 14:11:30] [A_best_MAR] 1. DELAY+10 bars (150min)  n=13326  PF=2.85 (139% of baseline)  net_R=+9832.8  $PnL=+737,459  PASS
+[2026-06-30 14:11:30] [A_best_MAR] 2. COST=$0.40  n=13327  PF=1.90  net_R=+5683.6  $PnL=+426,270  PASS
+[2026-06-30 14:11:31] [A_best_MAR] 2. COST=$0.50  n=13327  PF=1.75  net_R=+5026.3  $PnL=+376,972  PASS
+[2026-06-30 14:11:32] [A_best_MAR] 2. COST=$0.80  n=13327  PF=1.39  net_R=+3054.4  $PnL=+229,078  PASS
+[2026-06-30 14:11:33] [A_best_MAR] 2. COST=$1.50  n=13327  PF=0.86  net_R=-1546.8  $PnL=-116,007  DECAY
+[2026-06-30 14:11:34] [A_best_MAR] 3. WALK-FWD IS(60%): n=7983 PF=2.02 net_R=+3690.5
+[2026-06-30 14:11:34] [A_best_MAR] 3. WALK-FWD OOS(40%): n=5344 PF=2.10 net_R=+2650.4  ratio=1.04  PASS
+[2026-06-30 14:11:34] [A_best_MAR] 4. BLOCK-BOOTSTRAP (1k iters, 30d blocks): P(net<0)=0.00%  p05=+5729.0R  p95=+6969.4R  PASS
+[2026-06-30 14:11:34] [A_best_MAR] 5. YEAR-BY-YEAR: pos=21/21  worst 2018=+155.6R  best 2025=+459.7R  PASS
+[2026-06-30 14:11:34] [A_best_MAR] 6. SHUFFLE-STRESS (1k yr-perms): true_DD=0.0R  median_perm_DD=0.0R  p_perm_worse=0.0%  WARN
+[2026-06-30 14:11:34] 
+========================================================================================
+[2026-06-30 14:11:34] ### B_tight_regime: lb=5 h=24 ext=2.618 sl=0.02 all bull long ptp=1.0
+[2026-06-30 14:11:34] ========================================================================================
+
+[2026-06-30 14:11:34] [B_tight_regime] 0. BASELINE cost=$0.30
+[2026-06-30 14:11:35]   n= 9940  PF=2.19  MAR=+9.14  WR=56.9%  net_R=+5507.9  $PnL=+413,092  pos=21/21
+[2026-06-30 14:11:36] [B_tight_regime] 1. DELAY+1 bars (15min)  n=9940  PF=2.25 (103% of baseline)  net_R=+5602.5  $PnL=+420,186  PASS
+[2026-06-30 14:11:37] [B_tight_regime] 1. DELAY+5 bars (75min)  n=9940  PF=2.42 (110% of baseline)  net_R=+6027.3  $PnL=+452,049  PASS
+[2026-06-30 14:11:38] [B_tight_regime] 1. DELAY+10 bars (150min)  n=9940  PF=2.71 (124% of baseline)  net_R=+7003.7  $PnL=+525,280  PASS
+[2026-06-30 14:11:38] [B_tight_regime] 2. COST=$0.40  n=9940  PF=2.06  net_R=+5103.7  $PnL=+382,778  PASS
+[2026-06-30 14:11:39] [B_tight_regime] 2. COST=$0.50  n=9940  PF=1.94  net_R=+4699.5  $PnL=+352,463  PASS
+[2026-06-30 14:11:40] [B_tight_regime] 2. COST=$0.80  n=9940  PF=1.61  net_R=+3486.9  $PnL=+261,520  PASS
+[2026-06-30 14:11:40] [B_tight_regime] 2. COST=$1.50  n=9940  PF=1.08  net_R=+657.6  $PnL=+49,320  DECAY
+[2026-06-30 14:11:42] [B_tight_regime] 3. WALK-FWD IS(60%): n=5457 PF=2.04 net_R=+2678.4
+[2026-06-30 14:11:42] [B_tight_regime] 3. WALK-FWD OOS(40%): n=4483 PF=2.38 net_R=+2829.5  ratio=1.16  PASS
+[2026-06-30 14:11:42] [B_tight_regime] 4. BLOCK-BOOTSTRAP (1k iters, 30d blocks): P(net<0)=0.00%  p05=+4949.5R  p95=+6127.0R  PASS
+[2026-06-30 14:11:42] [B_tight_regime] 5. YEAR-BY-YEAR: pos=21/21  worst 2013=+1.8R  best 2024=+605.4R  PASS
+[2026-06-30 14:11:42] [B_tight_regime] 6. SHUFFLE-STRESS (1k yr-perms): true_DD=0.0R  median_perm_DD=0.0R  p_perm_worse=0.0%  WARN
+[2026-06-30 14:11:42] 
+========================================================================================
+[2026-06-30 14:11:42] ### C_high_volume: lb=3 h=8 ext=2.618 sl=0.02 all any long ptp=1.0
+[2026-06-30 14:11:42] ========================================================================================
+
+[2026-06-30 14:11:42] [C_high_volume] 0. BASELINE cost=$0.30
+[2026-06-30 14:11:43]   n=19101  PF=1.91  MAR=+8.54  WR=55.4%  net_R=+7927.4  $PnL=+594,552  pos=21/21
+[2026-06-30 14:11:43] [C_high_volume] 1. DELAY+1 bars (15min)  n=19101  PF=2.03 (106% of baseline)  net_R=+8487.6  $PnL=+636,572  PASS
+[2026-06-30 14:11:44] [C_high_volume] 1. DELAY+5 bars (75min)  n=19101  PF=2.26 (118% of baseline)  net_R=+9874.1  $PnL=+740,556  PASS
+[2026-06-30 14:11:45] [C_high_volume] 1. DELAY+10 bars (150min)  n=19100  PF=2.70 (142% of baseline)  net_R=+12788.2  $PnL=+959,116  PASS
+[2026-06-30 14:11:46] [C_high_volume] 2. COST=$0.40  n=19101  PF=1.74  net_R=+6835.9  $PnL=+512,690  PASS
+[2026-06-30 14:11:47] [C_high_volume] 2. COST=$0.50  n=19101  PF=1.58  net_R=+5744.4  $PnL=+430,827  PASS
+[2026-06-30 14:11:47] [C_high_volume] 2. COST=$0.80  n=19101  PF=1.21  net_R=+2469.9  $PnL=+185,239  PASS
+[2026-06-30 14:11:48] [C_high_volume] 2. COST=$1.50  n=19101  PF=0.71  net_R=-5170.7  $PnL=-387,800  DECAY
+[2026-06-30 14:11:50] [C_high_volume] 3. WALK-FWD IS(60%): n=11485 PF=1.84 net_R=+4462.8
+[2026-06-30 14:11:50] [C_high_volume] 3. WALK-FWD OOS(40%): n=7616 PF=2.02 net_R=+3464.5  ratio=1.09  PASS
+[2026-06-30 14:11:50] [C_high_volume] 4. BLOCK-BOOTSTRAP (1k iters, 30d blocks): P(net<0)=0.00%  p05=+7298.0R  p95=+8502.8R  PASS
+[2026-06-30 14:11:50] [C_high_volume] 5. YEAR-BY-YEAR: pos=21/21  worst 2007=+168.0R  best 2024=+604.2R  PASS
+[2026-06-30 14:11:50] [C_high_volume] 6. SHUFFLE-STRESS (1k yr-perms): true_DD=0.0R  median_perm_DD=0.0R  p_perm_worse=0.0%  WARN
+[2026-06-30 14:11:50] 
+========================================================================================
+[2026-06-30 14:11:50] ### D_short_leg: lb=3 h=24 ext=2.618 sl=0.02 all any short ptp=1.0
+[2026-06-30 14:11:50] ========================================================================================
+
+[2026-06-30 14:11:50] [D_short_leg] 0. BASELINE cost=$0.30
+[2026-06-30 14:11:51]   n=21709  PF=1.85  MAR=+6.65  WR=54.7%  net_R=+9117.7  $PnL=+683,827  pos=21/21
+[2026-06-30 14:11:52] [D_short_leg] 1. DELAY+1 bars (15min)  n=21709  PF=1.90 (102% of baseline)  net_R=+9192.9  $PnL=+689,464  PASS
+[2026-06-30 14:11:53] [D_short_leg] 1. DELAY+5 bars (75min)  n=21709  PF=2.19 (118% of baseline)  net_R=+11422.4  $PnL=+856,676  PASS
+[2026-06-30 14:11:54] [D_short_leg] 1. DELAY+10 bars (150min)  n=21709  PF=2.42 (130% of baseline)  net_R=+13719.8  $PnL=+1,028,985  PASS
+[2026-06-30 14:11:55] [D_short_leg] 2. COST=$0.40  n=21709  PF=1.70  net_R=+7948.4  $PnL=+596,134  PASS
+[2026-06-30 14:11:56] [D_short_leg] 2. COST=$0.50  n=21709  PF=1.56  net_R=+6779.2  $PnL=+508,440  PASS
+[2026-06-30 14:11:57] [D_short_leg] 2. COST=$0.80  n=21709  PF=1.23  net_R=+3271.4  $PnL=+245,359  PASS
+[2026-06-30 14:11:58] [D_short_leg] 2. COST=$1.50  n=21709  PF=0.76  net_R=-4913.3  $PnL=-368,497  DECAY
+[2026-06-30 14:12:00] [D_short_leg] 3. WALK-FWD IS(60%): n=12946 PF=1.88 net_R=+5690.0
+[2026-06-30 14:12:00] [D_short_leg] 3. WALK-FWD OOS(40%): n=8763 PF=1.81 net_R=+3427.7  ratio=0.96  PASS
+[2026-06-30 14:12:00] [D_short_leg] 4. BLOCK-BOOTSTRAP (1k iters, 30d blocks): P(net<0)=0.00%  p05=+8207.8R  p95=+9996.6R  PASS
+[2026-06-30 14:12:00] [D_short_leg] 5. YEAR-BY-YEAR: pos=21/21  worst 2006=+175.8R  best 2013=+977.5R  PASS
+[2026-06-30 14:12:00] [D_short_leg] 6. SHUFFLE-STRESS (1k yr-perms): true_DD=0.0R  median_perm_DD=0.0R  p_perm_worse=0.0%  WARN
+[2026-06-30 14:12:00] 
+========================================================================================
+[2026-06-30 14:12:00] ### E_dollar_leader: lb=3 h=24 ext=2.618 sl=0.02 all any long ptp=2.0
+[2026-06-30 14:12:00] ========================================================================================
+
+[2026-06-30 14:12:00] [E_dollar_leader] 0. BASELINE cost=$0.30
+[2026-06-30 14:12:01]   n=21868  PF=1.92  MAR=+6.19  WR=42.8%  net_R=+13115.7  $PnL=+983,678  pos=21/21
+[2026-06-30 14:12:03] [E_dollar_leader] 1. DELAY+1 bars (15min)  n=21868  PF=1.95 (102% of baseline)  net_R=+13149.2  $PnL=+986,192  PASS
+[2026-06-30 14:12:04] [E_dollar_leader] 1. DELAY+5 bars (75min)  n=21868  PF=2.09 (109% of baseline)  net_R=+14711.7  $PnL=+1,103,378  PASS
+[2026-06-30 14:12:05] [E_dollar_leader] 1. DELAY+10 bars (150min)  n=21867  PF=2.33 (121% of baseline)  net_R=+17566.1  $PnL=+1,317,460  PASS
+[2026-06-30 14:12:06] [E_dollar_leader] 2. COST=$0.40  n=21868  PF=1.80  net_R=+11922.8  $PnL=+894,209  PASS
+[2026-06-30 14:12:07] [E_dollar_leader] 2. COST=$0.50  n=21868  PF=1.69  net_R=+10729.9  $PnL=+804,740  PASS
+[2026-06-30 14:12:08] [E_dollar_leader] 2. COST=$0.80  n=21868  PF=1.40  net_R=+7151.1  $PnL=+536,333  PASS
+[2026-06-30 14:12:10] [E_dollar_leader] 2. COST=$1.50  n=21868  PF=0.95  net_R=-1199.3  $PnL=-89,950  DECAY
+[2026-06-30 14:12:11] [E_dollar_leader] 3. WALK-FWD IS(60%): n=13211 PF=1.86 net_R=+7439.6
+[2026-06-30 14:12:11] [E_dollar_leader] 3. WALK-FWD OOS(40%): n=8657 PF=2.02 net_R=+5676.1  ratio=1.09  PASS
+[2026-06-30 14:12:12] [E_dollar_leader] 4. BLOCK-BOOTSTRAP (1k iters, 30d blocks): P(net<0)=0.00%  p05=+11910.6R  p95=+14164.7R  PASS
+[2026-06-30 14:12:12] [E_dollar_leader] 5. YEAR-BY-YEAR: pos=21/21  worst 2006=+342.6R  best 2020=+1020.1R  PASS
+[2026-06-30 14:12:12] [E_dollar_leader] 6. SHUFFLE-STRESS (1k yr-perms): true_DD=0.0R  median_perm_DD=0.0R  p_perm_worse=0.0%  WARN
+[2026-06-30 14:12:12] 
+Saved /Users/subash/SUBASH/GoldDigger/research/fib_retrace/intraday_battery/summary.csv
+[2026-06-30 14:12:12] Report written.
+[2026-06-30 14:12:12] DONE.

@@ -93,6 +93,11 @@ def fetch_raw_features(trade_ids: list[str]) -> dict[str, dict]:
     return out
 
 
+ACCOUNT_START = 5000.0
+RISK_PCT_PER_SYMBOL = 0.015  # 1.5% XAU + 1.5% EUR = 3% total
+RISK_DOLLAR_PER_TRADE = ACCOUNT_START * RISK_PCT_PER_SYMBOL  # = $75, monthly reset
+
+
 def build_trades(evidence_dir: Path) -> list[dict]:
     df = pd.read_csv(evidence_dir / "trades_summary.csv")
     # Pull raw_features for fib levels
@@ -158,6 +163,9 @@ def build_trades(evidence_dir: Path) -> list[dict]:
             "outcome_r_total": float(r.outcome_R_total) if not pd.isna(r.outcome_R_total) else 0.0,
             "cost_r": float(r.cost_R) if not pd.isna(r.cost_R) else 0.0,
             "net_r": float(r.net_R) if not pd.isna(r.net_R) else 0.0,
+            # $ PnL at $5k account, 1.5% risk per trade (monthly reset model).
+            "risk_dollar": RISK_DOLLAR_PER_TRADE,
+            "dollar_pnl": float(r.net_R) * RISK_DOLLAR_PER_TRADE if not pd.isna(r.net_R) else 0.0,
             "regime_at_entry": r.regime_at_entry if not pd.isna(r.regime_at_entry) else None,
             "fib_L": float(fib_L) if fib_L is not None else None,
             "fib_H": float(fib_H) if fib_H is not None else None,
@@ -204,16 +212,25 @@ def build_walks(evidence_dir: Path) -> dict[str, list[dict]]:
 
 def build_monthly(evidence_dir: Path) -> list[dict]:
     df = pd.read_csv(evidence_dir / "monthly_breakdown.csv")
+    df["dollar_pnl"] = df["net_R"] * RISK_DOLLAR_PER_TRADE
+    df["return_pct"] = df["dollar_pnl"] / ACCOUNT_START * 100
     return [_jsonable(r._asdict()) for r in df.itertuples(index=False)]
 
 
 def build_daily(evidence_dir: Path) -> list[dict]:
     df = pd.read_csv(evidence_dir / "daily_breakdown.csv")
+    df["dollar_pnl"] = df["net_R"] * RISK_DOLLAR_PER_TRADE
     return [_jsonable(r._asdict()) for r in df.itertuples(index=False)]
 
 
 def build_headline(evidence_dir: Path) -> list[dict]:
     df = pd.read_csv(evidence_dir / "variant_headline.csv")
+    df["dollar_pnl_3mo"] = df["net_R_3mo"] * RISK_DOLLAR_PER_TRADE
+    df["return_pct_3mo"] = df["dollar_pnl_3mo"] / ACCOUNT_START * 100
+    df["avg_year_pnl_extrapolated"] = df["dollar_pnl_3mo"] * 4
+    df["avg_year_return_pct"] = df["return_pct_3mo"] * 4
+    df["risk_dollar_per_trade"] = RISK_DOLLAR_PER_TRADE
+    df["account_start"] = ACCOUNT_START
     return [_jsonable(r._asdict()) for r in df.itertuples(index=False)]
 
 

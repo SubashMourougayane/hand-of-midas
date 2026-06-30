@@ -1,0 +1,45 @@
+{
+  "config": {
+    "pivot_lb": 3,
+    "ext_target": 2.618,
+    "sl_buffer": 0.02,
+    "cost_usd": 0.65,
+    "min_risk_units": 0.5,
+    "ptp_at_r": 1.0,
+    "risk_dollar_per_trade": 75.0,
+    "account_start": 5000.0
+  },
+  "A": {
+    "label": "intraday_a",
+    "n": 10896,
+    "WR_pct": 51.05,
+    "PF": 1.607,
+    "MAR": 2.327,
+    "net_R": 3441.9,
+    "dollar_pnl_lifetime_at_1.5pct": 258143.0,
+    "dollar_pnl_per_year_avg": 12293.0,
+    "pos_years": "21/21"
+  },
+  "D": {
+    "label": "intraday_d",
+    "n": 18065,
+    "WR_pct": 47.14,
+    "PF": 1.401,
+    "MAR": 1.64,
+    "net_R": 4207.0,
+    "dollar_pnl_lifetime_at_1.5pct": 315528.0,
+    "dollar_pnl_per_year_avg": 15025.0,
+    "pos_years": "20/21"
+  },
+  "combined": {
+    "label": "intraday_a_plus_d",
+    "n": 28961,
+    "WR_pct": 48.61,
+    "PF": 1.473,
+    "MAR": 2.982,
+    "net_R": 7648.9,
+    "dollar_pnl_lifetime_at_1.5pct": 573671.0,
+    "dollar_pnl_per_year_avg": 27318.0,
+    "pos_years": "21/21"
+  }
+}

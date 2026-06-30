@@ -79,5 +79,17 @@ def _register_builtins() -> None:
     register("fib_v2_xau_ensemble_ptp1r", _make_ptp_factory(1.0))
     register("fib_v2_xau_ensemble_ptp2r", _make_ptp_factory(2.0))
 
+    # ----- Fib V2 INTRADAY A+D (production port — M15 base + pivots) -----
+    from .fib_v2_intraday import FibV2IntradayA, FibV2IntradayD
+
+    def _fib_v2_intraday_a_factory(**kwargs) -> Strategy:
+        return FibV2IntradayA(**kwargs)
+
+    def _fib_v2_intraday_d_factory(**kwargs) -> Strategy:
+        return FibV2IntradayD(**kwargs)
+
+    register("fib_v2_intraday_a", _fib_v2_intraday_a_factory)
+    register("fib_v2_intraday_d", _fib_v2_intraday_d_factory)
+
 
 _register_builtins()
