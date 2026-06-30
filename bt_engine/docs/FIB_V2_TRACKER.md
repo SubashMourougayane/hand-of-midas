@@ -10,7 +10,18 @@ Plan: `/Users/subash/.claude/plans/ok-now-that-we-piped-fog.md`
 | 4 — Soft-retire SDR-001 + EMA | COMPLETED | 2026-06-30 | 2026-06-30 | n/a | CLI defaults → fib_v2_xau_ensemble; DEPRECATED docstrings; STRATEGY_DEPRECATIONS.md |
 | 5 — Parity gate (BLOCKING) | **PASSED** | 2026-06-30 | 2026-06-30 | 8/8 | XAU long, XAU short, XAU ensemble (count+net_R+summary), EUR ensemble (count+net_R). 10-15% tolerance per lane. |
 | 6 — Live paper-live | COMPLETED | 2026-06-30 | 2026-06-30 | 1/1 + DB verified | Paper-live smoke 264 trades opened/261 closed; full fib metadata persisted; deployment plumbing READY. EA M5 export pending operator. |
-| 7 — Partial-TP safety net | PLANNED | next session | — | — | Port Partial TP 50% at +1R / +2R to bt_engine. Research showed 2-2.6× net R, PF 2.03/1.96, 20/21 pos yrs. See `research/fib_retrace/safety_net_results.csv` + memory `fib-v2-partial-tp-winner.md`. |
+| 7 — Partial-TP safety net | **COMPLETED** | 2026-06-30 | 2026-06-30 | 11 unit + 4 parity + 2 paper-live + 4 evidence variants | PTP+1R / PTP+2R fully ported. Parity passes (<10% drift across XAU + EUR). Evidence pack written; DB persisted with partial_* columns. |
+
+## Phase 7 numbers (real bt_engine production code)
+
+| Variant | n | WR% | PF | net R | partial_hit% |
+|---|---|---|---|---|---|
+| XAU PTP+1R | 4,426 | 54.7 | 2.08 | +2,278 | 54.6 |
+| XAU PTP+2R | 4,426 | 40.3 | 2.03 | +2,859 | 38.3 |
+| EUR PTP+1R | 4,742 | 54.1 | 1.89 | +1,948 | 53.8 |
+| EUR PTP+2R | 4,742 | 38.1 | 1.79 | +2,327 | 35.7 |
+
+Parity drift vs research: count 6.6-6.8%, net 0-3.1%, PF 2.4-4.2%. All within tolerance.
 
 ## Research numbers to match (Phase 5 gate)
 
