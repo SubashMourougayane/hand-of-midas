@@ -48,3 +48,6 @@ research-baseline/data/raw/*.csv
 
 # Anything >100MB silently
 *.bin
+dashboard/tsconfig.tsbuildinfo
+dashboard/dist/
+dashboard/node_modules/

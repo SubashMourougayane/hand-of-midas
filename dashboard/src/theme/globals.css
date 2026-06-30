@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #000;
+  color: #FFB347;
+  font-family: "JetBrains Mono", "IBM Plex Mono", Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #000;
+}
+::-webkit-scrollbar-thumb {
+  background: #FF9933;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FFB347;
+}
+
+/* Selection */
+::selection {
+  background: #FF9933;
+  color: #000;
+}
+
+/* Term blink for status dot */
+@keyframes term-blink {
+  50% { opacity: 0.3; }
+}
+.term-blink {
+  animation: term-blink 1.2s infinite;
+}
