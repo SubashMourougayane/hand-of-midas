@@ -54,12 +54,22 @@ def _cmd_journal(args: argparse.Namespace) -> int:
 def _cmd_live(args: argparse.Namespace) -> int:
     from .live import run_live
     from .live import LiveSafetyConfig
+    from .equity_sizer import EquitySizer, EquitySizerConfig
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
         stream=sys.stdout,
     )
+
+    # Optional Model B 1.5% equity sizer
+    equity_sizer = None
+    if getattr(args, "use_equity_sizer", False):
+        equity_sizer = EquitySizer(EquitySizerConfig(
+            start_balance=args.start_balance,
+            risk_pct=args.risk_pct,
+        ))
+
     result = run_live(
         strategy=args.strategy,
         symbol=args.symbol,
@@ -75,6 +85,7 @@ def _cmd_live(args: argparse.Namespace) -> int:
             max_open_positions=args.max_open_positions,
             max_spread=args.max_spread,
         ),
+        equity_sizer=equity_sizer,
     )
     print("=" * 60)
     print(f"run_id         : {result.run_id}")
@@ -116,6 +127,13 @@ def build_parser() -> argparse.ArgumentParser:
     live.add_argument("--max-open-positions", type=int, default=1)
     live.add_argument("--max-spread", type=float, default=0.50)
     live.add_argument("--allow-non-demo", action="store_true")
+    # Model B equity sizer (Step 6 — Paper-live target)
+    live.add_argument("--use-equity-sizer", action="store_true",
+                       help="Enable Model B 1.5%% asymmetric monthly equity sizer")
+    live.add_argument("--start-balance", type=float, default=5000.0,
+                       help="Initial account equity for equity sizer ($)")
+    live.add_argument("--risk-pct", type=float, default=0.015,
+                       help="Risk per trade as fraction of current equity (default 0.015 = 1.5%%)")
     live.set_defaults(func=_cmd_live)
 
     sl = sub.add_parser("strategies", help="List available strategies")

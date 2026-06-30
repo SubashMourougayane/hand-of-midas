@@ -28,6 +28,7 @@ from ..db.engine import make_engine
 from ..db.models import BtTrade
 from ..db.repo import AccountSnapshotRepo, BarWalkRepo, JournalRepo, RunRepo, SignalRepo, TradeRepo
 from ..execution.dwx_broker import DWXBrokerAdapter
+from .equity_sizer import EquitySizer, EquitySizerConfig
 from ..journal.walker import BarWalkJournal
 from ..strategies import registry
 
@@ -96,12 +97,24 @@ class LiveSafetyConfig:
 
 
 class LiveSafetyBroker:
-    """Guardrail wrapper for real DWX execution."""
+    """Guardrail wrapper for real DWX execution.
 
-    def __init__(self, broker: DWXBrokerAdapter, bridge: DwxBridge, config: LiveSafetyConfig) -> None:
+    Optional `sizer` (EquitySizer) replaces order.qty with equity-based lot size
+    at order-submit time. Strategy emits placeholder qty=1.0; sizer computes the
+    real lot from current equity × risk_pct / (stop_distance × contract_size).
+    """
+
+    def __init__(
+        self,
+        broker: DWXBrokerAdapter,
+        bridge: DwxBridge,
+        config: LiveSafetyConfig,
+        sizer: "EquitySizer | None" = None,
+    ) -> None:
         self.broker = broker
         self.bridge = bridge
         self.config = config
+        self.sizer = sizer  # optional Model B equity sizer
         self.last_submitted_order: Order | None = None
 
     def set_current_bar(self, bar: Bar) -> None:
@@ -133,12 +146,37 @@ class LiveSafetyBroker:
 
     def _safe_order(self, order: Order) -> Order:
         _assert_live_safety(self.bridge, order.symbol, self.config)
-        safe_qty = min(float(order.qty), self.config.max_lot)
+
+        # ─── Equity sizer (if configured): replace placeholder qty=1.0 with equity-based lot ───
+        # Causality: sizer reads current equity (closed-trade pnl only) + order's
+        # stop_distance (from current bar's open). NO future peek.
+        target_qty = float(order.qty)
+        if self.sizer is not None:
+            stop_distance = abs(float(order.stop_price) - float(order.intended_entry_bar.value if hasattr(order.intended_entry_bar, "value") else 0))
+            # Use risk_units (price-units stop distance) instead — already computed in strategy
+            stop_distance = float(order.risk_units)
+            ts = order.intended_entry_bar.to_pydatetime() if hasattr(order.intended_entry_bar, "to_pydatetime") else order.intended_entry_bar
+            sized_qty = self.sizer.size_order(
+                symbol=order.symbol, stop_distance=stop_distance, ts=ts,
+            )
+            if sized_qty <= 0:
+                raise RuntimeError(
+                    f"Sizer rejected order: lot=0 (equity=${self.sizer.equity():.2f}, "
+                    f"stop=${stop_distance:.4f}, symbol={order.symbol})"
+                )
+            log.info(
+                "[SIZER] order.qty %.4f -> %.4f (equity=$%.2f stop=$%.4f)",
+                target_qty, sized_qty, self.sizer.equity(), stop_distance,
+            )
+            target_qty = sized_qty
+
+        # ─── max_lot cap (hard safety) ───
+        safe_qty = min(target_qty, self.config.max_lot)
         if safe_qty <= 0:
             raise RuntimeError("Live safety rejected order: max_lot must be positive")
         if safe_qty != order.qty:
             log.warning(
-                "[LIVE-SAFETY] Capping order qty %.4f -> %.4f for %s tag=%s",
+                "[LIVE-SAFETY] Adjusting order qty %.4f -> %.4f for %s tag=%s",
                 order.qty,
                 safe_qty,
                 order.symbol,
@@ -169,6 +207,7 @@ def run_live(
     strategy_kwargs: dict[str, Any] | None = None,
     live_safety: LiveSafetyConfig | None = None,
     max_wait_s: float | None = None,
+    equity_sizer: EquitySizer | None = None,
 ) -> LiveResult:
     log.info("Starting live run strategy=%s symbol=%s tf=%s dry_run=%s", strategy, symbol, timeframe, dry_run)
     bridge = bridge or DwxBridge()
@@ -217,7 +256,7 @@ def run_live(
     if dry_run:
         broker = DryRunBroker(bridge)
     else:
-        broker = LiveSafetyBroker(DWXBrokerAdapter(bridge), bridge, live_safety)
+        broker = LiveSafetyBroker(DWXBrokerAdapter(bridge), bridge, live_safety, sizer=equity_sizer)
 
     # DB run record
     engine_db = make_engine(db_url) if db_url else make_engine()
@@ -327,6 +366,18 @@ def run_live(
         )
         gross_r = oc.bracket_1r_outcome
         cost_r = float(tr.order.extra.get("cost_r", 0.0))
+        # Equity sizer: update with realized $ pnl on every closed trade.
+        # Causality: only fires on TRADE EXIT (closed) — no open-trade peek.
+        if equity_sizer is not None:
+            net_r = gross_r - cost_r
+            # Translate R to $: lot × contract × stop_distance × net_r
+            from .equity_sizer import CONTRACT_SIZE as _CS
+            contract = _CS.get(tr.order.symbol, 100.0)
+            dollar_pnl = float(tr.fill.qty) * contract * float(tr.risk_units) * float(net_r)
+            equity_sizer.on_trade_closed(
+                pnl_dollars=dollar_pnl,
+                close_ts=_to_dt(oc.exit_timestamp),
+            )
         partial_fill_ts = (
             _to_dt(tr.partial_fill_timestamp)
             if tr.partial_fill_timestamp is not None else None
