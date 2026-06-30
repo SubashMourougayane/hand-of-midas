@@ -18,11 +18,49 @@ from .engine import make_engine
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL on top-level ';' while respecting $$...$$ function bodies.
+
+    Postgres CREATE FUNCTION bodies use ; internally; a naive split() corrupts
+    them. We scan char-by-char and toggle a flag when crossing $$ markers,
+    only splitting when outside any $$ block.
+    """
+    out: list[str] = []
+    buf: list[str] = []
+    in_dollar = False
+    i = 0
+    while i < len(sql):
+        # Detect $$ marker (no tag) — sufficient for our schema.
+        if not in_dollar and sql[i:i+2] == "$$":
+            in_dollar = True
+            buf.append("$$")
+            i += 2
+            continue
+        if in_dollar and sql[i:i+2] == "$$":
+            in_dollar = False
+            buf.append("$$")
+            i += 2
+            continue
+        ch = sql[i]
+        if ch == ";" and not in_dollar:
+            stmt = "".join(buf).strip()
+            if stmt:
+                out.append(stmt)
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        out.append(tail)
+    return out
+
+
 def apply_schema(url: str | None = None) -> None:
     sql = SCHEMA_PATH.read_text()
     engine = make_engine(url) if url else make_engine()
     with engine.begin() as conn:
-        for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
+        for stmt in _split_sql_statements(sql):
             conn.execute(text(stmt))
 
 

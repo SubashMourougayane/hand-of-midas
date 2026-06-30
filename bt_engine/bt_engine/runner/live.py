@@ -413,13 +413,28 @@ def run_live(
     def on_event(ev) -> None:
         detail = dict(ev.detail)
         zone_id = detail.get("zone_id")
-        event_ts = detail.get("entry_timestamp") or detail.get("bar_timestamp")
-        log.info("[SIGNAL] type=%s zone_id=%s ts=%s detail=%s", ev.type, zone_id, event_ts, detail)
+        # bar_ts populated by gate-decision events; fall back to entry/bar fields.
+        event_ts = (
+            detail.get("bar_ts")
+            or detail.get("entry_timestamp")
+            or detail.get("bar_timestamp")
+        )
+        is_gate = ev.type.startswith("GATE_")
+        log_tag = "[GATE]" if is_gate else "[SIGNAL]"
+        log.info(
+            "%s type=%s leg=%s ts=%s reason=%s",
+            log_tag, ev.type,
+            detail.get("leg"), event_ts, detail.get("reason"),
+        ) if is_gate else log.info(
+            "[SIGNAL] type=%s zone_id=%s ts=%s detail=%s",
+            ev.type, zone_id, event_ts, detail,
+        )
         signal_repo.insert(
             run_id=run_id,
             ts=_to_dt(pd.Timestamp(event_ts)) if event_ts is not None else datetime.now(timezone.utc),
             status=ev.type,
             zone_id=int(zone_id) if zone_id is not None else None,
+            reason=detail.get("reason") if is_gate else None,
             detail={"trade_or_zone_id": ev.trade_or_zone_id, **detail},
         )
         live_session.commit()

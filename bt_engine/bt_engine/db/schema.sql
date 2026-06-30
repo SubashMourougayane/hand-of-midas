@@ -135,3 +135,89 @@ CREATE TABLE IF NOT EXISTS bt_account_snapshot (
   open_position INT,
   UNIQUE(run_id, ts)
 );
+
+-- ─── NOTIFY triggers for live dashboard (Option D) ───────────────────────────
+-- Each table emits a NOTIFY on the channel matching its name after every INSERT.
+-- Payload is small: {pk, run_id, ts, type/status} so we stay under the 8KB
+-- pg_notify limit. Dashboard client refetches full row via REST.
+
+CREATE OR REPLACE FUNCTION notify_bt_journal_event() RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('bt_journal_events', json_build_object(
+    'event_id',   NEW.event_id,
+    'trade_id',   NEW.trade_id,
+    'run_id',     NEW.run_id,
+    'ts',         NEW.ts,
+    'event_type', NEW.event_type
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_notify_bt_journal_event ON bt_journal_events;
+CREATE TRIGGER trg_notify_bt_journal_event
+  AFTER INSERT ON bt_journal_events
+  FOR EACH ROW EXECUTE FUNCTION notify_bt_journal_event();
+
+CREATE OR REPLACE FUNCTION notify_bt_signal() RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('bt_signals', json_build_object(
+    'signal_id', NEW.signal_id,
+    'run_id',    NEW.run_id,
+    'ts',        NEW.ts,
+    'status',    NEW.status,
+    'zone_id',   NEW.zone_id,
+    'reason',    NEW.reason
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_notify_bt_signal ON bt_signals;
+CREATE TRIGGER trg_notify_bt_signal
+  AFTER INSERT ON bt_signals
+  FOR EACH ROW EXECUTE FUNCTION notify_bt_signal();
+
+CREATE OR REPLACE FUNCTION notify_bt_trade() RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('bt_trades', json_build_object(
+    'trade_id',        NEW.trade_id,
+    'run_id',          NEW.run_id,
+    'entry_timestamp', NEW.entry_timestamp,
+    'exit_timestamp',  NEW.exit_timestamp,
+    'direction',       NEW.direction,
+    'leg',             NEW.leg,
+    'net_r',           NEW.net_r
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_notify_bt_trade_insert ON bt_trades;
+CREATE TRIGGER trg_notify_bt_trade_insert
+  AFTER INSERT ON bt_trades
+  FOR EACH ROW EXECUTE FUNCTION notify_bt_trade();
+
+DROP TRIGGER IF EXISTS trg_notify_bt_trade_update ON bt_trades;
+CREATE TRIGGER trg_notify_bt_trade_update
+  AFTER UPDATE OF exit_timestamp, exit_price, exit_reason, net_r ON bt_trades
+  FOR EACH ROW EXECUTE FUNCTION notify_bt_trade();
+
+CREATE OR REPLACE FUNCTION notify_bt_account_snapshot() RETURNS trigger AS $$
+BEGIN
+  PERFORM pg_notify('bt_account_snapshot', json_build_object(
+    'snap_id',       NEW.snap_id,
+    'run_id',        NEW.run_id,
+    'ts',            NEW.ts,
+    'equity',        NEW.equity,
+    'balance',       NEW.balance,
+    'open_position', NEW.open_position
+  )::text);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_notify_bt_account_snapshot ON bt_account_snapshot;
+CREATE TRIGGER trg_notify_bt_account_snapshot
+  AFTER INSERT ON bt_account_snapshot
+  FOR EACH ROW EXECUTE FUNCTION notify_bt_account_snapshot();

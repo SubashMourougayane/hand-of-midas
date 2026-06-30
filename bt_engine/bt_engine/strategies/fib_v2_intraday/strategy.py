@@ -31,6 +31,7 @@ import pandas as pd
 from ...core.bar import Bar
 from ...core.order import Order
 from ...core.signal import StepResult, StrategyEvent
+from ...journal.events import JournalEvent
 from ..fib_v2.config import LegSpec
 from ..fib_v2.pivot_tracker import PivotEvent
 from ..fib_v2.state import FibSetup, FibV2State
@@ -112,6 +113,10 @@ class FibV2IntradayBase(FibV2EnsembleStrategy):
         Effect: setup created at bar K is eligible for entry starting bar K+1.
         """
         if bar.timestamp == setup.setup_confirm_ts:
+            self._emit_gate(
+                JournalEvent.GATE_SIGNAL_STRICT_AFTER_FAIL, bar.timestamp,
+                leg_name=leg.leg_name, setup=setup,
+            )
             return False
         return super()._signal_bar_matches(state, bar, leg, setup)
 
@@ -143,6 +148,12 @@ class FibV2IntradayBase(FibV2EnsembleStrategy):
 
         # ─── Gate A: min risk floor ────────────────────────────────
         if order.risk_units < self._intraday_cfg.min_risk_units:
+            self._emit_gate(
+                JournalEvent.GATE_FINALIZE_MIN_RISK_FLOOR, bar.timestamp,
+                leg_name=leg.leg_name, setup=setup,
+                risk_units=float(order.risk_units),
+                min_risk_units=self._intraday_cfg.min_risk_units,
+            )
             return None, None
 
         # ─── Gate B: (entry_ts, side, leg_name) dedup ──────────────
@@ -153,6 +164,11 @@ class FibV2IntradayBase(FibV2EnsembleStrategy):
             return order, event
         key = (bar.timestamp, int(setup.side), leg.leg_name)
         if key in state.consumed_entry_keys:
+            self._emit_gate(
+                JournalEvent.GATE_FINALIZE_DEDUP_COLLISION, bar.timestamp,
+                leg_name=leg.leg_name, setup=setup,
+                side=int(setup.side),
+            )
             return None, None
         state.consumed_entry_keys.add(key)
 

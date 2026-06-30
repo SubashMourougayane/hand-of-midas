@@ -49,6 +49,7 @@ import pandas as pd
 from ...core.bar import Bar
 from ...core.order import Order
 from ...core.signal import StepResult, StrategyEvent
+from ...journal.events import JournalEvent
 from ..base import Strategy
 from .config import (
     COST_USD_DEFAULTS,
@@ -119,6 +120,61 @@ class FibV2EnsembleStrategy(Strategy):
         self._mtf = multi_tf_view
         self._h1_idx = 0  # next H1 bar pointer (idx in mtf.h1 to ingest next)
         self._d1_idx = 0
+        # Gate-decision event buffer (Option D instrumentation).
+        # Drained at the end of every on_bar into StepResult.new_events so the
+        # engine + runner can route GATE_* events to bt_signals. Pure-write —
+        # gate emit changes NO control flow → parity preserved.
+        self._gate_buf: list[StrategyEvent] = []
+        # Monotonic id for pre-trade gate events (no trade_id yet at gate time).
+        # Reset per-instance; carries no semantic meaning beyond uniqueness.
+        self._gate_seq: int = 0
+
+    def _emit_gate(
+        self,
+        event_type: JournalEvent,
+        bar_ts: pd.Timestamp,
+        *,
+        leg_name: str | None = None,
+        setup: FibSetup | None = None,
+        **extra,
+    ) -> None:
+        """Buffer a gate-decision event for emission via StepResult.new_events.
+
+        Pure-write side effect. Caller must NOT depend on return value for
+        control flow.
+        """
+        self._gate_seq += 1
+        detail: dict = {"bar_ts": str(bar_ts), "seq": self._gate_seq}
+        if leg_name is not None:
+            detail["leg"] = leg_name
+        if setup is not None:
+            detail.update(
+                setup_confirm_ts=str(setup.setup_confirm_ts),
+                side=int(setup.side),
+                fib_L=float(setup.L),
+                fib_H=float(setup.H),
+                fib_diff=float(setup.diff),
+                fib_382=float(setup.fib_382),
+                fib_786=float(setup.fib_786),
+                fib_100=float(setup.fib_100),
+                sl_price=float(setup.sl_price),
+                tp_price=float(setup.tp_price),
+            )
+        if extra:
+            for k, v in extra.items():
+                # Coerce numpy/pandas scalars to JSON-safe.
+                if hasattr(v, "item") and not isinstance(v, (str, bytes)):
+                    try:
+                        v = v.item()
+                    except Exception:
+                        pass
+                detail[k] = v
+        # Use seq as opaque id since there is no trade_id at gate time.
+        self._gate_buf.append(StrategyEvent(
+            trade_or_zone_id=f"gate_{self._gate_seq}",
+            type=event_type.value,
+            detail=detail,
+        ))
 
     # ----- engine hooks -----
 
@@ -174,6 +230,12 @@ class FibV2EnsembleStrategy(Strategy):
         #    Research builds a new setup at EVERY pivot event. We mirror this:
         #    each new pivot event appends a setup to the pending list per leg.
         for pe in new_h1_pivots:
+            self._emit_gate(
+                JournalEvent.GATE_PIVOT_DETECTED, bar.timestamp,
+                pivot_type=pe.type,
+                pivot_price=float(pe.price),
+                pivot_confirm_ts=str(pe.confirm_ts),
+            )
             if pe.type == "L":
                 state.last_L = pe.price
                 state.last_L_ts = pe.confirm_ts
@@ -185,9 +247,14 @@ class FibV2EnsembleStrategy(Strategy):
                 continue
             for leg in self.legs:
                 setup = self._build_setup(leg, state.last_L, state.last_L_ts,
-                                          state.last_H, state.last_H_ts)
+                                          state.last_H, state.last_H_ts,
+                                          _gate_emit_bar_ts=bar.timestamp)
                 if setup is None:
                     continue
+                self._emit_gate(
+                    JournalEvent.GATE_SETUP_BUILT, bar.timestamp,
+                    leg_name=leg.leg_name, setup=setup,
+                )
                 key = (leg.leg_name, setup.setup_confirm_ts)
                 if key in state.consumed_setup_keys:
                     continue
@@ -219,7 +286,21 @@ class FibV2EnsembleStrategy(Strategy):
                     state.consumed_setup_keys.add((leg.leg_name, setup.setup_confirm_ts))
                     continue
                 # Check expiry / invalidation.
-                if _setup_invalidated_or_expired(setup, bar, self.config.max_hold_h):
+                inv_reason = _setup_invalidation_reason(setup, bar, self.config.max_hold_h)
+                if inv_reason is not None:
+                    if inv_reason == "invalidated":
+                        self._emit_gate(
+                            JournalEvent.GATE_SETUP_INVALIDATED, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            bar_close=float(bar.close),
+                            reason="setup_walk_invalidated",
+                        )
+                    else:
+                        self._emit_gate(
+                            JournalEvent.GATE_SETUP_EXPIRED, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            max_hold_h=self.config.max_hold_h,
+                        )
                     state.consumed_setup_keys.add((leg.leg_name, setup.setup_confirm_ts))
                     continue
                 survivors.append(setup)
@@ -231,6 +312,12 @@ class FibV2EnsembleStrategy(Strategy):
         # 7) Cache prev bar for next call's confirmation-candle check.
         state.prev_open = bar.open
         state.prev_close = bar.close
+
+        # 8) Drain gate-decision buffer (Option D instrumentation).
+        #    Gate emit is pure-write — does NOT alter control flow.
+        if self._gate_buf:
+            events.extend(self._gate_buf)
+            self._gate_buf.clear()
 
         return StepResult(state=state, new_orders=tuple(orders), new_events=tuple(events))
 
@@ -341,13 +428,31 @@ class FibV2EnsembleStrategy(Strategy):
         L_ts: pd.Timestamp,
         H: float,
         H_ts: pd.Timestamp,
+        _gate_emit_bar_ts: Optional[pd.Timestamp] = None,
     ) -> Optional[FibSetup]:
-        """Build a FibSetup for the leg. Returns None if ordering/diff invalid."""
+        """Build a FibSetup for the leg. Returns None if ordering/diff invalid.
+
+        `_gate_emit_bar_ts` is an instrumentation hook — when provided, gate
+        rejections emit events tagged with the bar that triggered the build.
+        Pure-write side effect; does not alter control flow.
+        """
         if leg.direction == "long":
             if H_ts <= L_ts:
+                if _gate_emit_bar_ts is not None:
+                    self._emit_gate(
+                        JournalEvent.GATE_SETUP_REJECT_PIVOT_ORDER, _gate_emit_bar_ts,
+                        leg_name=leg.leg_name, direction="long",
+                        L_ts=str(L_ts), H_ts=str(H_ts),
+                    )
                 return None
             diff = H - L
             if diff <= 0:
+                if _gate_emit_bar_ts is not None:
+                    self._emit_gate(
+                        JournalEvent.GATE_SETUP_REJECT_DIFF, _gate_emit_bar_ts,
+                        leg_name=leg.leg_name, direction="long",
+                        L=float(L), H=float(H), diff=float(diff),
+                    )
                 return None
             fib_382 = H - 0.382 * diff
             fib_786 = H - 0.786 * diff
@@ -357,9 +462,21 @@ class FibV2EnsembleStrategy(Strategy):
             side = 1
         else:
             if L_ts <= H_ts:
+                if _gate_emit_bar_ts is not None:
+                    self._emit_gate(
+                        JournalEvent.GATE_SETUP_REJECT_PIVOT_ORDER, _gate_emit_bar_ts,
+                        leg_name=leg.leg_name, direction="short",
+                        L_ts=str(L_ts), H_ts=str(H_ts),
+                    )
                 return None
             diff = H - L
             if diff <= 0:
+                if _gate_emit_bar_ts is not None:
+                    self._emit_gate(
+                        JournalEvent.GATE_SETUP_REJECT_DIFF, _gate_emit_bar_ts,
+                        leg_name=leg.leg_name, direction="short",
+                        L=float(L), H=float(H), diff=float(diff),
+                    )
                 return None
             fib_382 = L + 0.382 * diff
             fib_786 = L + 0.786 * diff
@@ -395,11 +512,20 @@ class FibV2EnsembleStrategy(Strategy):
         """Check if signal bar k matches entry conditions. Risk check is DEFERRED
         to _finalize_entry on the next bar (which uses bar.open = research's
         m5.open[k+1] for entry_price).
+
+        Gate-rejection events are emitted at every fail point (Option D
+        instrumentation). Gate emit is pure-write — control flow unchanged.
         """
         # 1) Invalidation (research: cl < fib_100 (long) → break).
         if leg.direction == "long" and bar.close < setup.fib_100:
+            self._emit_gate(JournalEvent.GATE_SETUP_INVALIDATED, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            bar_close=float(bar.close), reason="close<fib_100")
             return False
         if leg.direction == "short" and bar.close > setup.fib_100:
+            self._emit_gate(JournalEvent.GATE_SETUP_INVALIDATED, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            bar_close=float(bar.close), reason="close>fib_100")
             return False
 
         # 2) Zone check.
@@ -408,18 +534,31 @@ class FibV2EnsembleStrategy(Strategy):
         else:
             in_zone = setup.fib_382 <= bar.close <= setup.fib_786
         if not in_zone:
+            self._emit_gate(JournalEvent.GATE_SIGNAL_ZONE_MISS, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            bar_close=float(bar.close))
             return False
 
         # 3) Session.
         if not _in_session(_ny_hour(bar.timestamp), self.config.session):
+            self._emit_gate(JournalEvent.GATE_SIGNAL_SESSION_FAIL, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            ny_hr=_ny_hour(bar.timestamp),
+                            session=self.config.session)
             return False
 
         # 4) Regime gate.
         if not state.regime_tracker.gate_passes(leg.regime, bar.timestamp):
+            self._emit_gate(JournalEvent.GATE_SIGNAL_REGIME_FAIL, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            regime=leg.regime)
             return False
 
         # 5) Confirmation candle.
         if state.prev_open is None or state.prev_close is None:
+            self._emit_gate(JournalEvent.GATE_SIGNAL_CONFIRM_FAIL, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            reason="no_prev_bar")
             return False
         prev_red = state.prev_close < state.prev_open
         prev_green = state.prev_close > state.prev_open
@@ -433,7 +572,15 @@ class FibV2EnsembleStrategy(Strategy):
             )
             lower_wick = min(bar.open, bar.close) - bar.low
             pin = rng > 0 and lower_wick > 0.5 * rng
-            return bull_eng or pin
+            if bull_eng or pin:
+                self._emit_gate(JournalEvent.GATE_SIGNAL_PASSED, bar.timestamp,
+                                leg_name=leg.leg_name, setup=setup,
+                                pattern="bull_eng" if bull_eng else "lower_pin")
+                return True
+            self._emit_gate(JournalEvent.GATE_SIGNAL_CONFIRM_FAIL, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            reason="no_bull_eng_no_lower_pin")
+            return False
         else:
             bear_eng = (
                 prev_green
@@ -443,7 +590,15 @@ class FibV2EnsembleStrategy(Strategy):
             )
             upper_wick = bar.high - max(bar.open, bar.close)
             pin = rng > 0 and upper_wick > 0.5 * rng
-            return bear_eng or pin
+            if bear_eng or pin:
+                self._emit_gate(JournalEvent.GATE_SIGNAL_PASSED, bar.timestamp,
+                                leg_name=leg.leg_name, setup=setup,
+                                pattern="bear_eng" if bear_eng else "upper_pin")
+                return True
+            self._emit_gate(JournalEvent.GATE_SIGNAL_CONFIRM_FAIL, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            reason="no_bear_eng_no_upper_pin")
+            return False
 
     def _finalize_entry(
         self, bar: Bar, leg: LegSpec, setup: FibSetup,
@@ -457,8 +612,15 @@ class FibV2EnsembleStrategy(Strategy):
         else:
             risk = setup.sl_price - entry_price
         if risk <= 0 or not math.isfinite(risk):
+            self._emit_gate(JournalEvent.GATE_FINALIZE_RISK_INVALID, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            entry_price=float(entry_price), risk=float(risk))
             return None, None
         if risk > self.config.max_risk_pct * entry_price:
+            self._emit_gate(JournalEvent.GATE_FINALIZE_RISK_PCT_CAP, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            entry_price=float(entry_price), risk=float(risk),
+                            max_risk_pct=self.config.max_risk_pct)
             return None, None
 
         # Engine fills at bar.timestamp = signal_bar.timestamp + 5min.
@@ -524,15 +686,25 @@ class FibV2EnsembleStrategy(Strategy):
             )
 
 
-def _setup_invalidated_or_expired(setup: FibSetup, bar: Bar, max_hold_h: int) -> bool:
-    """Return True if setup is invalidated or expired."""
+def _setup_invalidation_reason(setup: FibSetup, bar: Bar, max_hold_h: int) -> Optional[str]:
+    """Return 'invalidated' / 'expired' / None.
+
+    Drop-in replacement for `_setup_invalidated_or_expired` that distinguishes
+    cause so instrumentation can emit the correct gate event.
+    """
     if setup.side > 0 and bar.close < setup.fib_100:
-        return True
+        return "invalidated"
     if setup.side < 0 and bar.close > setup.fib_100:
-        return True
-    # Expired = bar past setup_confirm_ts + max_hold_h hours
+        return "invalidated"
     expiry = setup.setup_confirm_ts + pd.Timedelta(hours=max_hold_h)
-    return bar.timestamp > expiry
+    if bar.timestamp > expiry:
+        return "expired"
+    return None
+
+
+def _setup_invalidated_or_expired(setup: FibSetup, bar: Bar, max_hold_h: int) -> bool:
+    """Back-compat wrapper. Prefer `_setup_invalidation_reason` for new code."""
+    return _setup_invalidation_reason(setup, bar, max_hold_h) is not None
 
 
 class FibV2LongStrategy(FibV2EnsembleStrategy):
