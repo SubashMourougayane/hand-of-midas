@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fib V2 — Mar-Apr-May 2026 Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<!-- Data payloads (loaded via <script src> so file:// works without fetch) -->
+<script src="data/headline.js"></script>
+<script src="data/monthly.js"></script>
+<script src="data/daily.js"></script>
+<script src="data/trades.js"></script>
+<script src="data/walks.js"></script>
+<!-- Libraries (CDN) -->
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1"></script>
+</head>
+<body>
+<div class="app">
+    <aside class="nav">
+        <h1>Fib V2 Dashboard<small>Mar-Apr-May 2026</small></h1>
+        <a href="#headline" class="active">Headline</a>
+        <a href="#monthly">Monthly</a>
+        <a href="#outcomes">Outcomes</a>
+        <a href="#heatmap">Daily heatmap</a>
+        <a href="#equity">Equity curve</a>
+        <a href="#trades">Trade table</a>
+        <a href="#histogram">R distribution</a>
+    </aside>
+
+    <main class="main">
+        <!-- Section 1: Headline KPIs -->
+        <section id="headline">
+            <h2>Headline — 3-month summary by strategy</h2>
+            <div class="sub">Same signals, different exit rules. Same risk per trade. Same broker costs.</div>
+            <div class="kpi-grid" id="kpiGrid"></div>
+        </section>
+
+        <!-- Section 2: Monthly performance -->
+        <section id="monthly">
+            <h2>Monthly performance</h2>
+            <div class="sub">Net R per variant × symbol × month. Toggle metric below.</div>
+            <div class="chart-card">
+                <div class="controls">
+                    <button data-metric="net_R" class="active">Net R</button>
+                    <button data-metric="win_rate_pct">Win rate %</button>
+                    <button data-metric="total_trades">Total trades</button>
+                </div>
+                <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Section 3: Outcome distribution -->
+        <section id="outcomes">
+            <h2>Outcome distribution per variant</h2>
+            <div class="sub">How each variant exited trades. Hover for counts.</div>
+            <div class="chart-grid-3" id="outcomeCharts"></div>
+        </section>
+
+        <!-- Section 4: Daily heatmap -->
+        <section id="heatmap">
+            <h2>Daily net R heatmap</h2>
+            <div class="sub">Each cell = net R for that variant × symbol × day. Green positive, red negative.</div>
+            <div class="chart-card">
+                <div class="chart-wrap" style="height: 420px;"><canvas id="heatmapChart"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Section 5: Equity curve -->
+        <section id="equity">
+            <h2>Cumulative net R per variant</h2>
+            <div class="sub">Equity curves across the 3 months. Sequenced by entry timestamp.</div>
+            <div class="chart-card">
+                <div class="chart-wrap"><canvas id="equityChart"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Section 6: Trade table -->
+        <section id="trades">
+            <h2>All trades</h2>
+            <div class="sub">Click <b>Simulate</b> to replay any trade bar-by-bar with fib levels overlay.</div>
+            <div class="table-controls">
+                <div id="filterChips"></div>
+                <input type="search" id="tradeSearch" placeholder="Search trade_ref or trade_id...">
+                <span id="tradeCount" class="chip"></span>
+            </div>
+            <div class="table-wrap">
+                <table id="tradeTable">
+                    <thead>
+                        <tr>
+                            <th data-sort="trade_ref">Trade</th>
+                            <th data-sort="strategy">Strategy</th>
+                            <th data-sort="symbol">Symbol</th>
+                            <th data-sort="side">Side</th>
+                            <th data-sort="entry_ts">Entry</th>
+                            <th data-sort="exit_ts">Exit</th>
+                            <th data-sort="bars_held" class="num">Bars</th>
+                            <th data-sort="outcome">Outcome</th>
+                            <th data-sort="partial_r_locked" class="num">Partial R</th>
+                            <th data-sort="net_r" class="num">Net R</th>
+                            <th data-sort="regime_at_entry">Regime</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeTbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Section 7: R histogram -->
+        <section id="histogram">
+            <h2>R-multiple distribution</h2>
+            <div class="sub">Net R per trade, 0.5R bins per variant.</div>
+            <div class="chart-card">
+                <div class="chart-wrap short"><canvas id="histogramChart"></canvas></div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Simulator modal -->
+<div class="modal-overlay" id="simModal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="ref" id="simRef">FIB-...</span>
+            <span class="meta-pill" id="simStrategy"></span>
+            <span class="meta-pill" id="simSymbol"></span>
+            <span class="pill" id="simSidePill"></span>
+            <span class="meta-pill" id="simRegime"></span>
+            <span class="pill" id="simOutcomePill"></span>
+            <button class="modal-close" id="simClose">Close</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-meta-strip">
+                <div><div class="label">Entry</div><div class="value" id="metaEntry"></div></div>
+                <div><div class="label">Exit</div><div class="value" id="metaExit"></div></div>
+                <div><div class="label">Bars</div><div class="value" id="metaBars"></div></div>
+                <div><div class="label">Entry price</div><div class="value" id="metaEntryPx"></div></div>
+                <div><div class="label">SL → TP</div><div class="value" id="metaSlTp"></div></div>
+                <div><div class="label">Net R</div><div class="value" id="metaNetR"></div></div>
+            </div>
+            <div id="simChart"></div>
+            <div class="legend">
+                <span><i style="background:#888;"></i> fib_H (pivot high)</span>
+                <span><i style="background:#888;"></i> fib_L (pivot low)</span>
+                <span><i class="dashed" style="color:#38d4cf;"></i> fib_0.382</span>
+                <span><i class="dashed" style="color:#38d4cf;"></i> fib_0.786</span>
+                <span><i class="dashed" style="color:#888;"></i> fib_100 (invalidation)</span>
+                <span><i style="background:#f0c050;"></i> Entry</span>
+                <span><i style="background:#e0584e;"></i> Stop</span>
+                <span><i style="background:#4eb98c;"></i> TP (1.618 ext)</span>
+                <span><i class="dashed" style="color:#ff9456;"></i> Partial-TP trigger</span>
+            </div>
+            <div class="sim-controls">
+                <button class="play" id="btnPlay">▶ Play</button>
+                <button id="btnStep">Step ▶</button>
+                <button id="btnReset">⟲ Reset</button>
+                <div class="speed-wrap">Speed:
+                    <input type="range" id="speedSlider" min="1" max="60" value="10">
+                    <span id="speedLabel">10×</span>
+                </div>
+                <div class="sim-counter">Bar <span id="barIdx">0</span> / <span id="barTotal">0</span> &nbsp;|&nbsp; <span id="barTs">—</span></div>
+            </div>
+            <div class="sim-readouts">
+                <div><div class="label">OHLC</div><div class="value" id="rOHLC">—</div></div>
+                <div><div class="label">Running MFE</div><div class="value" id="rMfe">—</div></div>
+                <div><div class="label">Running MAE</div><div class="value" id="rMae">—</div></div>
+                <div><div class="label">Unrealized R</div><div class="value" id="rUnr">—</div></div>
+                <div><div class="label">Dist to stop (R)</div><div class="value" id="rDS">—</div></div>
+                <div><div class="label">Dist to TP (R)</div><div class="value" id="rDT">—</div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

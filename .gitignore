@@ -18,8 +18,15 @@ runs/oil_micro/bt/*
 !runs/oil_micro/bt/.gitkeep
 
 # bt_engine evidence pack: 1.4GB of regenerable CSVs (re-emit via build_fib_v2_evidence_pack.py)
-bt_engine/evidence/
+bt_engine/evidence/*
 bt_engine/output/
+
+# Track the Mar-Apr-May 2026 dashboard (HTML + JS + CSS) but NOT its data/ payload
+# (regenerable via scripts/build_dashboard.py).
+!bt_engine/evidence/mar_apr_may_2026/
+bt_engine/evidence/mar_apr_may_2026/*
+!bt_engine/evidence/mar_apr_may_2026/dashboard/
+bt_engine/evidence/mar_apr_may_2026/dashboard/data/
 
 # Local scratch
 try/
