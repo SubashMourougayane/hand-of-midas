@@ -84,6 +84,10 @@ class TradeRepo:
         cost_r: float,
         gross_r: float,
         net_r: float,
+        partial_taken: bool | None = None,
+        partial_r: float | None = None,
+        partial_fill_price: float | None = None,
+        partial_fill_ts: datetime | None = None,
     ) -> None:
         trade = self.s.get(BtTrade, trade_id)
         if trade is None:
@@ -96,6 +100,14 @@ class TradeRepo:
         trade.cost_r = cost_r
         trade.gross_r = gross_r
         trade.net_r = net_r
+        if partial_taken is not None:
+            trade.partial_taken = partial_taken
+        if partial_r is not None:
+            trade.partial_r = partial_r
+        if partial_fill_price is not None:
+            trade.partial_fill_price = partial_fill_price
+        if partial_fill_ts is not None:
+            trade.partial_fill_ts = partial_fill_ts
         self.s.flush()
 
 

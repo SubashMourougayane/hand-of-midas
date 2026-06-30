@@ -107,6 +107,67 @@ def test_trade_repo_open_and_close(db_session, run_id) -> None:
     assert fetched.net_r == 0.98
 
 
+def test_trade_repo_close_persists_partial_tp_fields(db_session, run_id) -> None:
+    """TradeRepo.close() must persist partial-TP outcome fields when supplied.
+    Regression guard for Phase 7 audit finding: live path was dropping partial data.
+    """
+    RunRepo(db_session).create(
+        run_id=run_id, ref="r-ptp", mode="bt", strategy_id="fib_v2_xau_ensemble_ptp1r",
+        strategy_config={"partial_tp_at_r": 1.0, "partial_tp_pct": 0.5},
+        symbol="X", timeframe="M5",
+        start_ts=_now(), data_provider="csv",
+    )
+    repo = TradeRepo(db_session)
+    trade = _make_trade(run_id)
+    repo.upsert_open(trade)
+
+    partial_ts = _now()
+    repo.close(
+        trade.trade_id,
+        exit_timestamp=_now(),
+        exit_price=1340.0,
+        exit_reason="TP",
+        bars_held=20,
+        bracket_1r_outcome=2.5,
+        cost_r=0.02,
+        gross_r=2.5,
+        net_r=2.48,
+        partial_taken=True,
+        partial_r=0.5,
+        partial_fill_price=1335.0,
+        partial_fill_ts=partial_ts,
+    )
+    fetched = db_session.get(BtTrade, trade.trade_id)
+    db_session.refresh(fetched)
+    assert fetched.partial_taken is True
+    assert fetched.partial_r == 0.5
+    assert fetched.partial_fill_price == 1335.0
+    assert fetched.partial_fill_ts is not None
+
+
+def test_trade_repo_close_omits_partial_when_not_supplied(db_session, run_id) -> None:
+    """Baseline path (no partial_tp configured) must not touch partial columns."""
+    RunRepo(db_session).create(
+        run_id=run_id, ref="r-base", mode="bt", strategy_id="fib_v2_xau_ensemble",
+        strategy_config={}, symbol="X", timeframe="M5",
+        start_ts=_now(), data_provider="csv",
+    )
+    repo = TradeRepo(db_session)
+    trade = _make_trade(run_id)
+    repo.upsert_open(trade)
+    repo.close(
+        trade.trade_id,
+        exit_timestamp=_now(), exit_price=1335.0, exit_reason="TP",
+        bars_held=12, bracket_1r_outcome=1.0,
+        cost_r=0.02, gross_r=1.0, net_r=0.98,
+    )
+    fetched = db_session.get(BtTrade, trade.trade_id)
+    db_session.refresh(fetched)
+    # Default-None — not set by repo, not overwritten.
+    assert fetched.partial_taken is None
+    assert fetched.partial_r is None
+
+
 def test_journal_repo_insert(db_session, run_id) -> None:
     RunRepo(db_session).create(
         run_id=run_id, ref="r", mode="bt", strategy_id="sdr001",

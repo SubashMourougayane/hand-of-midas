@@ -327,6 +327,10 @@ def run_live(
         )
         gross_r = oc.bracket_1r_outcome
         cost_r = float(tr.order.extra.get("cost_r", 0.0))
+        partial_fill_ts = (
+            _to_dt(tr.partial_fill_timestamp)
+            if tr.partial_fill_timestamp is not None else None
+        )
         trade_repo.close(
             tr.trade_id,
             exit_timestamp=_to_dt(oc.exit_timestamp),
@@ -337,6 +341,13 @@ def run_live(
             cost_r=cost_r,
             gross_r=gross_r,
             net_r=gross_r - cost_r,
+            partial_taken=bool(tr.partial_taken),
+            partial_r=float(tr.partial_filled_r),
+            partial_fill_price=(
+                float(tr.partial_fill_price)
+                if tr.partial_fill_price is not None else None
+            ),
+            partial_fill_ts=partial_fill_ts,
         )
         journal_repo.insert(
             trade_id=tr.trade_id,
@@ -469,7 +480,15 @@ def _infer_server_utc_offset_hours(bridge: DwxBridge, symbol: str) -> int:
     return 0
 
 def _to_dt(ts) -> datetime:
-    return pd.Timestamp(ts).to_pydatetime()
+    """Convert any timestamp-like to tz-aware datetime in UTC.
+
+    Defensive: live broker fills may carry naive timestamps. We assume naive ==
+    UTC (live engine drives UTC bars). This prevents silent tz drift in DB writes.
+    """
+    t = pd.Timestamp(ts)
+    if t.tzinfo is None:
+        t = t.tz_localize("UTC")
+    return t.to_pydatetime()
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -490,8 +509,8 @@ def _safe_account_info(bridge: DwxBridge) -> dict[str, Any]:
 
 
 def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, timeframe: str) -> BtTrade:
-    extra = tr.order.extra
-    direction = str(extra.get("direction") or ("demand" if tr.side > 0 else "supply"))
+    extra = tr.order.extra or {}
+    direction = str(extra.get("direction") or ("long" if tr.side > 0 else "short"))
     return BtTrade(
         trade_id=tr.trade_id,
         trade_ref=f"{strategy_id.upper()}-{tr.trade_id.hex[:12]}",
@@ -511,6 +530,21 @@ def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, t
         stop_price=tr.stop_price,
         take_profit_price=tr.take_profit,
         risk_units=tr.risk_units,
+        # Fib V2 columns (alembic 0002) — populated from strategy.order.extra
+        pivot_lb=int(extra["pivot_lb"]) if extra.get("pivot_lb") is not None else None,
+        regime=extra.get("regime"),
+        ext_target_pct=_float_or_none(extra.get("ext_target_pct")),
+        sl_buffer_pct=_float_or_none(extra.get("sl_buffer_pct")),
+        fib_diff=_float_or_none(extra.get("fib_diff")),
+        regime_at_entry=extra.get("regime_at_entry"),
+        leg=extra.get("leg"),
+        # Partial-TP columns (alembic 0003) — strategy config defaults; live walker fills outcome columns at close.
+        partial_tp_at_r=_float_or_none(extra.get("partial_tp_at_r")),
+        partial_tp_pct=_float_or_none(extra.get("partial_tp_pct")),
+        partial_taken=False,
+        partial_r=0.0,
+        partial_fill_price=None,
+        partial_fill_ts=None,
         raw_features=extra,
     )
 
