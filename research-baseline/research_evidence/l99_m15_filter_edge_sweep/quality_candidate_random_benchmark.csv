@@ -1,0 +1,2 @@
+rule,events,rule_net_r,random_p05,random_p50,random_p95,prob_random_ge_rule
+body_ge_45+cost_le_0p05+ema8_aligned+fast_confirm_1+orb_reversal,188,72.37832368201278,-25.201911333034943,-2.9731410873887993,18.90127544506482,0.0

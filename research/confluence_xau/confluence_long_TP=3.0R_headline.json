@@ -1,0 +1,30 @@
+{
+  "family": "confluence_xau",
+  "pattern": "confluence_long_TP=3.0R",
+  "ts_run": 1782735410,
+  "n": 587,
+  "net": -107.84134298737888,
+  "yr_r": -16.090663583290343,
+  "wr": 0.28960817717206133,
+  "pf": 0.8060963066216574,
+  "dd": -112.81238562198564,
+  "mar": -0.14263206557130448,
+  "pos_years": "0/8",
+  "years_dict": {
+    "2019": -22.62,
+    "2020": -4.56,
+    "2021": -11.32,
+    "2022": -13.32,
+    "2023": -13.88,
+    "2024": -22.42,
+    "2025": -11.71,
+    "2026": -8.0
+  },
+  "trades_per_year": 87.58440187912761,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "PDF1 long VWAP+VAH+ORB+momo TP=3.0R"
+}

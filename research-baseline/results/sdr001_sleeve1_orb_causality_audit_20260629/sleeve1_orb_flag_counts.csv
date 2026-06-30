@@ -1,0 +1,5 @@
+segment,trades,orb_reversal_true,orb_continuation_true,orb_inside_true,ema8_aligned_true
+pre_0900,298,278,7,13,201
+pre_0930,312,278,7,27,215
+post_0930,720,347,283,80,511
+all,1032,625,290,107,726

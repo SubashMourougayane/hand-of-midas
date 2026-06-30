@@ -1,0 +1,30 @@
+{
+  "family": "orb_causal",
+  "pattern": "orb30_fade_tp1.0",
+  "ts_run": 1782729731,
+  "n": 2863,
+  "net": -210.44334749500942,
+  "yr_r": -31.346671343865363,
+  "wr": 0.5263709395738736,
+  "pf": 0.8619575677994876,
+  "dd": -222.28077751358748,
+  "mar": -0.14102286169099448,
+  "pos_years": "1/8",
+  "years_dict": {
+    "2019": -19.37,
+    "2020": -12.72,
+    "2021": -42.92,
+    "2022": -7.99,
+    "2023": -76.51,
+    "2024": -26.45,
+    "2025": -37.28,
+    "2026": 12.8
+  },
+  "trades_per_year": 426.4592876218851,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "ORB30 fade causal, TP=1.0R"
+}

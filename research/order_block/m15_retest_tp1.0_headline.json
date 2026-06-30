@@ -1,0 +1,30 @@
+{
+  "family": "order_block",
+  "pattern": "m15_retest_tp1.0",
+  "ts_run": 1782729495,
+  "n": 11510,
+  "net": -153.80707617855086,
+  "yr_r": -22.908965988109067,
+  "wr": 0.564118158123371,
+  "pf": 0.9730941747064935,
+  "dd": -363.82554961451416,
+  "mar": -0.06296689721868602,
+  "pos_years": "3/8",
+  "years_dict": {
+    "2019": -66.03,
+    "2020": 102.67,
+    "2021": -162.13,
+    "2022": -47.17,
+    "2023": -85.78,
+    "2024": -20.56,
+    "2025": 33.81,
+    "2026": 91.39
+  },
+  "trades_per_year": 1714.3697486130818,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "M15 OB (1.5 ATR impulse), retest on M5, expiry 192 bars, TP=1.0R"
+}

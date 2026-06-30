@@ -1,0 +1,10 @@
+{
+  "candidate_pre_stack_rows": 3516,
+  "matrix_vs_recalc_entry_right_bool_mismatches": 0,
+  "matrix_vs_recalc_entry_right_count_mismatches": 0,
+  "matrix_stack_true": 2936,
+  "recalc_entry_right_true": 2936,
+  "strict_entry_left_true": 2916,
+  "touch_right_true": 2915,
+  "created_right_true": 2724
+}

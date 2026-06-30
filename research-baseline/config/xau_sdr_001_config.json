@@ -1,0 +1,47 @@
+{
+  "strategy_id": "XAU-SDR-001",
+  "strategy_name": "XAU Supply Demand Reclaim",
+  "status": "base_candidate_frozen",
+  "instrument": "XAUUSD",
+  "base_sleeve": "Sleeve 1",
+  "description": "Clean top-3 XAUUSD supply/demand reclaim model. Cross-asset add-on, Brent add-on, top-10 stretch, and experimental filters are excluded from the base.",
+  "data_start_utc": "2019-01-01T00:00:00Z",
+  "data_end_utc": "2026-06-19T00:00:00Z",
+  "primary_trade_file": "results/base/base_sleeve1_trades.csv",
+  "primary_r_column": "net_r",
+  "base_filters": {
+    "market": "XAUUSD",
+    "zone_family": "supply_demand_reclaim",
+    "zone_spec": "m15_2c_1atr",
+    "candidate_set": "clean_top3",
+    "add_on": "none",
+    "cross_asset_confirmation": false,
+    "top10_stretch": false
+  },
+  "execution_assumptions": {
+    "bar_awareness": "closed-bar, timestamp-aware historical replay",
+    "fill_model": "level/cost-adjusted R from frozen ledger",
+    "cost_column": "cost_r",
+    "risk_unit": "R",
+    "position_sizing_for_research": "report in R; user may map 1R to fixed USD risk"
+  },
+  "headline_full_sample": {
+    "period": "2019-2026",
+    "trades": 1032,
+    "net_r": 256.106675,
+    "win_rate": 0.638566,
+    "profit_factor": 1.683757,
+    "max_drawdown_r": -12.694926,
+    "positive_years": "8/8"
+  },
+  "headline_oos": {
+    "period": "2022-2026",
+    "trades": 818,
+    "net_r": 216.965649,
+    "avg_r_per_year": 43.39313,
+    "win_rate": 0.646699,
+    "profit_factor": 1.745433,
+    "max_drawdown_r": -12.694926,
+    "positive_years": "5/5"
+  }
+}

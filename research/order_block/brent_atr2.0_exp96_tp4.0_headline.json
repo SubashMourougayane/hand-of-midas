@@ -1,0 +1,32 @@
+{
+  "family": "order_block",
+  "pattern": "brent_atr2.0_exp96_tp4.0",
+  "ts_run": 1782730254,
+  "n": 5629,
+  "net": -73.3854192402424,
+  "yr_r": -10.957142663503646,
+  "wr": 0.26434535441463847,
+  "pf": 0.9865415655968838,
+  "dd": -207.54764295096624,
+  "mar": -0.052793385208871314,
+  "pos_years": "4/8",
+  "years_dict": {
+    "2019": -46.46,
+    "2020": -35.51,
+    "2021": 37.85,
+    "2022": 35.28,
+    "2023": 3.9,
+    "2024": -73.25,
+    "2025": -72.92,
+    "2026": 77.73
+  },
+  "trades_per_year": 840.4633603161288,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "BRENT OB ATR2.0 exp96 TP4.0R",
+  "symbol": "BRENT",
+  "cost_usd": 0.05
+}

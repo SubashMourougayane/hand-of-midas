@@ -1,0 +1,4 @@
+trades,net,wr,pf,dd,years_pos,years,months_pos,months,mar,rule
+517,56.41003015631636,56.86653771760155,1.2548769438894232,-11.090081532600903,8,8,46,84,0.6358162245075801,closed_m15_ema8_aligned + intraday_stack_24h + ny_main_or_overlap + cost_le_0p05 + impulse_ge_1p5
+296,51.68666751137116,60.810810810810814,1.4391798971803302,-7.638104240876551,8,8,41,74,0.8458687175732952,closed_m15_ema8_aligned + intraday_stack_24h + ny_main_or_overlap + cost_le_0p05 + body_ge_45 + base_body_low
+286,42.7395496725701,59.44055944055944,1.3637910853422395,-6.834921343916122,8,8,43,76,0.7816393840181732,closed_m15_ema8_aligned + intraday_stack_24h + ny_main_or_overlap + cost_le_0p05 + fast_confirm_3 + base_body_low

@@ -1,0 +1,30 @@
+{
+  "family": "martin_luke",
+  "pattern": "xau_PDH_plus_uptrend_TP=1.0R",
+  "ts_run": 1782731851,
+  "n": 435,
+  "net": 68.24613600694181,
+  "yr_r": 10.703472636306227,
+  "wr": 0.5793103448275863,
+  "pf": 1.3922762415180339,
+  "dd": -8.399014703977109,
+  "mar": 1.2743724131400687,
+  "pos_years": "8/8",
+  "years_dict": {
+    "2019": 3.17,
+    "2020": 16.68,
+    "2021": 5.36,
+    "2022": 0.37,
+    "2023": 3.17,
+    "2024": 10.35,
+    "2025": 25.04,
+    "2026": 4.11
+  },
+  "trades_per_year": 68.22379799377377,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "PDH + uptrend, TP=1.0R"
+}

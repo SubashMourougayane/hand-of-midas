@@ -1,0 +1,43 @@
+node_modules/
+.next/
+data/raw/*.csv
+__pycache__/
+*.pyc
+.env
+logs/
+
+# Parity harness JSON artifacts (one per run; kept locally for trend tracking,
+# not stored in git). The .gitkeep file inside parity_reports/ is intentionally
+# tracked so the directory exists after clone.
+tests/harness/parity_reports/*.json
+scripts/output/*.log
+scripts/output/*.json
+
+# oil_micro deterministic BT outputs. Keep the directory anchor, not run data.
+runs/oil_micro/bt/*
+!runs/oil_micro/bt/.gitkeep
+
+# bt_engine evidence pack: 1.4GB of regenerable CSVs (re-emit via build_fib_v2_evidence_pack.py)
+bt_engine/evidence/
+bt_engine/output/
+
+# Local scratch
+try/
+.coverage
+.pytest_cache/
+
+# Setuptools/build artifacts
+*.egg-info/
+build/
+dist/
+
+# OS junk
+.DS_Store
+
+# Large raw data (regenerable from OANDA / broker)
+research-baseline/data/raw/*.csv
+*.csv.gz
+# All large parquet sources cached under /tmp; in-repo parquets stay tracked
+
+# Anything >100MB silently
+*.bin

@@ -1,0 +1,30 @@
+{
+  "family": "order_block",
+  "pattern": "sweep_atr2.5_exp192_tp3.0_ny_trend_both",
+  "ts_run": 1782729863,
+  "n": 1539,
+  "net": 211.32932687046542,
+  "yr_r": 31.495099453490855,
+  "wr": 0.31643924626380765,
+  "pf": 1.1801761983764696,
+  "dd": -55.79296504126822,
+  "mar": 0.564499474623637,
+  "pos_years": "5/8",
+  "years_dict": {
+    "2019": -13.58,
+    "2020": 30.52,
+    "2021": -28.85,
+    "2022": 55.02,
+    "2023": -20.85,
+    "2024": 91.46,
+    "2025": 60.05,
+    "2026": 37.56
+  },
+  "trades_per_year": 229.36219395916007,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "ATR2.5 exp192 TP3.0 ny trend both"
+}

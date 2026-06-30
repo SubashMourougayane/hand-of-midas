@@ -1,0 +1,30 @@
+{
+  "family": "traderzden_retest",
+  "pattern": "H4_ema20_close_london_tol0.3_sw50_TP5.0R",
+  "ts_run": 1782735995,
+  "n": 425,
+  "net": 148.52402901418097,
+  "yr_r": 22.179295959881497,
+  "wr": 0.3129411764705882,
+  "pf": 1.4305980815299215,
+  "dd": -23.085645135493422,
+  "mar": 0.9607397077147979,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": 0.64,
+    "2020": -5.41,
+    "2021": 25.69,
+    "2022": 31.04,
+    "2023": 13.98,
+    "2024": 12.13,
+    "2025": 54.38,
+    "2026": 16.07
+  },
+  "trades_per_year": 63.46583004457568,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "TOP1 tuned"
+}

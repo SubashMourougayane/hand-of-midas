@@ -1,0 +1,30 @@
+{
+  "family": "rsi_divergence",
+  "pattern": "rsidiv_long_nozone_TP=1.0R",
+  "ts_run": 1782735481,
+  "n": 6247,
+  "net": -1585.5487534599558,
+  "yr_r": -236.13724841070638,
+  "wr": 0.4890347366736033,
+  "pf": 0.6091263218378693,
+  "dd": -1586.9511103623163,
+  "mar": -0.1487993214591179,
+  "pos_years": "0/8",
+  "years_dict": {
+    "2019": -131.04,
+    "2020": -225.47,
+    "2021": -266.85,
+    "2022": -356.19,
+    "2023": -292.02,
+    "2024": -141.48,
+    "2025": -126.21,
+    "2026": -46.28
+  },
+  "trades_per_year": 930.3715118205217,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "PDF2 long nozone TP=1.0R"
+}

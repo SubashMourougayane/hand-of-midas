@@ -1,0 +1,30 @@
+{
+  "family": "orb_causal",
+  "pattern": "orb30_break_tp1.0",
+  "ts_run": 1782729730,
+  "n": 2863,
+  "net": -511.63559786758765,
+  "yr_r": -76.21088109975854,
+  "wr": 0.47362906042612646,
+  "pf": 0.6988877795260572,
+  "dd": -515.9543328120895,
+  "mar": -0.14770857855653385,
+  "pos_years": "0/8",
+  "years_dict": {
+    "2019": -34.56,
+    "2020": -92.72,
+    "2021": -84.92,
+    "2022": -107.99,
+    "2023": -68.51,
+    "2024": -78.45,
+    "2025": -19.28,
+    "2026": -25.2
+  },
+  "trades_per_year": 426.4592876218851,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "ORB30 (NY 9:30-10:00) break causal, NY 10-15 trade window, TP=1.0R"
+}

@@ -1,0 +1,2 @@
+rule,events,rule_net_r,random_p05,random_p50,random_p95,prob_random_ge_rule
+base_body_low+cost_le_0p05+ema8_aligned+ny_main_or_overlap,457,111.36394151561902,-39.32115850919779,-7.212811634831688,24.89212386159346,0.0

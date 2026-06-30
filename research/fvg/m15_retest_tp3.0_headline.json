@@ -1,0 +1,30 @@
+{
+  "family": "fvg",
+  "pattern": "m15_retest_tp3.0",
+  "ts_run": 1782729447,
+  "n": 28193,
+  "net": -620.3849358562513,
+  "yr_r": -92.39555118120303,
+  "wr": 0.28159472209413683,
+  "pf": 0.9731220843526973,
+  "dd": -1196.5418614271941,
+  "mar": -0.07721882046901124,
+  "pos_years": "2/8",
+  "years_dict": {
+    "2019": -206.07,
+    "2020": -107.68,
+    "2021": -318.42,
+    "2022": -42.21,
+    "2023": -367.16,
+    "2024": -56.95,
+    "2025": 349.25,
+    "2026": 128.86
+  },
+  "trades_per_year": 4198.857231851351,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "M15 FVG retest on M5 grid, expiry 96 bars, TP=3.0R"
+}

@@ -1,0 +1,6 @@
+{
+  "family": "ict",
+  "pattern": "eq_hl_grab_fade_tp1.0",
+  "ts_run": 1782729681,
+  "notes": "Equal highs/lows liquidity grab + fade, TP=1.0R"
+}

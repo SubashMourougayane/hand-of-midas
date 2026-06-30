@@ -1,0 +1,30 @@
+{
+  "family": "vwap_mss",
+  "pattern": "long_M15_sw7_sessny_atr2.0_prox0.25_wait8_RR4.0",
+  "ts_run": 1782742672,
+  "n": 197,
+  "net": 53.253401577396744,
+  "yr_r": 8.063763248647629,
+  "wr": 0.48223350253807107,
+  "pf": 1.5894764675541235,
+  "dd": -16.427409849700425,
+  "mar": 0.4908724700013911,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": 12.24,
+    "2020": 7.54,
+    "2021": -5.21,
+    "2022": 9.74,
+    "2023": 4.98,
+    "2024": 10.6,
+    "2025": 11.25,
+    "2026": 2.11
+  },
+  "trades_per_year": 29.830232678654713,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "VWAP-MSS phase2"
+}

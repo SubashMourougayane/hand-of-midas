@@ -1,0 +1,30 @@
+{
+  "family": "fib_retrace",
+  "pattern": "long_lb5_hold24h_sessall_ext1.618_sl0.02_v2",
+  "ts_run": 1782764986,
+  "n": 1552,
+  "net": 522.062706519904,
+  "yr_r": 77.79313678650094,
+  "wr": 0.35309278350515466,
+  "pf": 1.5182465040446185,
+  "dd": -54.1531980415092,
+  "mar": 1.436538184261461,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": 30.06,
+    "2020": 139.49,
+    "2021": -10.25,
+    "2022": 26.95,
+    "2023": 67.14,
+    "2024": 139.27,
+    "2025": 115.51,
+    "2026": 13.89
+  },
+  "trades_per_year": 231.26522309451028,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "Fib V2 phase2"
+}

@@ -1,0 +1,19 @@
+{
+  "trades": 2936,
+  "net_r": 382.5612103817253,
+  "r_per_year": 54.34869003964417,
+  "wr_pct": 59.67302452316077,
+  "pf": 1.3078494977854362,
+  "avg_r": 0.130300139775792,
+  "max_dd_r": -18.00845741951471,
+  "mar": 3.0179536633020927,
+  "ulcer_r": 5.228654170913805,
+  "recovery_trades": 181,
+  "max_loss_streak": 9,
+  "worst_loss_streak_r": -9.869879846164237,
+  "max_win_streak": 13,
+  "positive_years": 8,
+  "total_years": 8,
+  "positive_months": 63,
+  "total_months": 85
+}

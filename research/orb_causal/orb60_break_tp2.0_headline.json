@@ -1,0 +1,30 @@
+{
+  "family": "orb_causal",
+  "pattern": "orb60_break_tp2.0",
+  "ts_run": 1782729732,
+  "n": 2567,
+  "net": -121.98905037792832,
+  "yr_r": -18.170360776181692,
+  "wr": 0.3576158940397351,
+  "pf": 0.9338673672463149,
+  "dd": -178.67406907696773,
+  "mar": -0.10169556707389037,
+  "pos_years": "2/8",
+  "years_dict": {
+    "2019": -26.1,
+    "2020": -30.05,
+    "2021": -58.14,
+    "2022": -44.89,
+    "2023": 22.6,
+    "2024": -6.08,
+    "2025": 22.91,
+    "2026": -2.23
+  },
+  "trades_per_year": 382.3565801025176,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "ORB60 break causal, TP=2.0R"
+}

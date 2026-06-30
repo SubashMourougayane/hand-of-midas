@@ -1,0 +1,30 @@
+{
+  "family": "traderzden_retest",
+  "pattern": "long_trendH4_pbema20_tol0.3_confclose_sesslondon_sw10_TP4.0R",
+  "ts_run": 1782735914,
+  "n": 427,
+  "net": 114.48571407351648,
+  "yr_r": 17.09630793393337,
+  "wr": 0.32084309133489464,
+  "pf": 1.3115531193122603,
+  "dd": -27.99510420637145,
+  "mar": 0.610689205080451,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": 8.85,
+    "2020": 7.54,
+    "2021": 5.68,
+    "2022": 51.05,
+    "2023": -9.19,
+    "2024": 5.15,
+    "2025": 39.74,
+    "2026": 5.66
+  },
+  "trades_per_year": 63.764492774197215,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "TraderzDen retest sweep"
+}

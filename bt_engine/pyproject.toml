@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bt_engine"
+version = "0.1.0"
+description = "Generic multi-strategy backtest engine with strict BT/live parity"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg2-binary>=2.9",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-postgresql>=5.0",
+    "hypothesis>=6.92",
+    "ruff>=0.1",
+    "mypy>=1.7",
+]
+
+[project.scripts]
+bt-engine = "bt_engine.runner.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bt_engine*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-x -vv"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true

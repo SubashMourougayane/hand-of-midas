@@ -1,0 +1,23 @@
+{
+  "headline": {
+    "trades": 1362,
+    "net_r": 760.4374640218234,
+    "r_per_year": 113.3210051954186,
+    "wr_pct": 82.8928046989721,
+    "pf": 3.931210715591313,
+    "avg_r": 0.5583241292377558,
+    "max_dd_r": -5.200278059990637,
+    "mar": 21.791335749385414,
+    "ulcer_r": 0.8297433423060248,
+    "recovery_trades": 23,
+    "longest_loss_streak": 4,
+    "worst_loss_streak_r": -4.568497907652496,
+    "positive_years": 8,
+    "total_years": 8,
+    "positive_months": 82,
+    "total_months": 82,
+    "start": "2019-09-30 09:10:00+00:00",
+    "end": "2026-06-16 04:10:00+00:00"
+  },
+  "outputs": "/Users/subash/SUBASH/GoldDigger/research-baseline/results/sdr002_break_test_20260629"
+}

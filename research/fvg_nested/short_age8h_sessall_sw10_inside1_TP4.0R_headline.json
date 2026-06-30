@@ -1,0 +1,30 @@
+{
+  "family": "fvg_nested",
+  "pattern": "short_age8h_sessall_sw10_inside1_TP4.0R",
+  "ts_run": 1782741748,
+  "n": 67,
+  "net": 72.93009366157597,
+  "yr_r": 10.954509956089357,
+  "wr": 0.5671641791044776,
+  "pf": 2.352224555982989,
+  "dd": -10.852408291439243,
+  "mar": 1.0094082034059348,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": 4.73,
+    "2020": 12.89,
+    "2021": 7.53,
+    "2022": -1.84,
+    "2023": 32.47,
+    "2024": 1.74,
+    "2025": 4.72,
+    "2026": 10.68
+  },
+  "trades_per_year": 10.063776559287183,
+  "gate_trades_yr_ge_200": false,
+  "gate_pf_ge_1p3": true,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "FVG nested phase2"
+}

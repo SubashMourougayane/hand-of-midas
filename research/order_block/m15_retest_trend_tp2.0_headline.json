@@ -1,0 +1,30 @@
+{
+  "family": "order_block",
+  "pattern": "m15_retest_trend_tp2.0",
+  "ts_run": 1782729498,
+  "n": 6844,
+  "net": 374.6719553512829,
+  "yr_r": 55.806010026764454,
+  "wr": 0.3983050847457627,
+  "pf": 1.0798640818830354,
+  "dd": -154.54575588951965,
+  "mar": 0.36109700784445076,
+  "pos_years": "5/8",
+  "years_dict": {
+    "2019": -37.67,
+    "2020": 131.54,
+    "2021": -118.41,
+    "2022": 79.14,
+    "2023": -48.43,
+    "2024": 142.27,
+    "2025": 157.42,
+    "2026": 68.82
+  },
+  "trades_per_year": 1019.3886336250657,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "M15 OB + trend filter, TP=2.0R"
+}

@@ -1,0 +1,30 @@
+{
+  "family": "fvg",
+  "pattern": "m5_break_trend_tp2.0",
+  "ts_run": 1782729438,
+  "n": 52404,
+  "net": -5084.596246044946,
+  "yr_r": -757.2268391154389,
+  "wr": 0.3472063201282345,
+  "pf": 0.869368027973528,
+  "dd": -5704.278130456355,
+  "mar": -0.1327471805893271,
+  "pos_years": "2/8",
+  "years_dict": {
+    "2019": -657.05,
+    "2020": -842.37,
+    "2021": -1284.31,
+    "2022": -915.51,
+    "2023": -1135.9,
+    "2024": -793.53,
+    "2025": 457.75,
+    "2026": 86.32
+  },
+  "trades_per_year": 7804.300156157313,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "M5 FVG break + trend filter, TP=2.0R"
+}

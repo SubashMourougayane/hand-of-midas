@@ -1,0 +1,30 @@
+{
+  "family": "ict",
+  "pattern": "asian_sweep_reversal_tp3.0",
+  "ts_run": 1782729635,
+  "n": 1840,
+  "net": -103.85987018346805,
+  "yr_r": -15.478663215867066,
+  "wr": 0.27880434782608693,
+  "pf": 0.933038827508277,
+  "dd": -132.84256367934182,
+  "mar": -0.11651885349961921,
+  "pos_years": "2/8",
+  "years_dict": {
+    "2019": -17.75,
+    "2020": -20.02,
+    "2021": -24.39,
+    "2022": -10.74,
+    "2023": -9.09,
+    "2024": 10.51,
+    "2025": -34.83,
+    "2026": 2.46
+  },
+  "trades_per_year": 274.2227605992987,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": false,
+  "gate_ALL_PASS": false,
+  "notes": "Asian sweep + reversal (fade), London/NY window, TP=3.0R"
+}

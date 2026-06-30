@@ -1,0 +1,37 @@
+{
+  "strategy_id": "sdr002_clean",
+  "symbol": "XAUUSD.ecn",
+  "base_generator": "sdr001_m15_2c_1atr_reclaim",
+  "timeframe_input": "M1",
+  "event_timeframes": {
+    "execution": "M5",
+    "zone_detection": "M15",
+    "closed_ema_filter": "M15",
+    "stack_zones": ["M15", "M30"]
+  },
+  "forward_rule": [
+    "closed_m15_ema8_aligned",
+    "intraday_stack_24h",
+    "ny_main_or_overlap",
+    "cost_le_0p05",
+    "body_ge_45",
+    "base_body_low"
+  ],
+  "causality_guards": {
+    "orb_features_used": false,
+    "same_bar_m15_ema_allowed": false,
+    "closed_m15_rule": "use max(m15.timestamp) strictly less than entry_timestamp",
+    "stack_window_rule": "count same-direction overlapping intraday zones with created_timestamp <= entry_timestamp and created_timestamp >= entry_timestamp - 24h",
+    "exclude_current_zone_from_stack": true
+  },
+  "baseline_metrics": {
+    "trades": 296,
+    "net_r": 51.68666751137116,
+    "win_rate_pct": 60.810810810810814,
+    "profit_factor": 1.4391798971803302,
+    "max_drawdown_r": -7.638104240876551,
+    "mar": 0.8458687175732952,
+    "positive_years": "8/8",
+    "positive_months": "41/74"
+  }
+}

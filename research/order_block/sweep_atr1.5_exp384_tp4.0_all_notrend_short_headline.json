@@ -1,0 +1,30 @@
+{
+  "family": "order_block",
+  "pattern": "sweep_atr1.5_exp384_tp4.0_all_notrend_short",
+  "ts_run": 1782729831,
+  "n": 6004,
+  "net": 877.2776577574626,
+  "yr_r": 130.66728124651925,
+  "wr": 0.2609926715522985,
+  "pf": 1.1737588717230196,
+  "dd": -105.90576752097827,
+  "mar": 1.2338070371912098,
+  "pos_years": "7/8",
+  "years_dict": {
+    "2019": -42.63,
+    "2020": 112.84,
+    "2021": 107.38,
+    "2022": 158.05,
+    "2023": 169.32,
+    "2024": 110.08,
+    "2025": 184.04,
+    "2026": 78.19
+  },
+  "trades_per_year": 894.2737224261973,
+  "gate_trades_yr_ge_200": true,
+  "gate_pf_ge_1p3": false,
+  "gate_mar_ge_1p5": false,
+  "gate_pos_years_ge_7": true,
+  "gate_ALL_PASS": false,
+  "notes": "ATR1.5 exp384 TP4.0 all notrend short"
+}
