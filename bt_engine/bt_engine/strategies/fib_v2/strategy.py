@@ -665,12 +665,14 @@ class FibV2EnsembleStrategy(Strategy):
             trade_or_zone_id=str(tid),
             type="ENTRY_SUBMIT",
             detail={
+                "bar_ts": str(bar.timestamp),
                 "leg": leg.leg_name,
                 "side": setup.side,
                 "sl_price": setup.sl_price,
                 "tp_price": setup.tp_price,
                 "risk_units": risk,
                 "fib_diff": setup.diff,
+                "entry_price": float(entry_price),
             },
         )
         return order, event

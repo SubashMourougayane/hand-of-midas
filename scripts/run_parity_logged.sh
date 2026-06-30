@@ -14,7 +14,12 @@ set -euo pipefail
 REPO="/Users/subash/SUBASH/GoldDigger"
 cd "$REPO/bt_engine"
 
-TARGET="${1:-tests/parity}"
+if [ "$#" -eq 0 ]; then
+  TARGETS=(tests/parity)
+else
+  TARGETS=("$@")
+fi
+TARGET="${TARGETS[*]}"
 TS=$(date +%s)
 LOG="/tmp/parity_${TS}.log"
 
@@ -30,10 +35,10 @@ echo "----" | tee -a "$LOG"
 # 2>&1 | ts: prepend a UTC ms timestamp to every line (requires `moreutils` ts).
 #   Fallback to awk timestamper if ts is missing.
 if command -v ts >/dev/null 2>&1; then
-  PYTHONUNBUFFERED=1 python3 -m pytest "$TARGET" -v -s --durations=0 \
+  PYTHONUNBUFFERED=1 python3 -m pytest "${TARGETS[@]}" -v -s --durations=0 \
     2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee -a "$LOG"
 else
-  PYTHONUNBUFFERED=1 python3 -m pytest "$TARGET" -v -s --durations=0 \
+  PYTHONUNBUFFERED=1 python3 -m pytest "${TARGETS[@]}" -v -s --durations=0 \
     2>&1 | awk '{ cmd="date +\"%Y-%m-%d %H:%M:%S\""; cmd | getline t; close(cmd); print "[" t "] " $0; fflush() }' \
     | tee -a "$LOG"
 fi
