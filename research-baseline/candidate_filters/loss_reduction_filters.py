@@ -85,6 +85,14 @@ def resample_h1(m5: pd.DataFrame) -> pd.DataFrame:
                 .dropna().reset_index())
 
 
+def resample_h4(m5: pd.DataFrame) -> pd.DataFrame:
+    idx = m5.set_index("timestamp")
+    return (idx.resample("4h", label="left", closed="left")
+                .agg({"open": "first", "high": "max", "low": "min",
+                      "close": "last", "volume": "sum"})
+                .dropna().reset_index())
+
+
 def resample_d1(m5: pd.DataFrame) -> pd.DataFrame:
     idx = m5.set_index("timestamp")
     return (idx.resample("1D", label="left", closed="left")
@@ -164,17 +172,23 @@ def filter_momentum(trades: pd.DataFrame, m15: pd.DataFrame, ema_len: int) -> pd
 
 
 def filter_atr_compression(trades: pd.DataFrame, d1: pd.DataFrame, ratio: float) -> pd.Series:
-    """True = KEEP. Reject if current-day atr14 (from prior closed D1) < ratio × median20."""
+    """True = KEEP. Reject if current-day atr14 (from LAST FULLY-CLOSED D1) < ratio × median20.
+
+    Causality: D1 bar labeled `D` covers `D` through `D + 24h`. It closes at
+    `D + 24h`. At entry_ts, use only bars where label + 24h <= entry_ts,
+    i.e. `bar_label <= entry_ts - 24h`.
+    """
     atr = build_d1_atr14(d1)
     atr = atr.dropna()
     if atr.empty:
         return pd.Series([True] * len(trades), index=trades.index)
     atr_ts = atr["timestamp"].values
+    d1_close_delta = pd.Timedelta("1D").to_timedelta64()
     keeps = []
     for _, tr in trades.iterrows():
-        ts = tr["entry_timestamp"]
-        # Prior D1 close: last row where timestamp < ts
-        prior_mask = atr_ts < ts.to_datetime64()
+        ts = tr["entry_timestamp"].to_datetime64()
+        # Fully-closed daily bar: label + 24h <= entry_ts
+        prior_mask = atr_ts <= ts - d1_close_delta
         if not prior_mask.any():
             keeps.append(True); continue
         idx = prior_mask.sum() - 1
@@ -186,22 +200,37 @@ def filter_atr_compression(trades: pd.DataFrame, d1: pd.DataFrame, ratio: float)
     return pd.Series(keeps, index=trades.index)
 
 
-def filter_h1_confluence(trades: pd.DataFrame, h1: pd.DataFrame) -> pd.Series:
-    """True = KEEP. Long: last-closed H1 body bullish. Short: bearish."""
+def filter_htf_confluence(trades: pd.DataFrame, htf: pd.DataFrame, tf_delta: pd.Timedelta,
+                            label: str = "H1") -> pd.Series:
+    """True = KEEP. Long: last FULLY-CLOSED HTF body bullish. Short: bearish.
+
+    Causality: HTF bar labeled `t` covers `t` through `t + tf_delta`. It's
+    fully closed at `t + tf_delta`. At entry_ts, use only bars where
+    `t + tf_delta <= entry_ts`, i.e. `t <= entry_ts - tf_delta`.
+    """
     keeps = []
-    h1_ts = h1["timestamp"].values
+    htf_ts = htf["timestamp"].values
+    delta = tf_delta.to_timedelta64()
     for _, tr in trades.iterrows():
-        ts = tr["entry_timestamp"]
-        prior_mask = h1_ts < ts.to_datetime64()
+        ts = tr["entry_timestamp"].to_datetime64()
+        prior_mask = htf_ts <= ts - delta
         if not prior_mask.any():
             keeps.append(True); continue
         idx = prior_mask.sum() - 1
-        row = h1.iloc[idx]
+        row = htf.iloc[idx]
         if tr["direction"] == "long":
             keeps.append(float(row["close"]) > float(row["open"]))
         else:
             keeps.append(float(row["close"]) < float(row["open"]))
     return pd.Series(keeps, index=trades.index)
+
+
+def filter_h1_confluence(trades: pd.DataFrame, h1: pd.DataFrame) -> pd.Series:
+    return filter_htf_confluence(trades, h1, pd.Timedelta("1h"), "H1")
+
+
+def filter_h4_confluence(trades: pd.DataFrame, h4: pd.DataFrame) -> pd.Series:
+    return filter_htf_confluence(trades, h4, pd.Timedelta("4h"), "H4")
 
 
 # ────────────────────────── analysis ──────────────────────────
@@ -263,11 +292,12 @@ def main() -> None:
     print(f"  loaded {len(m5):,} M5 bars")
     print(f"  range: {m5['timestamp'].min()} → {m5['timestamp'].max()}")
 
-    print("[LOAD] resampling M15 / H1 / D1...")
+    print("[LOAD] resampling M15 / H1 / H4 / D1...")
     m15 = resample_m15(m5)
     h1 = resample_h1(m5)
+    h4 = resample_h4(m5)
     d1 = resample_d1(m5)
-    print(f"  M15={len(m15):,}  H1={len(h1):,}  D1={len(d1):,}")
+    print(f"  M15={len(m15):,}  H1={len(h1):,}  H4={len(h4):,}  D1={len(d1):,}")
 
     # Filter trades to those whose entry_ts falls within M15 range (parquet may not
     # cover the earliest BT bars if it's a shortened OANDA dump).
@@ -292,20 +322,26 @@ def main() -> None:
     headline(f"B · ATR compression skip (ratio={args.atr_ratio})",
              trades[keep_B].reset_index(drop=True), ref_n, ref_usd)
 
-    # Filter C
+    # Filter C — H1 confluence (last fully-closed H1)
     keep_C = filter_h1_confluence(trades, h1)
-    headline("C · H1 confluence (H1 body aligns)",
+    headline("C · H1 confluence (last fully-closed H1 body aligns)",
              trades[keep_C].reset_index(drop=True), ref_n, ref_usd)
 
-    # Pairs + all
-    headline("A+B", trades[keep_A & keep_B].reset_index(drop=True), ref_n, ref_usd)
-    headline("A+C", trades[keep_A & keep_C].reset_index(drop=True), ref_n, ref_usd)
-    headline("B+C", trades[keep_B & keep_C].reset_index(drop=True), ref_n, ref_usd)
-    headline("A+B+C", trades[keep_A & keep_B & keep_C].reset_index(drop=True), ref_n, ref_usd)
+    # Filter D — H4 confluence (last fully-closed H4)
+    keep_D = filter_h4_confluence(trades, h4)
+    headline("D · H4 confluence (last fully-closed H4 body aligns)",
+             trades[keep_D].reset_index(drop=True), ref_n, ref_usd)
+
+    # Combos of most-interesting filters
+    headline("C+D (both H1 and H4 aligned)",
+             trades[keep_C & keep_D].reset_index(drop=True), ref_n, ref_usd)
+    headline("C or D (either H1 or H4 aligned)",
+             trades[keep_C | keep_D].reset_index(drop=True), ref_n, ref_usd)
+    headline("A+B+C+D", trades[keep_A & keep_B & keep_C & keep_D].reset_index(drop=True), ref_n, ref_usd)
 
     # Per-filter loss trim visibility
     print("\n=== Per-filter effect ===")
-    for name, keep in [("A", keep_A), ("B", keep_B), ("C", keep_C)]:
+    for name, keep in [("A", keep_A), ("B", keep_B), ("C", keep_C), ("D", keep_D)]:
         dropped = trades[~keep]
         d_win = (dropped["net_r"] > 0).sum()
         d_loss = (dropped["net_r"] <= 0).sum()
