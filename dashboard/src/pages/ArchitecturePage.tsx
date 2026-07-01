@@ -1,13 +1,12 @@
 import { useState } from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap } from "lucide-react";
 
 /**
  * Architecture — visual rulebook for A (LONG) and D (SHORT) setups.
- * Two-tab layout. Each tab shows the full decision flow from pivot detection
- * to entry to exit as a top-down diagram.
+ * Three-tab layout: LONG, SHORT, Live Loop (per-15min-tick data flow).
  */
 export function ArchitecturePage() {
-  const [tab, setTab] = useState<"long" | "short">("long");
+  const [tab, setTab] = useState<"long" | "short" | "live">("long");
   return (
     <div className="h-full overflow-auto p-4">
       <div className="max-w-[1400px] mx-auto space-y-4">
@@ -37,12 +36,20 @@ export function ArchitecturePage() {
               label="D · SHORT"
               sub="24h hold · all sessions"
             />
+            <TabBtn
+              active={tab === "live"}
+              onClick={() => setTab("live")}
+              tone="info"
+              icon={<Zap size={14} />}
+              label="LIVE LOOP"
+              sub="per-15min-tick data flow"
+            />
           </div>
         </header>
 
-        {tab === "long" ? <LongFlow /> : <ShortFlow />}
+        {tab === "long" ? <LongFlow /> : tab === "short" ? <ShortFlow /> : <LiveLoopFlow />}
 
-        <SharedRules />
+        {tab !== "live" && <SharedRules />}
       </div>
     </div>
   );
@@ -51,13 +58,15 @@ export function ArchitecturePage() {
 function TabBtn({
   active, onClick, tone, icon, label, sub,
 }: {
-  active: boolean; onClick: () => void; tone: "bull" | "bear";
+  active: boolean; onClick: () => void; tone: "bull" | "bear" | "info";
   icon: React.ReactNode; label: string; sub: string;
 }) {
   const toneCls = active
     ? tone === "bull"
       ? "bg-bull/15 text-bull border-bull/40"
-      : "bg-bear/15 text-bear border-bear/40"
+      : tone === "bear"
+        ? "bg-bear/15 text-bear border-bear/40"
+        : "bg-info/15 text-info border-info/40"
     : "text-ink-muted hover:text-ink-secondary border-transparent";
   return (
     <button
@@ -501,6 +510,321 @@ function ShortFlow() {
 
         <PriceDiagram side="short" />
       </aside>
+    </div>
+  );
+}
+
+// ── LIVE LOOP FLOW ──
+
+function LiveLoopFlow() {
+  return (
+    <div className="space-y-4">
+      <div className="text-ds-md font-semibold text-info tracking-wide">
+        LIVE LOOP · what happens every 15 minutes when a new M15 bar closes
+      </div>
+
+      <TickBanner />
+
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-12 lg:col-span-8 space-y-0">
+          <Step
+            n="1"
+            title="MT5 EA closes M15 bar and writes JSON"
+            tone="info"
+            desc="Every 15 min at :00 :15 :30 :45 UTC (broker server = UTC+3), MT5's DWX_Server EA appends the just-closed OHLC to Common/Files/DWX/bars_XAUUSD_ecn_M15.json."
+            detail={
+              <div className="space-y-1">
+                <div>Files updated on each M15 close:</div>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li><code className="text-info">bars_XAUUSD_ecn_M15.json</code> — last N M15 bars (rolling)</li>
+                  <li><code className="text-info">bars_XAUUSD_ecn_D1.json</code> — daily bars (regime input)</li>
+                  <li><code className="text-info">market_data.json</code> — live bid/ask/spread (per-tick, not per-bar)</li>
+                  <li><code className="text-info">account_info.json</code> — balance / equity / margin (continuous)</li>
+                  <li><code className="text-info">open_orders.json</code> — snapshot of open positions</li>
+                </ul>
+              </div>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="2"
+            title="LiveClock detects new bar (polling loop)"
+            desc="Python live runner polls DWX every 1 second. It reads bars_XAUUSD_ecn_M15.json, compares latest timestamp to `provider._last_yielded_ts`. If new bar exists (> last yielded), it's yielded as a Bar object into the engine loop."
+            formula="if latest_bar.ts > last_yielded_ts: yield Bar; last_yielded_ts = latest_bar.ts"
+            detail={
+              <>Server time (UTC+3) → UTC conversion via <code className="text-info">server_utc_offset_hours=3</code>. Only ONE bar is yielded per tick, not the whole history.</>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="3"
+            title="Engine reads history_up_to(bar.timestamp)"
+            tone="info"
+            desc="Provider returns a view (not a copy) of the full M15 dataframe up to and including the just-closed bar. Used by strategy for regime aggregation + swing tracker lookups. NO re-fetch from disk — memory cache."
+            formula="history = provider._df[provider._df.timestamp <= bar.timestamp]  (searchsorted O(log n))"
+            detail="Cost: ~1μs slice via numpy searchsorted. Zero disk I/O per tick after startup."
+          />
+          <Arrow />
+
+          <Step
+            n="4"
+            title="Strategy state carries forward (no re-scan)"
+            desc="on_bar receives (state, bar, history). state holds all trackers built up bar-by-bar. Nothing recomputed from scratch each tick."
+            detail={
+              <div className="space-y-1">
+                <div>State fields alive across ticks:</div>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li><code className="text-info">pivot_tracker</code> — sliding 7-bar window (lb=3 × 2 + center)</li>
+                  <li><code className="text-info">regime_tracker</code> — D1 EMA fast/slow + ATR (recomputed only when new D1 bar closes)</li>
+                  <li><code className="text-info">swing_tracker</code> — last 20 M15 bars (lb=3 window for signal-bar match)</li>
+                  <li><code className="text-info">last_H, last_L, last_H_ts, last_L_ts</code> — most-recent confirmed pivots</li>
+                  <li><code className="text-info">pending_setups</code> — dict[leg → list of FibSetup] awaiting signal-bar match</li>
+                  <li><code className="text-info">pending_entries</code> — list[(leg, setup)] queued for next-bar entry</li>
+                  <li><code className="text-info">consumed_setup_keys</code> — set of (leg, confirm_ts) already fired</li>
+                  <li><code className="text-info">prev_open, prev_close</code> — prior bar's OHLC for confirm-candle check</li>
+                </ul>
+              </div>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="5"
+            title="on_bar runs the FULL decision chain"
+            tone="info"
+            desc="Deterministic pipeline (identical in BT and live). Each step emits gate events that persist to bt_signals."
+            detail={
+              <ol className="list-decimal pl-4 space-y-0.5">
+                <li>Finalize any pending_entries queued at bar[k-1] → order emitted, added to consumed_setup_keys</li>
+                <li>Update H1 pivots + regime from history</li>
+                <li>Update D1 regime tracker</li>
+                <li>Update M5 swing tracker (uses last 20 bars)</li>
+                <li>Detect NEW confirmed pivot (lb=3 → confirms after 3 bars, so at k-3)</li>
+                <li>Spawn new setups per leg (LONG/SHORT) if pivot ordering valid</li>
+                <li>Walk pending_setups → match signal-bar OR invalidate/expire</li>
+                <li>Cache prev_open/prev_close for next bar's confirm check</li>
+              </ol>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="6"
+            title="Emit gate events (persist to bt_signals)"
+            desc="Every gate site emits a StrategyEvent (GATE_*). Engine's on_strategy_event callback writes to bt_signals table."
+            detail={
+              <>16 gate types. Zero-miss = every decision (pass or fail) leaves an audit trail. Dashboard <code className="text-info">/signals</code> page decodes them.</>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="7"
+            title="On SIGNAL_PASSED: order goes to broker"
+            tone="success"
+            desc="Same-tick order submit (live) or next-bar-open (BT). LiveSafetyBroker wraps the raw DWX broker with 5 checks."
+            detail={
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>demo check (server contains &quot;demo&quot;)</li>
+                <li>kill-switch file check (LIVE_DISABLED)</li>
+                <li>max_open_positions (broker total ≤ 4)</li>
+                <li>max_spread ($0.50)</li>
+                <li>Sizer replaces qty=1.0 placeholder → Model B (equity × 1.5% / stop / contract)</li>
+                <li>max_lot cap (2.0)</li>
+                <li>DWX writes OPEN|SYMBOL|BUY|QTY|... command file</li>
+                <li>EA reads, submits, writes response with ticket + fill price</li>
+                <li>Python receives fill → runs slip-ratio check (actual stop / expected ≤ 1.15)</li>
+                <li>If slip too high → immediately CLOSE and drop trade</li>
+              </ul>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="8"
+            title="Bracket walker on every open trade"
+            desc="After the on_bar step, engine walks each open trade's OHLC against SL/TP/BE. Updates MFE/MAE. If partial_tp_at_r crossed → walker moves SL to entry AND triggers on_partial_tp callback → broker gets CLOSE_PARTIAL + MODIFY(SL=entry)."
+            detail={
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>close ≥ TP → EXIT_TP</li>
+                <li>close ≤ SL → EXIT_SL (or SL_BE if partial fired earlier)</li>
+                <li>bars_held ≥ 48/96 → EXIT_TIMEOUT</li>
+                <li>All exit events emit journal event + trigger reconciler</li>
+              </ul>
+            }
+          />
+          <Arrow />
+
+          <Step
+            n="9"
+            title="On exit: reconcile with broker deal history"
+            tone="info"
+            desc="Live runner reads closed_orders.json for the broker's authoritative deal record. Aggregates multiple deals per position_id (partial + final). Writes broker_gross_usd / broker_commission_usd / broker_swap_usd / broker_net_usd + broker_exit_reason + broker_close_ts to bt_trades."
+            detail="Walker net_r remains the strategy-space R metric. Broker columns are truth for real $ P&L. Dashboard trades page shows both side-by-side."
+          />
+          <Arrow />
+
+          <Step
+            n="10"
+            title="Account snapshot + tick advance"
+            desc="Read account_info.json → persist bt_account_snapshot with balance/equity/open_positions. Engine loop returns to LiveClock.tick() to wait for the next M15 close."
+            formula="LiveClock polls every 1s. Blocks up to poll_interval_s until next bar timestamp exceeds last_yielded_ts."
+          />
+        </div>
+
+        <aside className="col-span-12 lg:col-span-4 space-y-3">
+          <div className="text-ds-md font-semibold text-transparent mb-3 select-none" aria-hidden>
+            .
+          </div>
+
+          <PerTickIO />
+          <StateFootprint />
+          <BarWarmupNote />
+        </aside>
+      </div>
+
+      <SharedLiveNotes />
+    </div>
+  );
+}
+
+function TickBanner() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+      <BannerStat label="Tick cadence" value="15 min" tone="info" />
+      <BannerStat label="Bars pulled per tick" value="1 (newest closed)" tone="bull" />
+      <BannerStat label="Disk reads per tick" value="~4 JSON files" tone="neutral" />
+      <BannerStat label="State carry-fwd" value="8 trackers" tone="neutral" />
+    </div>
+  );
+}
+
+function BannerStat({ label, value, tone }: { label: string; value: string; tone: "info" | "bull" | "neutral" }) {
+  const toneCls = tone === "info" ? "border-info/40 bg-info/[0.06]"
+    : tone === "bull" ? "border-bull/40 bg-bull/[0.06]"
+    : "border-line-base bg-bg-elevated";
+  return (
+    <div className={`border ${toneCls} rounded-ds p-3`}>
+      <div className="text-ds-xs text-ink-muted uppercase tracking-wide">{label}</div>
+      <div className="text-ds-md font-semibold text-ink-primary mt-1">{value}</div>
+    </div>
+  );
+}
+
+function PerTickIO() {
+  return (
+    <div className="border border-line-base rounded-ds p-4 bg-bg-surface">
+      <div className="text-ds-sm font-semibold text-ink-primary mb-3 uppercase tracking-wide">
+        Per-tick I/O
+      </div>
+      <div className="space-y-2 text-ds-xs">
+        {[
+          { file: "bars_M15.json", op: "read", detail: "detect new bar" },
+          { file: "bars_D1.json", op: "read", detail: "regime aggregation" },
+          { file: "market_data.json", op: "read", detail: "spread check on submit" },
+          { file: "account_info.json", op: "read", detail: "balance/equity snapshot" },
+          { file: "open_orders.json", op: "read", detail: "position sync + safety count" },
+          { file: "commands/*.txt", op: "write", detail: "OPEN/MODIFY/CLOSE (only on trade action)" },
+          { file: "responses/*.json", op: "read", detail: "broker ack + fill price" },
+        ].map((row, i) => (
+          <div key={i} className="grid grid-cols-12 gap-2 items-baseline">
+            <code className="col-span-5 text-info">{row.file}</code>
+            <span className={`col-span-2 text-ds-xs uppercase font-semibold ${
+              row.op === "read" ? "text-bull" : "text-warn"
+            }`}>{row.op}</span>
+            <span className="col-span-5 text-ink-secondary">{row.detail}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 pt-2 border-t border-line-subtle text-ds-xs text-ink-muted">
+        Zero re-fetch of historical bars per tick. Provider caches M15 frame in memory at startup, appends new bars as they arrive.
+      </div>
+    </div>
+  );
+}
+
+function StateFootprint() {
+  return (
+    <div className="border border-line-base rounded-ds p-4 bg-bg-surface">
+      <div className="text-ds-sm font-semibold text-ink-primary mb-3 uppercase tracking-wide">
+        Strategy state footprint
+      </div>
+      <div className="space-y-1.5 text-ds-xs">
+        {[
+          ["pivot_tracker", "7 M15 bars (lb=3 sliding window)"],
+          ["regime_tracker", "D1 EMA fast/slow + ATR (last N days)"],
+          ["swing_tracker", "20 M15 bars"],
+          ["last_H / last_L", "2 floats + 2 timestamps"],
+          ["pending_setups", "≤ 5 FibSetup per leg typical"],
+          ["pending_entries", "≤ 2 entries queued (rare)"],
+          ["consumed_setup_keys", "grows monotonically (dedup)"],
+          ["prev_open / prev_close", "2 floats (confirm candle)"],
+        ].map(([k, v], i) => (
+          <div key={i} className="grid grid-cols-12 gap-2">
+            <code className="col-span-5 text-info">{k}</code>
+            <span className="col-span-7 text-ink-secondary">{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BarWarmupNote() {
+  return (
+    <div className="border border-warn/40 rounded-ds p-4 bg-warn/[0.05]">
+      <div className="text-ds-sm font-semibold text-warn mb-2 uppercase tracking-wide">
+        Warmup (once, at startup)
+      </div>
+      <div className="text-ds-xs text-ink-secondary space-y-1">
+        <div>Runner reads last <span className="font-mono text-warn">200 M15 bars</span> from bars_M15.json.</div>
+        <div>Replays through <code className="text-info">strat.on_bar()</code>.</div>
+        <div>Emitted events <span className="text-bear font-semibold">DISCARDED</span> (not persisted, no orders sent).</div>
+        <div>Only <span className="text-bull font-semibold">state</span> carries forward — pivots seeded, regime warm, prev_bar cache filled.</div>
+        <div className="mt-2 pt-2 border-t border-warn/30">Post-warmup: <code className="text-info">pending_entries</code> cleared. <code className="text-info">consumed_setup_keys</code> retained (historical keys can't collide with future live keys — L99 audit verified).</div>
+      </div>
+    </div>
+  );
+}
+
+function SharedLiveNotes() {
+  return (
+    <section className="border border-line-subtle rounded-ds bg-bg-surface p-4 mt-4">
+      <div className="text-ds-md font-semibold text-ink-primary mb-3 uppercase tracking-wide">
+        Parity chain (research = BT engine = live engine)
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <ParityCard
+          title="Research → BT parity"
+          verified="6/6 legs (fib_v2_intraday_a + _d, cross-symbol XAU/EUR)"
+          how="tests/parity/test_parity_fib_v2_intraday_*.py — asserts trade-by-trade match vs research parquet."
+        />
+        <ParityCard
+          title="BT → Live engine parity"
+          verified="3/3 tests, 300 XAU M15 bars"
+          how="tests/integration/test_bt_live_event_parity.py — same strategy, mode='bt' vs mode='live' event streams byte-identical."
+        />
+        <ParityCard
+          title="Live engine → Real broker parity"
+          verified="Per-trade via reconciler"
+          how="closed_orders.json → broker_gross/comm/swap → bt_trades.broker_net_usd. Walker net_r + broker net_$ shown side-by-side on trades page."
+        />
+      </div>
+      <div className="mt-4 pt-3 border-t border-line-subtle text-ds-xs text-ink-muted">
+        L99 hostile audit (2026-07-01): 13 execution / parity blind spots reviewed. 4 real bugs fixed (slip-reject, partial-TP retry/safe-close, reconciler multi-deal aggregation, concurrent A+D). See <code className="text-info">docs/audit/L99_HOSTILE_AUDIT_2026-07-01.md</code>.
+      </div>
+    </section>
+  );
+}
+
+function ParityCard({ title, verified, how }: { title: string; verified: string; how: string }) {
+  return (
+    <div className="border border-bull/40 rounded-ds p-3 bg-bull/[0.04]">
+      <div className="text-ds-sm font-semibold text-bull mb-2">{title}</div>
+      <div className="text-ds-xs text-ink-primary mb-2">✓ {verified}</div>
+      <div className="text-ds-xs text-ink-muted">{how}</div>
     </div>
   );
 }
