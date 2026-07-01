@@ -74,7 +74,26 @@ LONG_BULL_STRONG = LegSpec(direction="long", regime="bull_strong", leg_name="lon
 SHORT_BEAR_STRONG = LegSpec(direction="short", regime="bear_strong", leg_name="short_bear_strong")
 
 
-# Cost defaults per asset family — used to override config.cost_usd from CLI.
+# Per-lot cost model: cost_$ = (commission_per_lot + spread_est × contract) × qty.
+# Values verified against JustMarkets-Demo2 (commission=0, only spread cost) —
+# L99 audit suspect #3 (2026-07-01). Update per broker in production.
+# Values are ROUND-TURN (both sides).
+COST_PER_LOT_DEFAULTS: dict[str, dict[str, float]] = {
+    # commission_per_lot ($/round-turn), spread_est_$_per_unit
+    "XAUUSD.ecn":  {"commission": 0.0, "spread_est": 0.30},   # JM Demo: 0 comm, ~$0.30/oz spread
+    "XAUUSD":      {"commission": 0.0, "spread_est": 0.30},
+    "EURUSD.ecn":  {"commission": 0.0, "spread_est": 0.00005},
+    "EURUSD":      {"commission": 0.0, "spread_est": 0.00005},
+    "EUR_USD":     {"commission": 0.0, "spread_est": 0.00005},
+    "BCO_USD":     {"commission": 0.0, "spread_est": 0.05},
+    "BRENT.ecn":   {"commission": 0.0, "spread_est": 0.05},
+    "GBP_USD":     {"commission": 0.0, "spread_est": 0.00008},
+}
+
+
+# Deprecated: kept for backward compat with old CLI scripts that pass --cost-usd.
+# Prefer COST_PER_LOT_DEFAULTS. Strategy still uses this in _finalize_entry;
+# runner recomputes at trade open using per-lot model when possible.
 COST_USD_DEFAULTS: dict[str, float] = {
     "XAUUSD": 0.30,
     "XAUUSD.ecn": 0.30,

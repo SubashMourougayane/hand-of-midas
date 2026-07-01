@@ -8,6 +8,7 @@ Dry-run mode: --dry-run skips broker.submit_order (logs only, no real orders).
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -96,7 +97,10 @@ class LiveSafetyConfig:
     # Default 2.0 lets Model B run at any equity up to ~$700k on XAU without
     # tripping — well above any realistic short-term equity growth.
     max_lot: float = 2.0
-    max_open_positions: int = 1
+    # Research validates up to 4 concurrent positions on shared NAV
+    # (A LONG + D SHORT hedge + partial-TP overlap). Setting to 1 blocks
+    # legitimate D entry once A is open (L99 audit suspect #6).
+    max_open_positions: int = 4
     max_spread: float = 0.50
     kill_switch_path: Path = DEFAULT_LIVE_KILL_SWITCH
     # Max acceptable ratio of ACTUAL stop distance (post-fill) vs EXPECTED
@@ -616,15 +620,50 @@ def run_live(
                 "PARTIAL_TP_CLOSE_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
             )
             return
-        # 2) modify SL → BE on remainder.
-        try:
-            broker.modify(ticket, sl=new_sl, tp=tp)
-        except Exception as e:
-            log.error("[PARTIAL_TP] modify_sl failed ticket=%s: %s", ticket, e)
-            _persist_partial_tp_event(
-                "PARTIAL_TP_MODIFY_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
+        # 2) modify SL → BE on remainder. Retry on failure; on terminal failure
+        #    SAFE-CLOSE the remaining position rather than leave it exposed with
+        #    the original (further-away) SL.
+        modify_ok = False
+        last_err: str | None = None
+        for attempt in range(3):
+            try:
+                broker.modify(ticket, sl=new_sl, tp=tp)
+                modify_ok = True
+                break
+            except Exception as e:
+                last_err = str(e)
+                log.warning(
+                    "[PARTIAL_TP] modify_sl attempt %d/3 failed ticket=%s: %s",
+                    attempt + 1, ticket, e,
+                )
+                time_backoff = 0.3 * (attempt + 1)
+                time.sleep(time_backoff)
+
+        if not modify_ok:
+            log.error(
+                "[PARTIAL_TP] modify_sl exhausted retries ticket=%s: %s — SAFE CLOSING remainder",
+                ticket, last_err,
             )
+            _persist_partial_tp_event(
+                "PARTIAL_TP_MODIFY_FAILED", tr, bar, ticket, close_qty, new_sl, last_err,
+            )
+            try:
+                broker.cancel(ticket)
+                _persist_partial_tp_event(
+                    "PARTIAL_TP_SAFE_CLOSED", tr, bar, ticket, close_qty, new_sl,
+                    error=f"modify retries exhausted; safe-closed remainder. cause={last_err}",
+                )
+            except Exception as e:
+                log.critical(
+                    "[PARTIAL_TP] safe-close ALSO failed ticket=%s: %s — MANUAL INTERVENTION REQUIRED",
+                    ticket, e,
+                )
+                _persist_partial_tp_event(
+                    "PARTIAL_TP_ORPHANED", tr, bar, ticket, close_qty, new_sl,
+                    error=f"safe-close failed: {e}; original cause: {last_err}",
+                )
             return
+
         _persist_partial_tp_event(
             "PARTIAL_TP_APPLIED", tr, bar, ticket, close_qty, new_sl, None,
         )

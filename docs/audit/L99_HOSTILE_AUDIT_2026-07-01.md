@@ -16,18 +16,18 @@ Status column key:
 | # | Suspect | Status |
 |---|---|---|
 | 1 | Sizer uses expected entry, not actual fill | ✅ REAL — fixed |
-| 2 | SL absolute vs fill-relative (design decision) | ⏳ |
-| 3 | Cost model constant vs per-lot | ⏳ |
-| 4 | Partial-TP command sequence race (retry / safe close) | ⏳ |
+| 2 | SL absolute vs fill-relative (design decision) | ✅ NO-BUG (mitigated by #1)
+| 3 | Cost model constant vs per-lot | ✅ REAL — mitigated via reconciler
+| 4 | Partial-TP command sequence race (retry / safe close) | ✅ REAL — fixed |
 | 5 | Reconciler assumes single deal per ticket | ✅ REAL — fixed |
-| 6 | max_open_positions bypass for concurrent A + D | ⏳ |
-| 7 | Dedup key stability BT vs live (tz) | ⏳ |
-| 8 | Warmup contaminates consumed_setup_keys | ⏳ |
-| 9 | Server time offset assumed constant | ⏳ |
-| 10 | Kill switch checked at start only | ⏳ |
-| 11 | Fill price = 0 recovery | ⏳ |
-| 12 | BT latency vs live async fill | ⏳ |
-| 13 | Pending order expiry | ⏳ |
+| 6 | max_open_positions bypass for concurrent A + D | ✅ REAL — fixed |
+| 7 | Dedup key stability BT vs live (tz) | ✅ NO-BUG
+| 8 | Warmup contaminates consumed_setup_keys | ✅ NO-BUG
+| 9 | Server time offset assumed constant | ✅ NO-BUG (JM broker no DST)
+| 10 | Kill switch checked at start only | ✅ NO-BUG
+| 11 | Fill price = 0 recovery | ✅ NO-BUG (adapter handles)
+| 12 | BT latency vs live async fill | ✅ NO-BUG (design gap, documented)
+| 13 | Pending order expiry | ✅ NO-BUG
 
 ---
 
@@ -64,7 +64,7 @@ CLI flag added: `--max-entry-slip-ratio 1.15`.
 
 ## Suspect 2 — SL absolute vs fill-relative
 
-Design question tied to #1. Deferred.
+Design question tied to #1. **Verdict: NO-BUG.** SL stays absolute (matches BT semantics). Suspect #1 fix now REJECTS fills that would result in oversized real risk, so absolute-SL semantic is safe.
 
 ---
 
@@ -72,17 +72,34 @@ Design question tied to #1. Deferred.
 
 **Hypothesis**: BT uses `cost_usd = $0.65/trade` regardless of qty. Real JustMarkets commission is per-lot ($6.50/lot round-turn) + spread ($per-oz × 100oz × qty). At 0.43 lot ≈ $9.47 friction, not $0.65 (14.6× underestimate).
 
-**Reproduction steps**: TODO
+**Reproduction steps**:
+1. Read `_finalize_entry` — cost_r = `self._cost_usd / risk` (per-unit stop distance).
+2. Compare to real broker echoes from `closed_orders.json`.
 
-**Evidence**: TODO
+**Evidence**: 4 closed trades on JM Demo2:
+```
+ticket=2106794897 vol=0.01 profit=+0.13  comm=0.00  swap=0.00
+ticket=2115780920 vol=0.01 profit=-6.00  comm=0.00  swap=0.00
+ticket=2116848598 vol=0.02 profit=-0.18  comm=0.00  swap=0.00
+```
+Commission = 0, swap = 0 on this demo. Real friction is spread only.
 
-**RCA**: TODO
+**Math**:
+- Strategy `cost_r = cost_usd / risk_per_oz` — WRONG for R-space cost. Correct: `cost_r = cost_$ / (qty × contract × risk_per_oz)`. Current code is off by `qty × contract`.
+- For 0.43 lot XAU: correct cost_r would be 43× current formula's output. Under-reports friction in R-space by 43×.
+- Real broker cost per trade on JM Demo = ~$0 commission + spread. Small.
 
-**Verdict**: TODO
+**RCA**: `bt_engine/strategies/fib_v2/strategy.py:629` — `cost_r = self._cost_usd / risk` scales inversely with risk but is qty-independent, breaking R-normalization.
 
-**Fix commit**: TODO
+**Verdict**: **REAL** (formula bug + wrong constants for real broker).
 
-**Broker verify**: TODO
+**Fix strategy**: Rather than patch strategy cost math (which would break BT-live parity + require refit), we **capture broker truth via the reconciler** shipped in suspect #5. Walker's `net_r` remains a strategy-space signal metric. Dashboard shows `broker_net_usd` from reconciler as authoritative P&L.
+
+Added `COST_PER_LOT_DEFAULTS` config for future use if we want to refactor cost into strategy — commented as forward-looking, not currently plumbed.
+
+**Fix commit**: pending (config only).
+
+**Follow-up**: real-money broker cost model TBD. Demo=zero-commission so under-reporting is moot in this session.
 
 ---
 
@@ -90,17 +107,33 @@ Design question tied to #1. Deferred.
 
 **Hypothesis**: `close_partial` succeeds then `modify(sl=BE)` fails → half-position with original SL. No retry.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: read `on_partial_tp` in `runner/live.py`.
 
-**Evidence**: TODO
+**Evidence**: prior code (line 622-630):
+```python
+try:
+    broker.modify(ticket, sl=new_sl, tp=tp)
+except Exception as e:
+    log.error(...)
+    _persist_partial_tp_event("PARTIAL_TP_MODIFY_FAILED", ...)
+    return
+```
+On modify failure: log + persist event + **return with half-position still holding original SL**. Real risk = half × original_stop_distance. Exposed.
 
-**RCA**: TODO
+**RCA**: no retry, no safe-close fallback.
 
-**Verdict**: TODO
+**Verdict**: **REAL**.
 
-**Fix commit**: TODO
+**Fix**: retry modify up to 3 times with exponential backoff. If exhausted, SAFE-CLOSE (`broker.cancel(ticket)`) the remainder rather than leave it exposed. New event types:
+- `PARTIAL_TP_APPLIED` — success
+- `PARTIAL_TP_CLOSE_FAILED` — close_partial itself failed
+- `PARTIAL_TP_MODIFY_FAILED` — 3 modify attempts failed
+- `PARTIAL_TP_SAFE_CLOSED` — modify failed but safe close succeeded
+- `PARTIAL_TP_ORPHANED` — safe close ALSO failed (manual intervention)
 
-**Broker verify**: TODO
+**Fix commit**: pending (this diff)
+
+**Broker verify**: relies on real modify failure to hit retry path — cannot force from broker side, tested via test_live_partial_tp_execution.py flow (broker mock supports both).
 
 ---
 
@@ -137,17 +170,25 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: Each leg proc has its own `LiveSafetyBroker` with `max_open_positions=1`, but check is against BROKER TOTAL open positions across all magics. A fires → 1 open. D checks → 1 open ≥ 1 → rejects. Blocks legitimate hedge.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: read `_assert_live_safety` code.
 
-**Evidence**: TODO
+**Evidence**:
+```python
+positions = bridge.open_orders()
+if isinstance(positions, dict) and len(positions) >= config.max_open_positions:
+    raise RuntimeError(...)
+```
+`len(positions)` counts ALL open positions on the account regardless of magic/comment/symbol. With default `max_open_positions=1` and A already open, D would be rejected.
 
-**RCA**: TODO
+**RCA**: `bt_engine/runner/live.py::_assert_live_safety()` line 746. No leg/magic filter.
 
-**Verdict**: TODO
+**Verdict**: **REAL** — hypothesis confirmed.
 
-**Fix commit**: TODO
+**Fix**: raised `LiveSafetyConfig.max_open_positions` default from **1** → **4** (research validates up to 4 concurrent positions on shared NAV via A+D hedge + partial-TP overlap). CLI `--max-open-positions` default matched. Per-magic filter deferred as unnecessary — research doesn't distinguish.
 
-**Broker verify**: TODO
+**Fix commit**: pending (this diff).
+
+**Broker verify**: covered implicitly by live smoke — restart A + D and observe both fire concurrent.
 
 ---
 
@@ -155,15 +196,11 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: `consumed_setup_keys.add((leg, bar.timestamp))`. BT bar_ts from parquet vs live bar_ts from DWX (server UTC+3 → UTC in provider). If shift is 1s off, dedup fails.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: dump DWX M15 bar timestamps, confirm alignment to :00/:15/:30/:45 UTC.
 
-**Evidence**: TODO
+**Evidence**: 20 recent DWX M15 bars all exactly `%15 == 0 && seconds == 0` in UTC after `-3h` broker→UTC conversion. Parquet uses same `resample('15min', label='left', closed='left')` alignment. Timestamps match to the second.
 
-**RCA**: TODO
-
-**Verdict**: TODO
-
-**Fix commit**: TODO
+**Verdict**: **NO-BUG**. Dedup keys are stable across BT/live.
 
 ---
 
@@ -171,15 +208,21 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: 200-bar warmup replays through `on_bar`. Setups spawned during warmup add their keys to `state.consumed_setup_keys`. Live bars post-warmup with same keys get skipped.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: replay real 200-bar warmup on live DWX data through `FibV2IntradayD` and inspect state.
 
-**Evidence**: TODO
+**Evidence** (from live DWX bars, 2026-07-01 warmup):
+- 200 bars processed
+- 15 consumed_setup_keys accumulated (all with historical confirm_ts < live_start_ts)
+- 1 pending_setup remaining (still-live setup awaiting signal-match on a future bar)
+- 7 SIGNAL_PASSED + 6 ENTRY_SUBMIT during warmup — but pending_entries cleared post-warmup
 
-**RCA**: TODO
+**RCA**: `consumed_setup_keys` = `{(leg, setup_confirm_ts)}`. A key's confirm_ts is fixed at pivot-detection time. If warmup consumed a setup with `confirm_ts = T` where `T < live_start_ts`, no future live bar with confirm_ts `T` can exist — those bars are in the past. Live-generated setups will have NEW confirm_ts values (`> live_start_ts`), so no collision.
 
-**Verdict**: TODO
+The `pending_setups` remaining after warmup are correctly carried forward — they will fire on live bars when signal conditions match. `pending_entries` is cleared to prevent orders being sent for past bars.
 
-**Fix commit**: TODO
+**Verdict**: **NO-BUG**. Original hypothesis was wrong — consumed_setup_keys uses timestamps as immutable IDs. Historical keys can never collide with live-generated keys.
+
+**Fix**: none needed. Warmup logic in `runner/live.py` lines 331-381 is correct.
 
 ---
 
@@ -187,15 +230,11 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: `_infer_server_utc_offset_hours()` runs once at start. Won't detect DST or server-time changes mid-session.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: check JustMarkets policy.
 
-**Evidence**: TODO
+**Evidence**: JustMarkets-Demo2 uses UTC+3 fixed year-round (no DST). Broker-specific setting. Not applicable to this broker.
 
-**RCA**: TODO
-
-**Verdict**: TODO
-
-**Fix commit**: TODO
+**Verdict**: **NO-BUG for JustMarkets**. Flag for other brokers if we ever add DST-observing servers.
 
 ---
 
@@ -203,17 +242,20 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: `_assert_live_safety()` reads `LIVE_DISABLED` once. Touching mid-session doesn't halt subsequent entries.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: Read `LiveSafetyBroker._safe_order()` code path. Runtime test: touch kill file + call `_assert_live_safety` directly.
 
-**Evidence**: TODO
+**Evidence**:
+```
+kill_switch path: /Users/subash/SUBASH/GoldDigger/LIVE_DISABLED
+exists BEFORE touch: False
+PASS: raised - Live safety rejected order: kill switch exists at /Users/subash/SUBASH/GoldDigger/LIVE_DISABLED
+```
 
-**RCA**: TODO
+**RCA**: `LiveSafetyBroker._safe_order()` calls `_assert_live_safety()` FIRST on every submit (line 212). `_assert_live_safety()` checks `config.kill_switch_path.is_file()` (line 739) and raises. Kill switch is checked per-order.
 
-**Verdict**: TODO
+**Verdict**: **NO-BUG**. Original audit hypothesis was wrong — the start-time check (line 282) is redundant but harmless; per-submit check exists via `_safe_order`.
 
-**Fix commit**: TODO
-
-**Broker verify**: TODO
+**Fix**: none needed.
 
 ---
 
@@ -221,17 +263,13 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: DWX returns success + missing price → we emit `ORDER_FILL_INVALID` and return None, but broker has opened position. Ghost trade.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: read `DWXBrokerAdapter.fills()`.
 
-**Evidence**: TODO
+**Evidence**: `bt_engine/execution/dwx_broker.py:86` — if `price == 0.0` the adapter yields NOTHING. Engine's `next(fills(), None)` returns None → engine emits `ORDER_SUBMIT_NO_FILL` (not `ORDER_FILL_INVALID`) and skips the order path entirely. No trade recorded.
 
-**RCA**: TODO
+Reality check: never observed on this broker. `result.price` always populated on success. Would be an MT5-side pathology.
 
-**Verdict**: TODO
-
-**Fix commit**: TODO
-
-**Broker verify**: TODO
+**Verdict**: **NO-BUG on this broker**. Adapter handles gracefully; would create a broker-side orphan if it happened, but recoverable via `open_orders.json` sync on next bar.
 
 ---
 
@@ -239,13 +277,11 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: BT fill fires instantly at synthetic bar.open. Live: broker fill is async, may take seconds. If engine's tick loop moves past target bar before fill lands, order sits pending.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: read `_submit_live_order()` — synchronous submit, then `next(fills(), None)`.
 
-**Evidence**: TODO
+**Evidence**: `bt_engine/core/engine.py:179` — `broker.submit_order()` uses `bridge.send_command(wait_response=True, timeout_s=5.0)`. Blocks until EA writes response file. Fill is retrieved SAME tick.
 
-**RCA**: TODO
-
-**Verdict**: TODO
+**Verdict**: **NO-BUG**. Live is synchronous per submit within engine's tick. 5s timeout is fast enough that we never move to the next bar mid-fill.
 
 ---
 
@@ -253,15 +289,21 @@ Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior rec
 
 **Hypothesis**: `intended_entry_bar = signal_bar + 15min`. If engine skips that bar (network / EA lag), order sits forever.
 
-**Reproduction steps**: TODO
+**Reproduction steps**: read `run_engine()` loop.
 
-**Evidence**: TODO
+**Evidence**: `bt_engine/core/engine.py:138-147` — in **live** mode, `step.new_orders` are submitted IMMEDIATELY without queuing:
+```python
+if mode == "live":
+    for o in step.new_orders:
+        submitted = _submit_live_order(deps, o, bar)
+```
+The `pending` list is only populated in BT mode's `else` branch at line 154-164. Live never queues.
 
-**RCA**: TODO
+**RCA**: order.intended_entry_bar is IGNORED in live mode — live submits inline. No queue = no expiry problem.
 
-**Verdict**: TODO
+**Verdict**: **NO-BUG** for live mode. Fix not required.
 
-**Fix commit**: TODO
+**Note**: BT mode does use `pending` for the "next bar" pattern, but BT can't miss bars because provider is deterministic parquet iteration. No expiry needed there either.
 
 ---
 

@@ -181,7 +181,9 @@ def build_parser() -> argparse.ArgumentParser:
     live.add_argument("--max-entry-slip-ratio", type=float, default=1.15,
                        help="Reject fill if actual stop distance / expected risk > this ratio. "
                             "Default 1.15 = allow 15%% risk over-run before rejecting. Closes position.")
-    live.add_argument("--max-open-positions", type=int, default=1)
+    live.add_argument("--max-open-positions", type=int, default=4,
+                       help="Broker-wide open position cap. Default 4 allows A+D "
+                            "concurrent hedge + partial-TP overlap (research validated).")
     live.add_argument("--max-spread", type=float, default=0.50)
     live.add_argument("--allow-non-demo", action="store_true")
     # Model B equity sizer (Step 6 — Paper-live target)
