@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, FunnelBucket, SignalRow as SignalRowT } from "../lib/api";
+import { api, AccountSnap, FunnelBucket, SignalRow as SignalRowT } from "../lib/api";
 import { WsEnvelope } from "../lib/ws";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
@@ -20,13 +20,14 @@ export function SignalsPage({
 }) {
   const [signals, setSignals] = useState<SignalRowT[]>([]);
   const [funnel, setFunnel] = useState<FunnelBucket[]>([]);
+  const [bars, setBars] = useState<AccountSnap[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [legFilter, setLegFilter] = useState<string>("");
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
 
   const refresh = async () => {
     if (!runId) return;
-    const [sigs, fn] = await Promise.all([
+    const [sigs, fn, barSeries] = await Promise.all([
       api.signalsRecent({
         run_id: runId,
         limit: 500,
@@ -34,15 +35,41 @@ export function SignalsPage({
         leg: legFilter || undefined,
       }),
       api.funnel(runId),
+      api.accountSeries(runId, 500),
     ]);
     setSignals(sigs);
     setFunnel(fn.buckets);
+    setBars(barSeries);
   };
 
   // Initial load only — WS pushes drive subsequent updates.
   useEffect(() => {
     refresh();
   }, [runId, statusFilter, legFilter]);
+
+  // Bar heartbeat: append account snapshots as they arrive.
+  useEffect(() => {
+    return ws.onMessage((env) => {
+      if (env.run_id !== runId) return;
+      if (env.channel !== "account") return;
+      const p = env.payload as any;
+      setBars((prev) => {
+        // Dedup on ts.
+        if (prev.some((b) => b.ts === p.ts)) return prev;
+        return [
+          ...prev,
+          {
+            snap_id: p.snap_id ?? 0,
+            ts: p.ts,
+            balance: p.balance ?? null,
+            equity: p.equity ?? null,
+            open_pnl: p.open_pnl ?? null,
+            open_position: p.open_position ?? null,
+          },
+        ].slice(-500);
+      });
+    });
+  }, [ws, runId]);
 
   useEffect(() => {
     return ws.onMessage((env) => {
@@ -88,6 +115,28 @@ export function SignalsPage({
   const total = useMemo(() => funnel.reduce((s, b) => s + b.count, 0), [funnel]);
   const rejectCount = total - passCount;
 
+  // Merge signals + bar heartbeats into ONE timeline, sorted desc by ts.
+  // Heartbeats appear as low-contrast rows so silent bars (no gate fired)
+  // still show a pulse — user sees the run is alive even between events.
+  const timeline = useMemo(() => {
+    type Item =
+      | { kind: "signal"; ts: string; key: string; sig: SignalRowT }
+      | { kind: "bar"; ts: string; key: string; bar: AccountSnap };
+    const items: Item[] = [];
+    for (const s of signals) {
+      items.push({ kind: "signal", ts: s.ts, key: `s${s.signal_id}`, sig: s });
+    }
+    for (const b of bars) {
+      // Skip bar if a signal already shows at the same ts — the signal row
+      // is already visible for that bar close, redundant heartbeat clutters.
+      const same_ts = signals.some((s) => s.ts === b.ts);
+      if (same_ts) continue;
+      items.push({ kind: "bar", ts: b.ts, key: `b${b.snap_id}-${b.ts}`, bar: b });
+    }
+    return items.sort((a, b) => b.ts.localeCompare(a.ts));
+  }, [signals, bars]);
+  const lastBar = bars.length ? bars[bars.length - 1] : null;
+
   return (
     <div className="h-full flex flex-col gap-3 p-3 min-h-0">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
@@ -103,7 +152,11 @@ export function SignalsPage({
       <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
         <Pane
           title="Signal Stream"
-          subtitle={`${signals.length} loaded`}
+          subtitle={
+            lastBar
+              ? `${signals.length} signals · ${bars.length} bars · last bar ${new Date(lastBar.ts).toISOString().slice(11, 16)}Z`
+              : `${signals.length} signals loaded`
+          }
           toolbar={
             <div className="flex items-center gap-2">
               <input
@@ -148,20 +201,24 @@ export function SignalsPage({
           }
           className="col-span-12 lg:col-span-8 min-h-0"
         >
-          {signals.length === 0 ? (
+          {timeline.length === 0 ? (
             <div className="px-3 py-10 text-center text-ink-muted text-ds-sm">
-              No signals match filter
+              No signals or bars yet
             </div>
           ) : (
             <div>
-              {signals.map((s) => (
-                <SignalRowItem
-                  key={s.signal_id}
-                  signal={s}
-                  isNew={newIds.has(s.signal_id)}
-                  expandable
-                />
-              ))}
+              {timeline.map((it) =>
+                it.kind === "signal" ? (
+                  <SignalRowItem
+                    key={it.key}
+                    signal={it.sig}
+                    isNew={newIds.has(it.sig.signal_id)}
+                    expandable
+                  />
+                ) : (
+                  <BarHeartbeatRow key={it.key} bar={it.bar} />
+                )
+              )}
             </div>
           )}
         </Pane>
@@ -174,6 +231,24 @@ export function SignalsPage({
           <Funnel buckets={funnel} total={total} />
         </Pane>
       </div>
+    </div>
+  );
+}
+
+
+function BarHeartbeatRow({ bar }: { bar: AccountSnap }) {
+  const t = new Date(bar.ts);
+  const hhmm = t.toISOString().slice(11, 16);
+  return (
+    <div className="border-b border-line-subtle px-3 py-1.5 flex items-center gap-3 text-ds-xs opacity-60 hover:opacity-100 transition-opacity">
+      <span className="w-1.5 h-1.5 rounded-full bg-ink-muted" />
+      <span className="font-mono text-ink-muted">{hhmm}Z</span>
+      <span className="text-ink-muted uppercase tracking-wide">BAR</span>
+      <span className="text-ink-secondary">bar closed — strategy silent (no active setup)</span>
+      <span className="ml-auto font-mono text-ink-muted">
+        {bar.equity !== null ? `eq $${bar.equity.toFixed(2)}` : ""}
+        {bar.open_position !== null ? ` · pos ${bar.open_position}` : ""}
+      </span>
     </div>
   );
 }
