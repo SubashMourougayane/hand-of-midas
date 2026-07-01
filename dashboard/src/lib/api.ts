@@ -34,6 +34,7 @@ export type Trade = {
   regime: string | null;
   partial_taken: boolean | null;
   partial_r: number | null;
+  raw_features?: Record<string, unknown> | null;
 };
 
 export type JournalEvt = {
@@ -87,7 +88,7 @@ async function j<T>(path: string): Promise<T> {
 
 export const api = {
   health: () => j<{ status: string }>("/api/health"),
-  runs: (limit = 50, mode?: string) =>
+  runs: (limit = 50, mode?: "live" | "bt" | string) =>
     j<Run[]>(`/api/runs?limit=${limit}${mode ? `&mode=${mode}` : ""}`),
   runDetail: (id: string) => j<any>(`/api/runs/${id}`),
   runTrades: (id: string, status?: "open" | "closed", page = 1, pageSize = 100) =>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtTs } from "../lib/format";
+import { fmtMoney, fmtTs } from "../lib/format";
 import { WsStatus } from "../lib/ws";
 
 export function StatusBar({
@@ -7,11 +7,17 @@ export function StatusBar({
   lastMessageAt,
   runRef,
   equity,
+  balance,
+  openPositions,
+  signalsSeen,
 }: {
   status: WsStatus;
   lastMessageAt: number;
   runRef?: string;
   equity?: number | null;
+  balance?: number | null;
+  openPositions?: number | null;
+  signalsSeen?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -20,36 +26,57 @@ export function StatusBar({
   }, []);
 
   const age = lastMessageAt ? Math.round((now - lastMessageAt) / 1000) : -1;
-  const dotColor =
+  const dotCls =
     status !== "open"
-      ? "bg-term-red"
+      ? "bg-bear text-bear"
       : age > 5
-      ? "bg-term-amber"
-      : "bg-term-green";
+      ? "bg-warn text-warn"
+      : "bg-bull text-bull";
 
   return (
-    <div className="flex items-center justify-between border-t border-term-amber bg-term-panel px-2 py-0.5 text-term-xs">
-      <div className="flex items-center gap-3">
-        <span className="flex items-center gap-1">
-          <span className={`inline-block w-2 h-2 ${dotColor} term-blink`} />
-          <span className="uppercase">{status}</span>
+    <div className="flex items-center justify-between border-t border-line-subtle bg-bg-surface px-4 h-7 shrink-0 text-ds-xs">
+      <div className="flex items-center gap-4">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full ds-dot ${dotCls}`} />
+          <span className="uppercase tracking-wide text-ink-secondary font-medium">
+            {status}
+          </span>
           {status === "open" && age >= 0 && (
-            <span className="text-term-textMuted">+{age}s</span>
+            <span className="text-ink-muted font-mono">+{age}s</span>
           )}
         </span>
         {runRef && (
-          <span className="text-term-textMuted">
-            RUN <span className="text-term-amber">{runRef}</span>
+          <span className="text-ink-muted">
+            run <span className="text-ink-secondary font-mono">{runRef.slice(-12)}</span>
+          </span>
+        )}
+        {signalsSeen != null && (
+          <span className="text-ink-muted">
+            signals <span className="text-ink-secondary font-mono">{signalsSeen}</span>
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3">
-        {equity != null && (
-          <span>
-            EQUITY <span className="text-term-green">${equity.toFixed(2)}</span>
+      <div className="flex items-center gap-4">
+        {balance != null && (
+          <span className="text-ink-muted">
+            balance{" "}
+            <span className="text-ink-secondary font-mono">{fmtMoney(balance)}</span>
           </span>
         )}
-        <span className="text-term-textMuted">{fmtTs(new Date(now).toISOString())} UTC</span>
+        {equity != null && (
+          <span className="text-ink-muted">
+            equity{" "}
+            <span className="text-bull font-mono font-medium">{fmtMoney(equity)}</span>
+          </span>
+        )}
+        {openPositions != null && (
+          <span className="text-ink-muted">
+            open <span className="text-ink-secondary font-mono">{openPositions}</span>
+          </span>
+        )}
+        <span className="text-ink-muted font-mono">
+          {fmtTs(new Date(now).toISOString())} UTC
+        </span>
       </div>
     </div>
   );

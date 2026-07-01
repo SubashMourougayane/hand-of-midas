@@ -28,8 +28,10 @@ def latest_account(
         .limit(limit)
     )
     rows = s.execute(q).scalars().all()
+    # Empty is legitimate (run just started, no bar-close yet) — 200 with []
+    # so the frontend's "no snapshot yet" path doesn't spam 404s in the network tab.
     if not rows:
-        raise HTTPException(status_code=404, detail="no account snapshot for run")
+        return {"items": []}
     return {
         "items": [
             {

@@ -4,7 +4,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, text, case
 from sqlalchemy.orm import Session
 
 from bt_engine.db.models import BtRun, BtTrade
@@ -51,8 +51,8 @@ def run_detail(run_id: UUID, s: Session = Depends(get_session)) -> dict:
         func.count(BtTrade.trade_id).label("n_trades"),
         func.sum(BtTrade.net_r).label("net_r_sum"),
         func.avg(BtTrade.net_r).label("net_r_avg"),
-        func.sum(func.case((BtTrade.net_r > 0, 1), else_=0)).label("wins"),
-        func.sum(func.case((BtTrade.net_r < 0, 1), else_=0)).label("losses"),
+        func.sum(case((BtTrade.net_r > 0, 1), else_=0)).label("wins"),
+        func.sum(case((BtTrade.net_r < 0, 1), else_=0)).label("losses"),
         func.count(BtTrade.exit_timestamp).label("closed"),
     ).where(BtTrade.run_id == run_id)
     agg = s.execute(trades_q).one()
@@ -119,4 +119,5 @@ def _trade_to_dict(t: BtTrade) -> dict:
         "regime": t.regime,
         "partial_taken": t.partial_taken,
         "partial_r": float(t.partial_r) if t.partial_r is not None else None,
+        "raw_features": t.raw_features,
     }

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, FunnelBucket, SignalRow } from "../lib/api";
+import { api, FunnelBucket, SignalRow as SignalRowT } from "../lib/api";
 import { WsEnvelope } from "../lib/ws";
 import { Pane } from "../components/Pane";
-import { DataGrid } from "../components/DataGrid";
-import { colorForGateStatus, fmtTs } from "../lib/format";
+import { Pill } from "../components/Pill";
+import { Funnel } from "../components/Funnel";
+import { SignalRowItem } from "../components/SignalRow";
+import { KPI } from "../components/KPI";
 
 type WsHook = {
   onMessage: (fn: (env: WsEnvelope) => void) => () => void;
@@ -16,10 +18,11 @@ export function SignalsPage({
   runId: string | null;
   ws: WsHook;
 }) {
-  const [signals, setSignals] = useState<SignalRow[]>([]);
+  const [signals, setSignals] = useState<SignalRowT[]>([]);
   const [funnel, setFunnel] = useState<FunnelBucket[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [legFilter, setLegFilter] = useState<string>("");
+  const [newIds, setNewIds] = useState<Set<number>>(new Set());
 
   const refresh = async () => {
     if (!runId) return;
@@ -36,10 +39,9 @@ export function SignalsPage({
     setFunnel(fn.buckets);
   };
 
+  // Initial load only — WS pushes drive subsequent updates.
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 10000);
-    return () => clearInterval(t);
   }, [runId, statusFilter, legFilter]);
 
   useEffect(() => {
@@ -60,6 +62,14 @@ export function SignalsPage({
         },
         ...prev.slice(0, 499),
       ]);
+      setNewIds((prev) => new Set(prev).add(sig.signal_id));
+      setTimeout(() => {
+        setNewIds((prev) => {
+          const next = new Set(prev);
+          next.delete(sig.signal_id);
+          return next;
+        });
+      }, 800);
       setFunnel((prev) => {
         const exists = prev.find((b) => b.status === sig.status);
         if (exists)
@@ -75,81 +85,95 @@ export function SignalsPage({
     () => funnel.find((b) => b.status === "GATE_SIGNAL_PASSED")?.count ?? 0,
     [funnel]
   );
+  const total = useMemo(() => funnel.reduce((s, b) => s + b.count, 0), [funnel]);
+  const rejectCount = total - passCount;
 
   return (
-    <div className="h-full grid grid-cols-12 gap-1">
-      <Pane title="Signals" className="col-span-8">
-        <div className="flex gap-2 px-2 py-1 border-b border-term-amberDim text-term-xs">
-          <input
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            placeholder="GATE_SIGNAL_…"
-            className="bg-term-bg border border-term-amberDim px-1 py-0.5 text-term-amber w-64"
-          />
-          <input
-            value={legFilter}
-            onChange={(e) => setLegFilter(e.target.value)}
-            placeholder="leg (intraday_a_long …)"
-            className="bg-term-bg border border-term-amberDim px-1 py-0.5 text-term-amber w-64"
-          />
-          <span className="ml-auto text-term-textMuted">
-            {signals.length} loaded · {passCount} passed
-          </span>
-        </div>
-        <DataGrid<SignalRow>
-          rows={signals}
-          columns={[
-            { header: "Time", cell: (s) => fmtTs(s.ts), width: "20%" },
-            {
-              header: "Status",
-              cell: (s) => (
-                <span className={colorForGateStatus(s.status)}>{s.status}</span>
-              ),
-              width: "30%",
-            },
-            { header: "Reason", cell: (s) => s.reason ?? "—" },
-            { header: "Zone", cell: (s) => s.zone_id ?? "—", align: "right" },
-          ]}
+    <div className="h-full flex flex-col gap-3 p-3 min-h-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+        <KPI label="Total Gates" value={total.toLocaleString()} />
+        <KPI label="Passed" value={passCount.toLocaleString()} deltaTone="bull" />
+        <KPI label="Rejected" value={rejectCount.toLocaleString()} deltaTone="bear" />
+        <KPI
+          label="Pass Rate"
+          value={total ? `${((passCount / total) * 100).toFixed(2)}%` : "—"}
         />
-      </Pane>
-      <Pane title="Funnel" className="col-span-4">
-        <div className="p-2 text-term-sm space-y-0.5">
-          {funnel.length === 0 && <div className="text-term-textMuted">no data</div>}
-          {(() => {
-            const max = funnel.reduce((m, b) => Math.max(m, b.count), 0) || 1;
-            return funnel
-              .slice()
-              .sort((a, b) => b.count - a.count)
-              .map((b) => {
-                const width = Math.max(2, Math.round((b.count / max) * 100));
-                return (
-                  <div key={b.status} className="flex items-center gap-2">
-                    <span className={`${colorForGateStatus(b.status)} w-52 truncate`}>
-                      {b.status}
-                    </span>
-                    <span className="w-10 text-right">{b.count}</span>
-                    <div className="flex-1 h-3 bg-term-panel">
-                      <div
-                        className="h-3"
-                        style={{
-                          width: `${width}%`,
-                          background:
-                            b.status === "GATE_SIGNAL_PASSED"
-                              ? "#00CC00"
-                              : b.status.startsWith("GATE_PIVOT") || b.status.startsWith("GATE_SETUP_BUILT")
-                              ? "#00CCFF"
-                              : b.status.startsWith("GATE_")
-                              ? "#FF3333"
-                              : "#FF9933",
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              });
-          })()}
-        </div>
-      </Pane>
+      </div>
+
+      <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
+        <Pane
+          title="Signal Stream"
+          subtitle={`${signals.length} loaded`}
+          toolbar={
+            <div className="flex items-center gap-2">
+              <input
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                placeholder="filter by status prefix…"
+                className="
+                  bg-bg-input border border-line-base rounded-ds-sm
+                  px-2 py-1 text-ds-sm font-mono text-ink-primary
+                  placeholder:text-ink-muted
+                  focus:outline-none focus:border-bull
+                  w-72
+                "
+              />
+              <input
+                value={legFilter}
+                onChange={(e) => setLegFilter(e.target.value)}
+                placeholder="filter by leg…"
+                className="
+                  bg-bg-input border border-line-base rounded-ds-sm
+                  px-2 py-1 text-ds-sm font-mono text-ink-primary
+                  placeholder:text-ink-muted
+                  focus:outline-none focus:border-bull
+                  w-48
+                "
+              />
+              {(statusFilter || legFilter) && (
+                <button
+                  onClick={() => {
+                    setStatusFilter("");
+                    setLegFilter("");
+                  }}
+                  className="text-ds-xs text-ink-muted hover:text-ink-primary"
+                >
+                  clear
+                </button>
+              )}
+              <span className="ml-auto text-ds-xs text-ink-muted">
+                <Pill tone="bull">{passCount} pass</Pill>
+              </span>
+            </div>
+          }
+          className="col-span-12 lg:col-span-8 min-h-0"
+        >
+          {signals.length === 0 ? (
+            <div className="px-3 py-10 text-center text-ink-muted text-ds-sm">
+              No signals match filter
+            </div>
+          ) : (
+            <div>
+              {signals.map((s) => (
+                <SignalRowItem
+                  key={s.signal_id}
+                  signal={s}
+                  isNew={newIds.has(s.signal_id)}
+                  expandable
+                />
+              ))}
+            </div>
+          )}
+        </Pane>
+
+        <Pane
+          title="Gate Funnel"
+          subtitle="lifetime"
+          className="col-span-12 lg:col-span-4 min-h-0"
+        >
+          <Funnel buckets={funnel} total={total} />
+        </Pane>
+      </div>
     </div>
   );
 }

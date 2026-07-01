@@ -5,27 +5,40 @@ export type Column<T> = {
   cell: (row: T, idx: number) => ReactNode;
   align?: "left" | "right" | "center";
   width?: string;
+  className?: string;
 };
 
 export function DataGrid<T>({
   columns,
   rows,
-  empty = "no data",
+  empty = "No data",
   onRowClick,
+  rowKey,
+  flashRowKey,
+  flashTone = "bull",
 }: {
   columns: Column<T>[];
   rows: T[];
   empty?: ReactNode;
   onRowClick?: (row: T) => void;
+  rowKey?: (row: T, idx: number) => string;
+  flashRowKey?: string | null;
+  flashTone?: "bull" | "bear";
 }) {
   return (
-    <table className="w-full text-term-sm">
-      <thead className="sticky top-0 bg-term-bg z-10">
-        <tr className="text-term-amberDim text-term-xs uppercase border-b border-term-amberDim">
+    <table className="w-full text-ds-sm">
+      <thead className="sticky top-0 z-10 bg-bg-surface">
+        <tr className="text-ink-muted text-ds-xs uppercase tracking-wide border-b border-line-subtle">
           {columns.map((c, i) => (
             <th
               key={i}
-              className={`px-2 py-1 font-normal ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"}`}
+              className={`px-3 py-2 font-medium ${
+                c.align === "right"
+                  ? "text-right"
+                  : c.align === "center"
+                  ? "text-center"
+                  : "text-left"
+              } ${c.className ?? ""}`}
               style={c.width ? { width: c.width } : undefined}
             >
               {c.header}
@@ -38,30 +51,48 @@ export function DataGrid<T>({
           <tr>
             <td
               colSpan={columns.length}
-              className="px-2 py-4 text-center text-term-textMuted"
+              className="px-3 py-10 text-center text-ink-muted"
             >
               {empty}
             </td>
           </tr>
         )}
-        {rows.map((r, ri) => (
-          <tr
-            key={ri}
-            className={`border-b border-term-panel hover:bg-term-panel ${
-              onRowClick ? "cursor-pointer" : ""
-            }`}
-            onClick={onRowClick ? () => onRowClick(r) : undefined}
-          >
-            {columns.map((c, ci) => (
-              <td
-                key={ci}
-                className={`px-2 py-1 ${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"}`}
-              >
-                {c.cell(r, ri)}
-              </td>
-            ))}
-          </tr>
-        ))}
+        {rows.map((r, ri) => {
+          const k = rowKey ? rowKey(r, ri) : String(ri);
+          const flash =
+            flashRowKey && k === flashRowKey
+              ? flashTone === "bull"
+                ? "animate-ds-flash-bull"
+                : "animate-ds-flash-bear"
+              : "";
+          return (
+            <tr
+              key={k}
+              className={`
+                border-b border-line-subtle
+                hover:bg-bg-elevated transition-colors duration-ds
+                ${onRowClick ? "cursor-pointer" : ""}
+                ${flash}
+              `}
+              onClick={onRowClick ? () => onRowClick(r) : undefined}
+            >
+              {columns.map((c, ci) => (
+                <td
+                  key={ci}
+                  className={`px-3 py-2 ${
+                    c.align === "right"
+                      ? "text-right"
+                      : c.align === "center"
+                      ? "text-center"
+                      : "text-left"
+                  } ${c.className ?? ""}`}
+                >
+                  {c.cell(r, ri)}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

@@ -1,16 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, Trade, SignalRow, FunnelBucket, AccountSnap } from "../lib/api";
+import {
+  AccountSnap,
+  api,
+  FunnelBucket,
+  SignalRow as SignalRowT,
+  Trade,
+} from "../lib/api";
 import { WsEnvelope } from "../lib/ws";
 import { Pane } from "../components/Pane";
-import { DataGrid } from "../components/DataGrid";
+import { Pill } from "../components/Pill";
+import { PositionCard } from "../components/PositionCard";
+import { KPI } from "../components/KPI";
+import { LiveChart } from "../components/LiveChart";
 import {
-  colorForGateStatus,
-  colorForR,
-  fmtPrice,
+  fmtMoney,
   fmtR,
-  fmtTime,
   fmtTs,
+  colorForR,
 } from "../lib/format";
 
 type WsHook = {
@@ -27,17 +34,19 @@ export function LivePage({
   ws: WsHook;
 }) {
   const [openTrades, setOpenTrades] = useState<Trade[]>([]);
-  const [signals, setSignals] = useState<SignalRow[]>([]);
+  const [signals, setSignals] = useState<SignalRowT[]>([]);
   const [funnel, setFunnel] = useState<FunnelBucket[]>([]);
   const [account, setAccount] = useState<AccountSnap | null>(null);
+  const [newSignalIds, setNewSignalIds] = useState<Set<number>>(new Set());
   const nav = useNavigate();
+  const flashTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   const refresh = async () => {
     if (!runId) return;
     try {
       const [tr, sigs, fn, acc] = await Promise.all([
         api.runTrades(runId, "open"),
-        api.signalsRecent({ run_id: runId, limit: 60 }),
+        api.signalsRecent({ run_id: runId, limit: 100 }),
         api.funnel(runId),
         api.accountLatest(runId).catch(() => ({ items: [] as AccountSnap[] })),
       ]);
@@ -50,10 +59,10 @@ export function LivePage({
     }
   };
 
+  // Initial-load only. After that, WebSocket pushes drive updates.
+  // (No polling — Postgres NOTIFY → asyncpg LISTEN → ws fanout → setState here.)
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
   }, [runId]);
 
   useEffect(() => {
@@ -73,10 +82,24 @@ export function LivePage({
               zone_id: sig.zone_id ?? null,
               detail: null,
             },
-            ...prev.slice(0, 59),
+            ...prev.slice(0, 99),
           ];
         });
-        // funnel can lag; refresh next tick.
+        // Mark as "new" briefly for flash.
+        setNewSignalIds((prev) => new Set(prev).add(sig.signal_id));
+        const existing = flashTimers.current.get(sig.signal_id);
+        if (existing) clearTimeout(existing);
+        flashTimers.current.set(
+          sig.signal_id,
+          setTimeout(() => {
+            setNewSignalIds((prev) => {
+              const next = new Set(prev);
+              next.delete(sig.signal_id);
+              return next;
+            });
+            flashTimers.current.delete(sig.signal_id);
+          }, 800)
+        );
         setFunnel((prev) => {
           const exists = prev.find((b) => b.status === sig.status);
           if (exists) {
@@ -88,8 +111,8 @@ export function LivePage({
         });
       }
       if (env.channel === "trade") {
-        // Just trigger a refresh on trade transitions.
-        refresh();
+        // Refetch open trades only — single REST call, not the full refresh().
+        api.runTrades(runId!, "open").then((tr) => setOpenTrades(tr.items));
       }
       if (env.channel === "account") {
         const p = env.payload as any;
@@ -105,134 +128,126 @@ export function LivePage({
     });
   }, [ws, runId]);
 
-  const maxBucket = funnel.reduce((m, b) => Math.max(m, b.count), 0) || 1;
+  const passCount = useMemo(
+    () => funnel.find((b) => b.status === "GATE_SIGNAL_PASSED")?.count ?? 0,
+    [funnel]
+  );
+  const totalGateEvents = useMemo(
+    () => funnel.reduce((s, b) => s + b.count, 0),
+    [funnel]
+  );
+  const passRate = totalGateEvents ? (passCount / totalGateEvents) * 100 : 0;
+  const totalRiskUnits = useMemo(
+    () => openTrades.reduce((s, t) => s + (t.risk_units ?? 0), 0),
+    [openTrades]
+  );
+
+  const pnl = account?.open_pnl ?? null;
+  const pnlTone = pnl == null ? "neutral" : pnl >= 0 ? "bull" : "bear";
 
   return (
-    <div className="h-full grid grid-cols-12 grid-rows-2 gap-1">
-      <Pane title="Open Positions" className="col-span-5 row-span-1">
-        <DataGrid<Trade>
-          rows={openTrades}
-          onRowClick={(t) => nav(`/journal?trade=${t.trade_id}`)}
-          columns={[
-            { header: "Side", cell: (t) => (
-              <span className={t.side > 0 ? "text-term-green" : "text-term-red"}>
-                {t.direction.toUpperCase()}
-              </span>
-            )},
-            { header: "Entry", cell: (t) => fmtPrice(t.entry_price), align: "right" },
-            { header: "Stop", cell: (t) => fmtPrice(t.stop_price), align: "right" },
-            { header: "TP", cell: (t) => fmtPrice(t.take_profit_price), align: "right" },
-            { header: "Risk", cell: (t) => fmtPrice(t.risk_units), align: "right" },
-            { header: "Leg", cell: (t) => t.leg ?? "—" },
-            { header: "Entry TS", cell: (t) => fmtTime(t.entry_timestamp) },
-          ]}
+    <div className="h-full overflow-auto flex flex-col gap-3 p-3">
+      {/* ── KPI strip ── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 shrink-0">
+        <KPI
+          label="Equity"
+          value={fmtMoney(account?.equity)}
+          delta={
+            pnl != null && pnl !== 0 ? (
+              <>{pnl >= 0 ? "+" : ""}{fmtMoney(pnl, 2)}</>
+            ) : undefined
+          }
+          deltaTone={pnlTone}
+          sub={account ? `as of ${fmtTs(account.ts)}` : "no snapshot yet"}
         />
-      </Pane>
-
-      <Pane title="Latest Signals & Gates" className="col-span-7 row-span-1">
-        <DataGrid<SignalRow>
-          rows={signals}
-          columns={[
-            { header: "Time", cell: (s) => fmtTime(s.ts), width: "12%" },
-            {
-              header: "Status",
-              cell: (s) => (
-                <span className={colorForGateStatus(s.status)}>{s.status}</span>
-              ),
-              width: "38%",
-            },
-            { header: "Reason", cell: (s) => s.reason ?? "—", width: "30%" },
-            { header: "Zone", cell: (s) => s.zone_id ?? "—", align: "right" },
-          ]}
+        <KPI
+          label="Balance"
+          value={fmtMoney(account?.balance)}
+          sub="settled"
         />
-      </Pane>
+        <KPI
+          label="Open Positions"
+          value={openTrades.length}
+          sub={`${totalRiskUnits.toFixed(2)} risk units`}
+        />
+        <KPI
+          label="Pass Rate"
+          value={`${passRate.toFixed(2)}%`}
+          sub={`${passCount} passed / ${totalGateEvents.toLocaleString()} gates`}
+          deltaTone={passCount > 0 ? "bull" : "neutral"}
+        />
+        <KPI
+          label="Last Event"
+          value={signals[0] ? fmtTs(signals[0].ts).slice(11) : "—"}
+          sub={signals[0]?.status?.replace(/^GATE_/, "").toLowerCase() ?? "—"}
+        />
+      </div>
 
-      <Pane title="Gate Funnel" className="col-span-5 row-span-1">
-        <div className="p-2 text-term-sm space-y-0.5">
-          {funnel.length === 0 && (
-            <div className="text-term-textMuted">no signals yet</div>
-          )}
-          {funnel.map((b) => {
-            const width = Math.max(2, Math.round((b.count / maxBucket) * 100));
-            const cls = colorForGateStatus(b.status);
-            return (
-              <div key={b.status} className="flex items-center gap-2">
-                <span className={`${cls} w-64 truncate`}>{b.status}</span>
-                <span className="text-term-textPrimary w-12 text-right">
-                  {b.count}
-                </span>
-                <div className="flex-1 h-3 bg-term-panel">
-                  <div
-                    className="h-3"
-                    style={{
-                      width: `${width}%`,
-                      background:
-                        b.status === "GATE_SIGNAL_PASSED"
-                          ? "#00CC00"
-                          : b.status.startsWith("GATE_PIVOT")
-                          ? "#00CCFF"
-                          : b.status.startsWith("GATE_SETUP_BUILT")
-                          ? "#00CCFF"
-                          : b.status.startsWith("GATE_")
-                          ? "#FF3333"
-                          : "#FF9933",
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+      {/* ── Live market chart (TradingView M15 XAUUSD) ── */}
+      <Pane
+        title="XAU/USD · M15"
+        subtitle="OANDA feed · real-time"
+        right={
+          <span className="text-ds-xs text-ink-muted">
+            chart by TradingView
+          </span>
+        }
+        className="shrink-0"
+      >
+        <div className="h-[460px]">
+          <LiveChart symbol="OANDA:XAUUSD" interval="15" />
         </div>
       </Pane>
 
-      <Pane title="Account · Scan Status" className="col-span-7 row-span-1">
-        <div className="p-2 text-term-sm space-y-2">
-          {account ? (
-            <div className="grid grid-cols-4 gap-2">
-              <Stat label="EQUITY" value={`$${(account.equity ?? 0).toFixed(2)}`} highlight />
-              <Stat label="BALANCE" value={`$${(account.balance ?? 0).toFixed(2)}`} />
-              <Stat label="OPEN P/L" value={fmtR(account.open_pnl)} valueClass={colorForR(account.open_pnl)} />
-              <Stat label="POSITIONS" value={String(account.open_position ?? 0)} />
-            </div>
-          ) : (
-            <div className="text-term-textMuted">no account snapshot yet</div>
-          )}
-          <div className="border-t border-term-amberDim pt-2">
-            <div className="text-term-amber uppercase text-term-xs mb-1">Scan</div>
-            <div className="text-term-textSecondary">
-              Last account ts: {account ? fmtTs(account.ts) : "—"}
-            </div>
-            <div className="text-term-textSecondary">
-              Signals received (this run): {signals.length}
-            </div>
+      {/* ── Open positions only ── */}
+      <Pane
+        title="Open Positions"
+        subtitle={openTrades.length > 0 ? `${openTrades.length} live` : ""}
+        right={
+          openTrades.length > 0 && (
+            <Pill tone="bull" glow>
+              <span className="text-bull">●</span> LIVE
+            </Pill>
+          )
+        }
+      >
+        {openTrades.length === 0 ? (
+          <EmptyState
+            icon="⌖"
+            title="No open positions"
+            body="Waiting for the next valid setup. See the Signals page for the live gate funnel + decision trace."
+          />
+        ) : (
+          <div className="p-3 space-y-3">
+            {openTrades.map((t) => (
+              <PositionCard
+                key={t.trade_id}
+                trade={t}
+                unrealR={null}
+                onClick={() => nav(`/journal?trade=${t.trade_id}`)}
+              />
+            ))}
           </div>
-        </div>
+        )}
       </Pane>
     </div>
   );
 }
 
-function Stat({
-  label,
-  value,
-  highlight,
-  valueClass,
+function EmptyState({
+  icon,
+  title,
+  body,
 }: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  valueClass?: string;
+  icon: string;
+  title: string;
+  body: string;
 }) {
   return (
-    <div className="border border-term-amberDim p-1">
-      <div className="text-term-amber text-term-xs uppercase">{label}</div>
-      <div
-        className={
-          valueClass ?? (highlight ? "text-term-green text-term-lg" : "text-term-textPrimary text-term-lg")
-        }
-      >
-        {value}
-      </div>
+    <div className="h-full flex flex-col items-center justify-center text-center px-6 py-10">
+      <div className="text-3xl text-ink-muted mb-2">{icon}</div>
+      <div className="text-ds-md font-semibold text-ink-secondary">{title}</div>
+      <div className="text-ds-sm text-ink-muted mt-1 max-w-xs">{body}</div>
     </div>
   );
 }
