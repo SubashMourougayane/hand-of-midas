@@ -99,6 +99,13 @@ class LiveSafetyConfig:
     max_open_positions: int = 1
     max_spread: float = 0.50
     kill_switch_path: Path = DEFAULT_LIVE_KILL_SWITCH
+    # Max acceptable ratio of ACTUAL stop distance (post-fill) vs EXPECTED
+    # stop distance (strategy's risk_units). > tolerance => reject the fill
+    # by closing the position and emitting ORDER_ENTRY_SLIP_REJECTED.
+    # 1.15 = allow 15% risk over-run before rejecting.
+    # See L99 audit suspect #1 (2026-07-01) — trade 2116651769 filled at
+    # ratio 3.34x, real risk = 3.3x intended.
+    max_entry_slip_ratio: float = 1.15
 
 
 class LiveSafetyBroker:
@@ -147,7 +154,56 @@ class LiveSafetyBroker:
         return self.broker.last_response()
 
     def fills(self):
-        yield from self.broker.fills()
+        """Yield each fill after validating actual slip vs expected risk.
+
+        If the actual stop distance (|fill.price - order.stop_price|) exceeds
+        the configured tolerance vs expected risk_units, we CLOSE the position
+        we just opened and yield nothing — the engine treats this as no fill
+        and drops the order.
+
+        Rationale: SL is set at absolute price by the strategy. Favorable slip
+        on entry pushes the fill AWAY from SL, inflating real stop distance.
+        Sizer already computed qty based on expected risk. Real risk =
+        qty × contract × actual_stop_distance = can be many multiples of
+        intended if slip is large. Rejecting is safer than accepting.
+        """
+        order = self.last_submitted_order
+        for fill in self.broker.fills():
+            if order is None:
+                yield fill
+                continue
+
+            expected = float(order.risk_units)
+            actual = abs(float(fill.price) - float(order.stop_price))
+            if expected <= 0:
+                yield fill
+                continue
+            ratio = actual / expected
+            tol = float(self.config.max_entry_slip_ratio)
+            if ratio > tol:
+                # Reject by immediately closing the just-opened position.
+                ticket = None
+                resp = self.broker.last_response() or {}
+                if isinstance(resp, dict):
+                    ticket = resp.get("ticket")
+                log.error(
+                    "[SLIP-REJECT] fill=%.5f stop=%.5f expected_risk=%.4f actual_risk=%.4f "
+                    "ratio=%.2fx tol=%.2fx ticket=%s — closing position",
+                    fill.price, order.stop_price, expected, actual, ratio, tol, ticket,
+                )
+                if ticket is not None:
+                    try:
+                        self.broker.cancel(str(ticket))
+                    except Exception as e:
+                        log.error("[SLIP-REJECT] close failed for ticket=%s: %s", ticket, e)
+                # Do not yield — engine sees "no fill" and drops the order.
+                continue
+            # Accept.
+            log.info(
+                "[SLIP-OK] fill=%.5f stop=%.5f actual_risk=%.4f expected=%.4f ratio=%.2fx",
+                fill.price, order.stop_price, actual, expected, ratio,
+            )
+            yield fill
 
     def positions(self):
         return self.broker.positions()

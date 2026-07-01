@@ -119,6 +119,7 @@ def _cmd_live(args: argparse.Namespace) -> int:
             max_lot=args.max_live_lot,
             max_open_positions=args.max_open_positions,
             max_spread=args.max_spread,
+            max_entry_slip_ratio=args.max_entry_slip_ratio,
         ),
         equity_sizer=equity_sizer,
     )
@@ -177,6 +178,9 @@ def build_parser() -> argparse.ArgumentParser:
     live.add_argument("--max-live-lot", type=float, default=2.0,
                        help="HARD safety ceiling against runaway sizer bugs. "
                             "Real sizing is Model B (equity_sizer). Default 2.0.")
+    live.add_argument("--max-entry-slip-ratio", type=float, default=1.15,
+                       help="Reject fill if actual stop distance / expected risk > this ratio. "
+                            "Default 1.15 = allow 15%% risk over-run before rejecting. Closes position.")
     live.add_argument("--max-open-positions", type=int, default=1)
     live.add_argument("--max-spread", type=float, default=0.50)
     live.add_argument("--allow-non-demo", action="store_true")
