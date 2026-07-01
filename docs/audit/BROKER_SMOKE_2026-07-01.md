@@ -22,3 +22,50 @@ Real echoes from `DWXBrokerAdapter` roundtrips against demo account.
 
 ---
 
+## close_partial  ·  2026-07-01T12:54:29+00:00  ·  PASS
+
+```json
+{
+  "ticket": "2116848598",
+  "vol_before": 0.02,
+  "vol_after": 0.01,
+  "deal_count_for_ticket": 2,
+  "deals": [
+    {
+      "ticket": "2116848598",
+      "symbol": "XAUUSD.ecn",
+      "type": "BUY",
+      "volume": 0.01,
+      "open_price": 4027.7,
+      "open_time": "2026.07.01 15:54:28",
+      "close_price": 4027.6,
+      "close_time": "2026.07.01 15:54:28",
+      "profit": -0.1,
+      "swap": 0.0,
+      "commission": 0.0,
+      "magic": 200000,
+      "comment": "SMOKE_BUY_1782910468",
+      "deal_reason": "EXPERT"
+    },
+    {
+      "ticket": "2116848598",
+      "symbol": "XAUUSD.ecn",
+      "type": "BUY",
+      "volume": 0.01,
+      "open_price": 4027.7,
+      "open_time": "2026.07.01 15:54:28",
+      "close_price": 4027.62,
+      "close_time": "2026.07.01 15:54:29",
+      "profit": -0.08,
+      "swap": 0.0,
+      "commission": 0.0,
+      "magic": 200000,
+      "comment": "SMOKE_BUY_1782910468",
+      "deal_reason": "EXPERT"
+    }
+  ]
+}
+```
+
+---
+

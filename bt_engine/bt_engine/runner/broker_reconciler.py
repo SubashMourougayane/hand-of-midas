@@ -70,7 +70,16 @@ def _parse_broker_time(raw: str) -> datetime | None:
 def find_closed_deal(
     bridge: DwxBridge, ticket: str,
 ) -> dict[str, Any] | None:
-    """Return the closed_orders entry matching `ticket`, or None."""
+    """Return the AGGREGATE closed_orders view for `ticket`, or None.
+
+    MT5 writes one row per deal. Partial-close positions get 2+ rows (partial
+    close + final close) all sharing the same position_id (EA writes position_id
+    as `ticket`). Reconciler must aggregate: sum profit / commission / swap,
+    take the LAST close_time + close_price + deal_reason as the final exit.
+
+    Regression: prior single-row lookup (L99 audit suspect #5) captured only the
+    partial-close deal for partial-TP trades, understating true broker P&L.
+    """
     if not ticket:
         return None
     try:
@@ -79,10 +88,32 @@ def find_closed_deal(
         log.debug("[RECONCILER] closed_orders read failed: %s", e)
         return None
     target = str(ticket)
-    for row in rows:
-        if str(row.get("ticket")) == target:
-            return row
-    return None
+    matches = [r for r in rows if str(r.get("ticket")) == target]
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+
+    # Aggregate multiple deals for same position (partial + final close).
+    # EA writes rows chronologically — last row is the final exit.
+    def _flt(v: Any) -> float:
+        try:
+            return float(v or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    total_profit = sum(_flt(r.get("profit")) for r in matches)
+    total_swap = sum(_flt(r.get("swap")) for r in matches)
+    total_commission = sum(_flt(r.get("commission")) for r in matches)
+    total_volume = sum(_flt(r.get("volume")) for r in matches)
+    last = matches[-1]
+    aggregated = dict(last)
+    aggregated["profit"] = total_profit
+    aggregated["swap"] = total_swap
+    aggregated["commission"] = total_commission
+    aggregated["volume"] = total_volume
+    aggregated["_deal_count"] = len(matches)
+    return aggregated
 
 
 def _to_utc_dt(naive: datetime | None, server_utc_offset_hours: int) -> datetime | None:

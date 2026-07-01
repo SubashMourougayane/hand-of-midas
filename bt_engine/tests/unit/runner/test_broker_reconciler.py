@@ -121,6 +121,33 @@ def test_find_closed_deal_missing_returns_none() -> None:
     assert find_closed_deal(bridge, "999") is None
 
 
+def test_find_closed_deal_aggregates_partial_and_final_close() -> None:
+    """L99 audit suspect #5 regression: MT5 partial-close creates 2 deal rows
+    for the same position_id. Reconciler must sum profit/comm/swap across them
+    and use the LAST row's exit_reason + close_time as authoritative.
+    """
+    bridge = _FakeBridge(deals=[
+        {"ticket": "555", "symbol": "XAUUSD.ecn", "type": "BUY", "volume": 0.01,
+         "close_price": 4027.62, "close_time": "2026.07.01 15:54:28",
+         "profit": -0.10, "swap": 0.0, "commission": -0.05,
+         "deal_reason": "EXPERT"},
+        {"ticket": "555", "symbol": "XAUUSD.ecn", "type": "BUY", "volume": 0.01,
+         "close_price": 4027.60, "close_time": "2026.07.01 15:54:29",
+         "profit": -0.08, "swap": 0.0, "commission": -0.05,
+         "deal_reason": "SL"},
+    ])
+    bridge.deals_after_n_calls = 0
+    bridge._pending = bridge.deals
+    d = find_closed_deal(bridge, "555")
+    assert d is not None
+    assert d["profit"] == pytest.approx(-0.18)
+    assert d["commission"] == pytest.approx(-0.10)
+    assert d["volume"] == pytest.approx(0.02)
+    assert d["deal_reason"] == "SL"  # last row wins
+    assert d["close_time"] == "2026.07.01 15:54:29"
+    assert d["_deal_count"] == 2
+
+
 def test_reconcile_trade_persists_broker_columns(session) -> None:
     run_id = uuid.uuid4()
     trade_id = uuid.uuid4()

@@ -19,7 +19,7 @@ Status column key:
 | 2 | SL absolute vs fill-relative (design decision) | ⏳ |
 | 3 | Cost model constant vs per-lot | ⏳ |
 | 4 | Partial-TP command sequence race (retry / safe close) | ⏳ |
-| 5 | Reconciler assumes single deal per ticket | ⏳ |
+| 5 | Reconciler assumes single deal per ticket | ✅ REAL — fixed |
 | 6 | max_open_positions bypass for concurrent A + D | ⏳ |
 | 7 | Dedup key stability BT vs live (tz) | ⏳ |
 | 8 | Warmup contaminates consumed_setup_keys | ⏳ |
@@ -108,17 +108,28 @@ Design question tied to #1. Deferred.
 
 **Hypothesis**: MT5 partial-close creates 2 exit deals for the same position_id. `find_closed_deal` returns FIRST match; broker_gross_usd captures only partial not full trade.
 
-**Reproduction steps**: TODO
+**Reproduction steps**:
+1. Run `broker_smoke --tests close_partial` — opens 0.02 lot, closes 0.01, closes remainder.
+2. Read `closed_orders.json`.
 
-**Evidence**: TODO
+**Evidence**:
+```
+ticket=2116848598 vol=0.01 profit=-0.10 reason=EXPERT close_time=15:54:28
+ticket=2116848598 vol=0.01 profit=-0.08 reason=EXPERT close_time=15:54:29
+```
+Same ticket, TWO rows (partial + final). True total profit = −$0.18. Prior reconciler returned only −$0.10.
 
-**RCA**: TODO
+**RCA**: `bt_engine/runner/broker_reconciler.py::find_closed_deal()` loop `for row in rows: if match: return row` returns first match, exiting early. Ignores remaining deals for the same position_id.
 
-**Verdict**: TODO
+**Verdict**: **REAL**
 
-**Fix commit**: TODO
+**Fix**: Aggregate ALL rows matching ticket. Sum profit + commission + swap + volume. Use LAST row's `close_time`, `close_price`, `deal_reason` (chronologically last exit is authoritative). Return `_deal_count` for observability.
 
-**Broker verify**: TODO
+**Fix commit**: pending (this diff)
+
+**Broker verify**: PASS — real EA output on 0.02→0.01→0 partial-close roundtrip aggregates to −$0.18 across 2 deals with `_deal_count=2`.
+
+**Regression tests**: `tests/unit/runner/test_broker_reconciler.py::test_find_closed_deal_aggregates_partial_and_final_close` — asserts sum profit/comm, LAST close_time/deal_reason, volume aggregate, count=2.
 
 ---
 
