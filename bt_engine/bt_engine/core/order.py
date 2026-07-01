@@ -60,6 +60,8 @@ class OpenTrade:
     partial_filled_r: float = 0.0
     partial_fill_price: float | None = None
     partial_fill_timestamp: pd.Timestamp | None = None
+    # Populated by live runner on ENTRY_FILL; None in BT / sim contexts.
+    broker_ticket: str | None = None
 
 
 @dataclass(frozen=True)

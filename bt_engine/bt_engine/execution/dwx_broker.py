@@ -58,6 +58,13 @@ class DWXBrokerAdapter:
         if not resp or not resp.get("success"):
             raise RuntimeError(f"Order modify failed: {resp}")
 
+    def close_partial(self, ticket: str, qty: float) -> None:
+        """Close `qty` lots of position `ticket`. EA reduces remaining position."""
+        cmd = f"CLOSE_PARTIAL|{ticket}|{qty}"
+        resp = self.bridge.send_command(cmd, wait_response=True, timeout_s=self.default_timeout_s)
+        if not resp or not resp.get("success"):
+            raise RuntimeError(f"Order close_partial failed: {resp}")
+
     def close_all(self) -> None:
         resp = self.bridge.send_command("CLOSE_ALL|", wait_response=True, timeout_s=self.default_timeout_s)
         if not resp or not resp.get("success"):

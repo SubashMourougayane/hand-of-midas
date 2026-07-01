@@ -82,6 +82,20 @@ def test_close_all_writes_command() -> None:
     assert bridge.sent_commands[0] == "CLOSE_ALL|"
 
 
+def test_close_partial_writes_command() -> None:
+    bridge = _FakeBridge(response={"success": True, "ticket": 12345, "retcode": 10009})
+    b = DWXBrokerAdapter(bridge)
+    b.close_partial("12345", 0.18)
+    assert bridge.sent_commands[0] == "CLOSE_PARTIAL|12345|0.18"
+
+
+def test_close_partial_failure_raises() -> None:
+    bridge = _FakeBridge(response={"success": False, "error": "no volume"})
+    b = DWXBrokerAdapter(bridge)
+    with pytest.raises(RuntimeError, match="close_partial failed"):
+        b.close_partial("12345", 0.05)
+
+
 def test_positions_returns_open_orders() -> None:
     bridge = _FakeBridge(response={"success": True})
     b = DWXBrokerAdapter(bridge)

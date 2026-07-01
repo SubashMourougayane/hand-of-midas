@@ -90,7 +90,11 @@ class DryRunBroker:
 @dataclass(frozen=True)
 class LiveSafetyConfig:
     require_demo: bool = True
-    max_lot: float = 0.01
+    # max_lot is a HARD SAFETY CEILING against runaway sizer bugs, not a
+    # sizing policy. Real sizing is Model B (1.5% × equity / stop / contract).
+    # Default 2.0 lets Model B run at any equity up to ~$700k on XAU without
+    # tripping — well above any realistic short-term equity growth.
+    max_lot: float = 2.0
     max_open_positions: int = 1
     max_spread: float = 0.50
     kill_switch_path: Path = DEFAULT_LIVE_KILL_SWITCH
@@ -131,6 +135,9 @@ class LiveSafetyBroker:
 
     def modify(self, ticket: str, *, sl: float, tp: float = 0.0) -> None:
         self.broker.modify(ticket, sl=sl, tp=tp)
+
+    def close_partial(self, ticket: str, qty: float) -> None:
+        self.broker.close_partial(ticket, qty)
 
     def close_all(self) -> None:
         self.broker.close_all()
@@ -505,6 +512,83 @@ def run_live(
         )
         live_session.commit()
 
+    def on_partial_tp(tr: OpenTrade, bar: Bar) -> None:
+        """Walker fired partial-TP → tell broker to close half + move SL to BE.
+
+        Called AFTER walker mutated `tr` (partial_taken=True, stop_price=entry).
+        Broker must reflect: (a) reduced volume, (b) new SL at entry.
+
+        If either broker call fails, we log + persist a warning event but DO
+        NOT re-raise — the walker already updated internal state, so failing
+        here would leave BT/live divergent AND crash the whole engine loop.
+        Operator gets a persisted event + log line for manual reconciliation.
+        """
+        ticket = tr.broker_ticket
+        if ticket is None:
+            log.warning(
+                "[PARTIAL_TP] no broker_ticket on trade %s — skip live modify (dry-run?)",
+                tr.trade_id,
+            )
+            return
+        pct = float((tr.order.extra or {}).get("partial_tp_pct", 0.5))
+        close_qty = float(tr.fill.qty) * pct
+        new_sl = float(tr.entry_price)
+        tp = float(tr.take_profit) if tr.take_profit is not None else 0.0
+        log.info(
+            "[PARTIAL_TP] trade_id=%s ticket=%s close_qty=%.4f new_sl=%.5f",
+            tr.trade_id, ticket, close_qty, new_sl,
+        )
+        # 1) partial close FIRST so remaining position is correct at MODIFY.
+        try:
+            broker.close_partial(ticket, close_qty)
+        except Exception as e:
+            log.error("[PARTIAL_TP] close_partial failed ticket=%s: %s", ticket, e)
+            _persist_partial_tp_event(
+                "PARTIAL_TP_CLOSE_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
+            )
+            return
+        # 2) modify SL → BE on remainder.
+        try:
+            broker.modify(ticket, sl=new_sl, tp=tp)
+        except Exception as e:
+            log.error("[PARTIAL_TP] modify_sl failed ticket=%s: %s", ticket, e)
+            _persist_partial_tp_event(
+                "PARTIAL_TP_MODIFY_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
+            )
+            return
+        _persist_partial_tp_event(
+            "PARTIAL_TP_APPLIED", tr, bar, ticket, close_qty, new_sl, None,
+        )
+
+    def _persist_partial_tp_event(
+        event_type: str,
+        tr: OpenTrade,
+        bar: Bar,
+        ticket: str,
+        close_qty: float,
+        new_sl: float,
+        error: str | None,
+    ) -> None:
+        detail: dict[str, Any] = {
+            "trade_id": str(tr.trade_id),
+            "broker_ticket": ticket,
+            "close_qty": close_qty,
+            "new_sl": new_sl,
+            "entry_price": tr.entry_price,
+            "partial_r": tr.partial_filled_r,
+            "bar_ts": str(bar.timestamp),
+        }
+        if error:
+            detail["error"] = error
+        journal_repo.insert(
+            trade_id=tr.trade_id,
+            run_id=run_id,
+            ts=_to_dt(bar.timestamp),
+            event_type=event_type,
+            detail=detail,
+        )
+        live_session.commit()
+
     def on_bar_close(bar: Bar, open_trades: list[OpenTrade]) -> None:
         account = _safe_account_info(bridge)
         spread = None
@@ -545,6 +629,7 @@ def run_live(
         on_trade_open=on_open,
         on_trade_close=on_close,
         on_strategy_event=on_event,
+        on_partial_tp=on_partial_tp,
         on_bar_close=on_bar_close,
         initial_open_trades=_open_trades_from_positions(broker.positions(), symbol=symbol),
     )

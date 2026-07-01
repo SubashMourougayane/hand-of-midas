@@ -20,25 +20,28 @@ Optional partial-TP safety net (matches research/fib_retrace/safety_net_sweep.si
 """
 from __future__ import annotations
 
+from typing import Callable
+
 from .bar import Bar
 from .order import BracketOutcome, OpenTrade
 
 
-def _partial_tp_check(trade: OpenTrade, bar: Bar) -> None:
+def _partial_tp_check(trade: OpenTrade, bar: Bar) -> bool:
     """If partial-TP configured and MFE crossed trigger, lock partial profit + move SL to BE.
 
     Pure mutation on `trade`. Idempotent (skips if already taken). No peek.
+    Returns True iff the partial just fired on this call (caller can react).
     """
     if trade.partial_taken:
-        return
+        return False
     extra = trade.order.extra or {}
     trigger = extra.get("partial_tp_at_r")
     if trigger is None:
-        return
+        return False
     if trade.risk_units <= 0:
-        return
+        return False
     if trade.mfe_r < trigger:
-        return
+        return False
 
     pct = float(extra.get("partial_tp_pct", 0.5))
     trade.partial_taken = True
@@ -52,10 +55,23 @@ def _partial_tp_check(trade: OpenTrade, bar: Bar) -> None:
         trade.stop_price = max(trade.stop_price, trade.entry_price)
     else:
         trade.stop_price = min(trade.stop_price, trade.entry_price)
+    return True
 
 
-def walk_bracket_on_bar(trade: OpenTrade, bar: Bar, *, max_bars_held: int | None = None) -> BracketOutcome | None:
-    """Return outcome if bar closes the trade, else None."""
+def walk_bracket_on_bar(
+    trade: OpenTrade,
+    bar: Bar,
+    *,
+    max_bars_held: int | None = None,
+    on_partial_tp: "Callable[[OpenTrade, Bar], None] | None" = None,
+) -> BracketOutcome | None:
+    """Return outcome if bar closes the trade, else None.
+
+    on_partial_tp fires ONCE — the bar the partial trigger crosses. Callers use it
+    to notify the broker (send CLOSE_PARTIAL + MODIFY sl=BE). The walker's own
+    state is already updated before the callback runs, so the callback sees the
+    post-partial trade (partial_taken=True, stop_price=entry).
+    """
     trade.bars_held += 1
     side = trade.side
     close = bar.close
@@ -72,7 +88,9 @@ def walk_bracket_on_bar(trade: OpenTrade, bar: Bar, *, max_bars_held: int | None
         trade.mae_r = min(trade.mae_r, mae)
 
     # Partial-TP safety net: must run AFTER MFE update, BEFORE exit checks.
-    _partial_tp_check(trade, bar)
+    partial_just_fired = _partial_tp_check(trade, bar)
+    if partial_just_fired and on_partial_tp is not None:
+        on_partial_tp(trade, bar)
 
     partial = trade.partial_filled_r  # locked-in R from earlier partial close (0 if none)
     stop_is_be = trade.partial_taken and trade.stop_price == trade.entry_price

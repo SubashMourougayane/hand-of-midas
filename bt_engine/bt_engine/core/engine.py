@@ -37,6 +37,7 @@ class EngineDeps:
     on_trade_close: Callable[[OpenTrade, BracketOutcome], None] | None = None
     on_strategy_event: Callable[[StrategyEvent], None] | None = None
     on_bar_close: Callable[[Bar, list[OpenTrade]], None] | None = None
+    on_partial_tp: Callable[[OpenTrade, Bar], None] | None = None
     initial_open_trades: Sequence[OpenTrade] = ()
     max_bars_held: int | None = None
 
@@ -100,10 +101,10 @@ def run_engine(
                     if submitted is None:
                         pending.remove(o)
                         continue
-                    fill, filled_order = submitted
+                    fill, filled_order, ticket = submitted
                 trade = _open_trade_from_fill(o, fill)
                 if mode == "live":
-                    trade = _open_trade_from_fill(filled_order, fill)
+                    trade = _open_trade_from_fill(filled_order, fill, broker_ticket=ticket)
                 open_trades.append(trade)
                 pending.remove(o)
                 if deps.on_trade_open:
@@ -113,7 +114,11 @@ def run_engine(
         for tr in list(open_trades):
             if deps.journal is not None:
                 deps.journal.observe(tr.trade_id, bar, phase="in_trade")
-            outcome = walk_bracket_on_bar(tr, bar, max_bars_held=deps.max_bars_held)
+            outcome = walk_bracket_on_bar(
+                tr, bar,
+                max_bars_held=deps.max_bars_held,
+                on_partial_tp=deps.on_partial_tp,
+            )
             if outcome is not None:
                 run.closed_trades.append((tr, outcome))
                 if deps.on_trade_close:
@@ -135,8 +140,8 @@ def run_engine(
                 submitted = _submit_live_order(deps, o, bar)
                 if submitted is None:
                     continue
-                fill, filled_order = submitted
-                trade = _open_trade_from_fill(filled_order, fill)
+                fill, filled_order, ticket = submitted
+                trade = _open_trade_from_fill(filled_order, fill, broker_ticket=ticket)
                 open_trades.append(trade)
                 if deps.on_trade_open:
                     deps.on_trade_open(trade)
@@ -166,7 +171,7 @@ def run_engine(
     return run
 
 
-def _submit_live_order(deps: EngineDeps, order: Order, bar: Bar) -> tuple[Fill, Order] | None:
+def _submit_live_order(deps: EngineDeps, order: Order, bar: Bar) -> tuple[Fill, Order, str | None] | None:
     if deps.broker is None:
         raise RuntimeError("live mode requires broker")
     if hasattr(deps.broker, "set_current_bar"):
@@ -201,10 +206,19 @@ def _submit_live_order(deps: EngineDeps, order: Order, bar: Bar) -> tuple[Fill, 
         price=fill.price,
         fill_timestamp=fill.fill_timestamp,
     )
-    return normalized_fill, submitted_order
+    ticket = None
+    if hasattr(deps.broker, "last_response"):
+        resp = deps.broker.last_response()  # type: ignore[attr-defined]
+        if isinstance(resp, dict):
+            raw = resp.get("ticket")
+            if raw is not None:
+                ticket = str(raw)
+    return normalized_fill, submitted_order, ticket
 
 
-def _open_trade_from_fill(order: Order, fill: Fill) -> OpenTrade:
+def _open_trade_from_fill(
+    order: Order, fill: Fill, *, broker_ticket: str | None = None,
+) -> OpenTrade:
     return OpenTrade(
         trade_id=order.trade_id or uuid.uuid4(),
         order=order,
@@ -215,4 +229,5 @@ def _open_trade_from_fill(order: Order, fill: Fill) -> OpenTrade:
         stop_price=order.stop_price,
         take_profit=order.take_profit,
         risk_units=order.risk_units,
+        broker_ticket=broker_ticket,
     )

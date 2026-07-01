@@ -174,7 +174,9 @@ def build_parser() -> argparse.ArgumentParser:
     live.add_argument("--max-wait", type=float, default=None, help="Max seconds to wait per bar when --max-ticks is set")
     live.add_argument("--dry-run", action="store_true", help="Log orders, do not submit to broker")
     live.add_argument("--db-url", default=None)
-    live.add_argument("--max-live-lot", type=float, default=0.01)
+    live.add_argument("--max-live-lot", type=float, default=2.0,
+                       help="HARD safety ceiling against runaway sizer bugs. "
+                            "Real sizing is Model B (equity_sizer). Default 2.0.")
     live.add_argument("--max-open-positions", type=int, default=1)
     live.add_argument("--max-spread", type=float, default=0.50)
     live.add_argument("--allow-non-demo", action="store_true")
