@@ -310,3 +310,16 @@ The `pending` list is only populated in BT mode's `else` branch at line 154-164.
 ## Broker smoke suite
 
 See `docs/audit/BROKER_SMOKE_2026-07-01.md` for real echoes from JustMarkets-Demo2.
+
+## 3-Way Parity Lock
+
+Prior parity tests covered research ↔ BT. Added `tests/integration/test_bt_live_event_parity.py` which asserts **BT engine ↔ Live engine** event/order streams are byte-identical when fed the same bars:
+
+- 300 XAU M15 bars, `fib_v2_intraday_a` + `fib_v2_intraday_d`
+- BT: `run_engine(mode='bt')` with `BTExecutionModel`
+- Live: `run_engine(mode='live')` with `BTMirrorLiveBroker` (mock that fills at bar.open like BT)
+- Event streams (tuple key: trade_or_zone_id + type + bar_ts + leg + reason) match exactly
+- Order streams (tuple key: symbol + side + prices + risk + tag) match exactly
+- UUIDs masked (they're per-run random)
+
+Combined with existing `test_parity_fib_v2_intraday_{a,d}.py` (research ↔ BT), we now have **research = BT engine = live engine strategy path** as a locked triangle. Execution-layer parity (BT-sim fill vs real broker fill) is captured separately via the broker reconciler (`broker_net_usd`).
