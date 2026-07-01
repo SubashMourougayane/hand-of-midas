@@ -1,4 +1,13 @@
-"""Seed intraday A + D backtests into bt_runs / bt_trades / bt_signals.
+"""DEPRECATED — use `python3 -m bt_engine.runner.cli bt --intraday` instead.
+
+The new intraday BT runner (`bt_engine/runner/backtest.py::run_backtest_intraday`)
+wires the same engine loop as live PLUS BarWalkJournal so the dashboard's
+/journal page populates with real bar-walk rows. This script's remaining role
+is historical — kept in case anyone needs the legacy invocation shape.
+
+Original doc:
+
+Seed intraday A + D backtests into bt_runs / bt_trades / bt_signals.
 
 Runs the production-locked Fib V2 intraday A (LONG) and D (SHORT) on XAU M15
 through the SAME bt_engine code path used by paper-live, persisting every
@@ -256,6 +265,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--leg", choices=("a", "d", "both"), default="both")
     args = p.parse_args()
+
+    print(
+        "\n[DEPRECATION] scripts/seed_intraday_ad_bt.py is superseded by:\n"
+        "  python3 -m bt_engine.runner.cli bt --intraday "
+        "--strategy fib_v2_intraday_a --timeframe M15\n"
+        "The new CLI wires BarWalkJournal (populates /journal page) "
+        "and follows the same code path as live.\n"
+    )
 
     if args.leg in ("a", "both"):
         seed_leg("a")

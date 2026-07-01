@@ -8,12 +8,14 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from .backtest import DEFAULT_LEDGER, run_backtest
+from .backtest import DEFAULT_LEDGER, run_backtest_frozen_ledger, run_backtest_intraday
 from ..journal.replay import replay_trade, story_to_dict
 
 
 def _cmd_bt(args: argparse.Namespace) -> int:
-    result = run_backtest(
+    if args.intraday:
+        return _cmd_bt_intraday(args)
+    result = run_backtest_frozen_ledger(
         strategy=args.strategy,
         ledger_path=args.ledger,
         out_dir=args.out,
@@ -30,6 +32,39 @@ def _cmd_bt(args: argparse.Namespace) -> int:
     print(f"pos_years   : {result.headline.positive_years_ratio}")
     print(f"trades_csv  : {result.trades_csv}")
     print(f"summary_json: {result.summary_json}")
+    return 0
+
+
+def _cmd_bt_intraday(args: argparse.Namespace) -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        stream=sys.stdout,
+    )
+    result = run_backtest_intraday(
+        strategy=args.strategy,
+        m5_parquet=args.m5_parquet,
+        symbol=args.symbol,
+        timeframe=args.timeframe,
+        max_bars_held=args.max_bars_held,
+        cost_usd=args.cost_usd,
+        use_equity_sizer=args.use_equity_sizer,
+        start_balance=args.start_balance,
+        risk_pct=args.risk_pct,
+        db_url=args.db_url,
+        max_bars=args.max_bars,
+    )
+    print("=" * 60)
+    print(f"run_id         : {result.run_id}")
+    print(f"run_ref        : {result.run_ref}")
+    print(f"bars_processed : {result.bars_processed:,}")
+    print(f"trades_open    : {result.trades_open:,}")
+    print(f"trades_closed  : {result.trades_closed:,}")
+    print(f"signals        : {result.signals:,}")
+    print(f"bar_walk_rows  : {result.bar_walk_rows:,}")
+    print(f"net_r          : {result.net_r:+.2f}")
+    if result.net_usd is not None:
+        print(f"net_usd        : ${result.net_usd:+,.2f}")
     return 0
 
 
@@ -112,6 +147,22 @@ def build_parser() -> argparse.ArgumentParser:
     bt.add_argument("--ledger", default=str(DEFAULT_LEDGER), help="Frozen ledger CSV path (sdr001 replay only)")
     bt.add_argument("--out", default="bt_engine/output/run01")
     bt.add_argument("--db-url", default=None)
+    # Intraday-engine BT (mirrors live plumbing — journal + bar_walk + gate events).
+    bt.add_argument("--intraday", action="store_true",
+                     help="Run engine-driven intraday BT (M5 parquet -> resample -> run_engine mode=bt)")
+    bt.add_argument("--m5-parquet", default="/tmp/oanda_xau_m5.parquet")
+    bt.add_argument("--symbol", default="XAUUSD.ecn")
+    bt.add_argument("--timeframe", default="M15")
+    bt.add_argument("--max-bars-held", type=int, default=None,
+                     help="Safety cap on trade hold in bars (None = strategy walker decides)")
+    bt.add_argument("--max-bars", type=int, default=None,
+                     help="Cap total bars processed (smoke testing)")
+    bt.add_argument("--cost-usd", type=float, default=0.65,
+                     help="Broker cost per trade in USD (JustMarkets Raw Spread default)")
+    bt.add_argument("--use-equity-sizer", action="store_true",
+                     help="Enable Model B 1.5%% asymmetric monthly equity sizer")
+    bt.add_argument("--start-balance", type=float, default=5000.0)
+    bt.add_argument("--risk-pct", type=float, default=0.015)
     bt.set_defaults(func=_cmd_bt)
 
     live = sub.add_parser("live", help="Run live engine against MT5 via DWX bridge")
