@@ -102,6 +102,17 @@ class BtTrade(Base):
     partial_fill_price: Mapped[float | None] = mapped_column(Float)
     partial_fill_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # --- end partial-tp columns ---
+    # --- Broker reconciliation columns (live only) ---
+    broker_ticket: Mapped[str | None] = mapped_column(String)
+    broker_gross_usd: Mapped[float | None] = mapped_column(Float)
+    broker_commission_usd: Mapped[float | None] = mapped_column(Float)
+    broker_swap_usd: Mapped[float | None] = mapped_column(Float)
+    broker_net_usd: Mapped[float | None] = mapped_column(Float)
+    broker_exit_price: Mapped[float | None] = mapped_column(Float)
+    broker_exit_reason: Mapped[str | None] = mapped_column(String)
+    broker_close_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    broker_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # --- end broker columns ---
     raw_features: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

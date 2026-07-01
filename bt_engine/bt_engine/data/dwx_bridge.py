@@ -77,6 +77,18 @@ class DwxBridge:
     def open_orders(self) -> dict[str, Any]:
         return self.read_json("open_orders.json")
 
+    def closed_orders(self) -> list[dict[str, Any]]:
+        """Recent closed positions written by EA on DEAL_ENTRY_OUT.
+
+        Shape: list of dicts with ticket, symbol, type, volume, open_price,
+        open_time, close_price, close_time, profit, swap, commission,
+        magic, comment, deal_reason.
+        """
+        data = self.read_json("closed_orders.json")
+        if isinstance(data, list):
+            return data
+        return []
+
     def bars(self, symbol: str, timeframe: str) -> list[dict[str, Any]]:
         """Read bars JSON for a symbol+timeframe. Symbol dots replaced with _.
 

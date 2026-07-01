@@ -80,6 +80,20 @@ ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS partial_r         DOUBLE PRECISIO
 ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS partial_fill_price DOUBLE PRECISION;
 ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS partial_fill_ts   TIMESTAMPTZ;
 
+-- Broker reconciliation (live only). Nullable - BT rows stay NULL.
+-- Populated by the live reconciler from DWX closed_orders.json after exit.
+-- gross/commission/swap are DEAL_PROFIT/DEAL_COMMISSION/DEAL_SWAP from MT5.
+-- broker_net_usd = gross + commission + swap (already sign-adjusted).
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_ticket           TEXT;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_gross_usd        DOUBLE PRECISION;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_commission_usd   DOUBLE PRECISION;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_swap_usd         DOUBLE PRECISION;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_net_usd          DOUBLE PRECISION;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_exit_price       DOUBLE PRECISION;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_exit_reason      TEXT;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_close_ts         TIMESTAMPTZ;
+ALTER TABLE bt_trades ADD COLUMN IF NOT EXISTS broker_reconciled_at    TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS bt_journal_events (
   event_id    BIGSERIAL PRIMARY KEY,
   trade_id    UUID NOT NULL REFERENCES bt_trades(trade_id) ON DELETE CASCADE,

@@ -119,5 +119,15 @@ def _trade_to_dict(t: BtTrade) -> dict:
         "regime": t.regime,
         "partial_taken": t.partial_taken,
         "partial_r": float(t.partial_r) if t.partial_r is not None else None,
+        # Broker reconciliation (live-only; NULL on BT trades)
+        "broker_ticket": t.broker_ticket,
+        "broker_gross_usd": float(t.broker_gross_usd) if t.broker_gross_usd is not None else None,
+        "broker_commission_usd": float(t.broker_commission_usd) if t.broker_commission_usd is not None else None,
+        "broker_swap_usd": float(t.broker_swap_usd) if t.broker_swap_usd is not None else None,
+        "broker_net_usd": float(t.broker_net_usd) if t.broker_net_usd is not None else None,
+        "broker_exit_price": float(t.broker_exit_price) if t.broker_exit_price is not None else None,
+        "broker_exit_reason": t.broker_exit_reason,
+        "broker_close_ts": t.broker_close_ts.isoformat() if t.broker_close_ts else None,
+        "broker_reconciled_at": t.broker_reconciled_at.isoformat() if t.broker_reconciled_at else None,
         "raw_features": t.raw_features,
     }

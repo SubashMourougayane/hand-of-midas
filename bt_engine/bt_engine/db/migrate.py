@@ -44,16 +44,27 @@ def _split_sql_statements(sql: str) -> list[str]:
         ch = sql[i]
         if ch == ";" and not in_dollar:
             stmt = "".join(buf).strip()
-            if stmt:
+            if stmt and not _is_comment_only(stmt):
                 out.append(stmt)
             buf = []
         else:
             buf.append(ch)
         i += 1
     tail = "".join(buf).strip()
-    if tail:
+    if tail and not _is_comment_only(tail):
         out.append(tail)
     return out
+
+
+def _is_comment_only(stmt: str) -> bool:
+    """True if every non-blank line starts with '--' (SQL line comment)."""
+    for line in stmt.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        if not s.startswith("--"):
+            return False
+    return True
 
 
 def apply_schema(url: str | None = None) -> None:

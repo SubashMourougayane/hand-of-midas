@@ -28,6 +28,7 @@ from ..db.engine import make_engine
 from ..db.models import BtTrade
 from ..db.repo import AccountSnapshotRepo, BarWalkRepo, JournalRepo, RunRepo, SignalRepo, TradeRepo
 from ..execution.dwx_broker import DWXBrokerAdapter
+from .broker_reconciler import reconcile_trade, retry_unreconciled_trades
 from .equity_sizer import EquitySizer, EquitySizerConfig
 from ..journal.walker import BarWalkJournal
 from ..strategies import registry
@@ -483,6 +484,18 @@ def run_live(
         walk_journal.close_walk(tr.trade_id)
         live_session.commit()
 
+        # Reconcile broker deal history (best-effort; retries later on bar_close sweep).
+        if tr.broker_ticket:
+            try:
+                reconcile_trade(
+                    bridge=bridge, session=live_session,
+                    trade_id=tr.trade_id, ticket=tr.broker_ticket,
+                    server_utc_offset_hours=server_utc_offset_hours,
+                    max_retries=8, backoff_s=0.25,
+                )
+            except Exception as e:
+                log.warning("[RECONCILER] on_close reconcile failed: %s", e)
+
     def on_event(ev) -> None:
         detail = dict(ev.detail)
         zone_id = detail.get("zone_id")
@@ -617,6 +630,16 @@ def run_live(
             open_position=len(open_trades),
         )
         live_session.commit()
+
+        # Cheap sweep for previously-unreconciled trades.
+        try:
+            retry_unreconciled_trades(
+                bridge=bridge, session=live_session, run_id=run_id,
+                server_utc_offset_hours=server_utc_offset_hours,
+                limit=10,
+            )
+        except Exception as e:
+            log.debug("[RECONCILER] sweep failed: %s", e)
 
     # Wrap the engine: cap by max_ticks if provided
     deps = EngineDeps(
