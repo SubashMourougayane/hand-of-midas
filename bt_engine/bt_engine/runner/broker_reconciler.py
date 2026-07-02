@@ -116,6 +116,45 @@ def find_closed_deal(
     return aggregated
 
 
+# Max age of closed_orders.json before we distrust it. The EA rewrites it on
+# each DEAL_ENTRY_OUT; if it hasn't been touched in this long it's stale (we've
+# observed it lag >2h behind live), and a "closed" row in it may be a ghost from
+# an earlier close event — NOT proof the current position is closed.
+CLOSED_ORDERS_MAX_AGE_S = 300.0
+
+
+def _ticket_still_open(bridge: DwxBridge, ticket: str, *, max_age_s: float = 15.0) -> bool:
+    """True if `ticket` is present in a FRESH open_orders.json.
+
+    Guard against reconciling-as-closed a position that is still live: a partial
+    close leaves the remainder open under the same ticket, and closed_orders can
+    carry a stale ghost row. If open_orders is itself stale we return False
+    (can't confirm open) so we don't block a legitimate close.
+    """
+    try:
+        age = time.time() - bridge.mtime("open_orders.json")
+        if age > max_age_s:
+            return False  # open_orders too stale to trust as proof-of-open
+        orders = bridge.open_orders()
+    except Exception:
+        return False
+    if not isinstance(orders, dict):
+        return False
+    inner = orders.get("orders", orders) if isinstance(orders, dict) else orders
+    if not isinstance(inner, dict):
+        return False
+    return str(ticket) in {str(k) for k in inner}
+
+
+def _closed_orders_is_fresh(bridge: DwxBridge, *, max_age_s: float = CLOSED_ORDERS_MAX_AGE_S) -> bool:
+    """True if closed_orders.json was written recently enough to trust."""
+    try:
+        age = time.time() - bridge.mtime("closed_orders.json")
+    except Exception:
+        return False
+    return age <= max_age_s
+
+
 def _to_utc_dt(naive: datetime | None, server_utc_offset_hours: int) -> datetime | None:
     if naive is None:
         return None
@@ -158,6 +197,26 @@ def reconcile_trade(
             broker_exit_reason=trade.broker_exit_reason,
             broker_close_ts=trade.broker_close_ts,
         )
+
+    # GUARD 1: never reconcile-as-closed a ticket that is still live in a fresh
+    # open_orders.json. A partial close leaves the remainder open under the same
+    # ticket; closed_orders can carry a stale ghost row. (Prevents the 2026-07-02
+    # incident where a stale closed_orders marked an open position closed.)
+    if _ticket_still_open(bridge, ticket):
+        log.info(
+            "[RECONCILER] ticket=%s still open in fresh open_orders — defer close",
+            ticket,
+        )
+        return ReconciliationResult(trade_id=trade_id, ticket=ticket, matched=False)
+
+    # GUARD 2: distrust a stale closed_orders.json. If the EA hasn't rewritten it
+    # recently, any match may be a ghost from a much earlier close event.
+    if not _closed_orders_is_fresh(bridge):
+        log.warning(
+            "[RECONCILER] closed_orders.json stale (>%.0fs) — skip ticket=%s, retry later",
+            CLOSED_ORDERS_MAX_AGE_S, ticket,
+        )
+        return ReconciliationResult(trade_id=trade_id, ticket=ticket, matched=False)
 
     deal: dict[str, Any] | None = None
     for attempt in range(max_retries):

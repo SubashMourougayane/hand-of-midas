@@ -15,7 +15,9 @@ from bt_engine.db.engine import make_engine
 from bt_engine.db.models import BtRun, BtTrade
 from bt_engine.runner.broker_reconciler import (
     ReconciliationResult,
+    _closed_orders_is_fresh,
     _parse_broker_time,
+    _ticket_still_open,
     _to_utc_dt,
     find_closed_deal,
     reconcile_trade,
@@ -36,12 +38,27 @@ class _FakeBridge:
     call_count: int = 0
     deals_after_n_calls: int = 0
     _pending: list[dict[str, Any]] = field(default_factory=list)
+    # Guard support (2026-07-02): staleness + still-open checks.
+    open_tickets: set[str] = field(default_factory=set)   # tickets still live
+    closed_orders_age_s: float = 0.0                       # mtime age of closed_orders.json
+    open_orders_age_s: float = 0.0                         # mtime age of open_orders.json
 
     def closed_orders(self) -> list[dict[str, Any]]:
         self.call_count += 1
         if self.call_count >= self.deals_after_n_calls:
             return list(self._pending or self.deals)
         return []
+
+    def open_orders(self) -> dict[str, Any]:
+        return {str(t): {"symbol": "XAUUSD.ecn"} for t in self.open_tickets}
+
+    def mtime(self, name: str) -> float:
+        import time as _t
+        if name == "closed_orders.json":
+            return _t.time() - self.closed_orders_age_s
+        if name == "open_orders.json":
+            return _t.time() - self.open_orders_age_s
+        return _t.time()
 
     def prime(self, deals: list[dict[str, Any]], appear_at_call: int = 1) -> None:
         self._pending = deals
@@ -300,3 +317,92 @@ def test_retry_unreconciled_sweep_processes_pending(session) -> None:
     tr2 = session.get(BtTrade, tid2)
     assert tr1.broker_gross_usd == 5.0
     assert tr2.broker_gross_usd == -3.0
+
+
+# ---------------------------------------------------------------------------
+# Reconciler staleness guards (2026-07-02 incident).
+#
+# A stale closed_orders.json (observed >2h old) carried a ghost "closed" row for
+# a ticket whose remainder was STILL OPEN after a partial-TP. Reconciling from it
+# wrongly marked the live position closed. Two guards prevent recurrence:
+#   1. never close a ticket still present in a FRESH open_orders.json
+#   2. distrust closed_orders.json when its mtime is stale
+# ---------------------------------------------------------------------------
+
+
+def test_ticket_still_open_true_when_present_and_fresh() -> None:
+    b = _FakeBridge(open_tickets={"2121027691"}, open_orders_age_s=2.0)
+    assert _ticket_still_open(b, "2121027691") is True
+
+
+def test_ticket_still_open_false_when_absent() -> None:
+    b = _FakeBridge(open_tickets={"999"}, open_orders_age_s=2.0)
+    assert _ticket_still_open(b, "2121027691") is False
+
+
+def test_ticket_still_open_false_when_open_orders_stale() -> None:
+    # open_orders too old to prove the position is still open -> don't block close.
+    b = _FakeBridge(open_tickets={"2121027691"}, open_orders_age_s=999.0)
+    assert _ticket_still_open(b, "2121027691") is False
+
+
+def test_closed_orders_fresh_true_when_recent() -> None:
+    assert _closed_orders_is_fresh(_FakeBridge(closed_orders_age_s=10.0)) is True
+
+
+def test_closed_orders_fresh_false_when_stale() -> None:
+    # 2.6h old -> the incident condition.
+    assert _closed_orders_is_fresh(_FakeBridge(closed_orders_age_s=9500.0)) is False
+
+
+def test_reconcile_defers_when_ticket_still_open(session) -> None:
+    """GUARD 1: ticket live in fresh open_orders -> do NOT reconcile-close."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_run_and_trade(session, run_id, trade_id)
+    bridge = _FakeBridge(open_tickets={"2121027691"}, open_orders_age_s=1.0,
+                         closed_orders_age_s=1.0)
+    bridge.prime([{"ticket": "2121027691", "profit": 401.64, "commission": -0.77,
+                   "swap": 0.0, "close_price": 4131.71,
+                   "close_time": "2026.07.02 18:15:13", "deal_reason": "EXPERT"}],
+                 appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="2121027691", server_utc_offset_hours=3,
+                          max_retries=2, backoff_s=0.01)
+    assert res.matched is False
+    assert bridge.call_count == 0  # never even read closed_orders
+    session.expire_all()
+    tr = session.get(BtTrade, trade_id)
+    assert tr.broker_reconciled_at is None  # NOT marked closed
+
+
+def test_reconcile_skips_when_closed_orders_stale(session) -> None:
+    """GUARD 2: stale closed_orders.json -> skip, retry later."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_run_and_trade(session, run_id, trade_id)
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=1.0,
+                         closed_orders_age_s=9500.0)  # 2.6h stale
+    bridge.prime([{"ticket": "T1", "profit": 5.0, "commission": 0.0, "swap": 0.0,
+                   "close_price": 100.0, "close_time": "2026.07.01 10:00:00",
+                   "deal_reason": "TP"}], appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="T1", max_retries=2, backoff_s=0.01)
+    assert res.matched is False
+    session.expire_all()
+    tr = session.get(BtTrade, trade_id)
+    assert tr.broker_reconciled_at is None
+
+
+def test_reconcile_proceeds_when_fresh_and_not_open(session) -> None:
+    """Both guards pass (ticket closed + closed_orders fresh) -> reconcile."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_run_and_trade(session, run_id, trade_id)
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=1.0,
+                         closed_orders_age_s=1.0)
+    bridge.prime([{"ticket": "T2", "profit": 5.0, "commission": -0.07, "swap": 0.0,
+                   "close_price": 100.0, "close_time": "2026.07.01 10:00:00",
+                   "deal_reason": "TP"}], appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="T2", server_utc_offset_hours=0,
+                          max_retries=2, backoff_s=0.01)
+    assert res.matched is True
+    assert res.broker_gross_usd == 5.0
