@@ -79,7 +79,7 @@ export function TradesPage({ runId }: { runId: string | null }) {
   return (
     <div className="h-full flex flex-col gap-3 p-3 min-h-0">
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 shrink-0">
         <KPI
           label="Net R"
           value={

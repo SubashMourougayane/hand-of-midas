@@ -81,6 +81,15 @@ export type AccountSnap = {
 
 export type FunnelBucket = { status: string; count: number };
 
+export type Bar = {
+  ts: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
 async function j<T>(path: string): Promise<T> {
   const r = await fetch(path);
   if (!r.ok) throw new Error(`${path} → ${r.status}`);
@@ -118,4 +127,8 @@ export const api = {
   accountSeries: (run_id: string, limit = 500) =>
     j<AccountSnap[]>(`/api/account/series?run_id=${run_id}&limit=${limit}`),
   scanStatus: () => j<{ runs: any[] }>("/api/scan-status"),
+  // Recent OHLC bars for a symbol/timeframe. Sourced from the DWX live dump
+  // for live mode; the last bar's `close` is the freshest available price.
+  bars: (symbol: string, tf = "M15") =>
+    j<Bar[]>(`/api/bars?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`),
 };

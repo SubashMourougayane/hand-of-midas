@@ -91,6 +91,15 @@ table th {
   100% { transform: scale(1.8); opacity: 0; }
 }
 
+/* Price-tick flash — brief bg pulse on each new quote (live-desk feel) */
+.ds-flash {
+  animation: ds-flash-pulse 0.35s ease-out;
+}
+@keyframes ds-flash-pulse {
+  0% { background-color: currentColor; filter: brightness(1.6); }
+  100% { background-color: transparent; filter: brightness(1); }
+}
+
 /* Skeleton shimmer (skill: loading-chart, progressive-loading) */
 .ds-skeleton {
   background: linear-gradient(

@@ -167,7 +167,7 @@ export function SignalsPage({
                   bg-bg-input border border-line-base rounded-ds-sm
                   px-2 py-1 text-ds-sm font-mono text-ink-primary
                   placeholder:text-ink-muted
-                  focus:outline-none focus:border-bull
+                  focus:outline-none focus:border-brass
                   w-72
                 "
               />
@@ -179,7 +179,7 @@ export function SignalsPage({
                   bg-bg-input border border-line-base rounded-ds-sm
                   px-2 py-1 text-ds-sm font-mono text-ink-primary
                   placeholder:text-ink-muted
-                  focus:outline-none focus:border-bull
+                  focus:outline-none focus:border-brass
                   w-48
                 "
               />

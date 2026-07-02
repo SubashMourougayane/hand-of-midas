@@ -101,6 +101,32 @@ class _Broker:
                 for d in dead:
                     self._clients.discard(d)
 
+    async def broadcast(self, envelope: dict) -> None:
+        """Fan out a pre-built envelope to all clients (respecting run_id filter).
+
+        Used by non-NOTIFY producers (e.g. the live price streamer). An envelope
+        with run_id=None reaches every client — listen-all AND per-run — since a
+        None run_id never fails the per-run filter check below.
+        """
+        run_id_str = envelope.get("run_id")
+        encoded = json.dumps(envelope, default=str)
+        async with self._lock:
+            clients = list(self._clients)
+        dead: list[tuple[WebSocket, Optional[UUID]]] = []
+        for ws, rid_filter in clients:
+            # Per-run clients only get matching run_id events; None run_id
+            # (symbol-global, e.g. price) passes to everyone.
+            if rid_filter is not None and run_id_str is not None and run_id_str != str(rid_filter):
+                continue
+            try:
+                await ws.send_text(encoded)
+            except Exception:
+                dead.append((ws, rid_filter))
+        if dead:
+            async with self._lock:
+                for d in dead:
+                    self._clients.discard(d)
+
     async def add(self, ws: WebSocket, run_id: Optional[UUID]) -> None:
         async with self._lock:
             self._clients.add((ws, run_id))

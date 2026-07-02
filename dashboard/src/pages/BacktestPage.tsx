@@ -291,7 +291,7 @@ export function BacktestPage({
   if (runs.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center text-center p-10">
-        <div className="display text-[28px] text-ink-secondary mb-2">
+        <div className="font-display text-ds-2xl text-ink-secondary mb-2">
           No backtest runs found
         </div>
         <div className="text-ink-muted text-ds-sm max-w-md">
@@ -480,15 +480,11 @@ export function BacktestPage({
                 return (
                   <div
                     key={y}
-                    className="bg-bg-elevated border rounded-ds-sm p-2"
-                    style={{
-                      borderColor:
-                        usd > 0
-                          ? "rgba(52,211,153,0.30)"
-                          : "rgba(248,113,113,0.30)",
-                    }}
+                    className={`bg-bg-elevated border rounded-ds-sm p-2 ${
+                      usd > 0 ? "border-bull/30" : "border-bear/30"
+                    }`}
                   >
-                    <div className="text-[10px] text-ink-muted">{y}</div>
+                    <div className="text-ds-xs text-ink-muted">{y}</div>
                     <div
                       className={`font-mono text-ds-sm font-semibold ${
                         usd >= 0 ? "text-bull" : "text-bear"
@@ -496,7 +492,7 @@ export function BacktestPage({
                     >
                       {fmtMoney(usd, 0)}
                     </div>
-                    <div className="text-[10px] text-ink-muted font-mono">
+                    <div className="text-ds-xs text-ink-muted font-mono">
                       {fmtR(r)}R
                     </div>
                   </div>

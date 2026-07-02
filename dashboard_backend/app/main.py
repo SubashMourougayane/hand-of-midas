@@ -13,12 +13,16 @@ from fastapi.staticfiles import StaticFiles
 
 from .routers import account, bars, runs, signals, trades
 from .ws.live import broker, router as ws_router
+from .ws.price_stream import PriceStreamer
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 log = logging.getLogger(__name__)
+
+
+price_streamer = PriceStreamer(broker)
 
 
 @asynccontextmanager
@@ -28,9 +32,14 @@ async def lifespan(app: FastAPI):
         log.info("broker started")
     except Exception:
         log.exception("broker start failed (DB may be down or NOTIFY triggers missing)")
+    try:
+        await price_streamer.start()
+    except Exception:
+        log.exception("price streamer start failed")
     yield
+    await price_streamer.stop()
     await broker.stop()
-    log.info("broker stopped")
+    log.info("broker + price streamer stopped")
 
 
 app = FastAPI(title="bt_engine dashboard", version="0.1.0", lifespan=lifespan)
