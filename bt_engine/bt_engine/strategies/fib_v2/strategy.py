@@ -659,6 +659,10 @@ class FibV2EnsembleStrategy(Strategy):
                 "ny_hr": _ny_hour(bar.timestamp),
                 "partial_tp_at_r": self.config.partial_tp_at_r,
                 "partial_tp_pct": self.config.partial_tp_pct,
+                # Per-trade hold cap in M15 bars. Bracket honors this if present
+                # over the engine-level max_bars_held (allows per-leg override in
+                # combined A+D runner where legs have different max_hold_h).
+                "max_hold_bars": int(self.config.max_hold_h * 4),
             },
         )
         event = StrategyEvent(

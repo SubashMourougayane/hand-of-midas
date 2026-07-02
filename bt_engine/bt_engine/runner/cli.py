@@ -51,6 +51,19 @@ def _cmd_bt_intraday(args: argparse.Namespace) -> int:
         use_equity_sizer=args.use_equity_sizer,
         start_balance=args.start_balance,
         risk_pct=args.risk_pct,
+        max_lot=args.max_lot,
+        commission_per_lot_usd=args.commission_per_lot_usd,
+        spread_usd_per_lot=args.spread_usd_per_lot,
+        entry_slip_pips=args.entry_slip_pips,
+        sl_slip_pips=args.sl_slip_pips,
+        tp_slip_pips=args.tp_slip_pips,
+        swap_long_per_lot_per_night=args.swap_long_per_lot_per_night,
+        swap_short_per_lot_per_night=args.swap_short_per_lot_per_night,
+        max_open_positions=args.max_open_positions_bt,
+        reject_pct=args.reject_pct,
+        gap_threshold_seconds=args.gap_threshold_seconds,
+        gap_extra_slip_pips=args.gap_extra_slip_pips,
+        partial_tp_fail_pct=args.partial_tp_fail_pct,
         db_url=args.db_url,
         max_bars=args.max_bars,
     )
@@ -164,6 +177,38 @@ def build_parser() -> argparse.ArgumentParser:
                      help="Enable Model B 1.5%% asymmetric monthly equity sizer")
     bt.add_argument("--start-balance", type=float, default=5000.0)
     bt.add_argument("--risk-pct", type=float, default=0.015)
+    bt.add_argument("--max-lot", type=float, default=2.0,
+                     help="Hard safety cap on lot size (matches live default). BT-only.")
+    bt.add_argument("--commission-per-lot-usd", type=float, default=6.50,
+                     help="Broker commission per lot round-turn (JM Raw Spread default).")
+    bt.add_argument("--spread-usd-per-lot", type=float, default=9.00,
+                     help="Broker spread cost per lot ($0.09 pip × 100 XAU contract).")
+    # P1a slippage
+    bt.add_argument("--entry-slip-pips", type=float, default=0.0,
+                     help="Fixed $ price offset against fill (worse). Realistic XAU: 0.10-0.30.")
+    bt.add_argument("--sl-slip-pips", type=float, default=0.0,
+                     help="Extra $ price beyond stop on SL hit (worse). Realistic XAU: 0.20-1.00.")
+    bt.add_argument("--tp-slip-pips", type=float, default=0.0,
+                     help="Extra $ price short of TP on TP hit (worse). Usually 0.")
+    # P1b overnight swap (JM Demo2 XAU rates: long -71.04 pts/night, short -84.12 pts/night)
+    bt.add_argument("--swap-long-per-lot-per-night", type=float, default=0.0,
+                     help="Long swap $/lot/night. JM XAU: -0.71 = -$0.71 per 0.01 lot.")
+    bt.add_argument("--swap-short-per-lot-per-night", type=float, default=0.0,
+                     help="Short swap $/lot/night. JM XAU: -0.84.")
+    # P1c engine cap
+    bt.add_argument("--max-open-positions-bt", type=int, default=4,
+                     help="Max concurrent open trades in BT. Matches live default 4.")
+    # P2c requote/reject dropout (deterministic hash-based)
+    bt.add_argument("--reject-pct", type=float, default=0.0,
+                     help="Fraction of orders deterministically rejected (requote sim). 0.01 = 1%%.")
+    # P2a weekend/session gap slip
+    bt.add_argument("--gap-threshold-seconds", type=float, default=0.0,
+                     help="Bar gap > this (sec) triggers extra SL slip. Weekend = 172800 (48h).")
+    bt.add_argument("--gap-extra-slip-pips", type=float, default=0.0,
+                     help="Extra $ SL slip when bar follows a gap. Realistic XAU weekend: 2-10.")
+    # P2d partial-TP broker modify-fail sim
+    bt.add_argument("--partial-tp-fail-pct", type=float, default=0.0,
+                     help="Fraction of partial-TP events where SL→BE modify fails (remainder exposed). 0.01-0.02 realistic.")
     bt.set_defaults(func=_cmd_bt)
 
     live = sub.add_parser("live", help="Run live engine against MT5 via DWX bridge")

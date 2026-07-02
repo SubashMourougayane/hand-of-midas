@@ -284,3 +284,66 @@ def test_initial_open_trades_are_replayed_to_open_callback() -> None:
     )
     run_engine(run_id=uuid.uuid4(), deps=deps, mode="live", max_bars=1)
     assert opened == [initial]
+
+
+class MultiOrderStrategy:
+    """Emits 3 concurrent long orders on bar 2 (all target bar 3). Tests P1c cap."""
+    strategy_id = "multi"
+    config = None
+
+    def initial_state(self) -> StubState:
+        return StubState()
+
+    def on_bar(self, state: StubState, bar: Bar, history: pd.DataFrame) -> StepResult:
+        state.seen_timestamps.append(bar.timestamp)
+        state.history_last_ts.append(history["timestamp"].iloc[-1])
+        orders: tuple[Order, ...] = ()
+        if not state.issued_order and len(state.seen_timestamps) == 2:
+            next_bar = bar.timestamp + pd.Timedelta(minutes=15)
+            orders = tuple(
+                Order(
+                    symbol="X", side=1, qty=1.0, intended_entry_bar=next_bar,
+                    stop_price=bar.close - 100.0,  # wide SL so trades stay open
+                    take_profit=bar.close + 100.0,
+                    risk_units=100.0, tag=f"multi{i}", bracket_kind="1R",
+                    trade_id=uuid.uuid4(),
+                )
+                for i in range(3)
+            )
+            state.issued_order = True
+        return StepResult(state=state, new_orders=orders)
+
+
+def test_max_open_positions_cap_blocks_excess_fills() -> None:
+    """P1c: with cap=2, only 2 of 3 concurrent orders fill."""
+    bars = _bars(10)
+    provider = StubProvider(bars)
+    opened: list[OpenTrade] = []
+    deps = EngineDeps(
+        clock=BacktestClock(iter(bars)),
+        data_provider=provider,
+        strategy=MultiOrderStrategy(),
+        execution=FillAtOpen(),
+        on_trade_open=opened.append,
+        max_open_positions=2,
+    )
+    run_engine(run_id=uuid.uuid4(), deps=deps, mode="bt")
+    # 3 orders emitted, cap=2 → at most 2 open concurrently.
+    assert len(opened) == 2
+
+
+def test_no_cap_fills_all() -> None:
+    """Default None cap → all 3 fill."""
+    bars = _bars(10)
+    provider = StubProvider(bars)
+    opened: list[OpenTrade] = []
+    deps = EngineDeps(
+        clock=BacktestClock(iter(bars)),
+        data_provider=provider,
+        strategy=MultiOrderStrategy(),
+        execution=FillAtOpen(),
+        on_trade_open=opened.append,
+        max_open_positions=None,
+    )
+    run_engine(run_id=uuid.uuid4(), deps=deps, mode="bt")
+    assert len(opened) == 3

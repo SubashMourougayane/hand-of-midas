@@ -13,7 +13,6 @@ export function TopBar({
 }) {
   const loc = useLocation();
   const selectedRun = runs.find((r) => r.run_id === selectedRunId);
-  const onLive = loc.pathname.startsWith("/live");
   const onBacktest = loc.pathname.startsWith("/backtest");
   const liveRunning = runs.filter((r) => r.mode === "live" && !r.end_ts);
   const liveRunningCount = liveRunning.length;
@@ -71,22 +70,24 @@ export function TopBar({
       )}
 
       <div className="flex items-center gap-3">
-        {/* Status indicator — driven by current PAGE.
-            Backtest pages have their own run picker; live shows the active one. */}
+        {/* Status indicator — reflects SYSTEM state, not the current page.
+            Backtest page shows its own mode; everywhere else the badge tells
+            you whether the live engine is actually running (procs alive), so
+            Journal/Trades/Signals no longer falsely read "Idle" while A/D trade. */}
         {onBacktest ? (
           <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[1.4px] text-warn">
             <span className="w-1.5 h-1.5 rounded-full bg-warn" />
             <span>Backtest</span>
           </span>
-        ) : onLive && liveRunningCount > 0 && selectedRun?.mode === "live" ? (
+        ) : liveRunningCount > 0 ? (
           <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[1.4px]">
             <span className="w-1.5 h-1.5 rounded-full bg-bull ds-dot text-bull" />
             <span className="text-bull">Live</span>
-            {selectedRun && (
-              <span className="text-ink-muted normal-case tracking-normal font-mono text-[11px] ml-1">
-                {selectedRun.symbol}
-              </span>
-            )}
+            <span className="text-ink-muted normal-case tracking-normal font-mono text-[11px] ml-1">
+              {liveRunningCount === 1
+                ? (selectedRun?.symbol ?? liveRunning[0]?.symbol ?? "")
+                : `${liveRunningCount} legs`}
+            </span>
           </span>
         ) : (
           <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[1.4px] text-ink-muted">

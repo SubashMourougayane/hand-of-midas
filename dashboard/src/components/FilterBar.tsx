@@ -7,6 +7,7 @@ import {
   hasAnyFilter,
   holdBucketOf,
   outcomeOf,
+  overnightOf,
   rBucketOf,
   sessionOf,
   statusOf,
@@ -53,6 +54,7 @@ export function FilterBar({
       session: {} as Counts,
       year: {} as Counts,
       holdBucket: {} as Counts,
+      overnight: {} as Counts,
     };
     trades.forEach((t) => {
       bumpCount(c.status, statusOf(t));
@@ -64,6 +66,7 @@ export function FilterBar({
       bumpCount(c.session, sessionOf(t));
       bumpCount(c.year, (t.entry_timestamp ?? "").slice(0, 4));
       bumpCount(c.holdBucket, holdBucketOf(t.bars_held, tf));
+      bumpCount(c.overnight, overnightOf(t));
     });
     return c;
   }, [trades, tf]);
@@ -107,6 +110,8 @@ export function FilterBar({
     } else if (name === "thisyear") {
       const y = String(new Date().getUTCFullYear());
       setFilter({ ...EMPTY_FILTER, year: new Set([y]) });
+    } else if (name === "overnight") {
+      setFilter({ ...EMPTY_FILTER, overnight: new Set(["overnight"]) });
     }
   };
 
@@ -156,6 +161,7 @@ export function FilterBar({
           <PresetBtn onClick={() => applyPreset("tp")}>TP only</PresetBtn>
           <PresetBtn onClick={() => applyPreset("sl")}>SL only</PresetBtn>
           <PresetBtn onClick={() => applyPreset("outliers")}>4R+ outliers</PresetBtn>
+          <PresetBtn onClick={() => applyPreset("overnight")}>Overnight</PresetBtn>
           <PresetBtn onClick={() => applyPreset("ny")}>NY session</PresetBtn>
           <PresetBtn onClick={() => applyPreset("london")}>London</PresetBtn>
           <PresetBtn onClick={() => applyPreset("thisyear")}>This year</PresetBtn>
@@ -362,6 +368,29 @@ export function FilterBar({
           </ChipGroup>
 
           <ChipGroup
+            label="Carry"
+            onClear={() => clearKey("overnight")}
+            active={filter.overnight.size > 0}
+          >
+            <Chip
+              active={filter.overnight.has("overnight")}
+              tone="bull"
+              onClick={() => toggle("overnight", "overnight")}
+              count={counts.overnight["overnight"]}
+            >
+              Overnight
+            </Chip>
+            <Chip
+              active={filter.overnight.has("intraday")}
+              tone="bear"
+              onClick={() => toggle("overnight", "intraday")}
+              count={counts.overnight["intraday"]}
+            >
+              Same-day
+            </Chip>
+          </ChipGroup>
+
+          <ChipGroup
             label="Session"
             onClear={() => clearKey("session")}
             active={filter.session.size > 0}
@@ -535,6 +564,7 @@ function countActive(f: FilterState): number {
     f.session.size +
     f.year.size +
     f.holdBucket.size +
+    f.overnight.size +
     (f.search.trim() ? 1 : 0)
   );
 }

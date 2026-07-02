@@ -62,6 +62,9 @@ class OpenTrade:
     partial_fill_timestamp: pd.Timestamp | None = None
     # Populated by live runner on ENTRY_FILL; None in BT / sim contexts.
     broker_ticket: str | None = None
+    # BT-only: accumulated overnight swap in R units. Deducted from outcome_r at close.
+    # Zero when swap model not configured.
+    accrued_swap_r: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -11,6 +11,7 @@ export type FilterState = {
   session: Set<Session>;
   year: Set<string>;
   holdBucket: Set<HoldBucket>;
+  overnight: Set<"overnight" | "intraday">;  // held across UTC day boundary?
   search: string;
   // Range filters (null = no bound)
   dateFrom: string | null;     // ISO date "YYYY-MM-DD"
@@ -35,6 +36,7 @@ export const EMPTY_FILTER: FilterState = {
   session: new Set(),
   year: new Set(),
   holdBucket: new Set(),
+  overnight: new Set(),
   search: "",
   dateFrom: null,
   dateTo: null,
@@ -55,6 +57,7 @@ export function hasAnyFilter(f: FilterState): boolean {
     f.session.size > 0 ||
     f.year.size > 0 ||
     f.holdBucket.size > 0 ||
+    f.overnight.size > 0 ||
     f.search.trim().length > 0 ||
     f.dateFrom != null ||
     f.dateTo != null ||
@@ -111,6 +114,15 @@ export function statusOf(t: Trade): string {
   return t.exit_reason ?? "CLOSED";
 }
 
+export function overnightOf(t: Trade): "overnight" | "intraday" | null {
+  // Prefer backend-computed flag; fall back to UTC-date comparison.
+  if (typeof t.overnight === "boolean") return t.overnight ? "overnight" : "intraday";
+  if (!t.entry_timestamp || !t.exit_timestamp) return null;
+  const ed = t.entry_timestamp.slice(0, 10);
+  const xd = t.exit_timestamp.slice(0, 10);
+  return ed !== xd ? "overnight" : "intraday";
+}
+
 export function applyFilter(
   trades: Trade[],
   f: FilterState,
@@ -143,6 +155,10 @@ export function applyFilter(
     if (f.holdBucket.size) {
       const h = holdBucketOf(t.bars_held, tf);
       if (!f.holdBucket.has(h)) return false;
+    }
+    if (f.overnight.size) {
+      const o = overnightOf(t);
+      if (!o || !f.overnight.has(o)) return false;
     }
     if (q) {
       const hay = `${t.trade_ref ?? ""} ${t.leg ?? ""} ${t.regime ?? ""} ${t.exit_reason ?? ""}`.toLowerCase();

@@ -199,20 +199,25 @@ export const colorForGateStatus = (status: string): string => {
   if (status.startsWith("GATE_")) return "text-bear";
   if (status === "ENTRY_FILL" || status === "EXIT_TP" || status === "ENTRY_SUBMIT")
     return "text-bull";
+  if (status === "PARTIAL_TP_APPLIED") return "text-bull";
+  if (status === "OPEN_STATE") return "text-info";
   if (status === "EXIT_SL") return "text-bear";
   if (status === "EXIT_TIMEOUT") return "text-warn";
   return "text-ink-secondary";
 };
 
 export const bgForGateStatus = (status: string): string => {
-  if (status === "GATE_SIGNAL_PASSED") return "#00D26A";
+  if (status === "GATE_SIGNAL_PASSED") return "#34d399";
   if (status.startsWith("GATE_PIVOT") || status.startsWith("GATE_SETUP_BUILT"))
-    return "#3DAEFF";
-  if (status.startsWith("GATE_")) return "#FF4757";
-  if (status === "ENTRY_FILL" || status === "EXIT_TP") return "#00D26A";
-  if (status === "EXIT_SL") return "#FF4757";
-  if (status === "EXIT_TIMEOUT") return "#FFA02E";
-  return "#9BA4AE";
+    return "#60a5fa";
+  if (status.startsWith("GATE_")) return "#f87171";
+  if (status === "ENTRY_FILL" || status === "ENTRY_SUBMIT" || status === "EXIT_TP")
+    return "#34d399";
+  if (status === "PARTIAL_TP_APPLIED") return "#34d399";
+  if (status === "OPEN_STATE") return "#60a5fa";
+  if (status === "EXIT_SL") return "#f87171";
+  if (status === "EXIT_TIMEOUT") return "#fbbf24";
+  return "#8c95a4";
 };
 
 export const shortGateLabel = (status: string): string => {

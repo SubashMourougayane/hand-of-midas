@@ -20,6 +20,7 @@ from .config import (
     make_intraday_d_config,
 )
 from .strategy import FibV2IntradayBase, FibV2IntradayA, FibV2IntradayD
+from .combined import FibV2IntradayAPlusD, FibV2IntradayADState
 
 __all__ = [
     "FibV2IntradayConfig",
@@ -30,4 +31,6 @@ __all__ = [
     "FibV2IntradayBase",
     "FibV2IntradayA",
     "FibV2IntradayD",
+    "FibV2IntradayAPlusD",
+    "FibV2IntradayADState",
 ]

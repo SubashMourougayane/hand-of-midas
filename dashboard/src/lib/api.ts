@@ -18,6 +18,7 @@ export type Trade = {
   run_id: string;
   direction: string;
   side: number;
+  overnight?: boolean | null;  // held across UTC day boundary (null if open)
   entry_timestamp: string;
   entry_price: number;
   stop_price: number;

@@ -40,6 +40,17 @@ class EngineDeps:
     on_partial_tp: Callable[[OpenTrade, Bar], None] | None = None
     initial_open_trades: Sequence[OpenTrade] = ()
     max_bars_held: int | None = None
+    # BT realism knobs — pass through to bracket walker.
+    sl_slip_pips: float = 0.0
+    tp_slip_pips: float = 0.0
+    swap_per_lot_per_night: dict[int, float] | None = None
+    # BT engine cap: max open concurrent trades (P1c). None = unlimited.
+    max_open_positions: int | None = None
+    # P2a weekend/session gap: extra SL slip when bar follows a gap.
+    gap_threshold_seconds: float = 0.0
+    gap_extra_slip_pips: float = 0.0
+    # P2d partial-TP broker modify-fail rate.
+    partial_tp_fail_pct: float = 0.0
 
 
 @dataclass
@@ -80,11 +91,18 @@ def run_engine(
         for trade in open_trades:
             deps.on_trade_open(trade)
 
+    prev_bar_ts = None
     while True:
         bar = deps.clock.tick()
         if bar is None:
             break
         run.bars_processed += 1
+
+        # P2a: gap between prior bar close and this bar (weekend/session).
+        # Deterministic — from consecutive bar timestamps only, no forward peek.
+        bar_gap_seconds = 0.0
+        if prev_bar_ts is not None:
+            bar_gap_seconds = (bar.timestamp - prev_bar_ts).total_seconds()
 
         history = deps.data_provider.history_up_to(bar.timestamp)
         _check_history(history, bar)
@@ -92,10 +110,17 @@ def run_engine(
         # 1) fill orders intended for this bar's OPEN
         for o in list(pending):
             if o.intended_entry_bar == bar.timestamp:
+                # P1c cap also applies to pending fill this bar.
+                if deps.max_open_positions is not None and len(open_trades) >= deps.max_open_positions:
+                    pending.remove(o)
+                    continue
                 if mode == "bt":
                     if deps.execution is None:
                         raise RuntimeError("BT mode requires execution model")
                     fill = deps.execution.simulate_fill(o, bar)
+                    if fill is None:  # P2c deterministic reject
+                        pending.remove(o)
+                        continue
                 else:
                     submitted = _submit_live_order(deps, o, bar)
                     if submitted is None:
@@ -118,6 +143,13 @@ def run_engine(
                 tr, bar,
                 max_bars_held=deps.max_bars_held,
                 on_partial_tp=deps.on_partial_tp,
+                sl_slip_pips=deps.sl_slip_pips,
+                tp_slip_pips=deps.tp_slip_pips,
+                swap_per_lot_per_night=deps.swap_per_lot_per_night,
+                bar_gap_seconds=bar_gap_seconds,
+                gap_threshold_seconds=deps.gap_threshold_seconds,
+                gap_extra_slip_pips=deps.gap_extra_slip_pips,
+                partial_tp_fail_pct=deps.partial_tp_fail_pct,
             )
             if outcome is not None:
                 run.closed_trades.append((tr, outcome))
@@ -152,16 +184,24 @@ def run_engine(
             # whose `on_bar` JUST ran. Strategies that want a 1-bar lag must
             # set `intended_entry_bar = bar.timestamp + tf_seconds`.
             for o in step.new_orders:
+                # P1c: max_open_positions cap (BT parity with live max_open_positions).
+                # Skip fill if broker would refuse. Deterministic — checks current count.
+                if deps.max_open_positions is not None and len(open_trades) >= deps.max_open_positions:
+                    continue
                 if o.intended_entry_bar == bar.timestamp:
                     if deps.execution is None:
                         raise RuntimeError("BT mode requires execution model")
                     fill = deps.execution.simulate_fill(o, bar)
+                    if fill is None:  # P2c deterministic reject
+                        continue
                     trade = _open_trade_from_fill(o, fill)
                     open_trades.append(trade)
                     if deps.on_trade_open:
                         deps.on_trade_open(trade)
                 else:
                     pending.append(o)
+
+        prev_bar_ts = bar.timestamp
 
         if max_bars is not None and run.bars_processed >= max_bars:
             break

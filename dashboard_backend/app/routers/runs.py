@@ -96,6 +96,17 @@ def run_trades(
     }
 
 
+def _is_overnight(t: BtTrade) -> bool | None:
+    """Overnight = trade held across a UTC calendar-day boundary.
+
+    None if not yet closed. Overnight trades ride to the far extension TP;
+    same-day trades mostly resolve at SL (fast retracement failures).
+    """
+    if t.entry_timestamp is None or t.exit_timestamp is None:
+        return None
+    return t.entry_timestamp.date() != t.exit_timestamp.date()
+
+
 def _trade_to_dict(t: BtTrade) -> dict:
     return {
         "trade_id": str(t.trade_id),
@@ -103,6 +114,7 @@ def _trade_to_dict(t: BtTrade) -> dict:
         "run_id": str(t.run_id),
         "direction": t.direction,
         "side": int(t.side),
+        "overnight": _is_overnight(t),
         "entry_timestamp": t.entry_timestamp.isoformat() if t.entry_timestamp else None,
         "entry_price": float(t.entry_price) if t.entry_price is not None else None,
         "stop_price": float(t.stop_price) if t.stop_price is not None else None,
