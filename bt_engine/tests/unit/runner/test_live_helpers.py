@@ -16,6 +16,8 @@ from bt_engine.core.order import Fill, OpenTrade, Order
 from bt_engine.runner.live import (
     _bt_trade_from_open,
     _close_partial_succeeded,
+    _find_ticket_by_tag,
+    _leg_owns_position,
     _sl_at_be,
     _to_dt,
 )
@@ -160,3 +162,88 @@ def test_sl_at_be_false_when_original_distance():
 def test_sl_at_be_false_when_no_position_or_missing_sl():
     assert _sl_at_be(None, 4068.31) is False
     assert _sl_at_be({"volume": 0.01}, 4068.31) is False
+
+
+# ---------------------------------------------------------------------------
+# OPEN slow-ack recovery (2026-07-02 incident).
+#
+# JustMarkets' DWX EA filled an OPEN but acked slower than the 5s command
+# timeout → submit_order raised TimeoutError → crashed the D-leg process AND
+# orphaned ticket 2123464608 (0.13 short) that the DB never recorded.
+# _find_ticket_by_tag recovers the ticket by matching the order tag against
+# each open position's (often truncated) comment.
+# ---------------------------------------------------------------------------
+
+
+class _TagBridge:
+    """Fake bridge exposing open_orders() with comment fields."""
+
+    def __init__(self, orders):
+        self._orders = orders
+
+    def open_orders(self):
+        return self._orders
+
+
+def test_find_ticket_by_tag_matches_truncated_comment():
+    tag = "intraday_d_short_2026-07-02T17:15:00+00:00"
+    bridge = _TagBridge({
+        "2123464608": {"symbol": "XAUUSD.ecn", "comment": "intraday_d_short_2026-07-02T17:"},
+        "999": {"symbol": "XAUUSD.ecn", "comment": "intraday_a_long_2026-07-01T20:"},
+    })
+    assert _find_ticket_by_tag(bridge, tag) == "2123464608"
+
+
+def test_find_ticket_by_tag_none_when_no_match():
+    bridge = _TagBridge({
+        "999": {"symbol": "XAUUSD.ecn", "comment": "something_else"},
+    })
+    assert _find_ticket_by_tag(bridge, "intraday_d_short_2026") is None
+
+
+def test_find_ticket_by_tag_ignores_short_prefix_collisions():
+    # 'intra' shares <8 chars — must NOT match.
+    bridge = _TagBridge({
+        "1": {"symbol": "XAUUSD.ecn", "comment": "intra_something_totally_different"},
+    })
+    assert _find_ticket_by_tag(bridge, "intraday_d_short_x") is None
+
+
+def test_find_ticket_by_tag_handles_nested_orders_key():
+    tag = "intraday_a_long_2026-07-01T20:30:00+00:00"
+    bridge = _TagBridge({"orders": {
+        "2118599832": {"comment": "intraday_a_long_2026-07-01T20:"},
+    }})
+    assert _find_ticket_by_tag(bridge, tag) == "2118599832"
+
+
+def test_find_ticket_by_tag_empty_tag_returns_none():
+    bridge = _TagBridge({"1": {"comment": "x"}})
+    assert _find_ticket_by_tag(bridge, "") is None
+
+
+# ---------------------------------------------------------------------------
+# Per-leg position adoption (prevents A+D double-managing each other).
+# ---------------------------------------------------------------------------
+
+
+def test_leg_owns_position_by_comment():
+    long_pos = {"comment": "intraday_a_long_2026-07-01T20:", "type": "BUY"}
+    short_pos = {"comment": "intraday_d_short_2026-07-02T17:", "type": "SELL"}
+    # A leg owns the long, not the short.
+    assert _leg_owns_position("fib_v2_intraday_a", long_pos, 1) is True
+    assert _leg_owns_position("fib_v2_intraday_a", short_pos, -1) is False
+    # D leg owns the short, not the long.
+    assert _leg_owns_position("fib_v2_intraday_d", short_pos, -1) is True
+    assert _leg_owns_position("fib_v2_intraday_d", long_pos, 1) is False
+
+
+def test_leg_owns_position_falls_back_to_side_without_comment():
+    assert _leg_owns_position("fib_v2_intraday_a", {"type": "BUY"}, 1) is True
+    assert _leg_owns_position("fib_v2_intraday_a", {"type": "SELL"}, -1) is False
+    assert _leg_owns_position("fib_v2_intraday_d", {"type": "SELL"}, -1) is True
+
+
+def test_leg_owns_position_combined_adopts_all():
+    assert _leg_owns_position("fib_v2_intraday_a_plus_d", {"type": "SELL"}, -1) is True
+    assert _leg_owns_position(None, {"type": "BUY"}, 1) is True

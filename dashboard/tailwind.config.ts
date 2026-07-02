@@ -5,72 +5,107 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Hand of Midas — slate + emerald institutional palette.
-        // Cool slate surfaces, emerald accent, semantic bull/bear tokens.
-        // All fg/bg pairs ≥4.5:1 (skill: color-accessible-pairs).
+        // Hand of Midas — BLACK / GREY GLASSMORPHISM.
+        // Near-black base, frosted translucent grey panels (rgba + backdrop-blur),
+        // luminous white hairline borders. One restrained accent (cool white/silver);
+        // refined (non-neon) green/red for trade semantics. High contrast text.
         bg: {
-          base: "#0a0e14",
-          surface: "#11161f",
-          elevated: "#161c25",
-          card: "#1d2430",
-          input: "#0d1218",
+          base: "#0a0b0d",      // near-black page
+          surface: "#111316",   // opaque fallback surface
+          elevated: "#181b1f",  // hovered/active
+          card: "#141619",      // legacy
+          input: "#0d0e11",     // inputs
+        },
+        // Glass fills — translucent greys meant to sit over the base with blur.
+        glass: {
+          DEFAULT: "rgba(255,255,255,0.05)",   // standard frosted panel
+          strong: "rgba(255,255,255,0.08)",    // elevated / hovered glass
+          subtle: "rgba(255,255,255,0.03)",    // faint inset
+          border: "rgba(255,255,255,0.12)",    // luminous hairline
+          "border-strong": "rgba(255,255,255,0.20)",
         },
         line: {
-          subtle: "#1f2733",
-          base: "#2c3645",
-          strong: "#3a4554",
-          accent: "#10b981",
+          subtle: "rgba(255,255,255,0.07)",   // hairline dividers
+          base: "rgba(255,255,255,0.12)",     // borders
+          strong: "rgba(255,255,255,0.20)",   // emphasized
+          accent: "rgba(255,255,255,0.32)",   // bright edge
         },
         ink: {
-          primary: "#f1f3f6",
-          secondary: "#c8cdd6",
-          muted: "#8c95a4",
-          dim: "#6a7384",
-          inverse: "#0a0e14",
+          primary: "#f5f6f7",   // headlines
+          secondary: "#c3c7cd", // body
+          muted: "#8b9099",     // tertiary
+          dim: "#5f646d",       // disabled/timestamps
+          inverse: "#0a0b0d",   // dark-on-light
         },
-        // Emerald accent system (replaces neon-green)
+        // Brand accent = cool silver-white (glass highlight).
         brass: {
-          DEFAULT: "#10b981",
-          hi: "#34d399",
-          dim: "#047857",
-          tint: "rgba(16,185,129,0.10)",
+          DEFAULT: "#e8eaed",
+          hi: "#ffffff",
+          dim: "#9aa0a8",
+          tint: "rgba(255,255,255,0.08)",
         },
+        // Bull (long) = refined glass green.
         bull: {
-          DEFAULT: "#34d399",
-          hi: "#6ee7b7",
-          dim: "#047857",
-          bg: "rgba(52,211,153,0.10)",
-          glow: "rgba(52,211,153,0.25)",
+          DEFAULT: "#22c55e",
+          hi: "#4ade80",
+          dim: "#15803d",
+          bg: "rgba(34,197,94,0.12)",
+          glow: "rgba(34,197,94,0.28)",
         },
+        // Bear (short) = refined glass red.
         bear: {
-          DEFAULT: "#f87171",
-          hi: "#fca5a5",
-          dim: "#991b1b",
-          bg: "rgba(248,113,113,0.10)",
-          glow: "rgba(248,113,113,0.25)",
+          DEFAULT: "#f04452",
+          hi: "#ff6b76",
+          dim: "#b3202c",
+          bg: "rgba(240,68,82,0.12)",
+          glow: "rgba(240,68,82,0.28)",
         },
         warn: {
-          DEFAULT: "#fbbf24",
-          dim: "#92400e",
-          bg: "rgba(251,191,36,0.10)",
+          DEFAULT: "#e8a838",
+          dim: "#7a5410",
+          bg: "rgba(232,168,56,0.12)",
         },
         info: {
-          DEFAULT: "#60a5fa",
-          dim: "#1e3a8a",
-          bg: "rgba(96,165,250,0.10)",
+          DEFAULT: "#8ab4f8",
+          dim: "#3b5578",
+          bg: "rgba(138,180,248,0.12)",
         },
         accent: {
-          DEFAULT: "#10b981",
-          hover: "#34d399",
-          dim: "#047857",
+          DEFAULT: "#e8eaed",
+          hover: "#ffffff",
+          dim: "#9aa0a8",
+        },
+        // Legacy accent names — ALL collapse to the single silver/glass accent
+        // so any leftover text-cyan / bg-lime / text-magenta renders monochrome
+        // in the unified glass theme (no stray neon colors).
+        cyan: {
+          DEFAULT: "#c3c7cd",
+          hi: "#f5f6f7",
+          dim: "#8b9099",
+          bg: "rgba(255,255,255,0.06)",
+          glow: "rgba(255,255,255,0.18)",
+        },
+        lime: {
+          DEFAULT: "#e8eaed",
+          hi: "#ffffff",
+          dim: "#9aa0a8",
+          bg: "rgba(255,255,255,0.06)",
+          glow: "rgba(255,255,255,0.18)",
+        },
+        magenta: {
+          DEFAULT: "#c3c7cd",
+          hi: "#f5f6f7",
+          dim: "#8b9099",
+          bg: "rgba(255,255,255,0.06)",
+          glow: "rgba(255,255,255,0.18)",
         },
         // System mode accents
-        live: "#34d399",
-        bt: "#fbbf24",
+        live: "#22c55e",
+        bt: "#e8a838",
       },
       fontFamily: {
         sans: [
-          "IBM Plex Sans",
+          "Plus Jakarta Sans",
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
@@ -78,7 +113,6 @@ export default {
           "sans-serif",
         ],
         mono: [
-          "IBM Plex Mono",
           "JetBrains Mono",
           "Menlo",
           "Monaco",
@@ -86,9 +120,10 @@ export default {
           "monospace",
         ],
         display: [
-          "Fraunces",
-          "Georgia",
-          "serif",
+          "Space Grotesk",
+          "Plus Jakarta Sans",
+          "Inter",
+          "sans-serif",
         ],
       },
       fontSize: {
@@ -102,15 +137,24 @@ export default {
         "ds-3xl": ["32px", { lineHeight: "40px" }],
       },
       borderRadius: {
-        ds: "6px",
-        "ds-sm": "4px",
-        "ds-lg": "10px",
+        ds: "12px",
+        "ds-sm": "8px",
+        "ds-lg": "18px",
+        "ds-xl": "24px",
       },
       boxShadow: {
-        "ds-card": "inset 0 1px 0 rgba(255,255,255,0.02), 0 1px 2px rgba(0,0,0,0.3)",
-        "ds-hover": "inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 12px rgba(0,0,0,0.5)",
-        "ds-glow-bull": "0 0 16px rgba(0,210,106,0.25)",
-        "ds-glow-bear": "0 0 16px rgba(255,71,87,0.25)",
+        // Glass depth: soft drop + top inner highlight (the frosted-edge sheen).
+        "ds-card": "0 8px 32px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
+        "ds-hover": "0 16px 48px -12px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)",
+        // Colored glow families keep their names (used across components) but are
+        // now subtle white/semantic halos, not neon. cyan/lime/magenta = silver.
+        "ds-glow-bull": "0 0 24px -6px rgba(34,197,94,0.4)",
+        "ds-glow-bear": "0 0 24px -6px rgba(240,68,82,0.4)",
+        "ds-glow-cyan": "0 0 24px -8px rgba(255,255,255,0.25)",
+        "ds-glow-lime": "0 0 24px -8px rgba(255,255,255,0.25)",
+        "ds-glow-magenta": "0 0 24px -8px rgba(255,255,255,0.25)",
+        "ds-glow-cyan-lg": "0 0 48px -10px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
+        "ds-glow-lime-lg": "0 0 48px -10px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.15)",
       },
       transitionDuration: {
         ds: "180ms",
@@ -120,6 +164,8 @@ export default {
         "ds-flash-bull": "ds-flash-bull 600ms ease-out",
         "ds-flash-bear": "ds-flash-bear 600ms ease-out",
         "ds-shimmer": "ds-shimmer 1.6s ease-in-out infinite",
+        "ds-neon-flicker": "ds-neon-flicker 3.5s linear infinite",
+        "ds-glow-pulse": "ds-glow-pulse 2.4s ease-in-out infinite",
       },
       keyframes: {
         "ds-pulse": {
@@ -127,19 +173,29 @@ export default {
           "50%": { opacity: "0.4" },
         },
         "ds-flash-bull": {
-          "0%": { background: "rgba(0,210,106,0.25)" },
+          "0%": { background: "rgba(34,197,94,0.3)" },
           "100%": { background: "transparent" },
         },
         "ds-flash-bear": {
-          "0%": { background: "rgba(255,71,87,0.25)" },
+          "0%": { background: "rgba(240,68,82,0.3)" },
           "100%": { background: "transparent" },
         },
         "ds-shimmer": {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        // Subtle neon-tube flicker for hero wordmarks.
+        "ds-neon-flicker": {
+          "0%,18%,22%,25%,53%,57%,100%": { opacity: "1" },
+          "20%,24%,55%": { opacity: "0.55" },
+        },
+        // Breathing glow for live indicators / CTAs.
+        "ds-glow-pulse": {
+          "0%,100%": { filter: "brightness(1)", opacity: "0.92" },
+          "50%": { filter: "brightness(1.25)", opacity: "1" },
+        },
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 } satisfies Config;

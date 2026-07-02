@@ -16,6 +16,7 @@ export type Trade = {
   trade_id: string;
   trade_ref: string;
   run_id: string;
+  symbol?: string | null;
   direction: string;
   side: number;
   overnight?: boolean | null;  // held across UTC day boundary (null if open)

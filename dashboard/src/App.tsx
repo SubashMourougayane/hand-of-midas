@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { AccountSnap, api, Run } from "./lib/api";
 import { useWsLive } from "./lib/ws";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
+import { MobileNav } from "./components/MobileNav";
 import { StatusBar } from "./components/StatusBar";
+import { LandingPage } from "./pages/LandingPage";
 import { LivePage } from "./pages/LivePage";
 import { JournalPage } from "./pages/JournalPage";
 import { TradesPage } from "./pages/TradesPage";
@@ -13,7 +15,14 @@ import { BacktestPage } from "./pages/BacktestPage";
 import { ArchitecturePage } from "./pages/ArchitecturePage";
 
 export default function AppRoot() {
-  return <App />;
+  return (
+    <Routes>
+      {/* Full-bleed landing — no app shell. */}
+      <Route path="/" element={<LandingPage />} />
+      {/* Everything else runs inside the terminal shell. */}
+      <Route path="*" element={<App />} />
+    </Routes>
+  );
 }
 
 function App() {
@@ -22,6 +31,16 @@ function App() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [account, setAccount] = useState<AccountSnap | null>(null);
   const [signalsSeen, setSignalsSeen] = useState(0);
+  // Collapsible sidebar — persisted so it survives reloads.
+  const [collapsed, setCollapsed] = useState<boolean>(
+    () => localStorage.getItem("hom.sidebar.collapsed") === "1"
+  );
+  const toggleSidebar = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem("hom.sidebar.collapsed", next ? "1" : "0");
+      return next;
+    });
   const ws = useWsLive(selectedRunId);
   const onBacktest = loc.pathname.startsWith("/backtest");
   // Each page wants its own slice — Backtest sees bt runs; everything else sees live.
@@ -92,6 +111,20 @@ function App() {
   // Live updates via ws.
   useEffect(() => {
     return ws.onMessage((env) => {
+      // Broker-truth account (account-wide, run_id null) — matches the Live
+      // cockpit's PnlHero so the bottom StatusBar shows the SAME equity/balance.
+      if (env.channel === "account_live") {
+        const p = env.payload as any;
+        setAccount((prev) => ({
+          snap_id: prev?.snap_id ?? 0,
+          ts: env.ts,
+          balance: typeof p.balance === "number" ? p.balance : prev?.balance ?? null,
+          equity: typeof p.equity === "number" ? p.equity : prev?.equity ?? null,
+          open_pnl: typeof p.open_pnl === "number" ? p.open_pnl : null,
+          open_position: prev?.open_position ?? null,
+        }));
+        return;
+      }
       if (env.run_id !== selectedRunId) return;
       if (env.channel === "account") {
         const p = env.payload as any;
@@ -119,12 +152,16 @@ function App() {
 
   return (
     <div className="h-full w-full flex flex-col bg-bg-base text-ink-primary font-sans">
-      <TopBar runs={runs} selectedRunId={selectedRunId} onSelectRun={setSelectedRunId} />
+      <TopBar
+        runs={runs}
+        selectedRunId={selectedRunId}
+        onSelectRun={setSelectedRunId}
+        onToggleSidebar={toggleSidebar}
+      />
       <div className="flex-1 min-h-0 overflow-hidden flex">
-        <Sidebar />
-        <main className="flex-1 min-w-0 overflow-hidden">
+        <Sidebar collapsed={collapsed} />
+        <main className="flex-1 min-w-0 overflow-hidden pb-14 md:pb-0">
           <Routes>
-            <Route path="/" element={<Navigate to="/live" replace />} />
             <Route
               path="/live"
               element={<LivePage runId={selectedRunId} ws={ws} />}
@@ -152,15 +189,18 @@ function App() {
           </Routes>
         </main>
       </div>
-      <StatusBar
-        status={ws.status}
-        lastMessageAt={ws.lastMessageAt}
-        runRef={selected?.run_ref}
-        equity={account?.equity ?? null}
-        balance={account?.balance ?? null}
-        openPositions={account?.open_position ?? null}
-        signalsSeen={signalsSeen}
-      />
+      <div className="hidden md:block">
+        <StatusBar
+          status={ws.status}
+          lastMessageAt={ws.lastMessageAt}
+          runRef={selected?.run_ref}
+          equity={account?.equity ?? null}
+          balance={account?.balance ?? null}
+          openPositions={account?.open_position ?? null}
+          signalsSeen={signalsSeen}
+        />
+      </div>
+      <MobileNav />
     </div>
   );
 }

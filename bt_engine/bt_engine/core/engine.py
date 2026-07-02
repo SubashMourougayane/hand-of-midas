@@ -7,11 +7,14 @@ Hard guards on every tick:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from collections.abc import Sequence
 from typing import Any, Callable
+
+log = logging.getLogger("bt_engine.engine")
 
 import pandas as pd
 
@@ -169,14 +172,20 @@ def run_engine(
                 deps.on_strategy_event(ev)
         if mode == "live":
             for o in step.new_orders:
-                submitted = _submit_live_order(deps, o, bar)
-                if submitted is None:
-                    continue
-                fill, filled_order, ticket = submitted
-                trade = _open_trade_from_fill(filled_order, fill, broker_ticket=ticket)
-                open_trades.append(trade)
-                if deps.on_trade_open:
-                    deps.on_trade_open(trade)
+                # A single order's submit/fill must NEVER crash the engine loop —
+                # a crash orphans any position the broker did open and stops all
+                # further management (SL→BE, exits) for the whole leg. Isolate it.
+                try:
+                    submitted = _submit_live_order(deps, o, bar)
+                    if submitted is None:
+                        continue
+                    fill, filled_order, ticket = submitted
+                    trade = _open_trade_from_fill(filled_order, fill, broker_ticket=ticket)
+                    open_trades.append(trade)
+                    if deps.on_trade_open:
+                        deps.on_trade_open(trade)
+                except Exception:
+                    log.exception("[ENGINE] live order submit/open failed; leg continues")
         else:
             # Process orders intended for THIS bar immediately (fill at bar.open).
             # Research's vectorized signal-gen does `entry_price = op[k+1]`

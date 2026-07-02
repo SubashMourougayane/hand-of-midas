@@ -77,8 +77,8 @@ export function EquityCurve({
           <AreaChart data={data} margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
             <defs>
               <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
@@ -113,9 +113,10 @@ export function EquityCurve({
             <Area
               type="monotone"
               dataKey="cum"
-              stroke="#10b981"
-              strokeWidth={1.6}
+              stroke="#4ade80"
+              strokeWidth={1.8}
               fill="url(#equityFill)"
+              style={{ filter: "drop-shadow(0 0 4px rgba(74,222,128,0.35))" }}
             />
           </AreaChart>
         </ResponsiveContainer>

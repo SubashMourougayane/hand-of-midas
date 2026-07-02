@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, Trade } from "../lib/api";
 import { WsEnvelope } from "../lib/ws";
+import { legName } from "../lib/labels";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { DataGrid } from "../components/DataGrid";
-import { KPI } from "../components/KPI";
+import { SectionHeader } from "../components/ui/Section";
+import { StatTile } from "../components/ui/StatTile";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 import {
   barsToDuration,
   colorForR,
@@ -45,13 +48,45 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
 
   useEffect(() => {
     if (!runId) return;
-    api.runDetail(runId).then((d: any) => {
-      setSymbol(d?.run?.symbol ?? null);
-      setTf(d?.run?.timeframe ?? "M5");
-    }).catch(() => {});
-    api
-      .runTrades(runId, filter === "all" ? undefined : filter, 1, 50000)
-      .then(({ items }) => setRows(items));
+    let cancelled = false;
+    (async () => {
+      // Resolve the selected run to know if we're in BT or live context.
+      let selfRun: any = null;
+      try {
+        const d: any = await api.runDetail(runId);
+        selfRun = d?.run ?? null;
+        if (!cancelled) {
+          setSymbol(selfRun?.symbol ?? null);
+          setTf(selfRun?.timeframe ?? "M5");
+        }
+      } catch {
+        /* ignore */
+      }
+      const f = filter === "all" ? undefined : filter;
+      // LIVE context → merge trades across BOTH legs (long + short share the
+      // desk). BT context → just the selected run.
+      if (selfRun?.mode === "live") {
+        let liveRuns: any[] = [];
+        try {
+          liveRuns = (await api.runs(100, "live")).filter((r) => !r.end_ts);
+        } catch {
+          liveRuns = [{ run_id: runId }];
+        }
+        if (liveRuns.length === 0) liveRuns = [{ run_id: runId }];
+        const all = await Promise.all(
+          liveRuns.map((r) =>
+            api.runTrades(r.run_id, f, 1, 50000).then((x) => x.items).catch(() => [] as Trade[])
+          )
+        );
+        if (!cancelled) setRows(all.flat());
+      } else {
+        const { items } = await api.runTrades(runId, f, 1, 50000);
+        if (!cancelled) setRows(items);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [runId, filter]);
 
   // Subscribe to live per-ticket unrealised P&L (broker truth via WS).
@@ -114,8 +149,12 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     const wr = closed.length ? (wins.length / closed.length) * 100 : 0;
     const pf = lossSum > 0 ? winSum / lossSum : winSum > 0 ? Infinity : 0;
     const avg = closed.length ? netSum / closed.length : 0;
-    return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg };
-  }, [sorted]);
+    const usd = closed.reduce(
+      (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0),
+      0
+    );
+    return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd };
+  }, [sorted, symbol]);
 
   const setSortKey = (k: SortKey) =>
     setSort((s) =>
@@ -123,58 +162,68 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     );
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 min-h-0">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 shrink-0">
-        <KPI
-          label="Net R"
-          value={
-            <span className={colorForR(stats.netSum)}>{fmtR(stats.netSum)}</span>
-          }
-          sub={`${stats.n} closed trades`}
-          deltaTone={stats.netSum >= 0 ? "bull" : "bear"}
-        />
-        <KPI label="Wins" value={stats.wins} sub={`${stats.losses} losses`} />
-        <KPI label="Win Rate" value={`${stats.wr.toFixed(1)}%`} />
-        <KPI
-          label="Profit Factor"
-          value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : "∞"}
-        />
-        <KPI
-          label="Avg R / Trade"
-          value={
-            <span className={colorForR(stats.avg)}>{fmtR(stats.avg, 3)}</span>
-          }
-          deltaTone={stats.avg >= 0 ? "bull" : "bear"}
-        />
-      </div>
-
-      <Pane
-        title="Trades"
-        subtitle={`${sorted.length} loaded`}
-        toolbar={
-          <div className="flex items-center gap-2">
-            {(["all", "open", "closed"] as const).map((f) => (
-              <button
-                key={f}
-                className={`
-                  px-2.5 py-1 rounded-ds-sm text-ds-xs uppercase tracking-wide font-medium
-                  transition-colors duration-ds
-                  ${
-                    filter === f
-                      ? "bg-bull/10 text-bull border border-bull/40"
-                      : "bg-bg-elevated text-ink-muted border border-line-subtle hover:text-ink-secondary"
-                  }
-                `}
-                onClick={() => setFilter(f)}
-              >
-                {f}
-              </button>
-            ))}
+    <div className="h-full flex flex-col gap-6 px-4 sm:px-6 py-5 min-h-0 w-full">
+      {/* ══ SECTION 01 · performance ══ */}
+      <section className="flex flex-col gap-3 shrink-0">
+        <SectionHeader index="01" title="Performance" question="How is this book doing?" />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Net R"
+              value={fmtR(stats.netSum)}
+              tone={stats.netSum >= 0 ? "bull" : "bear"}
+              sub={`${stats.n} closed`}
+            />
           </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="$ P&L"
+              value={
+                stats.usd == null ? "—" : `${stats.usd >= 0 ? "+" : "−"}${Math.abs(stats.usd).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+              }
+              unit="USD"
+              tone={stats.usd >= 0 ? "bull" : "bear"}
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Wins" value={String(stats.wins)} sub={`${stats.losses} losses`} />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Win Rate" value={`${stats.wr.toFixed(1)}`} unit="%" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Profit Factor"
+              value={Number.isFinite(stats.pf) ? stats.pf.toFixed(2) : "∞"}
+              tone={stats.pf >= 1 ? "bull" : "bear"}
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Avg R"
+              value={fmtR(stats.avg, 3)}
+              tone={stats.avg >= 0 ? "bull" : "bear"}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ══ SECTION 02 · trade ledger ══ */}
+      <SectionHeader
+        index="02"
+        title="Trade Ledger"
+        question={`${sorted.length} loaded`}
+        right={
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="open">Open</TabsTrigger>
+              <TabsTrigger value="closed">Closed</TabsTrigger>
+            </TabsList>
+          </Tabs>
         }
-        className="flex-1 min-h-0"
-      >
+      />
+      <Pane className="flex-1 min-h-0">
         <DataGrid<Trade>
           rows={sorted}
           rowKey={(t) => t.trade_id}
@@ -200,19 +249,11 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
                 ),
             },
             {
-              header: "Side",
+              header: "Strategy",
               cell: (t) => (
                 <Pill tone={t.side > 0 ? "bull" : "bear"}>
-                  {t.direction.toUpperCase()}
+                  {legName(t.leg)}
                 </Pill>
-              ),
-            },
-            {
-              header: "Leg",
-              cell: (t) => (
-                <span className="font-mono text-ds-sm text-ink-secondary">
-                  {t.leg ?? "—"}
-                </span>
               ),
             },
             {

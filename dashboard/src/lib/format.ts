@@ -214,17 +214,17 @@ export const colorForGateStatus = (status: string): string => {
 };
 
 export const bgForGateStatus = (status: string): string => {
-  if (status === "GATE_SIGNAL_PASSED") return "#34d399";
+  if (status === "GATE_SIGNAL_PASSED") return "#22c55e";
   if (status.startsWith("GATE_PIVOT") || status.startsWith("GATE_SETUP_BUILT"))
-    return "#60a5fa";
-  if (status.startsWith("GATE_")) return "#f87171";
+    return "#8ab4f8";
+  if (status.startsWith("GATE_")) return "#f04452";
   if (status === "ENTRY_FILL" || status === "ENTRY_SUBMIT" || status === "EXIT_TP")
-    return "#34d399";
-  if (status === "PARTIAL_TP_APPLIED") return "#34d399";
-  if (status === "OPEN_STATE") return "#60a5fa";
-  if (status === "EXIT_SL") return "#f87171";
-  if (status === "EXIT_TIMEOUT") return "#fbbf24";
-  return "#8c95a4";
+    return "#22c55e";
+  if (status === "PARTIAL_TP_APPLIED") return "#22c55e";
+  if (status === "OPEN_STATE") return "#8ab4f8";
+  if (status === "EXIT_SL") return "#f04452";
+  if (status === "EXIT_TIMEOUT") return "#e8a838";
+  return "#8b9099";
 };
 
 export const shortGateLabel = (status: string): string => {

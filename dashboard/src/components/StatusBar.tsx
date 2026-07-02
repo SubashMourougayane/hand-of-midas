@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtMoney, fmtTs } from "../lib/format";
 import { WsStatus } from "../lib/ws";
+import { SessionClocks } from "./SessionClocks";
 
 export function StatusBar({
   status,
@@ -34,7 +35,7 @@ export function StatusBar({
       : "bg-bull text-bull";
 
   return (
-    <div className="flex items-center justify-between border-t border-line-subtle bg-bg-surface px-4 h-7 shrink-0 text-ds-xs">
+    <div className="flex items-center justify-between border-t border-glass-border bg-glass-subtle backdrop-blur-xl px-4 h-7 shrink-0 text-ds-xs">
       <div className="flex items-center gap-4">
         <span className="inline-flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ds-dot ${dotCls}`} />
@@ -56,6 +57,10 @@ export function StatusBar({
           </span>
         )}
       </div>
+
+      {/* Center: market-session clocks */}
+      <SessionClocks now={now} />
+
       <div className="flex items-center gap-4">
         {balance != null && (
           <span className="text-ink-muted">

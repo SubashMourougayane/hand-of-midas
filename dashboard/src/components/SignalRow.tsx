@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { SignalRow as SignalRowT } from "../lib/api";
-import { colorForGateStatus, shortGateLabel, fmtTime } from "../lib/format";
+import { colorForGateStatus, fmtTime } from "../lib/format";
+import { gateLabel, legName } from "../lib/labels";
 import { Pill } from "./Pill";
 import { GateChecklist } from "./GateChecklist";
 
@@ -53,11 +54,11 @@ export function SignalRowItem({
           {fmtTime(signal.ts)}
         </span>
         <Pill tone={tone} className="shrink-0">
-          {shortGateLabel(signal.status)}
+          {gateLabel(signal.status)}
         </Pill>
         {leg && (
-          <span className="font-mono text-ds-xs text-ink-secondary shrink-0">
-            {leg}
+          <span className="text-ds-xs text-ink-secondary shrink-0">
+            {legName(leg)}
           </span>
         )}
         {signal.reason && (

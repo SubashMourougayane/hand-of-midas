@@ -13,23 +13,158 @@ body,
   padding: 0;
   height: 100%;
   background:
-    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(16, 185, 129, 0.035), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 0% 100%, rgba(96, 165, 250, 0.025), transparent 60%),
-    #0a0e14;
-  color: #f1f3f6;
-  font-family: "IBM Plex Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    radial-gradient(ellipse 70% 50% at 80% -10%, rgba(255, 255, 255, 0.05), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 10% 110%, rgba(255, 255, 255, 0.035), transparent 60%),
+    #0a0b0d;
+  color: #f5f6f7;
+  font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 15px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
 
-/* Display font — Fraunces italic for editorial flourishes */
+/* Display font — Space Grotesk, tight tracking for headings/wordmarks */
 .display {
-  font-family: "Fraunces", Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-optical-sizing: auto;
+  font-family: "Space Grotesk", "Plus Jakarta Sans", "Inter", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Glass utility classes --------------------------------------------- */
+/* The core frosted-glass surface. Translucent grey fill + backdrop blur +
+   luminous top-edge highlight + soft depth shadow. */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.glass-strong {
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.03);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Legacy neon-* class names retained as GLASS aliases so existing markup
+   renders in the unified glass theme without a per-file sweep. */
+.neon-text,
+.neon-text-soft {
+  text-shadow: none;
+}
+.neon-border {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 20px -8px rgba(0, 0, 0, 0.5);
+}
+.neon-panel {
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.neon-divider {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+}
+.neon-scanlines::before {
+  content: none;
+}
+/* Landing backdrop — faint frosted grid, no neon */
+.neon-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ---- Landing motion primitives ----------------------------------------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-up {
+  opacity: 0;
+  animation: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+/* stagger helpers */
+.anim-d1 { animation-delay: 0.08s; }
+.anim-d2 { animation-delay: 0.16s; }
+.anim-d3 { animation-delay: 0.24s; }
+.anim-d4 { animation-delay: 0.32s; }
+.anim-d5 { animation-delay: 0.44s; }
+.anim-d6 { animation-delay: 0.56s; }
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+.anim-float { animation: float-y 6s ease-in-out infinite; }
+
+/* Gradient sheen sweep across a headline / border */
+@keyframes sheen {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.text-sheen {
+  background: linear-gradient(100deg, #f5f6f7 20%, #ffffff 40%, #9aa0a8 60%, #f5f6f7 80%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sheen 6s linear infinite;
+}
+
+/* Slow conic aurora behind hero */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.anim-aurora { animation: spin-slow 40s linear infinite; }
+
+/* Marquee ticker */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.anim-marquee { animation: marquee 28s linear infinite; }
+
+/* Live pulse dot ring (reuse ds-dot but stronger for hero) */
+@keyframes count-blur {
+  from { filter: blur(6px); opacity: 0; }
+  to   { filter: blur(0); opacity: 1; }
+}
+.anim-count { animation: count-blur 0.8s ease-out forwards; }
+
+/* Value-change roll: digital odometer-style vertical roll when a number updates.
+   Old value rolls out, new rolls in — slower + eased for a clock-flip feel. */
+@keyframes roll-up-in {
+  0% { transform: translateY(0.9em); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+@keyframes roll-down-in {
+  0% { transform: translateY(-0.9em); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.tick-up { animation: roll-up-in 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+.tick-down { animation: roll-down-in 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up, .anim-float, .text-sheen, .anim-aurora, .anim-marquee, .anim-count,
+  .tick-up, .tick-down {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* Tabular numerics on numbers */
@@ -53,22 +188,34 @@ table th {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2A3441;
+  background: transparent;
   border-radius: 3px;
 }
+/* Only reveal the thumb on hover over a scrollable region — no always-on bar. */
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: #3A4452;
+  background: rgba(255, 255, 255, 0.24);
+}
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover {
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
-/* Selection */
+/* Selection — frosted white */
 ::selection {
-  background: rgba(0, 210, 106, 0.3);
-  color: #E6EDF3;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
-/* Focus ring (skill: focus-states) */
+/* Focus ring (skill: focus-states) — bright white edge */
 :focus-visible {
-  outline: 2px solid rgba(0, 210, 106, 0.6);
+  outline: 2px solid rgba(255, 255, 255, 0.6);
   outline-offset: 2px;
   border-radius: 4px;
 }

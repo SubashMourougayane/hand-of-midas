@@ -112,6 +112,7 @@ def _trade_to_dict(t: BtTrade) -> dict:
         "trade_id": str(t.trade_id),
         "trade_ref": t.trade_ref,
         "run_id": str(t.run_id),
+        "symbol": t.symbol,
         "direction": t.direction,
         "side": int(t.side),
         "overnight": _is_overnight(t),

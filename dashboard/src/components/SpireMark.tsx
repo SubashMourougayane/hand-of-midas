@@ -1,7 +1,7 @@
 import * as React from "react";
 
-const TEXT = "#F1F3F6";
-const E = "#10B981";
+const TEXT = "#F5F6F7";
+const E = "#e8eaed";
 
 export function SpireMark({
   size = 32,

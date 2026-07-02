@@ -5,6 +5,7 @@ import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { TradeStory } from "../components/TradeStory";
 import { colorForR, fmtR, fmtTs } from "../lib/format";
+import { legName, sideLabel } from "../lib/labels";
 
 export function JournalPage({ runId }: { runId: string | null }) {
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -17,21 +18,49 @@ export function JournalPage({ runId }: { runId: string | null }) {
 
   useEffect(() => {
     if (!runId) return;
-    api
-      .runDetail(runId)
-      .then((d: { run?: { symbol?: string; timeframe?: string } }) => {
-        setSymbol(d?.run?.symbol ?? null);
-        setTimeframe(d?.run?.timeframe ?? "M5");
-      })
-      .catch(() => {});
-    api.runTrades(runId, undefined, 1, 200).then(({ items }) => {
+    let cancelled = false;
+    (async () => {
+      let selfRun: any = null;
+      try {
+        const d: any = await api.runDetail(runId);
+        selfRun = d?.run ?? null;
+        if (!cancelled) {
+          setSymbol(selfRun?.symbol ?? null);
+          setTimeframe(selfRun?.timeframe ?? "M5");
+        }
+      } catch {
+        /* ignore */
+      }
+      // LIVE → merge both legs' trades so long + short both show.
+      let items: Trade[] = [];
+      if (selfRun?.mode === "live") {
+        let liveRuns: any[] = [];
+        try {
+          liveRuns = (await api.runs(100, "live")).filter((r) => !r.end_ts);
+        } catch {
+          liveRuns = [{ run_id: runId }];
+        }
+        if (liveRuns.length === 0) liveRuns = [{ run_id: runId }];
+        const all = await Promise.all(
+          liveRuns.map((r) => api.runTrades(r.run_id, undefined, 1, 200).then((x) => x.items).catch(() => [] as Trade[]))
+        );
+        items = all.flat().sort(
+          (a, b) => new Date(b.entry_timestamp).getTime() - new Date(a.entry_timestamp).getTime()
+        );
+      } else {
+        items = (await api.runTrades(runId, undefined, 1, 200)).items;
+      }
+      if (cancelled) return;
       setTrades(items);
       const fromQuery = search.get("trade");
       const pick = fromQuery && items.find((t) => t.trade_id === fromQuery);
       if (pick) setTradeId(pick.trade_id);
       else if (items.length > 0) setTradeId(items[0].trade_id);
       else setTradeId(null);
-    });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [runId]);
 
   useEffect(() => {
@@ -66,7 +95,7 @@ export function JournalPage({ runId }: { runId: string | null }) {
   };
 
   return (
-    <div className="h-full grid grid-cols-12 gap-3 p-3 min-h-0">
+    <div className="h-full grid grid-cols-12 gap-3 px-4 sm:px-6 py-5 min-h-0">
       {/* ── Left rail: trades list ── */}
       <Pane title="Trades" subtitle={`${trades.length}`} className="col-span-3 xl:col-span-2">
         <div className="divide-y divide-line-subtle">
@@ -89,7 +118,7 @@ export function JournalPage({ runId }: { runId: string | null }) {
               >
                 <div className="flex items-center gap-2 mb-0.5">
                   <Pill tone={t.side > 0 ? "bull" : "bear"}>
-                    {t.direction.toUpperCase()}
+                    {sideLabel(t.side)}
                   </Pill>
                   {!closed ? (
                     <Pill tone="info">OPEN</Pill>
@@ -100,7 +129,7 @@ export function JournalPage({ runId }: { runId: string | null }) {
                   )}
                 </div>
                 <div className="text-ds-xs text-ink-muted">
-                  {fmtTs(t.entry_timestamp)} · {t.leg ?? "—"}
+                  {fmtTs(t.entry_timestamp)} · {legName(t.leg)}
                 </div>
               </button>
             );

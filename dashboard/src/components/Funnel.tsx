@@ -1,23 +1,11 @@
 import { FunnelBucket } from "../lib/api";
-import { bgForGateStatus, shortGateLabel } from "../lib/format";
+import { bgForGateStatus } from "../lib/format";
+import { gateLabel } from "../lib/labels";
 
-// Ranked bucket order — funnel hierarchy from "everything happens" to "rare success".
-const RANK = [
-  "GATE_PIVOT_DETECTED",
-  "GATE_SETUP_BUILT",
-  "GATE_SETUP_INVALIDATED",
-  "GATE_SETUP_EXPIRED",
-  "GATE_SIGNAL_STRICT_AFTER_FAIL",
-  "GATE_SIGNAL_ZONE_MISS",
-  "GATE_SIGNAL_SESSION_FAIL",
-  "GATE_SIGNAL_REGIME_FAIL",
-  "GATE_SIGNAL_CONFIRM_FAIL",
-  "GATE_FINALIZE_RISK_INVALID",
-  "GATE_FINALIZE_RISK_PCT_CAP",
-  "GATE_FINALIZE_MIN_RISK_FLOOR",
-  "GATE_FINALIZE_DEDUP_COLLISION",
-  "GATE_SIGNAL_PASSED",
-];
+// Stage groups — the 3 headline funnel steps.
+const PIVOT = "GATE_PIVOT_DETECTED";
+const SETUP = ["GATE_SETUP_BUILT"];
+const PASSED = "GATE_SIGNAL_PASSED";
 
 export function Funnel({
   buckets,
@@ -26,53 +14,110 @@ export function Funnel({
   buckets: FunnelBucket[];
   total?: number;
 }) {
+  void total;
   if (buckets.length === 0) {
     return (
-      <div className="px-3 py-6 text-center text-ink-muted text-ds-sm">
+      <div className="px-4 py-8 text-center text-ink-muted text-ds-sm">
         Awaiting first signal…
       </div>
     );
   }
 
-  const ordered = [...buckets].sort((a, b) => {
-    const ai = RANK.indexOf(a.status);
-    const bi = RANK.indexOf(b.status);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return b.count - a.count;
-  });
-  const max = ordered.reduce((m, b) => Math.max(m, b.count), 0) || 1;
-  const totalCount = total ?? ordered.reduce((s, b) => s + b.count, 0);
+  const by = (s: string) => buckets.find((b) => b.status === s)?.count ?? 0;
+  const pivots = by(PIVOT);
+  const setups = SETUP.reduce((s, k) => s + by(k), 0);
+  const passed = by(PASSED);
+
+  // Everything that isn't a headline stage = a drop-off reason.
+  const dropReasons = buckets
+    .filter((b) => b.status !== PIVOT && !SETUP.includes(b.status) && b.status !== PASSED)
+    .filter((b) => b.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const dropTotal = dropReasons.reduce((s, b) => s + b.count, 0) || 1;
+
+  const conv = pivots > 0 ? (passed / pivots) * 100 : 0;
 
   return (
-    <div className="px-3 py-2 space-y-1">
-      {ordered.map((b) => {
-        const widthPct = Math.max(2, Math.round((b.count / max) * 100));
-        const sharePct = totalCount ? (b.count / totalCount) * 100 : 0;
-        const color = bgForGateStatus(b.status);
-        return (
-          <div key={b.status} className="group relative">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-ds-xs text-ink-secondary capitalize flex-1 truncate">
-                {shortGateLabel(b.status)}
-              </span>
-              <span className="font-mono text-ds-xs text-ink-primary w-12 text-right">
-                {b.count.toLocaleString()}
-              </span>
-              <span className="font-mono text-ds-xs text-ink-muted w-12 text-right">
-                {sharePct.toFixed(1)}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-bg-input rounded-full overflow-hidden">
-              <div
-                className="h-full transition-all duration-ds rounded-full"
-                style={{ width: `${widthPct}%`, background: color, opacity: 0.85 }}
-              />
-            </div>
+    <div className="px-4 py-3 space-y-4">
+      {/* ── Headline funnel: 3 stages + conversion ── */}
+      <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-1">
+        <Stage label="Pivots" value={pivots} tone="info" />
+        <Arrow />
+        <Stage label="Setups" value={setups} tone="info" />
+        <Arrow />
+        <Stage label="Signals" value={passed} tone="bull" />
+      </div>
+      <div className="flex items-center justify-center">
+        <span className="font-mono text-ds-xs text-ink-muted">
+          conversion{" "}
+          <span className={conv > 0 ? "text-bull" : "text-ink-secondary"}>
+            {conv.toFixed(1)}%
+          </span>{" "}
+          · {passed} of {pivots} pivots became trades
+        </span>
+      </div>
+
+      {/* ── Where candidates drop out (compact, ranked) ── */}
+      {dropReasons.length > 0 && (
+        <div className="space-y-1.5 pt-1 border-t border-glass-border">
+          <div className="text-ds-xs uppercase tracking-[0.14em] text-ink-dim pt-2">
+            Dropped at
           </div>
-        );
-      })}
+          {dropReasons.slice(0, 6).map((b) => {
+            const pct = (b.count / dropTotal) * 100;
+            const color = bgForGateStatus(b.status);
+            return (
+              <div key={b.status} className="flex items-center gap-2.5">
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: color }}
+                />
+                <span className="text-ds-xs text-ink-secondary flex-1 truncate">
+                  {gateLabel(b.status)}
+                </span>
+                <div className="w-20 h-1 rounded-full bg-white/[0.05] overflow-hidden shrink-0">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-500"
+                    style={{ width: `${pct}%`, background: color }}
+                  />
+                </div>
+                <span className="font-mono text-ds-xs text-ink-primary w-10 text-right tabular-nums">
+                  {b.count.toLocaleString()}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+}
+
+function Stage({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "info" | "bull";
+}) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <span
+        className={`font-mono text-ds-2xl font-bold tabular-nums ${
+          tone === "bull" ? "text-bull" : "text-ink-primary"
+        }`}
+      >
+        {value.toLocaleString()}
+      </span>
+      <span className="text-ds-xs uppercase tracking-wide text-ink-muted mt-0.5">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function Arrow() {
+  return <span className="text-ink-dim text-ds-md px-1">→</span>;
 }

@@ -1,15 +1,19 @@
 import { Link, useLocation } from "react-router-dom";
+import { PanelLeft } from "lucide-react";
 import { Run } from "../lib/api";
 import { SpireMark } from "./SpireMark";
+import { legInfo } from "../lib/labels";
 
 export function TopBar({
   runs,
   selectedRunId,
   onSelectRun,
+  onToggleSidebar,
 }: {
   runs: Run[];
   selectedRunId: string | null;
   onSelectRun?: (id: string) => void;
+  onToggleSidebar?: () => void;
 }) {
   const loc = useLocation();
   const selectedRun = runs.find((r) => r.run_id === selectedRunId);
@@ -18,18 +22,29 @@ export function TopBar({
   const liveRunningCount = liveRunning.length;
 
   return (
-    <header className="h-[60px] shrink-0 flex items-center gap-4 px-6 border-b border-line-subtle bg-bg-base/95 backdrop-blur-md">
-      {/* Brand */}
-      <Link to="/live" className="flex items-center gap-3 group">
+    <header className="h-[60px] shrink-0 flex items-center gap-3 px-4 sm:px-6 border-b border-glass-border bg-glass-subtle backdrop-blur-xl">
+      {/* Sidebar toggle (desktop) */}
+      {onToggleSidebar && (
+        <button
+          onClick={onToggleSidebar}
+          aria-label="Toggle sidebar"
+          className="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-ds-sm text-ink-muted hover:text-ink-primary hover:bg-glass transition-colors"
+        >
+          <PanelLeft size={17} />
+        </button>
+      )}
+      {/* Brand → home (landing) */}
+      <Link to="/" className="flex items-center gap-3 group">
         <SpireMark
           size={22}
+          bodyColor="#f5f6f7"
           ariaLabel="Hand of Midas"
           className="transition-transform duration-500 group-hover:rotate-[10deg]"
         />
-        <span className="display text-[19px] leading-none text-ink-primary tracking-tight hidden sm:inline">
-          Hand of Midas
+        <span className="display text-[17px] leading-none text-ink-primary tracking-[0.08em] hidden sm:inline">
+          HAND OF MIDAS
         </span>
-        <span className="hidden md:inline text-[11px] uppercase tracking-[1.4px] text-ink-muted pl-2 border-l border-line-subtle ml-1">
+        <span className="hidden md:inline text-[11px] uppercase tracking-[1.4px] text-ink-muted pl-2 border-l border-glass-border ml-1">
           Trading Terminal
         </span>
       </Link>
@@ -38,31 +53,28 @@ export function TopBar({
 
       {/* Live leg tabs — one per running live run (fib_v2_intraday_a, _d, ...).
           Auto-shown when 1+ live procs running AND we're not on backtest page. */}
-      {!onBacktest && liveRunningCount > 0 && onSelectRun && (
-        <div className="flex items-center gap-1 bg-bg-elevated border border-line-base rounded-ds p-1 mr-3">
+      {/* Leg switcher only on Backtest (Live shows all positions together). */}
+      {onBacktest && liveRunningCount > 0 && onSelectRun && (
+        <div className="flex items-center gap-1 glass rounded-ds p-1 mr-3">
           {liveRunning.map((r) => {
             const active = r.run_id === selectedRunId;
-            const label = _legLabel(r.strategy_id);
-            const tone = _legTone(r.strategy_id);
+            const info = legInfo(r.strategy_id);
             const activeCls = active
-              ? tone === "bull"
-                ? "bg-bull/15 text-bull border-bull/40"
-                : tone === "bear"
-                  ? "bg-bear/15 text-bear border-bear/40"
-                  : "bg-info/15 text-info border-info/40"
-              : "text-ink-muted hover:text-ink-secondary border-transparent";
+              ? "glass-strong text-ink-primary"
+              : "text-ink-muted hover:text-ink-secondary";
             return (
               <button
                 key={r.run_id}
                 onClick={() => onSelectRun(r.run_id)}
-                className={`px-3 py-1.5 rounded-ds-sm border ${activeCls} flex items-center gap-2 transition-colors duration-ds`}
-                title={r.run_ref || r.run_id}
+                className={`px-3 py-1.5 rounded-ds-sm ${activeCls} flex items-center gap-2 transition-colors duration-ds`}
+                title={info.name}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-current" : "bg-ink-muted"}`} />
-                <span className="text-ds-sm font-semibold">{label}</span>
-                <span className="text-ds-xs font-mono opacity-60">
-                  {r.run_id.slice(0, 6)}
-                </span>
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    info.side === "long" ? "bg-bull" : info.side === "short" ? "bg-bear" : "bg-ink-muted"
+                  }`}
+                />
+                <span className="text-ds-sm font-semibold">{info.name}</span>
               </button>
             );
           })}
@@ -82,11 +94,9 @@ export function TopBar({
         ) : liveRunningCount > 0 ? (
           <span className="inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[1.4px]">
             <span className="w-1.5 h-1.5 rounded-full bg-bull ds-dot text-bull" />
-            <span className="text-bull">Live</span>
+            <span className="text-bull neon-text-soft">Live</span>
             <span className="text-ink-muted normal-case tracking-normal font-mono text-[11px] ml-1">
-              {liveRunningCount === 1
-                ? (selectedRun?.symbol ?? liveRunning[0]?.symbol ?? "")
-                : `${liveRunningCount} legs`}
+              {selectedRun?.symbol ?? liveRunning[0]?.symbol ?? ""}
             </span>
           </span>
         ) : (
@@ -101,16 +111,3 @@ export function TopBar({
 }
 
 
-function _legLabel(strategyId: string): string {
-  if (strategyId.endsWith("_a") || strategyId.includes("_a_")) return "A · LONG";
-  if (strategyId.endsWith("_d") || strategyId.includes("_d_")) return "D · SHORT";
-  if (strategyId.includes("a_plus_d")) return "A+D";
-  return strategyId.toUpperCase();
-}
-
-
-function _legTone(strategyId: string): "bull" | "bear" | "info" {
-  if (strategyId.endsWith("_a") || strategyId.includes("_a_")) return "bull";
-  if (strategyId.endsWith("_d") || strategyId.includes("_d_")) return "bear";
-  return "info";
-}

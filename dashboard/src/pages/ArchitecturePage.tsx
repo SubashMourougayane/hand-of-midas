@@ -8,8 +8,8 @@ import { TrendingUp, TrendingDown, Zap } from "lucide-react";
 export function ArchitecturePage() {
   const [tab, setTab] = useState<"long" | "short" | "live">("long");
   return (
-    <div className="h-full overflow-auto p-4">
-      <div className="max-w-[1400px] mx-auto space-y-4">
+    <div className="h-full overflow-auto px-4 sm:px-6 py-5">
+      <div className="max-w-[1400px] mx-auto space-y-4 anim-fade-up">
         <header className="flex items-baseline justify-between">
           <div>
             <h1 className="text-ds-2xl font-semibold text-ink-primary tracking-tight">
@@ -19,21 +19,21 @@ export function ArchitecturePage() {
               Fib V2 intraday · M15 base · lb=3 pivot confirmation · PTP+1R · $0.65 broker cost
             </p>
           </div>
-          <div className="flex items-center gap-1 bg-bg-elevated border border-line-base rounded-ds p-1">
+          <div className="flex items-center gap-1 glass rounded-ds p-1">
             <TabBtn
               active={tab === "long"}
               onClick={() => setTab("long")}
               tone="bull"
               icon={<TrendingUp size={14} />}
-              label="A · LONG"
-              sub="12h hold · london_ny"
+              label="Long"
+              sub="12h hold · London / NY"
             />
             <TabBtn
               active={tab === "short"}
               onClick={() => setTab("short")}
               tone="bear"
               icon={<TrendingDown size={14} />}
-              label="D · SHORT"
+              label="Short"
               sub="24h hold · all sessions"
             />
             <TabBtn
@@ -791,7 +791,7 @@ function BarWarmupNote() {
 
 function SharedLiveNotes() {
   return (
-    <section className="border border-line-subtle rounded-ds bg-bg-surface p-4 mt-4">
+    <section className="glass rounded-ds p-4 mt-4">
       <div className="text-ds-md font-semibold text-ink-primary mb-3 uppercase tracking-wide">
         Parity chain (research = BT engine = live engine)
       </div>
@@ -875,7 +875,7 @@ function PriceDiagram({ side }: { side: "long" | "short" }) {
 
 function SharedRules() {
   return (
-    <section className="border border-line-subtle rounded-ds bg-bg-surface p-4 mt-6">
+    <section className="glass rounded-ds p-4 mt-6">
       <div className="text-ds-md font-semibold text-ink-primary mb-3 uppercase tracking-wide">
         Shared rules (both legs)
       </div>
@@ -946,7 +946,7 @@ function SharedRules() {
 
 function RuleCard({ title, points }: { title: string; points: string[] }) {
   return (
-    <div className="border border-line-subtle rounded-ds-sm p-3 bg-bg-elevated">
+    <div className="glass rounded-ds-sm p-3">
       <div className="text-ds-sm font-semibold text-ink-primary mb-2">{title}</div>
       <ul className="space-y-1">
         {points.map((p, i) => (

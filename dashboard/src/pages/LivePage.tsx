@@ -15,6 +15,10 @@ import { PositionCard } from "../components/PositionCard";
 import { LiveChart } from "../components/LiveChart";
 import { Funnel } from "../components/Funnel";
 import { fmtMoney, fmtTs, colorForR } from "../lib/format";
+import { legName, sideLabel, gateLabel } from "../lib/labels";
+import { SectionHeader } from "../components/ui/Section";
+import { StatTile } from "../components/ui/StatTile";
+import { PriceValue } from "../components/ui/PriceValue";
 
 type WsHook = {
   status: string;
@@ -52,6 +56,12 @@ export function LivePage({
 
   const [legs, setLegs] = useState<Record<string, LegState>>({});
   const [prices, setPrices] = useState<Record<string, number | null>>({});
+  // Per-ticket broker-truth live P&L + size, keyed by broker_ticket.
+  const [livePos, setLivePos] = useState<
+    Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null }>
+  >({});
+  // Lifetime closed-trade stats across all live-strategy runs.
+  const [allClosed, setAllClosed] = useState<Trade[]>([]);
   const flashTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [, setTick] = useState(0);
   // Broker-truth live account (balance/equity/open_pnl), streamed tick-by-tick
@@ -106,6 +116,45 @@ export function LivePage({
       return merged;
     });
   }, []);
+
+  // Lifetime stats — pull CLOSED trades across every run (live + ended) of the
+  // live strategies, so the stats band reflects the whole track record, not
+  // just the current run. Slow poll (30s) + refresh on trade events.
+  const hydrateStats = useCallback(async () => {
+    try {
+      // Only the strategies CURRENTLY live (e.g. fib_v2_intraday_a/_d) — exclude
+      // unrelated / retired live strategies (sdr001, …) so the track record
+      // reflects the running book, not historical experiments.
+      const runsAll = await api.runs(200, "live");
+      const activeStrats = new Set(
+        runsAll.filter((r) => !r.end_ts).map((r) => r.strategy_id)
+      );
+      const runs = runsAll.filter((r) => activeStrats.has(r.strategy_id));
+      const lists = await Promise.all(
+        runs.map((r) =>
+          api.runTrades(r.run_id, "closed", 1, 50000).then((x) => x.items).catch(() => [] as Trade[])
+        )
+      );
+      // Dedup by trade_id (same position adopted across restarts).
+      const seen = new Set<string>();
+      const merged: Trade[] = [];
+      for (const t of lists.flat()) {
+        if (t.exit_timestamp == null) continue;
+        if (seen.has(t.trade_id)) continue;
+        seen.add(t.trade_id);
+        merged.push(t);
+      }
+      setAllClosed(merged);
+    } catch {
+      /* keep prior */
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrateStats();
+    const t = setInterval(hydrateStats, 30_000);
+    return () => clearInterval(t);
+  }, [hydrateStats]);
 
   // Initial hydrate + slow poll to detect a freshly-started/ended leg
   // (run list is not part of the WS feed).
@@ -173,6 +222,26 @@ export function LivePage({
           equity: typeof p.equity === "number" ? p.equity : null,
           open_pnl: typeof p.open_pnl === "number" ? p.open_pnl : null,
         });
+        return;
+      }
+
+      // Per-ticket live P&L + size (broker truth) — run_id null. Before guard.
+      if (env.channel === "positions_live") {
+        const positions = (env.payload as any)?.positions as
+          | Record<string, { unrealized_usd?: number; volume?: number | null; booked_usd?: number | null }>
+          | undefined;
+        if (!positions) return;
+        const next: Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null }> = {};
+        for (const [ticket, p] of Object.entries(positions)) {
+          if (typeof p.unrealized_usd === "number") {
+            next[ticket] = {
+              unrealized_usd: p.unrealized_usd,
+              volume: p.volume ?? null,
+              booked_usd: typeof p.booked_usd === "number" ? p.booked_usd : null,
+            };
+          }
+        }
+        setLivePos(next);
         return;
       }
 
@@ -369,144 +438,280 @@ export function LivePage({
 
   const now = Date.now();
 
+  const feedAge = cockpitWs.lastMessageAt
+    ? Math.round((now - cockpitWs.lastMessageAt) / 1000)
+    : -1;
+  const px = prices["XAUUSD.ecn"] ?? null;
+
+  // Lifetime closed-trade stats (broker-truth $ where available).
+  const stats = useMemo(() => {
+    const closed = allClosed;
+    const wins = closed.filter((t) => (t.net_r ?? 0) > 0);
+    const losses = closed.filter((t) => (t.net_r ?? 0) < 0);
+    const partials = closed.filter((t) => t.partial_taken).length;
+    const netR = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
+    // $ = broker-truth only. NEVER the 1-lot fantasy (net_r×risk×100) — that
+    // massively overstates (assumes 1.0 lot vs real 0.01–0.13). Trades without
+    // a reconciled broker_net_usd contribute $0 but still count in N/wins/losses.
+    const usd = closed.reduce((s, t) => s + (t.broker_net_usd ?? 0), 0);
+    const usdPartial = closed.some((t) => t.broker_net_usd == null);
+    const wr = closed.length ? (wins.length / closed.length) * 100 : 0;
+    return {
+      n: closed.length,
+      wins: wins.length,
+      losses: losses.length,
+      partials,
+      netR,
+      usd,
+      usdPartial,
+      wr,
+    };
+  }, [allClosed]);
+
+  // Position split + aggregate risk across all open trades.
+  const openTrades = legList.flatMap((l) => l.trades);
+  const nLong = openTrades.filter((t) => t.side > 0).length;
+  const nShort = openTrades.filter((t) => t.side < 0).length;
+  const riskUsd = openTrades.reduce(
+    (s, t) => s + (t.risk_units ?? 0) * 100,
+    0
+  );
+  const dayPnl =
+    combined.equity != null && combined.balance != null
+      ? combined.equity - combined.balance
+      : null;
+  const strategiesLive = legList.length;
+
   return (
-    <div className="h-full overflow-auto flex flex-col gap-3 p-3">
-      {/* ── 1. Health / connection bar (thin) ── */}
-      <HealthBar
-        status={cockpitWs.status as WsStatus}
-        lastMessageAt={cockpitWs.lastMessageAt}
-        legs={legList}
-        now={now}
-      />
+    <div className="h-full overflow-auto flex flex-col gap-6 px-4 sm:px-6 py-5 w-full">
+      {/* ══ SECTION 01 · account status ══ */}
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          index="01"
+          title="Account Status"
+          question="Where do we stand right now?"
+          right={
+            <span className="font-mono text-ds-xs text-ink-muted">
+              {feedAge < 0 ? "—" : `updated ${feedAge}s ago`}
+            </span>
+          }
+        />
 
-      {/* ── Live XAU price ticker — streams every tick over WS ── */}
-      <LivePriceTicker price={prices["XAUUSD.ecn"] ?? null} lastMessageAt={cockpitWs.lastMessageAt} now={now} />
+        {/* Editorial KPI band — 8 glass tiles in a responsive grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2.5">
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Equity" value={fmtMoneyBare(combined.equity)} unit="USD" animateOn={combined.equity} />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Balance" value={fmtMoneyBare(combined.balance)} unit="USD" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Open P&L"
+              value={
+                combined.openPnl == null
+                  ? "—"
+                  : `${combined.openPnl >= 0 ? "+" : "−"}${fmtMoneyBare(combined.openPnl)}`
+              }
+              unit="USD"
+              tone={openPnlTone === "neutral" ? "neutral" : openPnlTone}
+              animateOn={combined.openPnl}
+              sub={
+                totalUnrealR == null ? (
+                  "no live price"
+                ) : (
+                  <span className={colorForR(totalUnrealR)}>
+                    {totalUnrealR >= 0 ? "+" : ""}
+                    {totalUnrealR.toFixed(2)}R
+                  </span>
+                )
+              }
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Day P&L"
+              value={
+                dayPnl == null ? "—" : `${dayPnl >= 0 ? "+" : "−"}${fmtMoneyBare(dayPnl)}`
+              }
+              unit="USD"
+              tone={dayPnl == null ? "neutral" : dayPnl >= 0 ? "bull" : "bear"}
+              animateOn={dayPnl}
+              sub="today"
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="XAU / USD"
+              value={<PriceValue value={px} digits={2} />}
+              sub={feedAge < 0 ? "waiting" : `${feedAge}s ago`}
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Open Risk"
+              value={riskUsd > 0 ? fmtMoneyBare(riskUsd) : "0"}
+              unit="USD"
+              sub="at stop"
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Positions"
+              value={String(combined.positions)}
+              tone={combined.positions > 0 ? "bull" : "neutral"}
+              sub={`${nLong}L · ${nShort}S`}
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Strategies"
+              value={String(strategiesLive)}
+              tone={strategiesLive > 0 ? "bull" : "neutral"}
+              sub={feedAge >= 0 && feedAge <= 5 ? "streaming" : "idle"}
+            />
+          </div>
+        </div>
+      </section>
 
-      {/* ── 2. P&L HERO — am I up or down, right now ── */}
-      <PnlHero
-        equity={combined.equity}
-        balance={combined.balance}
-        openPnl={combined.openPnl}
-        totalUnrealR={totalUnrealR}
-        positions={combined.positions}
-        legs={legList}
-        tone={openPnlTone}
-      />
+      {/* ══ SECTION 02 · track record (lifetime closed stats) ══ */}
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          index="02"
+          title="Track Record"
+          question="How has the book done overall?"
+          right={
+            <span className="font-mono text-ds-xs text-ink-muted">{stats.n} closed</span>
+          }
+        />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Overall P&L"
+              value={
+                `${stats.usdPartial ? "~" : ""}${stats.usd >= 0 ? "+" : "−"}${fmtMoneyBare(stats.usd)}`
+              }
+              unit="USD"
+              tone={stats.usd >= 0 ? "bull" : "bear"}
+              animateOn={stats.usd}
+              sub={
+                stats.usdPartial
+                  ? "broker-settled trades only"
+                  : `${stats.netR >= 0 ? "+" : ""}${stats.netR.toFixed(2)}R`
+              }
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Trades" value={String(stats.n)} sub="closed" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Wins" value={String(stats.wins)} tone="bull" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Losses" value={String(stats.losses)} tone="bear" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Win Rate" value={stats.wr.toFixed(0)} unit="%" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Partials Booked" value={String(stats.partials)} sub="scaled out" />
+          </div>
+        </div>
+      </section>
 
-      {/* ── 3. OPEN POSITIONS — the main event, above the fold ── */}
-      <Pane
-        title="Open Positions"
-        subtitle={combined.positions > 0 ? `${combined.positions} live across A+D` : ""}
-        right={
-          combined.positions > 0 ? (
-            <Pill tone="bull" glow>
-              <span className="text-bull">●</span> LIVE
-            </Pill>
-          ) : undefined
-        }
-        className="shrink-0"
-      >
+      {/* ══ SECTION 03 · open positions ══ */}
+      <section className="flex flex-col gap-3">
+        <SectionHeader
+          index="03"
+          title="Open Positions"
+          question={
+            combined.positions > 0
+              ? "What are we holding, and how is it doing?"
+              : "Are we in the market right now?"
+          }
+          right={
+            combined.positions > 0 ? (
+              <span className="font-mono text-ds-xs text-ink-muted">
+                {combined.positions} open
+              </span>
+            ) : undefined
+          }
+        />
         {combined.positions === 0 ? (
-          <EmptyState
-            icon="⌖"
-            title="No open positions"
-            body="Both legs flat. Watch the gate heartbeat below to confirm the system is still evaluating."
-          />
+          <div className="glass rounded-ds-lg">
+            <EmptyState
+              icon="⌖"
+              title="No open positions"
+              body="Flat right now. The gate heartbeat below confirms the system is still evaluating the market."
+            />
+          </div>
         ) : (
-          <div className="p-3 space-y-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {legList
-              .filter((l) => l.trades.length > 0)
-              .map((l) => (
-                <div key={l.run.run_id} className="space-y-2">
-                  <div className="flex items-center gap-2 px-0.5">
-                    <span className="text-ds-xs uppercase tracking-wide text-ink-muted">
-                      {legLabel(l)}
-                    </span>
-                    <span className="text-ds-xs text-ink-muted font-mono">
-                      {l.trades.length} open
-                    </span>
+              .flatMap((l) => l.trades.map((t) => ({ t, symbol: l.run.symbol })))
+              .sort((a, b) => b.t.side - a.t.side) // longs first
+              .map(({ t, symbol }) => {
+                const cur = prices[symbol] ?? null;
+                const u = unrealFor(t, symbol);
+                const lp = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
+                // Prefer broker-truth live $; else per-trade price math.
+                const liveUsd = lp?.unrealized_usd ?? unrealUsdFor(t, symbol);
+                const liveLots = lp?.volume ?? null;
+                const stateCls =
+                  u == null
+                    ? "border-l-2 border-l-line-base"
+                    : u > 0
+                    ? "border-l-2 border-l-bull"
+                    : u < 0
+                    ? "border-l-2 border-l-bear"
+                    : "border-l-2 border-l-line-base";
+                return (
+                  <div key={t.trade_id} className={`rounded-ds overflow-hidden ${stateCls}`}>
+                    <PositionCard
+                      trade={t}
+                      currentPrice={cur}
+                      unrealR={u}
+                      liveUsd={liveUsd}
+                      liveLots={liveLots}
+                      bookedUsd={lp?.booked_usd ?? null}
+                      now={now}
+                      onClick={() => nav(`/journal?trade=${t.trade_id}`)}
+                    />
                   </div>
-                  {l.trades.map((t) => {
-                    const cur = prices[l.run.symbol] ?? null;
-                    const u = unrealFor(t, l.run.symbol);
-                    // Winning/losing state instantly readable via left-border + tint.
-                    const stateCls =
-                      u == null
-                        ? "border-l-2 border-l-line-base"
-                        : u > 0
-                        ? "border-l-2 border-l-bull bg-bull/[0.04]"
-                        : u < 0
-                        ? "border-l-2 border-l-bear bg-bear/[0.04]"
-                        : "border-l-2 border-l-line-base";
-                    return (
-                      <div key={t.trade_id} className={`rounded-ds ${stateCls}`}>
-                        <PositionCard
-                          trade={t}
-                          currentPrice={cur}
-                          unrealR={u}
-                          onClick={() => nav(`/journal?trade=${t.trade_id}`)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                );
+              })}
           </div>
         )}
-      </Pane>
-
-      {/* ── 4. Chart — demoted: small + collapsible, below positions ── */}
-      <CollapsibleChart />
-
-      {/* ── 5. Gate heartbeat — live funnel per leg ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0">
-        {legList.length === 0 ? (
-          <Pane title="Gate Heartbeat">
-            <EmptyState
-              icon="◇"
-              title="No live legs"
-              body="Waiting for a live run to appear. The runner publishes gate events on every bar."
-            />
-          </Pane>
-        ) : (
-          legList.map((l) => {
-            const age = l.lastEventAt ? Math.round((now - l.lastEventAt) / 1000) : -1;
-            const total = l.funnel.reduce((s, b) => s + b.count, 0);
-            return (
-              <Pane
-                key={l.run.run_id}
-                title={legLabel(l)}
-                subtitle={`${l.run.symbol} · ${l.run.timeframe}`}
-                right={
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ds-dot ${
-                        age < 0 ? "bg-ink-muted" : age > STALE_SECS ? "bg-warn text-warn" : "bg-bull text-bull"
-                      }`}
-                    />
-                    <span className="text-ds-xs text-ink-muted font-mono">
-                      {age < 0 ? "no event yet" : `+${age}s`}
-                    </span>
-                  </span>
-                }
-              >
-                <Funnel buckets={l.funnel} total={total} />
-                {l.lastSignal && (
-                  <div className="px-3 pb-2 text-ds-xs text-ink-muted">
-                    last{" "}
-                    <span className="text-ink-secondary">
-                      {l.lastSignal.status.replace(/^GATE_/, "").toLowerCase()}
-                    </span>{" "}
-                    <span className="font-mono">{fmtTs(l.lastSignal.ts).slice(11)}</span>
-                  </div>
-                )}
-              </Pane>
-            );
-          })
-        )}
-      </div>
+      </section>
     </div>
   );
+}
+
+// Compact feed-status chip for the section header.
+function FeedBadge({ status, age }: { status: WsStatus; age: number }) {
+  const dead = status !== "open" || (age >= 0 && age > STALE_SECS);
+  const stale = status === "open" && age >= 0 && age > STALE_SECS;
+  const tone: "bull" | "bear" | "warn" = dead ? "bear" : stale ? "warn" : "bull";
+  const label = status !== "open" ? status.toUpperCase() : stale ? "STALE" : "LIVE";
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className={`w-1.5 h-1.5 rounded-full ds-dot ${
+          tone === "bull" ? "bg-bull text-bull" : tone === "warn" ? "bg-warn text-warn" : "bg-bear text-bear"
+        }`}
+      />
+      <Pill tone={tone} glow={tone === "bull"}>{label}</Pill>
+      <span className="font-mono text-ds-xs text-ink-muted">
+        {age < 0 ? "—" : `+${age}s`}
+      </span>
+    </span>
+  );
+}
+
+// "$10,551.77" → "10,551.77" (unit shown separately by the tile).
+function fmtMoneyBare(v: number | null): string {
+  if (v == null || Number.isNaN(v)) return "—";
+  return Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 // ── P&L HERO: the "am I up or down right now" band. ──
@@ -558,7 +763,7 @@ function PnlHero({
         {/* Equity — leads */}
         <div className="min-w-0">
           <div className="text-ds-xs uppercase tracking-wide text-ink-muted">
-            Equity · A+D
+            Equity
           </div>
           <div className="text-ds-3xl font-semibold font-mono leading-none text-ink-primary">
             {fmtMoney(equity)}
@@ -595,7 +800,7 @@ function PnlHero({
         <div className="flex items-end gap-6">
           <HeroStat label="Open Pos" value={String(positions)} />
           <HeroStat
-            label="Legs Live"
+            label="Live"
             value={String(legs.length)}
             tone={legs.length > 0 ? "bull" : "neutral"}
             sub={legs.map((l) => shortLeg(l)).join(" · ") || "none"}
@@ -796,19 +1001,13 @@ function HealthBar({
   );
 }
 
-// Human label for a leg (prefer the persisted trade `leg`, else strategy id).
+// Human label for a leg → clean strategy name (Long / Short / …), no jargon.
 function legLabel(l: LegState): string {
-  const legTag = l.trades[0]?.leg;
-  if (legTag) return `Leg ${legTag}`;
-  return l.run.strategy_id ?? l.run.run_ref;
+  return legName(l.run.strategy_id);
 }
 
 function shortLeg(l: LegState): string {
-  const legTag = l.trades[0]?.leg;
-  if (legTag) return String(legTag);
-  const sid = l.run.strategy_id ?? "";
-  const m = sid.match(/_([a-z])$/i);
-  return m ? m[1].toUpperCase() : sid.slice(-4) || l.run.run_ref.slice(-4);
+  return legName(l.run.strategy_id);
 }
 
 function EmptyState({

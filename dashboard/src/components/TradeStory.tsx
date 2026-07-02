@@ -5,6 +5,7 @@ import { Pane } from "./Pane";
 import { Pill } from "./Pill";
 import { AnnotatedBarWalk } from "./AnnotatedBarWalk";
 import { EventTimeline, SyntheticEvt } from "./EventTimeline";
+import { legName, sideLabel, regimeLabel } from "../lib/labels";
 import {
   barsToDuration,
   colorForR,
@@ -123,13 +124,15 @@ export function TradeStory({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <Pill tone={long ? "bull" : "bear"} glow>
-                {trade.direction.toUpperCase()}
+                {sideLabel(trade.side)}
               </Pill>
               <span className="text-ink-primary font-semibold text-ds-lg tracking-tight">
                 {symbol ?? "—"}
               </span>
-              {trade.leg && <Pill tone="muted">{trade.leg}</Pill>}
-              {trade.regime && <Pill tone="info">{trade.regime}</Pill>}
+              {trade.leg && <Pill tone="muted">{legName(trade.leg)}</Pill>}
+              {trade.regime && trade.regime.toLowerCase() !== "any" && (
+                <Pill tone="info">{regimeLabel(trade.regime)}</Pill>
+              )}
               <Pill tone={closed ? (statusLabel === "SL" ? "bear" : "bull") : "info"}>
                 {statusLabel}
               </Pill>

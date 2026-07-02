@@ -27,8 +27,8 @@ export function DataGrid<T>({
 }) {
   return (
     <table className="w-full text-ds-sm">
-      <thead className="sticky top-0 z-10 bg-bg-surface">
-        <tr className="text-ink-muted text-ds-xs uppercase tracking-wide border-b border-line-subtle">
+      <thead className="sticky top-0 z-10 bg-glass-strong backdrop-blur-md">
+        <tr className="text-ink-muted text-ds-xs uppercase tracking-wide border-b border-glass-border">
           {columns.map((c, i) => (
             <th
               key={i}

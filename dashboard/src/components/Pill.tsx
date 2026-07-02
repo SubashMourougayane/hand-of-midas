@@ -3,11 +3,11 @@ import { ReactNode } from "react";
 type Tone = "bull" | "bear" | "warn" | "info" | "neutral" | "muted";
 
 const TONE: Record<Tone, string> = {
-  bull: "bg-bull/10 text-bull border-bull/30",
-  bear: "bg-bear/10 text-bear border-bear/30",
-  warn: "bg-warn/10 text-warn border-warn/30",
-  info: "bg-info/10 text-info border-info/30",
-  neutral: "bg-accent/10 text-accent border-accent/30",
+  bull: "bg-bull/10 text-bull border-bull/40 neon-text-soft",
+  bear: "bg-bear/10 text-bear border-bear/40 neon-text-soft",
+  warn: "bg-warn/10 text-warn border-warn/40 neon-text-soft",
+  info: "bg-info/10 text-info border-info/40 neon-text-soft",
+  neutral: "bg-accent/10 text-accent border-accent/40 neon-text-soft",
   muted: "bg-bg-elevated text-ink-secondary border-line-base",
 };
 

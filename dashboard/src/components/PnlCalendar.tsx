@@ -76,8 +76,8 @@ export function PnlCalendar({
   const maxAbs = Math.max(...Object.values(dailyVal).map(Math.abs), 1) || 1;
   const colorFor = (v: number) => {
     const i = Math.min(Math.abs(v) / maxAbs, 1);
-    if (v > 0) return `rgba(52, 211, 153, ${0.25 + i * 0.6})`;
-    if (v < 0) return `rgba(248, 113, 113, ${0.25 + i * 0.6})`;
+    if (v > 0) return `rgba(34, 197, 94, ${0.18 + i * 0.55})`;
+    if (v < 0) return `rgba(240, 68, 82, ${0.18 + i * 0.55})`;
     return "transparent";
   };
 
@@ -90,9 +90,9 @@ export function PnlCalendar({
             left: tooltip.x,
             top: tooltip.y,
             transform: "translate(-50%, -100%)",
-            background: "#1d2430",
-            border: "1px solid #2c3645",
-            color: tooltip.text.includes("+") ? "#34d399" : "#f87171",
+            background: "rgba(20,22,25,0.9)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            color: tooltip.text.includes("+") ? "#4ade80" : "#ff6b76",
           }}
         >
           {tooltip.text}
@@ -176,8 +176,8 @@ export function PnlCalendar({
                 key={dn}
                 className="w-full aspect-square flex items-center justify-center cursor-pointer rounded-[2px] hover:scale-110 transition-transform"
                 style={{
-                  background: has ? colorFor(colorVal) : "#161c25",
-                  border: "1px solid #1f2733",
+                  background: has ? colorFor(colorVal) : "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.07)",
                 }}
                 onMouseEnter={(e) => {
                   if (!has) return;
@@ -205,7 +205,7 @@ export function PnlCalendar({
               key={month}
               className="p-2 rounded-ds-sm"
               style={{
-                background: "#0a0e14",
+                background: "#0a0b0d",
                 border: `1px solid ${
                   monthUsd >= 0
                     ? "rgba(52,211,153,0.20)"

@@ -97,8 +97,20 @@ class DWXBrokerAdapter:
         )
 
     def positions(self) -> Sequence[dict]:
-        """Snapshot of open positions from open_orders.json."""
+        """Snapshot of open positions from open_orders.json.
+
+        open_orders.json is keyed by broker ticket with no `ticket` field
+        inside each record — inject the key so downstream (position adoption)
+        captures the real numeric ticket, not a comment/uuid fallback.
+        """
         orders = self.bridge.open_orders()
-        if not isinstance(orders, dict):
+        inner = orders.get("orders", orders) if isinstance(orders, dict) else None
+        if not isinstance(inner, dict):
             return []
-        return list(orders.values())
+        out = []
+        for ticket, v in inner.items():
+            if isinstance(v, dict):
+                rec = dict(v)
+                rec.setdefault("ticket", str(ticket))
+                out.append(rec)
+        return out

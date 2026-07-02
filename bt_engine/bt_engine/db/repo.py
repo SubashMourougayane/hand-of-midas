@@ -70,6 +70,17 @@ class TradeRepo:
         existing = self.s.get(BtTrade, trade.trade_id)
         if existing is None:
             self.s.add(trade)
+        elif existing.run_id != trade.run_id:
+            # Adopted positions use a deterministic trade_id (uuid5 of ticket),
+            # so a restart re-adopts the SAME id. If the prior row sits on an
+            # older (now-ended) run, re-point it to the CURRENT live run + keep
+            # the freshest live fields, so the active-run dashboard shows it.
+            existing.run_id = trade.run_id
+            existing.strategy_id = trade.strategy_id
+            existing.leg = trade.leg
+            existing.broker_ticket = trade.broker_ticket
+            existing.entry_timestamp = trade.entry_timestamp
+            existing.raw_features = trade.raw_features
         self.s.flush()
 
     def close(

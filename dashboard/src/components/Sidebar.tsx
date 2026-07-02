@@ -6,9 +6,17 @@ import {
   BookOpen,
   Layers,
   Activity,
+  Home,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 const SECTIONS = [
+  { to: "/", label: "Home", icon: Home },
   { to: "/live", label: "Live", icon: Radio },
   { to: "/trades", label: "Trades", icon: List },
   { to: "/journal", label: "Journal", icon: BookOpen },
@@ -17,49 +25,64 @@ const SECTIONS = [
   { to: "/architecture", label: "Architecture", icon: Layers },
 ];
 
-export function Sidebar() {
+export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const loc = useLocation();
   return (
-    <nav
-      aria-label="Sections"
-      className="w-[200px] shrink-0 border-r border-line-subtle bg-bg-surface py-4 px-2.5 hidden md:flex md:flex-col"
-    >
-      <ul className="flex flex-col gap-0.5">
-        {SECTIONS.map(({ to, label, icon: Icon }) => {
-          const active = loc.pathname === to || loc.pathname.startsWith(to + "/");
-          return (
-            <li key={to} className="relative">
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-brass rounded-full"
-                  style={{ boxShadow: "0 0 8px rgba(16,185,129,0.5)" }}
-                />
-              )}
+    <TooltipProvider delayDuration={0}>
+      <nav
+        aria-label="Sections"
+        className={`shrink-0 border-r border-glass-border bg-glass-subtle backdrop-blur-xl py-4 hidden md:flex md:flex-col transition-[width] duration-200 ${
+          collapsed ? "w-[64px] px-2" : "w-[200px] px-2.5"
+        }`}
+      >
+        <ul className="flex flex-col gap-0.5">
+          {SECTIONS.map(({ to, label, icon: Icon }) => {
+            const active =
+              to === "/"
+                ? loc.pathname === "/"
+                : loc.pathname === to || loc.pathname.startsWith(to + "/");
+            const link = (
               <Link
                 to={to}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
                 className={`
-                  flex items-center gap-3 h-10 pl-3 pr-2.5 rounded-ds-sm
-                  text-[13.5px] font-medium
+                  flex items-center h-10 rounded-ds-sm text-[13.5px] font-medium
                   transition-colors duration-ds
+                  ${collapsed ? "justify-center px-0" : "gap-3 pl-3 pr-2.5"}
                   ${
                     active
-                      ? "bg-brass/10 text-brass-hi"
-                      : "text-ink-secondary hover:text-ink-primary hover:bg-bg-elevated"
+                      ? "glass-strong text-ink-primary"
+                      : "text-ink-secondary hover:text-ink-primary hover:bg-glass"
                   }
                 `}
               >
-                <Icon
-                  size={15}
-                  className={active ? "text-brass" : "text-ink-secondary"}
-                />
-                <span>{label}</span>
+                <Icon size={16} className={active ? "text-ink-primary" : "text-ink-muted"} />
+                {!collapsed && <span>{label}</span>}
               </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+            );
+            return (
+              <li key={to} className="relative">
+                {active && (
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-brass-hi rounded-full"
+                    style={{ boxShadow: "0 0 10px rgba(255,255,255,0.5)" }}
+                  />
+                )}
+                {collapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right">{label}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  link
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </TooltipProvider>
   );
 }

@@ -22,9 +22,7 @@ export function Pane({
   return (
     <div
       className={`
-        flex flex-col min-h-0
-        bg-bg-surface border border-line-subtle rounded-ds
-        shadow-ds-card
+        flex flex-col min-h-0 glass rounded-ds-lg
         ${className}
       `}
     >

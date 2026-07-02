@@ -27,18 +27,60 @@ export function SignalsPage({
 
   const refresh = async () => {
     if (!runId) return;
-    const [sigs, fn, barSeries] = await Promise.all([
-      api.signalsRecent({
-        run_id: runId,
-        limit: 500,
-        status_prefix: statusFilter || undefined,
-        leg: legFilter || undefined,
-      }),
-      api.funnel(runId),
-      api.accountSeries(runId, 500),
-    ]);
-    setSignals(sigs);
-    setFunnel(fn.buckets);
+    // Resolve which runs to include. For a LIVE run, merge signals across the
+    // recent runs of the SAME strategy so a restart (which forks a new run_id)
+    // doesn't visually reset the funnel / feed. BT run → just itself.
+    let runIds: string[] = [runId];
+    let selfRun: any = null;
+    try {
+      const d: any = await api.runDetail(runId);
+      selfRun = d?.run ?? null;
+    } catch {
+      /* ignore */
+    }
+    if (selfRun?.mode === "live" && selfRun?.strategy_id) {
+      try {
+        const all = await api.runs(100, "live");
+        const sibs = all
+          .filter((r: any) => r.strategy_id === selfRun.strategy_id)
+          .sort((a: any, b: any) => (b.start_ts || "").localeCompare(a.start_ts || ""))
+          .slice(0, 4) // current + a few recent restarts
+          .map((r: any) => r.run_id);
+        if (sibs.length) runIds = Array.from(new Set([runId, ...sibs]));
+      } catch {
+        /* fall back to single run */
+      }
+    }
+
+    const sigLists = await Promise.all(
+      runIds.map((rid) =>
+        api
+          .signalsRecent({
+            run_id: rid,
+            limit: 500,
+            status_prefix: statusFilter || undefined,
+            leg: legFilter || undefined,
+          })
+          .catch(() => [] as SignalRowT[])
+      )
+    );
+    const fnLists = await Promise.all(
+      runIds.map((rid) => api.funnel(rid).then((f) => f.buckets).catch(() => [] as FunnelBucket[]))
+    );
+    const barSeries = await api.accountSeries(runId, 500).catch(() => [] as AccountSnap[]);
+
+    // Merge + sort signals newest-first, cap 500.
+    const mergedSigs = sigLists
+      .flat()
+      .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""))
+      .slice(0, 500);
+    // Sum funnel counts per status across runs.
+    const fnMap = new Map<string, number>();
+    for (const b of fnLists.flat()) {
+      fnMap.set(b.status, (fnMap.get(b.status) ?? 0) + b.count);
+    }
+    setSignals(mergedSigs);
+    setFunnel(Array.from(fnMap, ([status, count]) => ({ status, count })));
     setBars(barSeries);
   };
 
@@ -138,8 +180,8 @@ export function SignalsPage({
   const lastBar = bars.length ? bars[bars.length - 1] : null;
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 min-h-0">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+    <div className="h-full flex flex-col gap-4 px-4 sm:px-6 py-5 min-h-0 w-full">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 shrink-0">
         <KPI label="Total Gates" value={total.toLocaleString()} />
         <KPI label="Passed" value={passCount.toLocaleString()} deltaTone="bull" />
         <KPI label="Rejected" value={rejectCount.toLocaleString()} deltaTone="bear" />

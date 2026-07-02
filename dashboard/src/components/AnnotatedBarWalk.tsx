@@ -105,22 +105,26 @@ export function AnnotatedBarWalk({
     if (!priceRange || !trade) {
       return { domain: ["auto", "auto"], offscale: [] };
     }
-    const barSpan = Math.max(priceRange.hi - priceRange.lo, 1e-6);
+    // ENTRY is the anchor — always include it so the price line reads relative
+    // to where we got in, even on a young trade whose bars have run away from it.
+    let lo = Math.min(priceRange.lo, trade.entry_price);
+    let hi = Math.max(priceRange.hi, trade.entry_price);
+    const barSpan = Math.max(hi - lo, 1e-6);
     const levels: { price: number; kind: OffScale["kind"] }[] = [
-      { price: trade.entry_price, kind: "ENTRY" },
       { price: trade.stop_price, kind: "SL" },
     ];
     if (trade.take_profit_price != null)
       levels.push({ price: trade.take_profit_price, kind: "TP" });
 
-    // A level is "reasonable to include" if it sits within ~4× the bar range.
-    const MAX_EXPAND = 4;
-    let lo = priceRange.lo;
-    let hi = priceRange.hi;
+    // Young trade (few bars) → show the FULL risk/reward geometry (entry+SL+TP),
+    // never off-scale, so the setup reads at a glance. Only mature trades with a
+    // real bar spread clamp far levels to edge pins.
+    const youngTrade = walk.length < 10;
+    const MAX_EXPAND = youngTrade ? Infinity : 4;
     const off: OffScale[] = [];
     for (const lvl of levels) {
-      const distAbove = lvl.price - priceRange.hi;
-      const distBelow = priceRange.lo - lvl.price;
+      const distAbove = lvl.price - hi;
+      const distBelow = lo - lvl.price;
       if (distAbove > MAX_EXPAND * barSpan) {
         off.push({ ...lvl, edge: "top" });
       } else if (distBelow > MAX_EXPAND * barSpan) {
@@ -130,9 +134,9 @@ export function AnnotatedBarWalk({
         hi = Math.max(hi, lvl.price);
       }
     }
-    const pad = Math.max((hi - lo) * 0.08, barSpan * 0.15);
+    const pad = Math.max((hi - lo) * 0.06, barSpan * 0.15);
     return { domain: [lo - pad, hi + pad], offscale: off };
-  }, [priceRange, trade]);
+  }, [priceRange, trade, walk.length]);
 
   const entryIdx = useMemo(
     () => nearestBar(trade?.entry_timestamp, walk),
@@ -189,8 +193,8 @@ export function AnnotatedBarWalk({
           <ComposedChart data={data} margin={{ left: 4, right: 68, top: 8, bottom: 4 }}>
             <defs>
               <linearGradient id="walkArea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.22} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.22} />
+                <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis
@@ -258,17 +262,17 @@ export function AnnotatedBarWalk({
             {trade && !isOff(offscale, "SL") && (
               <ReferenceLine
                 y={trade.stop_price}
-                stroke="#f87171"
+                stroke="#f04452"
                 strokeDasharray="4 3"
-                label={priceLabel(trade.stop_price, "SL", "#f87171")}
+                label={priceLabel(trade.stop_price, "SL", "#f04452")}
               />
             )}
             {trade && trade.take_profit_price != null && !isOff(offscale, "TP") && (
               <ReferenceLine
                 y={trade.take_profit_price}
-                stroke="#34d399"
+                stroke="#4ade80"
                 strokeDasharray="4 3"
-                label={priceLabel(trade.take_profit_price, "TP", "#34d399")}
+                label={priceLabel(trade.take_profit_price, "TP", "#4ade80")}
               />
             )}
             {breakeven != null && (
@@ -283,11 +287,11 @@ export function AnnotatedBarWalk({
             <Area
               type="monotone"
               dataKey="close"
-              stroke="#10b981"
+              stroke="#22c55e"
               strokeWidth={1.4}
               fill="url(#walkArea)"
             />
-            <Line type="monotone" dataKey="close" stroke="#34d399" dot={false} strokeWidth={1.4} />
+            <Line type="monotone" dataKey="close" stroke="#4ade80" dot={false} strokeWidth={1.4} />
 
             {/* Entry / exit markers */}
             {entryIdx != null && data[entryIdx] && (
@@ -296,7 +300,7 @@ export function AnnotatedBarWalk({
                 y={data[entryIdx].close}
                 r={4}
                 fill="#c8cdd6"
-                stroke="#0a0e14"
+                stroke="#0a0b0d"
                 strokeWidth={1.5}
               />
             )}
@@ -305,8 +309,8 @@ export function AnnotatedBarWalk({
                 x={data[exitIdx].label}
                 y={data[exitIdx].close}
                 r={4}
-                fill={trade?.exit_reason === "sl" ? "#f87171" : "#34d399"}
-                stroke="#0a0e14"
+                fill={trade?.exit_reason === "sl" ? "#f04452" : "#4ade80"}
+                stroke="#0a0b0d"
                 strokeWidth={1.5}
               />
             )}

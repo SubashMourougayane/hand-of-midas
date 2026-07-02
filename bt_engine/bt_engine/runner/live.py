@@ -29,7 +29,12 @@ from ..db.engine import make_engine
 from ..db.models import BtTrade
 from ..db.repo import AccountSnapshotRepo, BarWalkRepo, JournalRepo, RunRepo, SignalRepo, TradeRepo
 from ..execution.dwx_broker import DWXBrokerAdapter
-from .broker_reconciler import reconcile_trade, retry_unreconciled_trades
+from .broker_reconciler import (
+    reconcile_trade,
+    retry_unreconciled_trades,
+    _parse_broker_time,
+    _to_utc_dt,
+)
 from .equity_sizer import EquitySizer, EquitySizerConfig
 from ..journal.walker import BarWalkJournal
 from ..strategies import registry
@@ -140,7 +145,29 @@ class LiveSafetyBroker:
     def submit_order(self, order: Order) -> str:
         safe_order = self._safe_order(order)
         self.last_submitted_order = safe_order
-        return self.broker.submit_order(safe_order)
+        try:
+            return self.broker.submit_order(safe_order)
+        except Exception as e:
+            # Slow-ack recovery: JustMarkets' EA sometimes fills the OPEN but
+            # acks slower than the 5s command timeout. A bare raise here would
+            # crash the engine loop AND orphan a live position the DB never
+            # records (observed 2026-07-02: ticket 2123464608). Before failing,
+            # check whether the broker actually opened a position for this tag.
+            import time as _t
+            tag = str(safe_order.tag or "")
+            for _ in range(6):  # ~3s of polling for the EA to publish the fill
+                tk = _find_ticket_by_tag(self.bridge, tag)
+                if tk:
+                    log.warning(
+                        "[SUBMIT] OPEN ack timed out (%s) but broker filled tag=%s "
+                        "as ticket=%s — slow-ack recovered", e, tag, tk,
+                    )
+                    return tk
+                _t.sleep(0.5)
+            # Genuinely not opened — re-raise so the engine drops the order.
+            # (Engine-level guard below also prevents a crash.)
+            log.error("[SUBMIT] OPEN failed and no matching position found: %s", e)
+            raise
 
     def cancel(self, order_id: str) -> None:
         self.broker.cancel(order_id)
@@ -785,7 +812,10 @@ def run_live(
         on_strategy_event=on_event,
         on_partial_tp=on_partial_tp,
         on_bar_close=on_bar_close,
-        initial_open_trades=_open_trades_from_positions(broker.positions(), symbol=symbol),
+        initial_open_trades=_open_trades_from_positions(
+            broker.positions(), symbol=symbol, strategy_id=strategy,
+            server_utc_offset_hours=server_utc_offset_hours,
+        ),
     )
 
     bars_processed = 0
@@ -891,6 +921,43 @@ def _live_position(bridge: DwxBridge, ticket: str) -> dict[str, Any] | None:
     return pos if isinstance(pos, dict) else None
 
 
+def _find_ticket_by_tag(bridge: DwxBridge, tag: str) -> str | None:
+    """Recover a just-opened position's ticket by matching the order tag against
+    each open position's `comment` (the EA stores the tag as comment, often
+    truncated). Used when OPEN's ack timed out but the EA still filled — a
+    slow-ack that would otherwise be mistaken for a failed submit.
+
+    Matches on shared prefix (broker truncates long comments), min 8 chars.
+    """
+    if not tag:
+        return None
+    try:
+        orders = bridge.open_orders()
+    except Exception:
+        return None
+    inner = orders.get("orders", orders) if isinstance(orders, dict) else None
+    if not isinstance(inner, dict):
+        return None
+    best: str | None = None
+    best_len = 0
+    for ticket, v in inner.items():
+        if not isinstance(v, dict):
+            continue
+        comment = str(v.get("comment") or "")
+        if not comment:
+            continue
+        # Longest common prefix between tag and comment.
+        n = 0
+        for a, b in zip(tag, comment):
+            if a != b:
+                break
+            n += 1
+        if n >= 8 and n > best_len:
+            best_len = n
+            best = str(ticket)
+    return best
+
+
 def _close_partial_succeeded(
     pre_vol: float | None, post_pos: dict[str, Any] | None, close_qty: float
 ) -> bool:
@@ -962,16 +1029,51 @@ def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, t
         partial_r=0.0,
         partial_fill_price=None,
         partial_fill_ts=None,
+        broker_ticket=(tr.broker_ticket or (str(extra["broker_ticket"]) if extra.get("broker_ticket") else None)),
         raw_features=extra,
     )
 
 
-def _open_trades_from_positions(positions, *, symbol: str) -> list[OpenTrade]:
+def _leg_owns_position(strategy_id: str | None, pos: dict, side: int) -> bool:
+    """Only adopt a broker position that belongs to THIS leg.
+
+    A + D run on the same symbol and share one account, so adopt-by-symbol
+    alone would make each leg grab the other's positions → double-management
+    (conflicting SL-moves / closes). Match on the position comment's leg tag;
+    fall back to side (long-leg = BUY, short-leg = SELL) when comment is absent.
+    """
+    if not strategy_id:
+        return True
+    sid = strategy_id.lower()
+    comment = str(pos.get("comment") or "").lower()
+    # Combined leg → owns everything for the symbol (check first: the id
+    # contains 'intraday_a' as a substring).
+    if "a_plus_d" in sid or "aplusd" in sid:
+        return True
+    # Prefer explicit leg tag in the comment.
+    if "intraday_a" in sid or sid.endswith("_a"):
+        if comment:
+            return "intraday_a" in comment or "_long" in comment
+        return side > 0
+    if "intraday_d" in sid or sid.endswith("_d"):
+        if comment:
+            return "intraday_d" in comment or "_short" in comment
+        return side < 0
+    # Combined / unknown leg → adopt everything for the symbol.
+    return True
+
+
+def _open_trades_from_positions(
+    positions, *, symbol: str, strategy_id: str | None = None,
+    server_utc_offset_hours: int = 0,
+) -> list[OpenTrade]:
     out: list[OpenTrade] = []
     for pos in positions:
         try:
             ticket = str(pos.get("ticket") or pos.get("id") or pos.get("position_id") or pos.get("comment") or uuid.uuid4())
             side = 1 if str(pos.get("type", "")).upper() in {"BUY", "0"} else -1
+            if not _leg_owns_position(strategy_id, pos, side):
+                continue
             qty = float(pos.get("volume", 0.0))
             entry = float(pos.get("open_price", pos.get("price_open", 0.0)))
             sl = float(pos.get("sl", 0.0))
@@ -983,7 +1085,19 @@ def _open_trades_from_positions(positions, *, symbol: str) -> list[OpenTrade]:
             if risk <= 0:
                 continue
             trade_id = uuid.uuid5(uuid.NAMESPACE_URL, f"gold-digger-live-position:{ticket}")
-            ts = pd.Timestamp(datetime.now(timezone.utc))
+            now_ts = pd.Timestamp(datetime.now(timezone.utc))
+            # Real entry time from the broker's open_time (server-local, UTC+3),
+            # so the hold timer reflects the ACTUAL age — not adoption time.
+            ts = now_ts
+            ot = str(pos.get("open_time") or "")
+            parsed = _parse_broker_time(ot)
+            if parsed is not None:
+                try:
+                    utc = _to_utc_dt(parsed, server_utc_offset_hours)
+                    if utc is not None:
+                        ts = pd.Timestamp(utc)
+                except Exception:
+                    ts = now_ts
             order = Order(
                 symbol=str(pos.get("symbol") or symbol),
                 side=side,
@@ -995,7 +1109,17 @@ def _open_trades_from_positions(positions, *, symbol: str) -> list[OpenTrade]:
                 tag=str(pos.get("comment") or ticket),
                 bracket_kind="reconciled_live",
                 trade_id=trade_id,
-                extra={"broker_ticket": ticket, "reconciled": True},
+                extra={
+                    "broker_ticket": ticket,
+                    "reconciled": True,
+                    # Leg label so the UI shows Long/Short (not the fallback
+                    # literal "Strategy"). Prefer comment tag, else side.
+                    "leg": (
+                        "intraday_a_long" if side > 0 else "intraday_d_short"
+                    ),
+                    "qty_lots": qty,
+                    "direction": "long" if side > 0 else "short",
+                },
             )
             fill = Fill(order.symbol, side, qty, entry, ts)
             out.append(
@@ -1009,6 +1133,7 @@ def _open_trades_from_positions(positions, *, symbol: str) -> list[OpenTrade]:
                     stop_price=sl,
                     take_profit=tp,
                     risk_units=risk,
+                    broker_ticket=str(ticket),
                 )
             )
         except (TypeError, ValueError):
