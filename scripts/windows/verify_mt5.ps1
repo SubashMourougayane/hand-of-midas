@@ -10,7 +10,10 @@
 #>
 $ErrorActionPreference = "Continue"
 
-$expected = @("2118599832","2121027691","2123464608")   # 2 long + 1 short adopted at cutover
+# Open positions to adopt at cutover. The 0.13 short 2123464608 CLOSED on
+# 2026-07-03 (now in closed_orders) so only the 2 longs remain. Update this if
+# positions open/close before cutover.
+$expected = @("2118599832","2121027691")   # 2 longs (0.01 + 0.05)
 $termRoot = "$env:APPDATA\MetaQuotes\Terminal"
 
 Write-Host "`n===== MT5 / DWX VERIFY =====" -ForegroundColor Cyan
@@ -57,8 +60,10 @@ if (Test-Path $ooFile) {
     foreach ($p in $orders.PSObject.Properties) {
       $t = $p.Name; $o = $p.Value
       $foundTickets += $t
+      # DWX lot field varies by EA version: lots / volume / lot_size.
+      $lots = $o.lots; if (-not $lots) { $lots = $o.volume }; if (-not $lots) { $lots = $o.lot_size }
       Write-Host ("  ticket {0}  {1}  lots={2}  open={3}  sl={4}  tp={5}" -f `
-        $t, $o.type, $o.lots, $o.open_price, $o.SL, $o.TP)
+        $t, $o.type, $lots, $o.open_price, $o.SL, $o.TP)
     }
     if ($foundTickets.Count -eq 0) { Write-Host "  (none)" -ForegroundColor Yellow }
   } catch { Write-Host "[WARN] could not parse open_orders.json: $_" -ForegroundColor Yellow }
