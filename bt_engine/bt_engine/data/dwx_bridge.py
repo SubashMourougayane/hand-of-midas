@@ -22,19 +22,37 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_DWX_DIR = Path(
+# Mac/Wine MT5 default. On native Windows the DWX dir lives under the real
+# MetaQuotes terminal path, e.g.
+#   C:\Users\<user>\AppData\Roaming\MetaQuotes\Terminal\Common\Files\DWX
+# Set the DWX_DIR env var to override (per-machine, no hardcoded path in code).
+_MAC_WINE_DWX_DIR = Path(
     "/Users/subash/Library/Application Support/net.metaquotes.wine.metatrader5"
     "/drive_c/users/user/AppData/Roaming/MetaQuotes/Terminal/Common/Files/DWX"
 )
+
+
+def _default_dwx_dir() -> Path:
+    """Resolve the DWX bridge dir: DWX_DIR env override, else Mac/Wine default."""
+    env = os.environ.get("DWX_DIR")
+    return Path(env) if env else _MAC_WINE_DWX_DIR
+
+
+# Backwards-compatible module constant (resolved at import time).
+DEFAULT_DWX_DIR = _default_dwx_dir()
 
 
 @dataclass
 class DwxBridge:
     """Wraps the DWX Common/Files/DWX dir as a simple JSON IPC."""
 
-    dwx_dir: Path = DEFAULT_DWX_DIR
+    dwx_dir: Path = None  # type: ignore[assignment]  # resolved in __post_init__
 
     def __post_init__(self) -> None:
+        # Resolve at construction (not class-def) so a DWX_DIR set after import
+        # — e.g. by the live runner's env — is still honored.
+        if self.dwx_dir is None:
+            self.dwx_dir = _default_dwx_dir()
         self.dwx_dir = Path(self.dwx_dir)
 
     @property
