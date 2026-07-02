@@ -1,0 +1,24 @@
+# Caddy reverse proxy for the Hand of Midas dashboard.
+# Public HTTPS at midas.subashtrades.in -> local uvicorn on 127.0.0.1:8001.
+# Auto-provisions a Let's Encrypt cert. Basic auth guards the live account view.
+#
+# Setup on the VPS:
+#   1. Install caddy:  winget install CaddyServer.Caddy
+#   2. Generate the password hash:  caddy hash-password --plaintext 'YOURPASSWORD'
+#      -> paste the resulting hash into the basicauth block below.
+#   3. Ensure DNS A record midas.subashtrades.in -> 84.247.177.145 (already set).
+#   4. Open inbound TCP 80 + 443 in Windows Firewall + Contabo panel.
+#   5. Run as a service:  caddy run --config C:\GoldDigger\scripts\windows\Caddyfile
+#      (or register with NSSM like the other services).
+
+midas.subashtrades.in {
+	encode gzip zstd
+
+	# Basic auth — REPLACE the hash. User is "midas" here; change as you like.
+	basicauth {
+		midas REPLACE_WITH_caddy_hash-password_OUTPUT
+	}
+
+	# WebSocket + REST + SPA all live behind the one uvicorn origin.
+	reverse_proxy 127.0.0.1:8001
+}

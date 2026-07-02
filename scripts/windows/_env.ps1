@@ -14,9 +14,13 @@ if (-not $env:DWX_DIR) {
   $env:DWX_DIR = "$env:APPDATA\MetaQuotes\Terminal\Common\Files\DWX"
 }
 
-# Postgres DSN — set here or in the machine environment. Falls back to code
-# default (localhost/golddigger_bt) if unset.
-# $env:BT_ENGINE_DB_URL = "postgresql+psycopg2://postgres:PASS@localhost:5432/golddigger_bt"
+# Postgres DSN. Both bt_engine AND dashboard_backend read BT_ENGINE_DB_URL
+# (dashboard derives its asyncpg DSN from the same var). localhost-only, so the
+# password is not an internet-exposed secret — but change PASS to the real
+# postgres pw set during bootstrap. If unset, code default assumes trust auth.
+if (-not $env:BT_ENGINE_DB_URL) {
+  $env:BT_ENGINE_DB_URL = "postgresql+psycopg2://postgres:midas@localhost:5432/golddigger_bt"
+}
 
 function Assert-Repo {
   if (-not (Test-Path (Join-Path $Repo "bt_engine\bt_engine\runner\cli.py"))) {
