@@ -19,7 +19,12 @@ import {
 
 type SortKey = "entry_timestamp" | "net_r" | "bars_held" | "risk_units";
 
-type LivePos = { unrealized_usd: number; volume: number | null };
+type LivePos = {
+  unrealized_usd: number;
+  volume: number | null;
+  booked_usd: number | null;
+  booked_volume: number | null;
+};
 type WsHook = {
   onMessage: (fn: (env: WsEnvelope) => void) => () => void;
 };
@@ -55,13 +60,26 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     return ws.onMessage((env) => {
       if (env.channel !== "positions_live") return;
       const positions = (env.payload as any)?.positions as
-        | Record<string, { unrealized_usd?: number; volume?: number | null }>
+        | Record<
+            string,
+            {
+              unrealized_usd?: number;
+              volume?: number | null;
+              booked_usd?: number | null;
+              booked_volume?: number | null;
+            }
+          >
         | undefined;
       if (!positions) return;
       const next: Record<string, LivePos> = {};
       for (const [ticket, p] of Object.entries(positions)) {
         if (typeof p.unrealized_usd === "number") {
-          next[ticket] = { unrealized_usd: p.unrealized_usd, volume: p.volume ?? null };
+          next[ticket] = {
+            unrealized_usd: p.unrealized_usd,
+            volume: p.volume ?? null,
+            booked_usd: typeof p.booked_usd === "number" ? p.booked_usd : null,
+            booked_volume: typeof p.booked_volume === "number" ? p.booked_volume : null,
+          };
         }
       }
       setLivePos(next);
@@ -285,14 +303,27 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
                 const isOpen = t.exit_timestamp == null;
                 const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
                 if (isOpen && realized == null && live) {
+                  const hasBooked =
+                    live.booked_usd != null && Math.abs(live.booked_usd) > 0.001;
                   return (
-                    <span
-                      className={`font-mono font-semibold ${colorForR(live.unrealized_usd)}`}
-                      title="Indicative live P&L from 1s tick feed. Exact broker P&L is written on close."
-                    >
-                      ~{fmtMoney(live.unrealized_usd, 0)}
-                      <span className="ml-1 text-ds-xs text-ink-muted uppercase">float</span>
-                    </span>
+                    <div className="flex flex-col items-end leading-tight">
+                      {hasBooked && (
+                        <span
+                          className={`font-mono ${colorForR(live.booked_usd)}`}
+                          title="Realised P&L already locked from the partial-TP close (fixed)."
+                        >
+                          {fmtMoney(live.booked_usd, 0)}
+                          <span className="ml-1 text-ds-xs text-ink-muted uppercase">booked</span>
+                        </span>
+                      )}
+                      <span
+                        className={`font-mono font-semibold ${colorForR(live.unrealized_usd)}`}
+                        title="Indicative floating P&L on the still-open remainder (1s tick feed). Exact broker P&L written on close."
+                      >
+                        ~{fmtMoney(live.unrealized_usd, 0)}
+                        <span className="ml-1 text-ds-xs text-ink-muted uppercase">float</span>
+                      </span>
+                    </div>
                   );
                 }
                 return (

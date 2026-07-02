@@ -31,6 +31,7 @@ DWX_DIR = Path(os.environ.get(
 MARKET_FILE = DWX_DIR / "market_data.json"
 ACCOUNT_FILE = DWX_DIR / "account_info.json"
 OPEN_ORDERS_FILE = DWX_DIR / "open_orders.json"
+CLOSED_ORDERS_FILE = DWX_DIR / "closed_orders.json"
 
 # Absolute price floors per symbol (base name, pre-suffix). A quote below this
 # is a torn/partial read (leading digits dropped), not a real tick.
@@ -141,10 +142,46 @@ class PriceStreamer:
             },
         })
 
+    def _booked_by_ticket(self) -> dict[str, dict]:
+        """Sum ALREADY-REALISED $ per ticket from closed_orders.json.
+
+        For a partial-TP position the partial close is a CLOSED deal sharing the
+        position_id (=ticket). While the remainder is still open, that booked $
+        must be shown separately from the floating remainder. Returns
+        ticket -> {booked_usd, booked_volume, deals}. Best-effort; on any read
+        problem returns {} (frontend just omits the booked figure)."""
+        if not CLOSED_ORDERS_FILE.is_file():
+            return {}
+        try:
+            c = json.loads(CLOSED_ORDERS_FILE.read_text())
+        except Exception:
+            return {}
+        rows = c if isinstance(c, list) else c.get("orders", []) if isinstance(c, dict) else []
+        booked: dict[str, dict] = {}
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            tk = str(r.get("ticket"))
+            if not tk:
+                continue
+            profit = _f(r.get("profit")) or 0.0
+            comm = _f(r.get("commission")) or 0.0
+            swap = _f(r.get("swap")) or 0.0
+            vol = _f(r.get("volume")) or 0.0
+            b = booked.setdefault(tk, {"booked_usd": 0.0, "booked_volume": 0.0, "deals": 0})
+            b["booked_usd"] = round(b["booked_usd"] + profit + comm + swap, 2)
+            b["booked_volume"] = round(b["booked_volume"] + vol, 4)
+            b["deals"] += 1
+        return booked
+
     async def _positions_tick(self) -> None:
-        """Push per-ticket live UNREALISED P&L (broker truth) so the Trades page
-        can show a floating $ figure on OPEN trades — which have no realised
-        net_r / broker_net_usd in the DB yet.
+        """Push per-ticket live P&L (broker truth) so the Trades page can show,
+        for OPEN trades that have no realised net_r/broker_net_usd in the DB yet:
+          - unrealized_usd : floating P&L on the still-open remainder (live tick)
+          - booked_usd     : realised P&L already locked from any partial close
+
+        A partial-TP trade = booked half (fixed) + open half (floating). Showing
+        both stops the 'we bagged it but it's still moving' confusion.
 
         Channel 'positions_live'. Payload maps broker_ticket -> live snapshot.
         Frontend matches on Trade.broker_ticket. Read-only file tail; never
@@ -158,6 +195,7 @@ class PriceStreamer:
         orders = raw.get("orders", raw) if isinstance(raw, dict) else None
         if not isinstance(orders, dict):
             return
+        booked = self._booked_by_ticket()
         positions: dict[str, dict] = {}
         for ticket, v in orders.items():
             if not isinstance(v, dict):
@@ -194,6 +232,7 @@ class PriceStreamer:
 
             if unrealized is None:
                 continue
+            b = booked.get(str(ticket))
             positions[str(ticket)] = {
                 "ticket": str(ticket),
                 "symbol": symbol,
@@ -201,12 +240,18 @@ class PriceStreamer:
                 "open_price": open_price,
                 "sl": _f(v.get("sl")),
                 "tp": _f(v.get("tp")),
-                "unrealized_usd": unrealized,
+                "unrealized_usd": unrealized,          # floating, open remainder
+                "booked_usd": b["booked_usd"] if b else None,      # realised partial(s)
+                "booked_volume": b["booked_volume"] if b else None,
                 "swap": swap,
                 "price_source": price_source,  # 'tick' (live) or 'file' (lagging)
             }
-        # Snapshot key = ticket -> rounded profit; skip broadcast if unchanged.
-        key = {t: round(p["unrealized_usd"], 2) for t, p in positions.items()}
+        # Snapshot key = ticket -> (float, booked); skip broadcast if unchanged.
+        key = {
+            t: (round(p["unrealized_usd"], 2),
+                round(p["booked_usd"], 2) if p["booked_usd"] is not None else None)
+            for t, p in positions.items()
+        }
         if self._last_pos == key:
             return
         self._last_pos = key
