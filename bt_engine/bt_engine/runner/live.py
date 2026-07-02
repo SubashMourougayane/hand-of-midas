@@ -1098,6 +1098,12 @@ def _open_trades_from_positions(
                         ts = pd.Timestamp(utc)
                 except Exception:
                     ts = now_ts
+            # Per-leg max hold (M15 bars): A long = 12h = 48, D short = 24h = 96.
+            # Applied from adoption FORWARD only (bars_held starts at 0) — we do
+            # NOT retroactively force-close a position that's already past its
+            # cap at adoption time (avoids surprise market-closes of existing
+            # trades on restart). New over-holds will time-exit normally.
+            max_hold_bars = 48 if side > 0 else 96
             order = Order(
                 symbol=str(pos.get("symbol") or symbol),
                 side=side,
@@ -1119,23 +1125,23 @@ def _open_trades_from_positions(
                     ),
                     "qty_lots": qty,
                     "direction": "long" if side > 0 else "short",
+                    "max_hold_bars": max_hold_bars,
                 },
             )
             fill = Fill(order.symbol, side, qty, entry, ts)
-            out.append(
-                OpenTrade(
-                    trade_id=trade_id,
-                    order=order,
-                    fill=fill,
-                    entry_price=entry,
-                    entry_timestamp=ts,
-                    side=side,
-                    stop_price=sl,
-                    take_profit=tp,
-                    risk_units=risk,
-                    broker_ticket=str(ticket),
-                )
+            adopted = OpenTrade(
+                trade_id=trade_id,
+                order=order,
+                fill=fill,
+                entry_price=entry,
+                entry_timestamp=ts,
+                side=side,
+                stop_price=sl,
+                take_profit=tp,
+                risk_units=risk,
+                broker_ticket=str(ticket),
             )
+            out.append(adopted)
         except (TypeError, ValueError):
             continue
     return out

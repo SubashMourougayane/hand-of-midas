@@ -446,8 +446,12 @@ export function LivePage({
   // Lifetime closed-trade stats (broker-truth $ where available).
   const stats = useMemo(() => {
     const closed = allClosed;
-    const wins = closed.filter((t) => (t.net_r ?? 0) > 0);
-    const losses = closed.filter((t) => (t.net_r ?? 0) < 0);
+    // Win/loss by $ (broker truth) so it matches the shown P&L — a trade that
+    // is +R but −$ (e.g. SL_BE that ate cost) is a $ loss, not a win. Fall back
+    // to R only when the broker $ is missing.
+    const pnlOf = (t: Trade) => t.broker_net_usd ?? (t.net_r ?? 0);
+    const wins = closed.filter((t) => pnlOf(t) > 0);
+    const losses = closed.filter((t) => pnlOf(t) < 0);
     const partials = closed.filter((t) => t.partial_taken).length;
     const netR = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
     // $ = broker-truth only. NEVER the 1-lot fantasy (net_r×risk×100) — that
