@@ -1,4 +1,4 @@
-# Live D (SHORT) leg — fib_v2_intraday_d on JM-Demo2, M15, Model B 1.5% sizer.
+# Live D (SHORT) leg -- fib_v2_intraday_d on JM-Demo2, M15, Model B 1.5% sizer.
 # Shares ONE broker account with the A leg. Logs to logs\live_d.log.
 . (Join-Path $PSScriptRoot "_env.ps1")
 

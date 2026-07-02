@@ -1,4 +1,4 @@
-# Live A (LONG) leg — fib_v2_intraday_a on JM-Demo2, M15, Model B 1.5% sizer.
+# Live A (LONG) leg -- fib_v2_intraday_a on JM-Demo2, M15, Model B 1.5% sizer.
 # Args mirror the Mac production launch exactly. Logs to logs\live_a.log.
 . (Join-Path $PSScriptRoot "_env.ps1")
 

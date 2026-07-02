@@ -14,7 +14,7 @@
 midas.subashtrades.in {
 	encode gzip zstd
 
-	# Basic auth — REPLACE the hash. User is "midas" here; change as you like.
+	# Basic auth -- REPLACE the hash. User is "midas" here; change as you like.
 	basicauth {
 		midas REPLACE_WITH_caddy_hash-password_OUTPUT
 	}
