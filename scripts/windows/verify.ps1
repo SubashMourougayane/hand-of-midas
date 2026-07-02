@@ -53,7 +53,8 @@ python -m pytest `
   -q 2>&1 | Tee-Object -Variable pytestOut | Out-Host
 $lastLine = ($pytestOut | Select-String "passed|failed|error" | Select-Object -Last 1)
 $parityOk = ($pytestOut -match "passed" -and $pytestOut -notmatch "failed")
-Check "bt_live_parity" $parityOk (if ($lastLine) { $lastLine.ToString().Trim() } else { "no pytest summary" })
+$parityDetail = if ($lastLine) { $lastLine.ToString().Trim() } else { "no pytest summary" }
+Check "bt_live_parity" $parityOk $parityDetail
 
 # 6. Dashboard boots + serves (start in a job, poll, kill).
 Write-Host "`n-- booting dashboard for a health check --" -ForegroundColor DarkGray
