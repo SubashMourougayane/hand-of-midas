@@ -62,7 +62,7 @@ export function TradeStory({
   const long = trade.side > 0;
   const closed = trade.exit_timestamp != null;
   const statusLabel = closed ? (trade.exit_reason ?? "closed").toUpperCase() : "OPEN";
-  const pnl = tradePnlReal(symbol, trade.net_r, trade.risk_units, trade.raw_features);
+  const pnl = tradePnlReal(symbol, trade.net_r, trade.risk_units, trade.raw_features, trade.broker_net_usd);
 
   const { mfe, mae } = useMemo(() => excursions(walk), [walk]);
 

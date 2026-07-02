@@ -31,7 +31,7 @@ export function EquityCurve({
     let cumD = 0;
     return closed.map((t) => {
       cumR += t.net_r ?? 0;
-      cumD += tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features) ?? 0;
+      cumD += tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0;
       return {
         ts: t.entry_timestamp.slice(0, 10),
         cum: cumD,

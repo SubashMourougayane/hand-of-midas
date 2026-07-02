@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, Trade } from "../lib/api";
+import { WsEnvelope } from "../lib/ws";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { DataGrid } from "../components/DataGrid";
@@ -18,8 +19,16 @@ import {
 
 type SortKey = "entry_timestamp" | "net_r" | "bars_held" | "risk_units";
 
-export function TradesPage({ runId }: { runId: string | null }) {
+type LivePos = { unrealized_usd: number; volume: number | null };
+type WsHook = {
+  onMessage: (fn: (env: WsEnvelope) => void) => () => void;
+};
+
+export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook }) {
   const [rows, setRows] = useState<Trade[]>([]);
+  // Live per-ticket unrealised P&L (broker truth) keyed by broker_ticket.
+  // Open trades have no realised net_r/broker_net_usd yet — this fills that gap.
+  const [livePos, setLivePos] = useState<Record<string, LivePos>>({});
   const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "entry_timestamp",
@@ -39,6 +48,25 @@ export function TradesPage({ runId }: { runId: string | null }) {
       .runTrades(runId, filter === "all" ? undefined : filter, 1, 50000)
       .then(({ items }) => setRows(items));
   }, [runId, filter]);
+
+  // Subscribe to live per-ticket unrealised P&L (broker truth via WS).
+  useEffect(() => {
+    if (!ws) return;
+    return ws.onMessage((env) => {
+      if (env.channel !== "positions_live") return;
+      const positions = (env.payload as any)?.positions as
+        | Record<string, { unrealized_usd?: number; volume?: number | null }>
+        | undefined;
+      if (!positions) return;
+      const next: Record<string, LivePos> = {};
+      for (const [ticket, p] of Object.entries(positions)) {
+        if (typeof p.unrealized_usd === "number") {
+          next[ticket] = { unrealized_usd: p.unrealized_usd, volume: p.volume ?? null };
+        }
+      }
+      setLivePos(next);
+    });
+  }, [ws]);
 
   const sorted = useMemo(() => {
     const r = [...rows];
@@ -230,6 +258,17 @@ export function TradesPage({ runId }: { runId: string | null }) {
               align: "right",
             },
             {
+              header: "Partial",
+              cell: (t) =>
+                t.partial_taken ? (
+                  <Pill tone="bull">
+                    {`PTP +${(t.partial_r ?? 0).toFixed(2)}R`}
+                  </Pill>
+                ) : (
+                  <span className="text-ink-muted">—</span>
+                ),
+            },
+            {
               header: sortHeader("Net R", "net_r", sort, setSortKey),
               cell: (t) => (
                 <span className={`font-mono ${colorForR(t.net_r)}`}>
@@ -241,10 +280,24 @@ export function TradesPage({ runId }: { runId: string | null }) {
             {
               header: "$ PnL",
               cell: (t) => {
-                const pnl = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features);
+                const realized = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd);
+                // OPEN trade with no realised P&L → show live floating $ (broker truth via WS).
+                const isOpen = t.exit_timestamp == null;
+                const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
+                if (isOpen && realized == null && live) {
+                  return (
+                    <span
+                      className={`font-mono font-semibold ${colorForR(live.unrealized_usd)}`}
+                      title="Indicative live P&L from 1s tick feed. Exact broker P&L is written on close."
+                    >
+                      ~{fmtMoney(live.unrealized_usd, 0)}
+                      <span className="ml-1 text-ds-xs text-ink-muted uppercase">float</span>
+                    </span>
+                  );
+                }
                 return (
-                  <span className={`font-mono font-semibold ${colorForR(pnl)}`}>
-                    {fmtMoney(pnl, 0)}
+                  <span className={`font-mono font-semibold ${colorForR(realized)}`}>
+                    {fmtMoney(realized, 0)}
                   </span>
                 );
               },

@@ -35,6 +35,17 @@ export type Trade = {
   regime: string | null;
   partial_taken: boolean | null;
   partial_r: number | null;
+  // Broker reconciliation (live-only; null on BT trades) — this is the REAL $ P&L
+  // at the actual traded lot size, straight from the broker deal history.
+  broker_ticket?: string | null;
+  broker_gross_usd?: number | null;
+  broker_commission_usd?: number | null;
+  broker_swap_usd?: number | null;
+  broker_net_usd?: number | null;
+  broker_exit_price?: number | null;
+  broker_exit_reason?: string | null;
+  broker_close_ts?: string | null;
+  broker_reconciled_at?: string | null;
   raw_features?: Record<string, unknown> | null;
 };
 

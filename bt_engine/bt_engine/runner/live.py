@@ -611,15 +611,42 @@ def run_live(
             "[PARTIAL_TP] trade_id=%s ticket=%s close_qty=%.4f new_sl=%.5f",
             tr.trade_id, ticket, close_qty, new_sl,
         )
+
+        # Snapshot the broker volume BEFORE the close — used to distinguish a
+        # genuinely-failed CLOSE_PARTIAL from one the DWX EA executed but acked
+        # slower than the command timeout (observed on JustMarkets: the 5s
+        # send_command wait raises TimeoutError while the deal still fills).
+        pre = _live_position(bridge, ticket)
+        pre_vol = _float_or_none(pre.get("volume")) if pre else None
+
         # 1) partial close FIRST so remaining position is correct at MODIFY.
         try:
             broker.close_partial(ticket, close_qty)
         except Exception as e:
-            log.error("[PARTIAL_TP] close_partial failed ticket=%s: %s", ticket, e)
-            _persist_partial_tp_event(
-                "PARTIAL_TP_CLOSE_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
-            )
-            return
+            # Do NOT trust the raised error — verify against the broker's own
+            # open_orders before giving up. Slow-ack ≠ reject.
+            post = _live_position(bridge, ticket)
+            if _close_partial_succeeded(pre_vol, post, close_qty):
+                if post is None:
+                    log.warning(
+                        "[PARTIAL_TP] close_partial raised (%s) but ticket %s no longer "
+                        "open — treating as closed", e, ticket,
+                    )
+                    _persist_partial_tp_event(
+                        "PARTIAL_TP_CLOSE_RECOVERED", tr, bar, ticket, close_qty, new_sl,
+                        f"slow-ack; position gone. cause={e}",
+                    )
+                    return
+                log.warning(
+                    "[PARTIAL_TP] close_partial raised (%s) but broker volume dropped "
+                    "(pre=%s) — slow-ack, continuing to SL→BE", e, pre_vol,
+                )
+            else:
+                log.error("[PARTIAL_TP] close_partial failed ticket=%s: %s", ticket, e)
+                _persist_partial_tp_event(
+                    "PARTIAL_TP_CLOSE_FAILED", tr, bar, ticket, close_qty, new_sl, str(e),
+                )
+                return
         # 2) modify SL → BE on remainder. Retry on failure; on terminal failure
         #    SAFE-CLOSE the remaining position rather than leave it exposed with
         #    the original (further-away) SL.
@@ -632,6 +659,15 @@ def run_live(
                 break
             except Exception as e:
                 last_err = str(e)
+                # Slow-ack guard: the MODIFY may have applied even though the
+                # command wait timed out. Confirm against broker's live SL.
+                if _sl_at_be(_live_position(bridge, ticket), new_sl):
+                    log.warning(
+                        "[PARTIAL_TP] modify_sl raised (%s) but live SL already at "
+                        "BE — slow-ack, treating as applied", e,
+                    )
+                    modify_ok = True
+                    break
                 log.warning(
                     "[PARTIAL_TP] modify_sl attempt %d/3 failed ticket=%s: %s",
                     attempt + 1, ticket, e,
@@ -841,6 +877,52 @@ def _safe_account_info(bridge: DwxBridge) -> dict[str, Any]:
         return info if isinstance(info, dict) else {}
     except Exception:
         return {}
+
+
+def _live_position(bridge: DwxBridge, ticket: str) -> dict[str, Any] | None:
+    """Broker's own view of `ticket` from open_orders.json, or None if not open."""
+    try:
+        orders = bridge.open_orders()
+    except Exception:
+        return None
+    if not isinstance(orders, dict):
+        return None
+    pos = orders.get(str(ticket))
+    return pos if isinstance(pos, dict) else None
+
+
+def _close_partial_succeeded(
+    pre_vol: float | None, post_pos: dict[str, Any] | None, close_qty: float
+) -> bool:
+    """Decide whether a CLOSE_PARTIAL actually took effect on the broker,
+    IGNORING whether the command ack timed out.
+
+    JustMarkets' DWX EA sometimes fills the partial but acks slower than the
+    5s command wait → close_partial() raises TimeoutError even though the deal
+    went through. Ground-truth beats ack timing:
+      * position gone entirely  → the close (over-)filled → success
+      * volume dropped by ≥ half the requested close_qty → success (partial fill)
+      * otherwise → genuine failure
+    """
+    if post_pos is None:
+        return True  # position closed out — nothing left, treat as done
+    post_vol = _float_or_none(post_pos.get("volume"))
+    if pre_vol is None or post_vol is None:
+        return False  # can't verify → don't claim success
+    return (pre_vol - post_vol) >= close_qty * 0.5
+
+
+def _sl_at_be(post_pos: dict[str, Any] | None, new_sl: float, tol: float = 0.01) -> bool:
+    """True if the broker's live SL already sits at breakeven (within `tol`).
+
+    Used to recover from a MODIFY whose ack timed out but which the EA applied.
+    """
+    if post_pos is None:
+        return False
+    live_sl = _float_or_none(post_pos.get("sl"))
+    if live_sl is None:
+        return False
+    return abs(live_sl - new_sl) <= tol
 
 
 def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, timeframe: str) -> BtTrade:

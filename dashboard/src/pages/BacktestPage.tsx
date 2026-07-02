@@ -193,7 +193,7 @@ export function BacktestPage({
     const avg = n > 0 ? netSum / n : 0;
 
     // $ PnL @ 1.0 lot — real, derived from gross_r × risk_units × contract_size.
-    const pnlPerTrade = closed.map((t) => tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features) ?? 0);
+    const pnlPerTrade = closed.map((t) => tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0);
     const pnlUsd = pnlPerTrade.reduce((s, p) => s + p, 0);
     const avgPnl = n > 0 ? pnlUsd / n : 0;
 
@@ -660,7 +660,7 @@ export function BacktestPage({
               {
                 header: "$ PnL",
                 cell: (t) => {
-                  const pnl = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features);
+                  const pnl = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd);
                   return (
                     <span
                       className={`font-mono font-semibold ${colorForR(pnl)}`}

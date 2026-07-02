@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 export type WsEnvelope = {
-  channel: "journal" | "signal" | "trade" | "account" | "account_live" | "price" | "hello" | "pong";
+  channel: "journal" | "signal" | "trade" | "account" | "account_live" | "price" | "positions_live" | "hello" | "pong";
   run_id: string | null;
   ts: string;
   payload: Record<string, unknown>;

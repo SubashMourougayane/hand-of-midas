@@ -13,7 +13,12 @@ from datetime import timezone
 import pandas as pd
 
 from bt_engine.core.order import Fill, OpenTrade, Order
-from bt_engine.runner.live import _bt_trade_from_open, _to_dt
+from bt_engine.runner.live import (
+    _bt_trade_from_open,
+    _close_partial_succeeded,
+    _sl_at_be,
+    _to_dt,
+)
 
 
 def test_to_dt_naive_is_localized_to_utc():
@@ -102,3 +107,56 @@ def test_bt_trade_from_open_handles_missing_extra_keys():
     assert bt.pivot_lb is None
     assert bt.partial_tp_at_r is None
     assert bt.partial_taken is False  # default not None
+
+
+# ---------------------------------------------------------------------------
+# Partial-TP slow-ack recovery (2026-07-02 bug).
+#
+# JustMarkets' DWX EA executed CLOSE_PARTIAL / MODIFY but acked slower than the
+# 5s command wait. The runner raised TimeoutError and logged PARTIAL_TP_CLOSE_FAILED,
+# leaving DB partial_taken=False and SL at full distance while the broker had
+# actually halved volume. These helpers decide success from BROKER GROUND TRUTH
+# (open_orders volume / SL), not from whether the command acked in time.
+# ---------------------------------------------------------------------------
+
+
+def test_close_partial_succeeded_when_volume_halved():
+    # pre 0.02 → post 0.01, requested close 0.01 → success despite ack timeout.
+    assert _close_partial_succeeded(0.02, {"volume": 0.01}, 0.01) is True
+
+
+def test_close_partial_succeeded_when_position_gone():
+    # Position no longer open → the close (over-)filled → success.
+    assert _close_partial_succeeded(0.02, None, 0.01) is True
+
+
+def test_close_partial_failed_when_volume_unchanged():
+    # Volume didn't move → genuine failure, must NOT claim success.
+    assert _close_partial_succeeded(0.02, {"volume": 0.02}, 0.01) is False
+
+
+def test_close_partial_failed_when_pre_volume_unknown():
+    # Can't verify (no pre snapshot) → conservative: do not claim success.
+    assert _close_partial_succeeded(None, {"volume": 0.01}, 0.01) is False
+
+
+def test_close_partial_accepts_partial_shrink_at_least_half():
+    # EA closed only part of the requested qty but ≥ half → still counts.
+    assert _close_partial_succeeded(0.02, {"volume": 0.015}, 0.01) is True
+    # less than half the requested reduction → not enough evidence.
+    assert _close_partial_succeeded(0.02, {"volume": 0.018}, 0.01) is False
+
+
+def test_sl_at_be_true_within_tolerance():
+    assert _sl_at_be({"sl": 4068.31}, 4068.31) is True
+    assert _sl_at_be({"sl": 4068.315}, 4068.31, tol=0.01) is True
+
+
+def test_sl_at_be_false_when_original_distance():
+    # SL still at original (far) price → BE modify did NOT apply.
+    assert _sl_at_be({"sl": 4010.89}, 4068.31) is False
+
+
+def test_sl_at_be_false_when_no_position_or_missing_sl():
+    assert _sl_at_be(None, 4068.31) is False
+    assert _sl_at_be({"volume": 0.01}, 4068.31) is False

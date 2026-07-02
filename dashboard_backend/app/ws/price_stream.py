@@ -30,6 +30,7 @@ DWX_DIR = Path(os.environ.get(
 ))
 MARKET_FILE = DWX_DIR / "market_data.json"
 ACCOUNT_FILE = DWX_DIR / "account_info.json"
+OPEN_ORDERS_FILE = DWX_DIR / "open_orders.json"
 
 # Absolute price floors per symbol (base name, pre-suffix). A quote below this
 # is a torn/partial read (leading digits dropped), not a real tick.
@@ -45,6 +46,19 @@ _PRICE_FLOOR = {
 # without hammering. Only fans out when a quote actually CHANGES.
 POLL_S = 1.0
 
+# Contract size (units per 1.0 lot) per symbol base name. Used to recompute
+# unrealised P&L from the LIVE tick, since open_orders.json 'profit' lags the
+# terminal by several seconds on fast moves.
+_CONTRACT_SIZE = {
+    "XAUUSD": 100.0,
+    "BRENT": 1000.0,
+    "EURUSD": 100_000.0,
+    "GBPUSD": 100_000.0,
+    "USDJPY": 100_000.0,
+    "AUDUSD": 100_000.0,
+    "BTCUSD": 1.0,
+}
+
 
 class PriceStreamer:
     """Background task: reads market_data.json, pushes changed quotes to broker."""
@@ -55,6 +69,7 @@ class PriceStreamer:
         self._stopped = False
         self._last: dict[str, tuple[float, float]] = {}  # symbol -> (bid, ask)
         self._last_acct: tuple | None = None  # (balance, equity, profit)
+        self._last_pos: dict | None = None  # ticket -> unrealized profit snapshot
 
     async def start(self) -> None:
         if self._task is not None:
@@ -83,6 +98,10 @@ class PriceStreamer:
                 await self._acct_tick()
             except Exception:
                 log.debug("acct tick failed", exc_info=True)
+            try:
+                await self._positions_tick()
+            except Exception:
+                log.debug("positions tick failed", exc_info=True)
             await asyncio.sleep(POLL_S)
 
     async def _acct_tick(self) -> None:
@@ -120,6 +139,82 @@ class PriceStreamer:
                 "margin": _f(a.get("margin")),
                 "free_margin": _f(a.get("free_margin")),
             },
+        })
+
+    async def _positions_tick(self) -> None:
+        """Push per-ticket live UNREALISED P&L (broker truth) so the Trades page
+        can show a floating $ figure on OPEN trades — which have no realised
+        net_r / broker_net_usd in the DB yet.
+
+        Channel 'positions_live'. Payload maps broker_ticket -> live snapshot.
+        Frontend matches on Trade.broker_ticket. Read-only file tail; never
+        touches strategy/engine/live code."""
+        if not OPEN_ORDERS_FILE.is_file():
+            return
+        try:
+            raw = json.loads(OPEN_ORDERS_FILE.read_text())
+        except Exception:
+            return
+        orders = raw.get("orders", raw) if isinstance(raw, dict) else None
+        if not isinstance(orders, dict):
+            return
+        positions: dict[str, dict] = {}
+        for ticket, v in orders.items():
+            if not isinstance(v, dict):
+                continue
+            symbol = v.get("symbol")
+            vol = _f(v.get("volume"))
+            open_price = _f(v.get("open_price"))
+            swap = _f(v.get("swap")) or 0.0
+            file_profit = _f(v.get("profit"))
+            side = str(v.get("type", "")).upper()  # BUY / SELL
+
+            # Recompute unrealised P&L from the LIVE tick rather than the file's
+            # lagging 'profit'. The EA writes open_orders.json in slow bursts
+            # (~8s stale on fast moves); market_data updates ~1s. Same close-out
+            # convention MT5 uses: longs mark to bid, shorts to ask.
+            unrealized = file_profit  # fallback to file value
+            price_source = "file"
+            quote = self._last.get(symbol) if symbol else None
+            contract = _CONTRACT_SIZE.get(str(symbol).split(".")[0]) if symbol else None
+            if quote and open_price and vol and contract:
+                bid, ask = quote
+                mark = None
+                if side == "BUY" and bid:
+                    mark = bid
+                    px_pnl = (mark - open_price) * vol * contract
+                elif side == "SELL" and ask:
+                    mark = ask
+                    px_pnl = (open_price - mark) * vol * contract
+                else:
+                    px_pnl = None
+                if px_pnl is not None:
+                    unrealized = round(px_pnl + swap, 2)
+                    price_source = "tick"
+
+            if unrealized is None:
+                continue
+            positions[str(ticket)] = {
+                "ticket": str(ticket),
+                "symbol": symbol,
+                "volume": vol,
+                "open_price": open_price,
+                "sl": _f(v.get("sl")),
+                "tp": _f(v.get("tp")),
+                "unrealized_usd": unrealized,
+                "swap": swap,
+                "price_source": price_source,  # 'tick' (live) or 'file' (lagging)
+            }
+        # Snapshot key = ticket -> rounded profit; skip broadcast if unchanged.
+        key = {t: round(p["unrealized_usd"], 2) for t, p in positions.items()}
+        if self._last_pos == key:
+            return
+        self._last_pos = key
+        await self._broker.broadcast({
+            "channel": "positions_live",
+            "run_id": None,
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "payload": {"positions": positions},
         })
 
     async def _tick(self) -> None:

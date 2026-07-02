@@ -25,7 +25,7 @@ export function PnlCalendar({
       if (t.net_r == null || !t.entry_timestamp) return;
       const d = t.entry_timestamp.slice(0, 10);
       r[d] = (r[d] || 0) + (t.net_r ?? 0);
-      const pnl = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features) ?? 0;
+      const pnl = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0;
       u[d] = (u[d] || 0) + pnl;
     });
     const months: Record<string, { date: string; r: number; usd: number }[]> = {};

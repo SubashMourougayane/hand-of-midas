@@ -139,7 +139,7 @@ function App() {
             />
             <Route
               path="/trades"
-              element={<TradesPage runId={selectedRunId} />}
+              element={<TradesPage runId={selectedRunId} ws={ws} />}
             />
             <Route
               path="/signals"

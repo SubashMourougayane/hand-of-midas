@@ -136,15 +136,22 @@ export const tradePnlUsd = (
   return net_r * risk_units * contractSizeFor(symbol);
 };
 
-// PRODUCTION-spec $ PnL — if the trade carries a pre-computed `pnl_usd`
-// in raw_features (combined runs replayed with EquitySizer), use it.
-// Falls back to 1.0-lot math for legacy/unsigned runs.
+// PRODUCTION-spec $ PnL. Priority:
+//   1. broker_net_usd — REAL broker-reconciled $ at the actual traded lot
+//      (live trades). This is ground truth; use it whenever present.
+//   2. raw_features.pnl_usd — pre-computed sized $ (combined BT replay w/ EquitySizer).
+//   3. 1.0-lot math (net_r × risk_units × contract) — legacy/unsized runs ONLY.
+// NOTE: the 1.0-lot fallback assumes qty=1.0 = 100oz XAU, which is ~30-1000×
+// the real live lot (0.02-0.43). Never apply it to a live trade that has a
+// broker_net_usd — that is what produced the "insane numbers".
 export const tradePnlReal = (
   symbol: string | null | undefined,
   net_r?: number | null,
   risk_units?: number | null,
-  raw_features?: Record<string, unknown> | null
+  raw_features?: Record<string, unknown> | null,
+  broker_net_usd?: number | null
 ): number | null => {
+  if (typeof broker_net_usd === "number") return broker_net_usd;
   const sized = raw_features?.["pnl_usd"];
   if (typeof sized === "number") return sized;
   return tradePnlUsd(symbol, net_r, risk_units);
