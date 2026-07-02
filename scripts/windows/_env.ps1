@@ -19,7 +19,7 @@ if (-not $env:DWX_DIR) {
 # password is not an internet-exposed secret -- but change PASS to the real
 # postgres pw set during bootstrap. If unset, code default assumes trust auth.
 if (-not $env:BT_ENGINE_DB_URL) {
-  $env:BT_ENGINE_DB_URL = "postgresql+psycopg2://postgres:midas@localhost:5432/golddigger_bt"
+  $env:BT_ENGINE_DB_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/golddigger_bt"
 }
 
 function Assert-Repo {
