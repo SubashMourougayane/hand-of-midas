@@ -49,9 +49,10 @@ function App() {
     [allRuns, onBacktest]
   );
 
-  // Load all runs initially + every 30s as fallback. Runs aren't part of the
+  // Load all runs initially + every 60s as fallback. Runs aren't part of the
   // WS feed (only trade/signal/journal/account channels are), so a slow poll
   // is the only way to detect a freshly-created run from another process.
+  // Live trade/signal/account data all arrives via WS — this is discovery-only.
   useEffect(() => {
     let mounted = true;
     const load = async () => {
@@ -64,7 +65,7 @@ function App() {
       }
     };
     load();
-    const t = setInterval(load, 30000);
+    const t = setInterval(load, 60000);
     return () => {
       mounted = false;
       clearInterval(t);

@@ -60,9 +60,9 @@ export function LivePage({
   const [livePos, setLivePos] = useState<
     Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null }>
   >({});
-  // Lifetime closed-trade stats across all live-strategy runs.
-  const [allClosed, setAllClosed] = useState<Trade[]>([]);
   const flashTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  // Debounce per-leg open-trade refetch on WS trade bursts (avoid N² storm).
+  const tradeRefetch = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [, setTick] = useState(0);
   // Broker-truth live account (balance/equity/open_pnl), streamed tick-by-tick
   // from account_info.json via the WS 'account_live' channel. Account-WIDE
@@ -117,50 +117,13 @@ export function LivePage({
     });
   }, []);
 
-  // Lifetime stats — pull CLOSED trades across every run (live + ended) of the
-  // live strategies, so the stats band reflects the whole track record, not
-  // just the current run. Slow poll (30s) + refresh on trade events.
-  const hydrateStats = useCallback(async () => {
-    try {
-      // Only the strategies CURRENTLY live (e.g. fib_v2_intraday_a/_d) — exclude
-      // unrelated / retired live strategies (sdr001, …) so the track record
-      // reflects the running book, not historical experiments.
-      const runsAll = await api.runs(200, "live");
-      const activeStrats = new Set(
-        runsAll.filter((r) => !r.end_ts).map((r) => r.strategy_id)
-      );
-      const runs = runsAll.filter((r) => activeStrats.has(r.strategy_id));
-      const lists = await Promise.all(
-        runs.map((r) =>
-          api.runTrades(r.run_id, "closed", 1, 50000).then((x) => x.items).catch(() => [] as Trade[])
-        )
-      );
-      // Dedup by trade_id (same position adopted across restarts).
-      const seen = new Set<string>();
-      const merged: Trade[] = [];
-      for (const t of lists.flat()) {
-        if (t.exit_timestamp == null) continue;
-        if (seen.has(t.trade_id)) continue;
-        seen.add(t.trade_id);
-        merged.push(t);
-      }
-      setAllClosed(merged);
-    } catch {
-      /* keep prior */
-    }
-  }, []);
-
-  useEffect(() => {
-    hydrateStats();
-    const t = setInterval(hydrateStats, 30_000);
-    return () => clearInterval(t);
-  }, [hydrateStats]);
-
-  // Initial hydrate + slow poll to detect a freshly-started/ended leg
-  // (run list is not part of the WS feed).
+  // Initial hydrate + slow poll to detect a freshly-started/ended leg. The run
+  // list is NOT part of the WS feed, so this poll is discovery-only; live
+  // trade/signal/account/price updates all arrive via WS in real time. 60s is
+  // plenty for spotting a leg that started/stopped.
   useEffect(() => {
     hydrate();
-    const t = setInterval(hydrate, 30_000);
+    const t = setInterval(hydrate, 60_000);
     return () => clearInterval(t);
   }, [hydrate]);
 
@@ -290,17 +253,28 @@ export function LivePage({
           if (!prev[rid]) return prev;
           return { ...prev, [rid]: { ...prev[rid], lastEventAt: now } };
         });
-        // Trade lifecycle changed — refetch just this leg's open trades.
-        api
-          .runTrades(rid, "open")
-          .then((tr) =>
-            setLegs((prev) =>
-              prev[rid]
-                ? { ...prev, [rid]: { ...prev[rid], trades: tr.items } }
-                : prev
-            )
-          )
-          .catch(() => {});
+        // Trade lifecycle changed — refetch just this leg's open trades, but
+        // DEBOUNCE: a burst of trade events (partial TP + entry + exit on both
+        // legs) would otherwise fire many redundant fetches. Coalesce to one
+        // fetch per leg per 4s window.
+        const pending = tradeRefetch.current.get(rid);
+        if (pending) clearTimeout(pending);
+        tradeRefetch.current.set(
+          rid,
+          setTimeout(() => {
+            tradeRefetch.current.delete(rid);
+            api
+              .runTrades(rid, "open")
+              .then((tr) =>
+                setLegs((prev) =>
+                  prev[rid]
+                    ? { ...prev, [rid]: { ...prev[rid], trades: tr.items } }
+                    : prev
+                )
+              )
+              .catch(() => {});
+          }, 4000)
+        );
       }
 
       if (env.channel === "account") {
@@ -443,35 +417,6 @@ export function LivePage({
     : -1;
   const px = prices["XAUUSD.ecn"] ?? null;
 
-  // Lifetime closed-trade stats (broker-truth $ where available).
-  const stats = useMemo(() => {
-    const closed = allClosed;
-    // Win/loss by $ (broker truth) so it matches the shown P&L — a trade that
-    // is +R but −$ (e.g. SL_BE that ate cost) is a $ loss, not a win. Fall back
-    // to R only when the broker $ is missing.
-    const pnlOf = (t: Trade) => t.broker_net_usd ?? (t.net_r ?? 0);
-    const wins = closed.filter((t) => pnlOf(t) > 0);
-    const losses = closed.filter((t) => pnlOf(t) < 0);
-    const partials = closed.filter((t) => t.partial_taken).length;
-    const netR = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
-    // $ = broker-truth only. NEVER the 1-lot fantasy (net_r×risk×100) — that
-    // massively overstates (assumes 1.0 lot vs real 0.01–0.13). Trades without
-    // a reconciled broker_net_usd contribute $0 but still count in N/wins/losses.
-    const usd = closed.reduce((s, t) => s + (t.broker_net_usd ?? 0), 0);
-    const usdPartial = closed.some((t) => t.broker_net_usd == null);
-    const wr = closed.length ? (wins.length / closed.length) * 100 : 0;
-    return {
-      n: closed.length,
-      wins: wins.length,
-      losses: losses.length,
-      partials,
-      netR,
-      usd,
-      usdPartial,
-      wr,
-    };
-  }, [allClosed]);
-
   // Position split + aggregate risk across all open trades.
   const openTrades = legList.flatMap((l) => l.trades);
   const nLong = openTrades.filter((t) => t.side > 0).length;
@@ -578,55 +523,10 @@ export function LivePage({
         </div>
       </section>
 
-      {/* ══ SECTION 02 · track record (lifetime closed stats) ══ */}
+      {/* ══ SECTION 02 · open positions ══ */}
       <section className="flex flex-col gap-3">
         <SectionHeader
           index="02"
-          title="Track Record"
-          question="How has the book done overall?"
-          right={
-            <span className="font-mono text-ds-xs text-ink-muted">{stats.n} closed</span>
-          }
-        />
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
-          <div className="glass rounded-ds-lg">
-            <StatTile
-              label="Overall P&L"
-              value={
-                `${stats.usdPartial ? "~" : ""}${stats.usd >= 0 ? "+" : "−"}${fmtMoneyBare(stats.usd)}`
-              }
-              unit="USD"
-              tone={stats.usd >= 0 ? "bull" : "bear"}
-              animateOn={stats.usd}
-              sub={
-                stats.usdPartial
-                  ? "broker-settled trades only"
-                  : `${stats.netR >= 0 ? "+" : ""}${stats.netR.toFixed(2)}R`
-              }
-            />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Trades" value={String(stats.n)} sub="closed" />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Wins" value={String(stats.wins)} tone="bull" />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Losses" value={String(stats.losses)} tone="bear" />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Win Rate" value={stats.wr.toFixed(0)} unit="%" />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Partials Booked" value={String(stats.partials)} sub="scaled out" />
-          </div>
-        </div>
-      </section>
-
-      {/* ══ SECTION 03 · open positions ══ */}
-      <section className="flex flex-col gap-3">
-        <SectionHeader
-          index="03"
           title="Open Positions"
           question={
             combined.positions > 0
