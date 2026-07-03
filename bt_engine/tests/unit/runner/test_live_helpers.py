@@ -16,6 +16,7 @@ from bt_engine.core.order import Fill, OpenTrade, Order
 from bt_engine.runner.live import (
     _bt_trade_from_open,
     _close_partial_succeeded,
+    _close_partial_succeeded_retry,
     _find_ticket_by_tag,
     _leg_owns_position,
     _sl_at_be,
@@ -147,6 +148,26 @@ def test_close_partial_accepts_partial_shrink_at_least_half():
     assert _close_partial_succeeded(0.02, {"volume": 0.015}, 0.01) is True
     # less than half the requested reduction → not enough evidence.
     assert _close_partial_succeeded(0.02, {"volume": 0.018}, 0.01) is False
+
+
+def test_close_partial_retry_catches_slow_ack():
+    """Slow-ack: open_orders still shows pre-volume on the first read(s), then
+    updates. The retry helper must poll until the reduction appears (the
+    2026-07-03 orphan bug: single read saw stale vol -> false failure)."""
+    class _Bridge:
+        def __init__(self, seq): self._seq = list(seq); self._i = 0
+        def open_orders(self):
+            v = self._seq[min(self._i, len(self._seq) - 1)]; self._i += 1
+            return {"555": {"volume": v}} if v is not None else {}
+    # reads: stale 0.12, stale 0.12, then reduced 0.06 -> success on 3rd poll
+    b = _Bridge([0.12, 0.12, 0.06])
+    assert _close_partial_succeeded_retry(b, "555", 0.12, 0.06, attempts=4, backoff_s=0) is True
+    # genuine failure: volume never drops
+    b2 = _Bridge([0.12, 0.12, 0.12, 0.12])
+    assert _close_partial_succeeded_retry(b2, "555", 0.12, 0.06, attempts=4, backoff_s=0) is False
+    # position gone entirely -> success
+    b3 = _Bridge([0.12, None])
+    assert _close_partial_succeeded_retry(b3, "555", 0.12, 0.06, attempts=4, backoff_s=0) is True
 
 
 def test_sl_at_be_true_within_tolerance():

@@ -657,9 +657,11 @@ def run_live(
             broker.close_partial(ticket, close_qty)
         except Exception as e:
             # Do NOT trust the raised error — verify against the broker's own
-            # open_orders before giving up. Slow-ack ≠ reject.
-            post = _live_position(bridge, ticket)
-            if _close_partial_succeeded(pre_vol, post, close_qty):
+            # open_orders before giving up. Slow-ack ≠ reject. RETRY the read
+            # with backoff: the EA rewrites open_orders.json slower than the 5s
+            # command wait, so an immediate single read sees stale pre-volume.
+            if _close_partial_succeeded_retry(bridge, ticket, pre_vol, close_qty):
+                post = _live_position(bridge, ticket)
                 if post is None:
                     log.warning(
                         "[PARTIAL_TP] close_partial raised (%s) but ticket %s no longer "
@@ -983,6 +985,27 @@ def _close_partial_succeeded(
     if pre_vol is None or post_vol is None:
         return False  # can't verify → don't claim success
     return (pre_vol - post_vol) >= close_qty * 0.5
+
+
+def _close_partial_succeeded_retry(
+    bridge: DwxBridge, ticket: str, pre_vol: float | None, close_qty: float,
+    *, attempts: int = 4, backoff_s: float = 0.5,
+) -> bool:
+    """Poll the broker's open_orders a few times before judging a slow-ack
+    CLOSE_PARTIAL. The EA fills the partial but can ack — AND rewrite
+    open_orders.json — slower than the 5s command wait. A single immediate read
+    then sees stale pre-volume and wrongly reports failure (observed 2026-07-03:
+    ticket 2125574587 partial filled at broker but runner marked the trade
+    SL_BE-closed, orphaning the 0.06 remainder). Re-read with backoff so the
+    reduced volume / gone position has time to appear.
+    """
+    for i in range(attempts):
+        post = _live_position(bridge, ticket)
+        if _close_partial_succeeded(pre_vol, post, close_qty):
+            return True
+        if i < attempts - 1:
+            time.sleep(backoff_s * (i + 1))
+    return False
 
 
 def _sl_at_be(post_pos: dict[str, Any] | None, new_sl: float, tol: float = 0.01) -> bool:
