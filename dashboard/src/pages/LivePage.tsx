@@ -469,11 +469,29 @@ export function LivePage({
     (s, t) => s + (t.risk_units ?? 0) * 100,
     0
   );
-  // Day P&L = realized $ from trades CLOSED today + current open float.
-  // (NOT equity−balance, which is just the open float and duplicates Open P&L.)
+  // Booked $ already realised on STILL-OPEN trades (partial-TP). Prefer live WS
+  // booked, else the DB raw_features fallback (deal aged off the bridge). Counted
+  // the same way the Trades page counts it, so the two pages stay consistent.
+  const openBooked = openTrades.reduce((s, t) => {
+    const lp = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
+    const dbBooked = Number(
+      (t.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
+    );
+    const booked =
+      lp?.booked_usd != null && Math.abs(lp.booked_usd) > 0.001
+        ? lp.booked_usd
+        : Number.isFinite(dbBooked)
+        ? dbBooked
+        : 0;
+    return s + booked;
+  }, 0);
+  // Day P&L = realized today (closed) + booked-on-open partials + open float.
+  // (NOT equity−balance, which is just the float and duplicates Open P&L.)
   const openFloat = combined.openPnl;
   const dayPnl =
-    openFloat != null ? realizedToday + openFloat : realizedToday || null;
+    openFloat != null
+      ? realizedToday + openBooked + openFloat
+      : realizedToday + openBooked || null;
   const strategiesLive = legList.length;
 
   return (
@@ -532,9 +550,9 @@ export function LivePage({
               tone={dayPnl == null ? "neutral" : dayPnl >= 0 ? "bull" : "bear"}
               animateOn={dayPnl}
               sub={
-                realizedToday !== 0
-                  ? `${realizedToday >= 0 ? "+" : "−"}${fmtMoneyBare(realizedToday)} closed + float`
-                  : "closed today + float"
+                realizedToday !== 0 || openBooked !== 0
+                  ? `${realizedToday + openBooked >= 0 ? "+" : "−"}${fmtMoneyBare(realizedToday + openBooked)} booked + float`
+                  : "closed + booked + float"
               }
             />
           </div>
