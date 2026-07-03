@@ -55,10 +55,15 @@ Write-Host "  hash generated for user '$User'"
 # 4. Write the runtime Caddyfile (with the real hash) next to the repo copy.
 Section "Write Caddyfile"
 $cf = Join-Path $Repo "scripts\windows\Caddyfile.runtime"
+# Global block: disable the admin endpoint (port 2019) -- not needed as a
+# service, and a restart loop collides on it. basic_auth (not deprecated basicauth).
 @"
+{
+	admin off
+}
 $Domain {
 	encode gzip zstd
-	basicauth {
+	basic_auth {
 		$User $hash
 	}
 	reverse_proxy 127.0.0.1:8001
@@ -71,6 +76,10 @@ Section "Register caddy NSSM service"
 $ErrorActionPreference = "SilentlyContinue"
 & nssm status midas-caddy 2>&1 | Out-Null
 if ($LASTEXITCODE -eq 0) { & nssm stop midas-caddy 2>&1 | Out-Null; & nssm remove midas-caddy confirm 2>&1 | Out-Null }
+# Kill any orphan caddy holding port 2019/80/443 from a prior restart loop.
+Start-Sleep 2
+Get-Process caddy -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep 2
 $ErrorActionPreference = "Stop"
 $LogDir = Join-Path $Repo "logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
