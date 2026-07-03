@@ -59,12 +59,25 @@ class DwxBridge:
     def commands_dir(self) -> Path:
         return self.dwx_dir / "commands"
 
-    def is_alive(self) -> bool:
-        """EA writes account_info.json every 2s. mtime within 10s == alive."""
-        p = self.dwx_dir / "account_info.json"
-        if not p.is_file():
-            return False
-        return (time.time() - p.stat().st_mtime) < 10
+    def is_alive(self, max_age_s: float = 10.0) -> bool:
+        """EA rewrites account_info.json + market_data.json every ~2s while it's
+        running. account_info refreshes ON-TICK, so on a CLOSED market (weekend /
+        holiday) it goes stale even though the EA loop is perfectly alive and still
+        rewriting market_data.json each cycle (with a frozen quote).
+
+        Proof-of-life = EITHER file fresh within max_age_s. This lets a leg BOOT +
+        adopt/manage existing positions over a closed market instead of crash-
+        looping on the account_info freshness check. New entries can't fire on a
+        closed market anyway (no new bar closes → no signals), and the equity
+        sizer tracks its own equity (not account_info), so accepting a fresh
+        market_data.json here does NOT relax any new-entry sizing safety.
+        """
+        now = time.time()
+        for name in ("account_info.json", "market_data.json"):
+            p = self.dwx_dir / name
+            if p.is_file() and (now - p.stat().st_mtime) < max_age_s:
+                return True
+        return False
 
     def read_json(self, name: str, *, retries: int = 5, backoff_s: float = 0.05) -> Any:
         path = self.dwx_dir / name

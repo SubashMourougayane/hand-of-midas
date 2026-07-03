@@ -51,6 +51,37 @@ def test_is_alive_false_when_stale(tmp_path: Path) -> None:
 
     os.utime(p, (old, old))
     bridge = DwxBridge(dwx_dir=tmp_path)
+    # No fresh market_data.json either → genuinely dead.
+    assert bridge.is_alive() is False
+
+
+def test_is_alive_true_on_closed_market_via_market_data(tmp_path: Path) -> None:
+    """Closed market (weekend/holiday): account_info goes stale because the EA
+    only refreshes it on-tick, but the EA loop still rewrites market_data.json
+    each cycle (frozen quote). That fresh market_data is valid proof-of-life so
+    a leg can BOOT + adopt/manage existing positions. Regression 2026-07-03."""
+    import os
+
+    acct = tmp_path / "account_info.json"
+    _write(acct, {"balance": 1.0, "server": "JustMarkets-Demo2"})
+    old = time.time() - 3600  # 1h stale (market closed 1h ago)
+    os.utime(acct, (old, old))
+    # market_data rewritten just now (EA loop alive, frozen quote inside)
+    _write(tmp_path / "market_data.json", {"XAUUSD.ecn": {"bid": 4175.6, "ask": 4175.7}})
+    bridge = DwxBridge(dwx_dir=tmp_path)
+    assert bridge.is_alive() is True
+
+
+def test_is_alive_false_when_both_stale(tmp_path: Path) -> None:
+    """Both files stale → EA genuinely down → refuse to boot."""
+    import os
+
+    for name in ("account_info.json", "market_data.json"):
+        p = tmp_path / name
+        _write(p, {"x": 1})
+        old = time.time() - 60
+        os.utime(p, (old, old))
+    bridge = DwxBridge(dwx_dir=tmp_path)
     assert bridge.is_alive() is False
 
 
