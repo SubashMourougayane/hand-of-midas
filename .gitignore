@@ -51,3 +51,4 @@ research-baseline/data/raw/*.csv
 dashboard/tsconfig.tsbuildinfo
 dashboard/dist/
 dashboard/node_modules/
+scripts/windows/Caddyfile.runtime
