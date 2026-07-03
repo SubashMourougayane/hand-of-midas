@@ -211,7 +211,7 @@ export function SignalsPage({
               : `${signals.length} signals loaded`
           }
           toolbar={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full">
               <input
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -221,7 +221,7 @@ export function SignalsPage({
                   px-2 py-1 text-ds-sm font-mono text-ink-primary
                   placeholder:text-ink-muted
                   focus:outline-none focus:border-brass
-                  w-72
+                  flex-1 min-w-[140px] max-w-xs
                 "
               />
               <input
@@ -233,7 +233,7 @@ export function SignalsPage({
                   px-2 py-1 text-ds-sm font-mono text-ink-primary
                   placeholder:text-ink-muted
                   focus:outline-none focus:border-brass
-                  w-48
+                  flex-1 min-w-[100px] max-w-[12rem]
                 "
               />
               {(statusFilter || legFilter) && (
@@ -252,7 +252,7 @@ export function SignalsPage({
               </span>
             </div>
           }
-          className="lg:col-span-8 min-h-0"
+          className="lg:col-span-8 min-h-[50vh] lg:min-h-0 overflow-auto"
         >
           {timeline.length === 0 ? (
             <div className="px-3 py-10 text-center text-ink-muted text-ds-sm">
@@ -279,7 +279,7 @@ export function SignalsPage({
         <Pane
           title="Gate Funnel"
           subtitle="lifetime"
-          className="lg:col-span-4 min-h-0"
+          className="lg:col-span-4 min-h-[30vh] lg:min-h-0 overflow-auto"
         >
           <Funnel buckets={funnel} total={total} />
         </Pane>

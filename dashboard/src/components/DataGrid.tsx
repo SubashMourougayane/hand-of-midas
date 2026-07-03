@@ -26,7 +26,8 @@ export function DataGrid<T>({
   flashTone?: "bull" | "bear";
 }) {
   return (
-    <table className="w-full text-ds-sm">
+    <div className="w-full overflow-x-auto">
+    <table className="w-full min-w-[820px] text-ds-sm">
       <thead className="sticky top-0 z-10 bg-glass-strong backdrop-blur-md">
         <tr className="text-ink-muted text-ds-xs uppercase tracking-wide border-b border-glass-border">
           {columns.map((c, i) => (
@@ -95,5 +96,6 @@ export function DataGrid<T>({
         })}
       </tbody>
     </table>
+    </div>
   );
 }

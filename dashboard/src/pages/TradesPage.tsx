@@ -255,7 +255,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     );
 
   return (
-    <div className="h-full flex flex-col gap-6 px-4 sm:px-6 py-5 min-h-0 w-full">
+    <div className="h-full overflow-y-auto flex flex-col gap-6 px-4 sm:px-6 py-5 min-h-0 w-full">
       {/* ══ SECTION 01 · performance ══ */}
       <section className="flex flex-col gap-3 shrink-0">
         <SectionHeader index="01" title="Performance" question="How is this book doing?" />
@@ -357,7 +357,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
           </button>
         )}
       </div>
-      <Pane className="flex-1 min-h-0">
+      <Pane className="flex-1 min-h-[50vh] lg:min-h-0 overflow-auto">
         <DataGrid<Trade>
           rows={filtered}
           rowKey={(t) => t.trade_id}

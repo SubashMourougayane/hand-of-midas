@@ -111,6 +111,13 @@ function RunPicker({
 }
 
 
+// A finished BT run is IMMUTABLE — its trades/signals/funnel never change (a
+// re-run gets a fresh run_id). So cache the fetched payload by run_id at module
+// scope: revisiting a run (or re-mounting the page) serves instantly, no refetch
+// of 50k rows. New BT => new id => cache miss => fresh fetch. Zero staleness risk.
+type BtPayload = { detail: any; trades: Trade[]; signals: SignalRowT[]; funnel: FunnelBucket[] };
+const _btCache = new Map<string, BtPayload>();
+
 export function BacktestPage({
   runs,
 }: {
@@ -152,8 +159,19 @@ export function BacktestPage({
 
   useEffect(() => {
     if (!selectedRunId) return;
-    setLoading(true);
     setPage(1);
+    // Cache hit: immutable finished BT run — serve instantly, no refetch.
+    const cached = _btCache.get(selectedRunId);
+    if (cached) {
+      setDetail(cached.detail);
+      setTrades(cached.trades);
+      setSignals(cached.signals);
+      setFunnel(cached.funnel);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
     Promise.all([
       api.runDetail(selectedRunId),
       api.runTrades(selectedRunId, undefined, 1, 50000),
@@ -161,12 +179,17 @@ export function BacktestPage({
       api.funnel(selectedRunId).catch(() => ({ buckets: [] as FunnelBucket[] })),
     ])
       .then(([d, t, s, f]) => {
+        if (cancelled) return;
+        const payload: BtPayload = { detail: d, trades: t.items, signals: s, funnel: f.buckets };
+        // Only cache a FINISHED run (end_ts set) — an in-progress run still grows.
+        if (d?.run?.end_ts) _btCache.set(selectedRunId, payload);
         setDetail(d);
         setTrades(t.items);
         setSignals(s);
         setFunnel(f.buckets);
       })
-      .finally(() => setLoading(false));
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
   }, [selectedRunId]);
 
   // Reset paginator when filter changes so user lands on page 1 of new set.
