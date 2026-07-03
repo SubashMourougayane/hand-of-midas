@@ -257,6 +257,14 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
               ),
             },
             {
+              header: "Ticket",
+              cell: (t) => (
+                <span className="font-mono text-ds-xs text-ink-secondary">
+                  {t.broker_ticket || "—"}
+                </span>
+              ),
+            },
+            {
               header: sortHeader("Entry", "entry_timestamp", sort, setSortKey),
               cell: (t) => (
                 <span className="font-mono text-ds-xs text-ink-secondary">
