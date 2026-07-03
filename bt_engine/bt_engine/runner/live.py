@@ -426,6 +426,12 @@ def run_live(
     run_id = new_run_id()
     run_ref = f"{make_run_ref(strategy.upper(), 'live', seq=1)}-{run_id.hex[:8]}"
     try:
+        # A force-killed prior runner (NSSM restart) never closed its run, which
+        # would inflate the dashboard's live-strategy count. End any orphaned
+        # open live runs for THIS strategy before opening the fresh one.
+        _stale = RunRepo(s).close_stale_live_runs(strategy, datetime.now(timezone.utc))
+        if _stale:
+            log.info("[RUN] closed %d stale open live run(s) for %s on startup", _stale, strategy)
         RunRepo(s).create(
             run_id=run_id,
             ref=run_ref,

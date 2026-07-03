@@ -61,6 +61,25 @@ class RunRepo:
         run.end_ts = end_ts
         self.s.flush()
 
+    def close_stale_live_runs(self, strategy_id: str, end_ts: datetime) -> int:
+        """Mark any prior un-ended LIVE run for this strategy as ended.
+
+        A force-killed runner (e.g. NSSM restart) never reaches its graceful
+        close(), leaving orphaned open runs that inflate the dashboard's
+        strategy count. Call on startup BEFORE creating the fresh run so only
+        the newly-started run stays open for this strategy.
+        """
+        from sqlalchemy import update as _update
+        res = self.s.execute(
+            _update(BtRun)
+            .where(BtRun.mode == "live")
+            .where(BtRun.strategy_id == strategy_id)
+            .where(BtRun.end_ts.is_(None))
+            .values(end_ts=end_ts)
+        )
+        self.s.flush()
+        return res.rowcount or 0
+
 
 class TradeRepo:
     def __init__(self, session: Session) -> None:
