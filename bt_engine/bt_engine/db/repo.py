@@ -5,7 +5,7 @@ Same interface used by BT and live engine — only difference is who calls them.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -101,6 +101,35 @@ class TradeRepo:
             existing.entry_timestamp = trade.entry_timestamp
             existing.raw_features = trade.raw_features
         self.s.flush()
+
+    def supersede_stale_open_ticket(
+        self, broker_ticket: str, keep_trade_id: uuid.UUID, run_id: uuid.UUID
+    ) -> int:
+        """Close any OTHER still-open row for the same broker ticket.
+
+        A live entry writes a RANDOM trade_id; a later re-adoption (after a leg
+        restart) writes a DETERMINISTIC uuid5(ticket) id — a DIFFERENT row for
+        the SAME broker position. Without this, the original row is orphaned on
+        the now-ended run (dashboard-scoped-to-active-runs hides it; the position
+        looks lost). Mark those stale duplicates closed (reason SUPERSEDED) so
+        exactly ONE open row per ticket survives — the freshly-adopted one on the
+        current run. Broker position itself is untouched (DB bookkeeping only).
+        """
+        from sqlalchemy import update as _update
+        if not broker_ticket:
+            return 0
+        res = self.s.execute(
+            _update(BtTrade)
+            .where(BtTrade.broker_ticket == str(broker_ticket))
+            .where(BtTrade.trade_id != keep_trade_id)
+            .where(BtTrade.exit_timestamp.is_(None))
+            .values(
+                exit_timestamp=datetime.now(timezone.utc),
+                exit_reason="SUPERSEDED",
+            )
+        )
+        self.s.flush()
+        return res.rowcount or 0
 
     def close(
         self,

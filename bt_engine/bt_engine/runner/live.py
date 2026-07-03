@@ -495,6 +495,16 @@ def run_live(
             tr.order.tag,
         )
         trade_repo.upsert_open(_bt_trade_from_open(tr, run_id=run_id, strategy_id=strategy, timeframe=timeframe))
+        # Adopted position (deterministic uuid5 id) may leave the ORIGINAL live
+        # entry row (random id) open on a now-ended run — orphaning it from the
+        # active-run dashboard. Close any other still-open row for the same
+        # broker ticket so exactly ONE open row survives on the current run.
+        ext = tr.order.extra or {}
+        tkt = ext.get("broker_ticket") or broker_ticket
+        if tkt:
+            n = trade_repo.supersede_stale_open_ticket(str(tkt), tr.trade_id, run_id)
+            if n:
+                log.info("[ADOPT] superseded %d stale open row(s) for ticket %s", n, tkt)
         journal_repo.insert(
             trade_id=tr.trade_id,
             run_id=run_id,
