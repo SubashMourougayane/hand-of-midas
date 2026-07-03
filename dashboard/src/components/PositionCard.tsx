@@ -103,22 +103,25 @@ export function PositionCard({
               </span>
             </>
           ) : (
-            /* Partial taken → stacked formula: booked + floating = total. */
-            <div className="font-mono text-ds-xs tabular-nums grid grid-cols-[1rem_auto] gap-x-1 items-baseline text-right">
-              <span className="text-ink-dim" />
-              <MoneyRow usd={bookedUsd ?? 0} label="booked" />
-              <span className="text-ink-dim">+</span>
-              <MoneyRow usd={liveUsd ?? 0} label="floating" />
-              <span className="col-span-2 border-t border-glass-border my-0.5" />
-              <span className="text-ink-dim">=</span>
-              <span className="flex items-baseline justify-end gap-1">
-                <span className={`text-ds-md font-bold ${colorForR((liveUsd ?? 0) + (bookedUsd ?? 0))}`}>
-                  {(((liveUsd ?? 0) + (bookedUsd ?? 0)) >= 0 ? "+" : "−")}
-                  {fmtMoney(Math.abs((liveUsd ?? 0) + (bookedUsd ?? 0)), 2)}
-                </span>
-                <span className="text-ink-dim uppercase">total</span>
+            /* Partial taken → big TOTAL, then a one-line formula underneath:
+               "+$85 booked + +$317 floating = +$402 total". */
+            <>
+              <span className={`font-mono text-ds-xl font-bold tabular-nums ${colorForR((liveUsd ?? 0) + (bookedUsd ?? 0))}`}>
+                {(((liveUsd ?? 0) + (bookedUsd ?? 0)) >= 0 ? "+" : "−")}
+                {fmtMoney(Math.abs((liveUsd ?? 0) + (bookedUsd ?? 0)), 2)}
+                <span className="text-ds-xs text-ink-dim uppercase ml-1">total</span>
               </span>
-            </div>
+              <span className="font-mono text-ds-xs mt-1 tabular-nums">
+                <span className={colorForR(bookedUsd)}>
+                  {bookedUsd! >= 0 ? "+" : "−"}{fmtMoney(Math.abs(bookedUsd!), 0)}
+                </span>
+                <span className="text-ink-dim"> booked + </span>
+                <span className={colorForR(liveUsd)}>
+                  {(liveUsd ?? 0) >= 0 ? "+" : "−"}{fmtMoney(Math.abs(liveUsd ?? 0), 0)}
+                </span>
+                <span className="text-ink-dim"> float</span>
+              </span>
+            </>
           )}
         </div>
       </div>
@@ -163,18 +166,6 @@ export function PositionCard({
         }/>
       </div>
     </div>
-  );
-}
-
-// One aligned row of the stacked P&L formula: "+$85.68 booked".
-function MoneyRow({ usd, label }: { usd: number; label: string }) {
-  return (
-    <span className="flex items-baseline justify-end gap-1">
-      <span className={colorForR(usd)}>
-        {usd >= 0 ? "+" : "−"}{fmtMoney(Math.abs(usd), 2)}
-      </span>
-      <span className="text-ink-dim uppercase">{label}</span>
-    </span>
   );
 }
 

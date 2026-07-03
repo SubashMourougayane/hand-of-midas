@@ -24,12 +24,13 @@ from bt_engine.data.dwx_bridge import DwxBridge
 from bt_engine.runner.live import LiveSafetyBroker, LiveSafetyConfig
 
 
-def _order(*, side: int, entry: float, sl: float, tp: float, qty: float = 0.10) -> Order:
+def _order(*, side: int, entry: float, sl: float, tp: float, qty: float = 0.10,
+           tag: str = "test") -> Order:
     return Order(
         symbol="XAUUSD.ecn", side=side, qty=qty,
         intended_entry_bar=pd.Timestamp("2026-07-01 12:00:00", tz="UTC"),
         stop_price=sl, take_profit=tp, risk_units=abs(entry - sl),
-        tag="test", bracket_kind="1R", trade_id=uuid.uuid4(),
+        tag=tag, bracket_kind="1R", trade_id=uuid.uuid4(),
     )
 
 
@@ -160,3 +161,54 @@ def test_fills_no_order_context_passes_through() -> None:
     broker.prime_fill(100.0)
     fills = list(safe.fills())
     assert len(fills) == 1  # pass-through
+
+
+@dataclass
+class _SlowAckBroker:
+    """OPEN raises (ack timeout) but the position IS live at the broker."""
+    submitted: list = field(default_factory=list)
+    def set_current_bar(self, bar): pass
+    def submit_order(self, order):
+        self.submitted.append(order)
+        raise RuntimeError("No response within 5.0s")
+    def cancel(self, oid): pass
+    def modify(self, t, *, sl, tp=0.0): pass
+    def close_partial(self, t, q): pass
+    def last_response(self): return {}
+    def fills(self): return iter(())  # nothing — command errored
+    def positions(self): return []
+
+
+@dataclass
+class _SlowAckBridge:
+    """open_orders shows the recovered position (matched by tag→comment)."""
+    def open_orders(self):
+        return {"2126588609": {"symbol": "XAUUSD.ecn", "type": "BUY", "volume": 0.03,
+                                "open_price": 4166.18, "sl": 4119.77, "tp": 4389.6,
+                                "comment": "intraday_a_long_2026-07-03T02:1"}}
+    def market_data(self):
+        return {"XAUUSD.ecn": {"bid": 4166.0, "ask": 4166.2, "spread": 0.2}}
+    def account_info(self):
+        return {"server": "JustMarkets-Demo2", "balance": 10000.0, "equity": 10000.0}
+
+
+def test_open_slow_ack_recovers_ticket_and_fill() -> None:
+    """OPEN slow-ack: submit raises, but broker holds the position. The recovery
+    must (a) return the recovered ticket, (b) expose it via last_response, and
+    (c) yield a synthesised fill so on_open persists the trade. Regression for
+    2026-07-03 ticket 2126588609 (opened at broker, no DB row, orphaned)."""
+    broker = _SlowAckBroker()
+    bridge = _SlowAckBridge()
+    config = LiveSafetyConfig(require_demo=False, max_entry_slip_ratio=1.15,
+                                kill_switch_path=__import__("pathlib").Path("/tmp/NEVER_EXISTS_KILLSWITCH"))
+    safe = LiveSafetyBroker(broker, bridge, config, sizer=None)
+    order = _order(side=1, entry=4166.18, sl=4119.77, tp=4389.6, qty=0.03,
+                   tag="intraday_a_long_2026-07-03T02:15:00+00:00")  # matches comment prefix
+
+    tk = safe.submit_order(order)
+    assert tk == "2126588609"                       # (a) recovered ticket returned
+    assert safe.last_response().get("ticket") == "2126588609"  # (b) exposed
+    fills = list(safe.fills())
+    assert len(fills) == 1                           # (c) synthesised fill yielded
+    assert fills[0].price == 4166.18
+    assert fills[0].qty == 0.03

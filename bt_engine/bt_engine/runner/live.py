@@ -137,6 +137,11 @@ class LiveSafetyBroker:
         self.config = config
         self.sizer = sizer  # optional Model B equity sizer
         self.last_submitted_order: Order | None = None
+        # Set when an OPEN slow-acks: the underlying broker's fills() yields
+        # nothing (its last_response has success=False), so we synthesise the
+        # fill from the recovered broker position and yield it from fills().
+        self._recovered_fill: Fill | None = None
+        self._recovered_ticket: str | None = None
 
     def set_current_bar(self, bar: Bar) -> None:
         if hasattr(self.broker, "set_current_bar"):
@@ -145,6 +150,8 @@ class LiveSafetyBroker:
     def submit_order(self, order: Order) -> str:
         safe_order = self._safe_order(order)
         self.last_submitted_order = safe_order
+        self._recovered_fill = None
+        self._recovered_ticket = None
         try:
             return self.broker.submit_order(safe_order)
         except Exception as e:
@@ -162,6 +169,21 @@ class LiveSafetyBroker:
                         "[SUBMIT] OPEN ack timed out (%s) but broker filled tag=%s "
                         "as ticket=%s — slow-ack recovered", e, tag, tk,
                     )
+                    # The underlying broker's fills() will yield nothing (its
+                    # last_response failed), so synthesise the fill from the
+                    # broker's actual open position — else on_open never fires
+                    # and the position is orphaned (no DB row, unmanaged;
+                    # observed 2026-07-03: ticket 2126588609).
+                    self._recovered_ticket = tk
+                    pos = _live_position(self.bridge, tk)
+                    if pos is not None:
+                        fill_px = _float_or_none(pos.get("open_price")) or safe_order.stop_price
+                        fill_qty = _float_or_none(pos.get("volume")) or safe_order.qty
+                        self._recovered_fill = Fill(
+                            symbol=safe_order.symbol, side=safe_order.side,
+                            qty=fill_qty, price=fill_px,
+                            fill_timestamp=pd.Timestamp(datetime.now(timezone.utc)),
+                        )
                     return tk
                 _t.sleep(0.5)
             # Genuinely not opened — re-raise so the engine drops the order.
@@ -182,7 +204,12 @@ class LiveSafetyBroker:
         self.broker.close_all()
 
     def last_response(self) -> dict | None:
-        return self.broker.last_response()
+        resp = self.broker.last_response()
+        # On slow-ack recovery the underlying response has no ticket; surface
+        # the recovered one so the engine can persist broker_ticket.
+        if self._recovered_ticket and (not isinstance(resp, dict) or not resp.get("ticket")):
+            return {"success": True, "ticket": self._recovered_ticket, "recovered": True}
+        return resp
 
     def fills(self):
         """Yield each fill after validating actual slip vs expected risk.
@@ -199,7 +226,9 @@ class LiveSafetyBroker:
         intended if slip is large. Rejecting is safer than accepting.
         """
         order = self.last_submitted_order
+        yielded_any = False
         for fill in self.broker.fills():
+            yielded_any = True
             if order is None:
                 yield fill
                 continue
@@ -235,6 +264,17 @@ class LiveSafetyBroker:
                 fill.price, order.stop_price, actual, expected, ratio,
             )
             yield fill
+        # Slow-ack recovery: underlying broker yielded nothing (its OPEN command
+        # errored) but the position IS live at the broker. Yield the synthesised
+        # fill so the engine creates + persists the trade. Skip slip-reject — the
+        # position already exists; the on_bar reconciler manages it from here.
+        if not yielded_any and self._recovered_fill is not None:
+            log.warning(
+                "[SLIP-SKIP] yielding recovered slow-ack fill ticket=%s (position "
+                "already open at broker; not slip-checked)", self._recovered_ticket,
+            )
+            yield self._recovered_fill
+            self._recovered_fill = None
 
     def positions(self):
         return self.broker.positions()

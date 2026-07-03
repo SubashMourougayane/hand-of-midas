@@ -225,7 +225,7 @@ def _submit_live_order(deps: EngineDeps, order: Order, bar: Bar) -> tuple[Fill, 
         raise RuntimeError("live mode requires broker")
     if hasattr(deps.broker, "set_current_bar"):
         deps.broker.set_current_bar(bar)  # type: ignore[attr-defined]
-    deps.broker.submit_order(order)
+    submit_ticket = deps.broker.submit_order(order)
     submitted_order = getattr(deps.broker, "last_submitted_order", None) or order
     fill = next(deps.broker.fills(), None)
     if fill is None:
@@ -262,6 +262,14 @@ def _submit_live_order(deps: EngineDeps, order: Order, bar: Bar) -> tuple[Fill, 
             raw = resp.get("ticket")
             if raw is not None:
                 ticket = str(raw)
+    # OPEN slow-ack recovery: submit_order() returns the ticket it recovered by
+    # matching the order tag to the broker's open_orders (the command itself
+    # errored, so last_response has no ticket). Without this the position
+    # persists with broker_ticket=None → invisible in the dashboard + unmanaged
+    # (observed 2026-07-03: ticket 2126588609). Prefer last_response, fall back
+    # to the submit return value.
+    if ticket is None and submit_ticket:
+        ticket = str(submit_ticket)
     return normalized_fill, submitted_order, ticket
 
 
