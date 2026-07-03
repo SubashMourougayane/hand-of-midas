@@ -89,32 +89,36 @@ export function PositionCard({
           )}
         </div>
         <div className="flex flex-col items-end leading-none shrink-0">
-          {/* Big number = the FLOATING P&L on the remaining position. */}
-          <span className={`font-mono text-ds-xl font-bold tabular-nums ${pnlTone}`}>
-            <AnimatedNumber
-              numeric={liveUsd ?? null}
-              value={liveUsd == null ? "—" : `${pnlSign}${fmtMoney(Math.abs(liveUsd), 2)}`}
-            />
-          </span>
-          <span className={`font-mono text-ds-xs mt-1 ${colorForR(unrealR)}`}>
-            {fmtR(unrealR)}R <span className="text-ink-dim uppercase">floating</span>
-          </span>
-          {hasBooked && (
+          {!hasBooked ? (
             <>
-              <span className={`font-mono text-ds-xs mt-0.5 ${colorForR(bookedUsd)}`}>
-                {bookedUsd! >= 0 ? "+" : "−"}{fmtMoney(Math.abs(bookedUsd!), 2)}{" "}
-                <span className="text-ink-dim uppercase">booked (PTP)</span>
+              {/* No partial: single floating $ + R. */}
+              <span className={`font-mono text-ds-xl font-bold tabular-nums ${pnlTone}`}>
+                <AnimatedNumber
+                  numeric={liveUsd ?? null}
+                  value={liveUsd == null ? "—" : `${pnlSign}${fmtMoney(Math.abs(liveUsd), 2)}`}
+                />
               </span>
-              {liveUsd != null && (
-                <span className="font-mono text-ds-xs mt-0.5 text-ink-secondary border-t border-glass-border pt-0.5">
-                  ={" "}
-                  <span className={colorForR((liveUsd ?? 0) + (bookedUsd ?? 0))}>
-                    {(liveUsd + bookedUsd!) >= 0 ? "+" : "−"}{fmtMoney(Math.abs(liveUsd + bookedUsd!), 2)}
-                  </span>{" "}
-                  <span className="text-ink-dim uppercase">total</span>
-                </span>
-              )}
+              <span className={`font-mono text-ds-xs mt-1 ${colorForR(unrealR)}`}>
+                {fmtR(unrealR)}R <span className="text-ink-dim uppercase">floating</span>
+              </span>
             </>
+          ) : (
+            /* Partial taken → stacked formula: booked + floating = total. */
+            <div className="font-mono text-ds-xs tabular-nums grid grid-cols-[1rem_auto] gap-x-1 items-baseline text-right">
+              <span className="text-ink-dim" />
+              <MoneyRow usd={bookedUsd ?? 0} label="booked" />
+              <span className="text-ink-dim">+</span>
+              <MoneyRow usd={liveUsd ?? 0} label="floating" />
+              <span className="col-span-2 border-t border-glass-border my-0.5" />
+              <span className="text-ink-dim">=</span>
+              <span className="flex items-baseline justify-end gap-1">
+                <span className={`text-ds-md font-bold ${colorForR((liveUsd ?? 0) + (bookedUsd ?? 0))}`}>
+                  {(((liveUsd ?? 0) + (bookedUsd ?? 0)) >= 0 ? "+" : "−")}
+                  {fmtMoney(Math.abs((liveUsd ?? 0) + (bookedUsd ?? 0)), 2)}
+                </span>
+                <span className="text-ink-dim uppercase">total</span>
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -159,6 +163,18 @@ export function PositionCard({
         }/>
       </div>
     </div>
+  );
+}
+
+// One aligned row of the stacked P&L formula: "+$85.68 booked".
+function MoneyRow({ usd, label }: { usd: number; label: string }) {
+  return (
+    <span className="flex items-baseline justify-end gap-1">
+      <span className={colorForR(usd)}>
+        {usd >= 0 ? "+" : "−"}{fmtMoney(Math.abs(usd), 2)}
+      </span>
+      <span className="text-ink-dim uppercase">{label}</span>
+    </span>
   );
 }
 
