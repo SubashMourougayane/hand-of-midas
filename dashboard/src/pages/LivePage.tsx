@@ -494,6 +494,17 @@ export function LivePage({
       : realizedToday + openBooked || null;
   const strategiesLive = legList.length;
 
+  // THE number a human wants: am I up since I funded the account?
+  // Baseline = the 10K deposit the track record was reset to (2026-07-01).
+  // Total Return = current equity − deposit. Edit if the funded amount changes.
+  const DEPOSIT_BASELINE = 10000;
+  const totalReturn =
+    combined.equity != null ? combined.equity - DEPOSIT_BASELINE : null;
+  const totalReturnPct =
+    totalReturn != null ? (totalReturn / DEPOSIT_BASELINE) * 100 : null;
+  const trTone =
+    totalReturn == null ? "neutral" : totalReturn >= 0 ? "bull" : "bear";
+
   return (
     <div className="h-full overflow-auto flex flex-col gap-6 px-4 sm:px-6 py-5 w-full">
       {/* ══ SECTION 01 · account status ══ */}
@@ -509,17 +520,51 @@ export function LivePage({
           }
         />
 
-        {/* Editorial KPI band — 8 glass tiles in a responsive grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2.5">
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Equity" value={fmtMoneyBare(combined.equity)} unit="USD" animateOn={combined.equity} />
+        {/* ── HERO: the two numbers that actually matter ── */}
+        {/* Equity = what the account is worth now. Total Return = up/down since
+            the 10K deposit. Everything else is supporting context below. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+          <div className="glass-strong rounded-ds-lg px-5 py-4 flex flex-col justify-center">
+            <div className="text-ds-xs uppercase tracking-wide text-ink-muted">Equity</div>
+            <div className="mt-1 font-mono font-semibold text-ds-3xl leading-none text-ink-primary tabular-nums">
+              ${fmtMoneyBare(combined.equity)}
+            </div>
+            <div className="mt-1.5 text-ds-xs text-ink-muted">
+              balance <span className="font-mono text-ink-secondary">${fmtMoneyBare(combined.balance)}</span>
+              {openFloat != null && (
+                <>
+                  {" · "}float{" "}
+                  <span className={`font-mono ${openFloat >= 0 ? "text-bull" : "text-bear"}`}>
+                    {openFloat >= 0 ? "+" : "−"}${fmtMoneyBare(openFloat)}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile label="Balance" value={fmtMoneyBare(combined.balance)} unit="USD" />
+          <div className={`glass-strong rounded-ds-lg px-5 py-4 flex flex-col justify-center border-l-2 ${
+            trTone === "bull" ? "border-l-bull" : trTone === "bear" ? "border-l-bear" : "border-l-line-base"
+          }`}>
+            <div className="text-ds-xs uppercase tracking-wide text-ink-muted">Total Return · since $10k deposit</div>
+            <div className={`mt-1 font-mono font-bold text-ds-3xl leading-none tabular-nums ${
+              trTone === "bull" ? "text-bull" : trTone === "bear" ? "text-bear" : "text-ink-primary"
+            }`}>
+              {totalReturn == null ? "—" : `${totalReturn >= 0 ? "+" : "−"}$${fmtMoneyBare(totalReturn)}`}
+            </div>
+            <div className="mt-1.5 text-ds-xs text-ink-muted">
+              {totalReturnPct == null ? "" : (
+                <span className={totalReturnPct >= 0 ? "text-bull" : "text-bear"}>
+                  {totalReturnPct >= 0 ? "+" : ""}{totalReturnPct.toFixed(2)}%
+                </span>
+              )}{" "}on capital · realized + open
+            </div>
           </div>
+        </div>
+
+        {/* ── Supporting row: now / today / risk / market ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           <div className="glass rounded-ds-lg">
             <StatTile
-              label="Open P&L"
+              label="Open P&L · now"
               value={
                 combined.openPnl == null
                   ? "—"
@@ -530,11 +575,10 @@ export function LivePage({
               animateOn={combined.openPnl}
               sub={
                 totalUnrealR == null ? (
-                  "no live price"
+                  "floating"
                 ) : (
                   <span className={colorForR(totalUnrealR)}>
-                    {totalUnrealR >= 0 ? "+" : ""}
-                    {totalUnrealR.toFixed(2)}R
+                    {totalUnrealR >= 0 ? "+" : ""}{totalUnrealR.toFixed(2)}R floating
                   </span>
                 )
               }
@@ -542,25 +586,14 @@ export function LivePage({
           </div>
           <div className="glass rounded-ds-lg">
             <StatTile
-              label="Day P&L"
+              label="Today"
               value={
                 dayPnl == null ? "—" : `${dayPnl >= 0 ? "+" : "−"}${fmtMoneyBare(dayPnl)}`
               }
               unit="USD"
               tone={dayPnl == null ? "neutral" : dayPnl >= 0 ? "bull" : "bear"}
               animateOn={dayPnl}
-              sub={
-                realizedToday !== 0 || openBooked !== 0
-                  ? `${realizedToday + openBooked >= 0 ? "+" : "−"}${fmtMoneyBare(realizedToday + openBooked)} booked + float`
-                  : "closed + booked + float"
-              }
-            />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile
-              label="XAU / USD"
-              value={<PriceValue value={px} digits={2} />}
-              sub={feedAge < 0 ? "waiting" : `${feedAge}s ago`}
+              sub="closed + booked + float"
             />
           </div>
           <div className="glass rounded-ds-lg">
@@ -568,23 +601,21 @@ export function LivePage({
               label="Open Risk"
               value={riskUsd > 0 ? fmtMoneyBare(riskUsd) : "0"}
               unit="USD"
-              sub="at stop"
+              sub={`${combined.positions} pos · ${nLong}L ${nShort}S`}
+              tone={combined.positions > 0 ? "neutral" : "neutral"}
             />
           </div>
           <div className="glass rounded-ds-lg">
             <StatTile
-              label="Positions"
-              value={String(combined.positions)}
-              tone={combined.positions > 0 ? "bull" : "neutral"}
-              sub={`${nLong}L · ${nShort}S`}
-            />
-          </div>
-          <div className="glass rounded-ds-lg">
-            <StatTile
-              label="Strategies"
-              value={String(strategiesLive)}
-              tone={strategiesLive > 0 ? "bull" : "neutral"}
-              sub={feedAge >= 0 && feedAge <= 5 ? "streaming" : "idle"}
+              label="XAU / USD"
+              value={<PriceValue value={px} digits={2} />}
+              sub={
+                feedAge < 0
+                  ? "waiting"
+                  : feedAge <= 5
+                  ? `live · ${strategiesLive} legs`
+                  : `${feedAge}s ago`
+              }
             />
           </div>
         </div>
