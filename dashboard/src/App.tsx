@@ -102,6 +102,31 @@ function App() {
     };
   }, []);
 
+  // Seed the TopBar XAU price from the last CLOSED bar (REST) so it's never
+  // blank before a WS tick arrives — and stays populated on a closed market
+  // (weekend/holiday) when no `price` ticks are streaming at all. WS ticks
+  // still override this the moment the market reopens.
+  useEffect(() => {
+    let mounted = true;
+    const seed = async () => {
+      try {
+        const bars = await api.bars("XAUUSD.ecn", "M15");
+        const last = bars[bars.length - 1];
+        if (mounted && last && typeof last.close === "number") {
+          setXauPrice((p) => p ?? last.close);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    seed();
+    const t = setInterval(seed, 60000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
+  }, []);
+
   // Auto-select a run from the current filtered set when current is missing.
   useEffect(() => {
     if (runs.length === 0) {

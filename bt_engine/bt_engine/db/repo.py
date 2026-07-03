@@ -102,6 +102,27 @@ class TradeRepo:
             existing.raw_features = trade.raw_features
         self.s.flush()
 
+    def risk_units_for_ticket(self, broker_ticket: str) -> float | None:
+        """Original stop distance (risk_units) for a broker ticket, from the most
+        recent row we have for it. Used when adopting a position whose broker SL
+        has been trailed to breakeven (SL==entry → live stop distance 0): without
+        the original risk the position would be dropped from adoption and stranded
+        unmanaged. Returns None if we've never seen the ticket."""
+        from sqlalchemy import select as _select
+        if not broker_ticket:
+            return None
+        row = self.s.execute(
+            _select(BtTrade.risk_units)
+            .where(BtTrade.broker_ticket == str(broker_ticket))
+            .where(BtTrade.risk_units.isnot(None))
+            .order_by(BtTrade.entry_timestamp.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        try:
+            return float(row) if row is not None and float(row) > 0 else None
+        except (TypeError, ValueError):
+            return None
+
     def supersede_stale_open_ticket(
         self, broker_ticket: str, keep_trade_id: uuid.UUID, run_id: uuid.UUID
     ) -> int:

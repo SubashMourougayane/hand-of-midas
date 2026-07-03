@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
@@ -873,6 +873,7 @@ def run_live(
         initial_open_trades=_open_trades_from_positions(
             broker.positions(), symbol=symbol, strategy_id=strategy,
             server_utc_offset_hours=server_utc_offset_hours,
+            risk_lookup=trade_repo.risk_units_for_ticket,
         ),
     )
 
@@ -1145,6 +1146,7 @@ def _leg_owns_position(strategy_id: str | None, pos: dict, side: int) -> bool:
 def _open_trades_from_positions(
     positions, *, symbol: str, strategy_id: str | None = None,
     server_utc_offset_hours: int = 0,
+    risk_lookup: Callable[[str], float | None] | None = None,
 ) -> list[OpenTrade]:
     out: list[OpenTrade] = []
     for pos in positions:
@@ -1158,11 +1160,29 @@ def _open_trades_from_positions(
             sl = float(pos.get("sl", 0.0))
             tp_raw = pos.get("tp", 0.0)
             tp = float(tp_raw) if tp_raw not in (None, "", 0, "0") else None
-            if qty <= 0 or entry <= 0 or sl <= 0:
+            # SL==0 (none set) still needs entry>0 + qty>0 to be a real position.
+            if qty <= 0 or entry <= 0:
                 continue
-            risk = abs(entry - sl)
+            risk = abs(entry - sl) if sl > 0 else 0.0
             if risk <= 0:
-                continue
+                # Broker SL trailed to breakeven (SL==entry) or removed → live
+                # stop distance is 0. Do NOT drop the position (that strands it
+                # unmanaged on restart). Recover the ORIGINAL risk_units from the
+                # DB row for this ticket so the trade stays fully managed.
+                recovered = risk_lookup(str(ticket)) if risk_lookup else None
+                if recovered and recovered > 0:
+                    risk = float(recovered)
+                    log.info(
+                        "[ADOPT] ticket %s SL at/near breakeven (sl=%.5f entry=%.5f); "
+                        "recovered original risk_units=%.5f from DB",
+                        ticket, sl, entry, risk,
+                    )
+                else:
+                    log.warning(
+                        "[ADOPT] ticket %s has no usable stop distance and no DB "
+                        "risk to recover; skipping adoption", ticket,
+                    )
+                    continue
             trade_id = uuid.uuid5(uuid.NAMESPACE_URL, f"gold-digger-live-position:{ticket}")
             now_ts = pd.Timestamp(datetime.now(timezone.utc))
             # Real entry time from the broker's open_time (server-local, UTC+3),

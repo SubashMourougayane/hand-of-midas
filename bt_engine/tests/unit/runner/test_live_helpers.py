@@ -19,6 +19,7 @@ from bt_engine.runner.live import (
     _close_partial_succeeded_retry,
     _find_ticket_by_tag,
     _leg_owns_position,
+    _open_trades_from_positions,
     _sl_at_be,
     _to_dt,
 )
@@ -268,3 +269,30 @@ def test_leg_owns_position_falls_back_to_side_without_comment():
 def test_leg_owns_position_combined_adopts_all():
     assert _leg_owns_position("fib_v2_intraday_a_plus_d", {"type": "SELL"}, -1) is True
     assert _leg_owns_position(None, {"type": "BUY"}, 1) is True
+
+
+def test_adopt_breakeven_sl_recovers_risk_from_db():
+    """Regression 2026-07-03 ticket 2125844421: broker SL trailed to breakeven
+    (sl==entry) → live stop distance 0 → adoption dropped the position, stranding
+    it unmanaged on restart. Fix: recover the original risk_units from the DB via
+    risk_lookup instead of dropping."""
+    pos = {
+        "ticket": "2125844421", "type": "SELL", "volume": 0.18,
+        "open_price": 4185.89, "sl": 4185.89, "tp": 4137.22,  # sl == entry (BE)
+        "comment": "intraday_d_short_2026-07-03T14:",
+        "open_time": "2026.07.03 14:45:05",
+    }
+    # Without a lookup → dropped (no usable risk).
+    dropped = _open_trades_from_positions([pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d")
+    assert dropped == []
+    # With a lookup returning the original stop distance → adopted + managed.
+    adopted = _open_trades_from_positions(
+        [pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d",
+        risk_lookup=lambda tk: 48.6672 if tk == "2125844421" else None,
+    )
+    assert len(adopted) == 1
+    tr = adopted[0]
+    assert tr.side == -1
+    assert tr.broker_ticket == "2125844421"
+    assert abs(tr.risk_units - 48.6672) < 1e-6  # recovered, not 0
+    assert tr.order.extra["qty_lots"] == 0.18
