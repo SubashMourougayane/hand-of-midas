@@ -93,14 +93,31 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
             api.runTrades(r.run_id, f, 1, 50000).then((x) => x.items).catch(() => [] as Trade[])
           )
         );
-        // Dedup by trade_id (same adopted position appears across restart runs).
-        const seen = new Set<string>();
-        const merged: Trade[] = [];
-        for (const t of all.flat()) {
-          if (seen.has(t.trade_id)) continue;
-          seen.add(t.trade_id);
-          merged.push(t);
+        // Collapse to ONE row per real position. The A+D dual-run adoption
+        // creates TWO trade_ids for the same broker ticket, so dedup by
+        // broker_ticket (not trade_id). Prefer the richest row (has partial /
+        // broker $). Rows with NO broker_ticket fall back to trade_id dedup.
+        // Drop RECONCILED_FLAT phantoms (never-filled cutover artifacts).
+        const flat = all.flat().filter(
+          (t) => t.exit_reason !== "RECONCILED_FLAT" && t.exit_reason !== "RECON_PENDING"
+        );
+        const byTicket = new Map<string, Trade>();
+        const noTicket: Trade[] = [];
+        const seenTid = new Set<string>();
+        for (const t of flat) {
+          const tk = (t.broker_ticket ?? "").trim();
+          if (!tk) {
+            if (!seenTid.has(t.trade_id)) { seenTid.add(t.trade_id); noTicket.push(t); }
+            continue;
+          }
+          const cur = byTicket.get(tk);
+          if (!cur) { byTicket.set(tk, t); continue; }
+          // Keep the row with more info: partial_taken, then broker_net_usd set.
+          const score = (x: Trade) =>
+            (x.partial_taken ? 2 : 0) + (x.broker_net_usd != null ? 1 : 0);
+          if (score(t) > score(cur)) byTicket.set(tk, t);
         }
+        const merged = [...byTicket.values(), ...noTicket];
         if (!cancelled) setRows(merged);
       } else {
         const { items } = await api.runTrades(runId, f, 1, 50000);
