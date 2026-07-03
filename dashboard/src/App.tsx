@@ -147,22 +147,52 @@ function App() {
     }
   }, [runs, selectedRunId, onBacktest]);
 
-  // Initial account snap fetch. After that, WS `account` channel pushes update
-  // setAccount when MT5 publishes a new bar-close snapshot. NO polling.
+  // Initial account snap fetch. After that, WS `account`/`account_live` pushes
+  // update setAccount. A+D share ONE broker account, so any live run's snapshot
+  // reflects the same equity/balance — fetch across ALL live runs and keep the
+  // FRESHEST. Fetching only selectedRunId broke when a leg was freshly
+  // (re)started onto a run with no snapshot yet → pill went blank on a closed
+  // market (no WS ticks to backfill). Poll every 60s as a closed-market safety
+  // net so equity/return never sit empty.
   useEffect(() => {
-    if (!selectedRunId) {
+    let mounted = true;
+    const liveRuns = allRuns.filter((r) => r.mode === "live");
+    const targets = liveRuns.length > 0
+      ? liveRuns.map((r) => r.run_id)
+      : selectedRunId
+      ? [selectedRunId]
+      : [];
+    if (targets.length === 0) {
       setAccount(null);
       return;
     }
-    let mounted = true;
-    api
-      .accountLatest(selectedRunId)
-      .then(({ items }) => mounted && setAccount(items[0] ?? null))
-      .catch(() => mounted && setAccount(null));
+    const load = async () => {
+      try {
+        const results = await Promise.all(
+          targets.map((id) =>
+            api.accountLatest(id).then(({ items }) => items[0] ?? null).catch(() => null)
+          )
+        );
+        const freshest = results
+          .filter((s): s is NonNullable<typeof s> => s != null)
+          .sort((a, b) => (a.ts < b.ts ? 1 : -1))[0];
+        if (mounted && freshest) {
+          // Never clobber a live WS value with an older DB snapshot.
+          setAccount((prev) =>
+            prev && prev.ts && freshest.ts && prev.ts > freshest.ts ? prev : freshest
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    load();
+    const t = setInterval(load, 60000);
     return () => {
       mounted = false;
+      clearInterval(t);
     };
-  }, [selectedRunId]);
+  }, [allRuns, selectedRunId]);
 
   // Live updates via ws.
   useEffect(() => {

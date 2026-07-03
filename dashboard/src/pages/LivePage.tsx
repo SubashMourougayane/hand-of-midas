@@ -432,16 +432,26 @@ export function LivePage({
       }
     }
 
-    // Authority order for account P&L / equity / balance:
-    //   1. liveAcct (broker account_info.json, streamed, tick-by-tick, truth)
-    //   2. per-trade live $ summed from streamed price (if lots known)
-    //   3. latest DB snapshot (bar-close, may be stale) — last resort
+    // Authority order for account P&L / equity / balance. CRITICAL: keep the
+    // account-level Open P&L on ONE basis (broker) so it never flickers between
+    // two different numbers as WS pushes come and go. Broker open_pnl includes
+    // swap/commission; the per-trade price×lots sum does NOT — mixing them made
+    // the KPI jump (e.g. 319 ↔ 327). So:
+    //   1. broker open_pnl (explicit, streamed)                     — truth
+    //   2. broker-DERIVED open_pnl = equity − balance (same basis)  — no flip
+    //   3. per-trade live $ sum (only if NO broker account at all)  — last resort
+    //   4. latest DB snapshot open_pnl                              — stale
     const equity = liveAcct?.equity ?? latest?.equity ?? null;
     const balance = liveAcct?.balance ?? latest?.balance ?? null;
     let openPnl: number | null;
     let live: boolean;
     if (liveAcct?.open_pnl != null) {
       openPnl = liveAcct.open_pnl;
+      live = true;
+    } else if (liveAcct?.equity != null && liveAcct?.balance != null) {
+      // Broker equity + balance present but open_pnl field missing → derive it
+      // on the SAME (broker) basis instead of switching to the per-trade sum.
+      openPnl = liveAcct.equity - liveAcct.balance;
       live = true;
     } else if (haveLive) {
       openPnl = livePnl;
