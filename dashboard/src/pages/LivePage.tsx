@@ -565,7 +565,7 @@ export function LivePage({
           <div className={`glass-strong rounded-ds-lg px-5 py-4 flex flex-col justify-center border-l-2 ${
             trTone === "bull" ? "border-l-bull" : trTone === "bear" ? "border-l-bear" : "border-l-line-base"
           }`}>
-            <div className="text-ds-xs uppercase tracking-wide text-ink-muted">Total Return · since $10k deposit</div>
+            <div className="text-ds-xs uppercase tracking-wide text-ink-muted">Total Return · all-time since $10k</div>
             <div className={`mt-1 font-mono font-bold text-ds-3xl leading-none tabular-nums ${
               trTone === "bull" ? "text-bull" : trTone === "bear" ? "text-bear" : "text-ink-primary"
             }`}>
@@ -576,7 +576,7 @@ export function LivePage({
                 <span className={totalReturnPct >= 0 ? "text-bull" : "text-bear"}>
                   {totalReturnPct >= 0 ? "+" : ""}{totalReturnPct.toFixed(2)}%
                 </span>
-              )}{" "}on capital · realized + open
+              )}{" "}equity − deposit · every trade ever ("Today" = today only)
             </div>
           </div>
         </div>

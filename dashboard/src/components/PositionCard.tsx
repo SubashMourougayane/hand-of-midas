@@ -74,7 +74,7 @@ export function PositionCard({
       onClick={onClick}
       className="group rounded-ds bg-glass border border-glass-border hover:shadow-ds-hover transition-all duration-ds cursor-pointer p-3.5 space-y-3"
     >
-      {/* Header: side + symbol + entry · running $ P&L */}
+      {/* Header: side + symbol + entry (+PTP badge) · running $ P&L */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Pill tone={tone} glow>{sideLabel(trade.side)}</Pill>
@@ -84,8 +84,12 @@ export function PositionCard({
           <span className="font-mono text-ds-xs text-ink-muted">
             @ {fmtPrice(trade.entry_price)}
           </span>
+          {hasBooked && (
+            <Pill tone="bull">PART-CLOSED</Pill>
+          )}
         </div>
         <div className="flex flex-col items-end leading-none shrink-0">
+          {/* Big number = the FLOATING P&L on the remaining position. */}
           <span className={`font-mono text-ds-xl font-bold tabular-nums ${pnlTone}`}>
             <AnimatedNumber
               numeric={liveUsd ?? null}
@@ -93,14 +97,24 @@ export function PositionCard({
             />
           </span>
           <span className={`font-mono text-ds-xs mt-1 ${colorForR(unrealR)}`}>
-            {fmtR(unrealR)}R{" "}
-            <span className="text-ink-dim uppercase">float</span>
+            {fmtR(unrealR)}R <span className="text-ink-dim uppercase">floating</span>
           </span>
           {hasBooked && (
-            <span className={`font-mono text-ds-xs mt-0.5 ${colorForR(bookedUsd)}`}>
-              {bookedUsd! >= 0 ? "+" : "−"}{fmtMoney(Math.abs(bookedUsd!), 0)}{" "}
-              <span className="text-ink-dim uppercase">booked</span>
-            </span>
+            <>
+              <span className={`font-mono text-ds-xs mt-0.5 ${colorForR(bookedUsd)}`}>
+                {bookedUsd! >= 0 ? "+" : "−"}{fmtMoney(Math.abs(bookedUsd!), 2)}{" "}
+                <span className="text-ink-dim uppercase">booked (PTP)</span>
+              </span>
+              {liveUsd != null && (
+                <span className="font-mono text-ds-xs mt-0.5 text-ink-secondary border-t border-glass-border pt-0.5">
+                  ={" "}
+                  <span className={colorForR((liveUsd ?? 0) + (bookedUsd ?? 0))}>
+                    {(liveUsd + bookedUsd!) >= 0 ? "+" : "−"}{fmtMoney(Math.abs(liveUsd + bookedUsd!), 2)}
+                  </span>{" "}
+                  <span className="text-ink-dim uppercase">total</span>
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
