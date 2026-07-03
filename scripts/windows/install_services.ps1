@@ -36,7 +36,9 @@ function Register-PySvc($name, $pyArgs) {
   & nssm set $name AppExit Default Restart
   & nssm set $name AppRestartDelay 5000
   # Env is NOT inherited by services -- pass everything the runner needs.
-  & nssm set $name AppEnvironmentExtra "PYTHONPATH=$($env:PYTHONPATH)" "DWX_DIR=$($env:DWX_DIR)" "BT_ENGINE_DB_URL=$DbUrl" "PATH=$SvcPath"
+  # PYTHONUTF8=1: force UTF-8 stdio so unicode log chars (e.g. the arrow in the
+  # warmup message) don't throw cp1252 UnicodeEncodeError on the Windows console.
+  & nssm set $name AppEnvironmentExtra "PYTHONPATH=$($env:PYTHONPATH)" "DWX_DIR=$($env:DWX_DIR)" "BT_ENGINE_DB_URL=$DbUrl" "PATH=$SvcPath" "PYTHONUTF8=1" "PYTHONIOENCODING=utf-8"
   # Capture stdout+stderr to logfiles so failures are visible.
   & nssm set $name AppStdout (Join-Path $LogDir "$name.out.log")
   & nssm set $name AppStderr (Join-Path $LogDir "$name.err.log")

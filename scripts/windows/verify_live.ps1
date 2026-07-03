@@ -49,7 +49,7 @@ Section "DB open positions"
 & "$pgbin\psql.exe" -U postgres -d golddigger_bt -c "SELECT broker_ticket, leg, side, entry_price, run_id FROM bt_trades WHERE exit_timestamp IS NULL ORDER BY broker_ticket;"
 
 Section "Active (unended) live runs"
-& "$pgbin\psql.exe" -U postgres -d golddigger_bt -c "SELECT run_ref, strategy_id, created_ts, end_ts FROM bt_runs WHERE mode='live' AND end_ts IS NULL ORDER BY created_ts DESC LIMIT 6;"
+& "$pgbin\psql.exe" -U postgres -d golddigger_bt -c "SELECT ref, strategy_id, created_at, end_ts FROM bt_runs WHERE mode='live' AND end_ts IS NULL ORDER BY created_at DESC LIMIT 6;"
 
 # 5. Dashboard HTTP.
 Section "Dashboard HTTP"
