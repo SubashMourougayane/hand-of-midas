@@ -112,9 +112,21 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
           }
           const cur = byTicket.get(tk);
           if (!cur) { byTicket.set(tk, t); continue; }
-          // Keep the row with more info: partial_taken, then broker_net_usd set.
-          const score = (x: Trade) =>
-            (x.partial_taken ? 2 : 0) + (x.broker_net_usd != null ? 1 : 0);
+          // Keep the richest row: prefer real booked $ (raw_features), then a
+          // set partial_r, then broker_net_usd, then partial_taken. The A+D
+          // dual-adopt writes 2 rows/ticket and only ONE carries the full
+          // partial detail.
+          const score = (x: Trade) => {
+            const booked = Number(
+              (x.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
+            );
+            return (
+              (Number.isFinite(booked) && Math.abs(booked) > 0.001 ? 8 : 0) +
+              (x.partial_r ? Math.abs(x.partial_r) : 0) +
+              (x.broker_net_usd != null ? 1 : 0) +
+              (x.partial_taken ? 0.5 : 0)
+            );
+          };
           if (score(t) > score(cur)) byTicket.set(tk, t);
         }
         const merged = [...byTicket.values(), ...noTicket];
@@ -216,8 +228,26 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
       (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0),
       0
     );
-    return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd };
-  }, [filtered, symbol]);
+    // Add realised $ ALREADY BOOKED on still-open trades (partial-TP). Prefer
+    // live WS booked, else the DB raw_features fallback. This is locked profit,
+    // so it belongs in the $ P&L total even while the remainder floats.
+    const openBooked = filtered
+      .filter((t) => t.exit_timestamp == null)
+      .reduce((s, t) => {
+        const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
+        const dbBooked = Number(
+          (t.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
+        );
+        const booked =
+          live?.booked_usd != null && Math.abs(live.booked_usd) > 0.001
+            ? live.booked_usd
+            : Number.isFinite(dbBooked)
+            ? dbBooked
+            : 0;
+        return s + booked;
+      }, 0);
+    return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd: usd + openBooked };
+  }, [filtered, symbol, livePos]);
 
   const setSortKey = (k: SortKey) =>
     setSort((s) =>
