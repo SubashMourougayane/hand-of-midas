@@ -352,16 +352,27 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
                 const isOpen = t.exit_timestamp == null;
                 const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
                 if (isOpen && realized == null && live) {
-                  const hasBooked =
-                    live.booked_usd != null && Math.abs(live.booked_usd) > 0.001;
+                  // Prefer live WS booked $; fall back to DB raw_features
+                  // partial_booked_usd (for trades whose partial deal aged off
+                  // the DWX buffer, e.g. pre-cutover).
+                  const dbBooked = Number(
+                    (t.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
+                  );
+                  const bookedVal =
+                    live.booked_usd != null && Math.abs(live.booked_usd) > 0.001
+                      ? live.booked_usd
+                      : Number.isFinite(dbBooked) && Math.abs(dbBooked) > 0.001
+                      ? dbBooked
+                      : null;
+                  const hasBooked = bookedVal != null;
                   return (
                     <div className="flex flex-col items-end leading-tight">
                       {hasBooked && (
                         <span
-                          className={`font-mono ${colorForR(live.booked_usd)}`}
+                          className={`font-mono ${colorForR(bookedVal)}`}
                           title="Realised P&L already locked from the partial-TP close (fixed)."
                         >
-                          {fmtMoney(live.booked_usd, 0)}
+                          {fmtMoney(bookedVal!, 0)}
                           <span className="ml-1 text-ds-xs text-ink-muted uppercase">booked</span>
                         </span>
                       )}
