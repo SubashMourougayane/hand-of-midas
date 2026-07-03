@@ -85,24 +85,45 @@ export function LivePage({
 
   // Discover the live legs (both A + D), then hydrate each with REST.
   const hydrate = useCallback(async () => {
-    let runs: Run[] = [];
+    let allRuns: Run[] = [];
     try {
-      runs = (await api.runs(100, "live")).filter((r) => !r.end_ts);
+      allRuns = await api.runs(200, "live");
     } catch {
       return; // keep whatever we have
     }
+    const activeRuns = allRuns.filter((r) => !r.end_ts);
+    // Open positions can be stranded on an ENDED run when the leg restarted
+    // before re-pointing (broker still holds them; DB row's run_id lags). To
+    // never hide a real open position, gather open trades for the strategy
+    // across ALL its runs (active + ended) and attach to the active leg,
+    // deduped by broker_ticket. (Frontend safety net for run-bookkeeping lag.)
+    const runsByStrat: Record<string, Run[]> = {};
+    for (const r of allRuns) (runsByStrat[r.strategy_id] ??= []).push(r);
+
     const next: Record<string, LegState> = {};
     await Promise.all(
-      runs.map(async (run) => {
-        const [tr, sigs, fn, acc] = await Promise.all([
-          api.runTrades(run.run_id, "open").catch(() => ({ items: [] as Trade[] })),
+      activeRuns.map(async (run) => {
+        const stratRuns = runsByStrat[run.strategy_id] ?? [run];
+        const [sigs, fn, acc, ...tradeLists] = await Promise.all([
           api.signalsRecent({ run_id: run.run_id, limit: 1 }).catch(() => [] as SignalRowT[]),
           api.funnel(run.run_id).catch(() => ({ buckets: [] as FunnelBucket[] })),
           api.accountLatest(run.run_id).catch(() => ({ items: [] as AccountSnap[] })),
+          ...stratRuns.map((sr) =>
+            api.runTrades(sr.run_id, "open").then((x) => x.items).catch(() => [] as Trade[])
+          ),
         ]);
+        // Dedup open trades by broker_ticket (re-adopt makes 2 rows/ticket).
+        const seen = new Set<string>();
+        const trades: Trade[] = [];
+        for (const t of (tradeLists as Trade[][]).flat()) {
+          const key = (t.broker_ticket && t.broker_ticket.trim()) || t.trade_id;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          trades.push(t);
+        }
         next[run.run_id] = {
           run,
-          trades: tr.items,
+          trades,
           account: acc.items?.[0] ?? null,
           funnel: fn.buckets,
           lastSignal: sigs[0] ?? null,
