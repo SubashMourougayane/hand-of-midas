@@ -39,7 +39,7 @@ def main():
             "FROM bt_trades "
             "WHERE exit_timestamp IS NOT NULL "
             "AND broker_ticket IS NOT NULL AND broker_ticket <> '' "
-            "AND exit_reason = 'RECONCILED_BROKER_CLOSED'"
+            "AND exit_reason IN ('RECONCILED_BROKER_CLOSED','RECON_PENDING')"
         )).fetchall()
         print(f"Crude-reconciled rows to fix: {len(rows)}")
         for r in rows:
