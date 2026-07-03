@@ -21,7 +21,7 @@ from sqlalchemy import text
 
 from bt_engine.db.engine import get_engine, get_session_factory
 from bt_engine.data.dwx_bridge import DwxBridge
-from bt_engine.runner.broker_reconciler import reconcile_trade
+from bt_engine.runner.broker_reconciler import find_closed_deal, _parse_broker_time, _to_utc_dt
 
 
 def main():
@@ -59,23 +59,46 @@ def main():
             "WHERE trade_id = ANY(:ids)"
         ), {"ids": ids})
 
-    # Now run the proper reconciler per row (its own sessions/txns).
-    Session = get_session_factory()
+    # Backfill directly via find_closed_deal (aggregates all deals per position_id:
+    # partial + final close). This is a DELIBERATE one-time backfill of trades we
+    # KNOW are closed (not in open_orders), so we bypass the live loop's
+    # closed_orders staleness guard -- the deal rows are valid, just not freshly
+    # rewritten. We do NOT bypass the "still open" check: skip if in open_orders.
     fixed = 0
-    for r in rows:
-        with Session() as s:
-            res = reconcile_trade(
-                bridge=bridge, session=s,
-                trade_id=r.trade_id, ticket=r.broker_ticket,
-                server_utc_offset_hours=args.offset,
-                max_retries=3, backoff_s=0.2,
-            )
-            s.commit()
-            print(f"  {r.broker_ticket}: matched={res.matched} reason={res.broker_exit_reason} net=${res.broker_net_usd}")
-            if res.matched:
-                fixed += 1
+    with eng.begin() as cx:
+        open_now = cx.execute(text(
+            "SELECT DISTINCT broker_ticket FROM bt_trades WHERE exit_timestamp IS NULL "
+            "AND broker_ticket IS NOT NULL AND broker_ticket<>''"
+        )).fetchall()
+    open_tickets = {r.broker_ticket for r in open_now}
+
+    with eng.begin() as cx:
+        for r in rows:
+            tk = r.broker_ticket
+            if tk in open_tickets:
+                print(f"  {tk}: STILL OPEN -> skip"); continue
+            deal = find_closed_deal(bridge, tk)
+            if deal is None:
+                print(f"  {tk}: no closed deal found -> left RECON_PENDING"); continue
+            gross = float(deal.get("profit") or 0.0)
+            comm = float(deal.get("commission") or 0.0)
+            swap = float(deal.get("swap") or 0.0)
+            net = gross + comm + swap
+            exit_price = float(deal.get("close_price") or 0.0) or None
+            reason = str(deal.get("deal_reason") or "") or None
+            close_ts = _to_utc_dt(_parse_broker_time(str(deal.get("close_time") or "")), args.offset)
+            ndeals = deal.get("_deal_count")
+            cx.execute(text(
+                "UPDATE bt_trades SET broker_gross_usd=:g, broker_commission_usd=:c, "
+                "broker_swap_usd=:s, broker_net_usd=:n, broker_exit_price=:px, "
+                "broker_exit_reason=:rsn, broker_close_ts=:cts, broker_reconciled_at=now(), "
+                "exit_reason=COALESCE(:rsn,'CLOSED'), exit_price=COALESCE(:px, exit_price) "
+                "WHERE trade_id=:tid"
+            ), dict(g=gross, c=comm, s=swap, n=net, px=exit_price, rsn=reason,
+                    cts=close_ts, tid=r.trade_id))
+            print(f"  {tk}: reason={reason} net=${net:.2f} deals={ndeals} exit={exit_price}")
+            fixed += 1
     print(f"\nRe-reconciled {fixed}/{len(rows)}.")
-    # Any that still failed keep exit_reason='RECON_PENDING' -> visible, not silently wrong.
 
 
 if __name__ == "__main__":
