@@ -53,3 +53,4 @@ dashboard/dist/
 dashboard/node_modules/
 scripts/windows/Caddyfile.runtime
 scripts/windows/deploy_exec.log
+logs/debug_exec.log
