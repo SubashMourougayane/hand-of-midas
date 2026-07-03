@@ -15,8 +15,12 @@ $SvcPath = "$PyDir;$PgBin;C:\nssm;$env:SystemRoot\System32;$env:SystemRoot"
 $DbUrl = if ($env:BT_ENGINE_DB_URL) { $env:BT_ENGINE_DB_URL } else { "postgresql+psycopg2://postgres:postgres@localhost:5432/golddigger_bt" }
 
 function Register-Svc($name, $script) {
-  $existing = & nssm status $name 2>$null
-  if ($LASTEXITCODE -eq 0) { & nssm stop $name; & nssm remove $name confirm }
+  # NSSM prints "Can't open service!" to stderr when the service is absent --
+  # that's expected on a fresh box, not an error. Swallow it.
+  $ErrorActionPreference = "SilentlyContinue"
+  & nssm status $name 2>&1 | Out-Null
+  if ($LASTEXITCODE -eq 0) { & nssm stop $name 2>&1 | Out-Null; & nssm remove $name confirm 2>&1 | Out-Null }
+  $ErrorActionPreference = "Stop"
   & nssm install $name $Pwsh "-ExecutionPolicy Bypass -File `"$script`""
   & nssm set $name AppDirectory $Repo
   & nssm set $name Start SERVICE_AUTO_START
