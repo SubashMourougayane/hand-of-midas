@@ -5,7 +5,8 @@ import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { Funnel } from "../components/Funnel";
 import { SignalRowItem } from "../components/SignalRow";
-import { KPI } from "../components/KPI";
+import { SectionHeader } from "../components/ui/Section";
+import { StatTile } from "../components/ui/StatTile";
 
 type WsHook = {
   onMessage: (fn: (env: WsEnvelope) => void) => () => void;
@@ -180,18 +181,28 @@ export function SignalsPage({
   const lastBar = bars.length ? bars[bars.length - 1] : null;
 
   return (
-    <div className="h-full flex flex-col gap-4 px-4 sm:px-6 py-5 min-h-0 w-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 shrink-0">
-        <KPI label="Total Gates" value={total.toLocaleString()} />
-        <KPI label="Passed" value={passCount.toLocaleString()} deltaTone="bull" />
-        <KPI label="Rejected" value={rejectCount.toLocaleString()} deltaTone="bear" />
-        <KPI
-          label="Pass Rate"
-          value={total ? `${((passCount / total) * 100).toFixed(2)}%` : "—"}
-        />
-      </div>
+    <div className="h-full overflow-auto flex flex-col gap-6 px-4 sm:px-6 py-5 min-h-0 w-full">
+      {/* ══ SECTION 01 · gate performance ══ */}
+      <section className="flex flex-col gap-3 shrink-0">
+        <SectionHeader index="01" title="Decision Funnel" question="How does the system evaluate the market?" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Total Gates" value={total.toLocaleString()} />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Passed" value={passCount.toLocaleString()} tone="bull" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Rejected" value={rejectCount.toLocaleString()} tone="bear" />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile label="Pass Rate" value={total ? ((passCount / total) * 100).toFixed(1) : "—"} unit="%" />
+          </div>
+        </div>
+      </section>
 
-      <div className="flex-1 grid grid-cols-12 gap-3 min-h-0">
+      {/* Stream (full width on mobile, 8/12 on desktop) + Funnel side panel */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
         <Pane
           title="Signal Stream"
           subtitle={
@@ -241,7 +252,7 @@ export function SignalsPage({
               </span>
             </div>
           }
-          className="col-span-12 lg:col-span-8 min-h-0"
+          className="lg:col-span-8 min-h-0"
         >
           {timeline.length === 0 ? (
             <div className="px-3 py-10 text-center text-ink-muted text-ds-sm">
@@ -268,7 +279,7 @@ export function SignalsPage({
         <Pane
           title="Gate Funnel"
           subtitle="lifetime"
-          className="col-span-12 lg:col-span-4 min-h-0"
+          className="lg:col-span-4 min-h-0"
         >
           <Funnel buckets={funnel} total={total} />
         </Pane>

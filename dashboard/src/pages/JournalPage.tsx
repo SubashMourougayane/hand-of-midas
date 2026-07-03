@@ -4,6 +4,7 @@ import { api, BarWalkRow, JournalEvt, Trade } from "../lib/api";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { TradeStory } from "../components/TradeStory";
+import { SectionHeader } from "../components/ui/Section";
 import { colorForR, fmtR, fmtTs } from "../lib/format";
 import { legName, sideLabel } from "../lib/labels";
 
@@ -95,9 +96,12 @@ export function JournalPage({ runId }: { runId: string | null }) {
   };
 
   return (
-    <div className="h-full grid grid-cols-12 gap-3 px-4 sm:px-6 py-5 min-h-0">
+    <div className="h-full flex flex-col gap-4 px-4 sm:px-6 py-5 min-h-0 w-full overflow-auto">
+      <SectionHeader index="01" title="Trade Journal" question="What happened, bar by bar?" />
+      {/* Mobile: list stacks above the story. Desktop: list is a left rail. */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
       {/* ── Left rail: trades list ── */}
-      <Pane title="Trades" subtitle={`${trades.length}`} className="col-span-3 xl:col-span-2">
+      <Pane title="Trades" subtitle={`${trades.length}`} className="lg:col-span-3 xl:col-span-2 max-h-[40vh] lg:max-h-none overflow-auto">
         <div className="divide-y divide-line-subtle">
           {trades.length === 0 && (
             <div className="px-3 py-8 text-center text-ink-muted text-ds-sm">
@@ -160,6 +164,7 @@ export function JournalPage({ runId }: { runId: string | null }) {
             timeframe={timeframe}
           />
         )}
+      </div>
       </div>
     </div>
   );

@@ -71,9 +71,19 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
       // LIVE context → merge trades across BOTH legs (long + short share the
       // desk). BT context → just the selected run.
       if (selfRun?.mode === "live") {
+        // Merge trades across ALL live runs of the CURRENTLY-live strategies
+        // (ended runs included — restarts create new run rows, but their closed
+        // trades still belong to the book). Scope by the strategy_ids that have
+        // an active run so retired experiments (sdr001…) stay excluded.
         let liveRuns: any[] = [];
         try {
-          liveRuns = (await api.runs(100, "live")).filter((r) => !r.end_ts);
+          const allLive = await api.runs(200, "live");
+          const activeStrats = new Set(
+            allLive.filter((r) => !r.end_ts).map((r) => r.strategy_id)
+          );
+          liveRuns = activeStrats.size
+            ? allLive.filter((r) => activeStrats.has(r.strategy_id))
+            : allLive;
         } catch {
           liveRuns = [{ run_id: runId }];
         }
@@ -83,7 +93,15 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
             api.runTrades(r.run_id, f, 1, 50000).then((x) => x.items).catch(() => [] as Trade[])
           )
         );
-        if (!cancelled) setRows(all.flat());
+        // Dedup by trade_id (same adopted position appears across restart runs).
+        const seen = new Set<string>();
+        const merged: Trade[] = [];
+        for (const t of all.flat()) {
+          if (seen.has(t.trade_id)) continue;
+          seen.add(t.trade_id);
+          merged.push(t);
+        }
+        if (!cancelled) setRows(merged);
       } else {
         const { items } = await api.runTrades(runId, f, 1, 50000);
         if (!cancelled) setRows(items);
@@ -241,25 +259,26 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
         index="02"
         title="Trade Ledger"
         question={`${filtered.length} of ${sorted.length}`}
-        right={
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="open">Open</TabsTrigger>
-              <TabsTrigger value="closed">Closed</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        }
       />
-      {/* Filter bar: side / date range / search. Filter-aware KPIs recompute. */}
-      <div className="flex flex-wrap items-center gap-2 shrink-0 -mt-2">
+      {/* ONE cohesive filter bar: status · side · date range · search. All
+          filter-aware — KPIs + table recompute together. */}
+      <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+          <TabsList>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="open">Open</TabsTrigger>
+            <TabsTrigger value="closed">Closed</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <span className="w-px h-5 bg-glass-border mx-0.5" />
         <Tabs value={sideFilter} onValueChange={(v) => setSideFilter(v as typeof sideFilter)}>
           <TabsList>
-            <TabsTrigger value="all">All sides</TabsTrigger>
+            <TabsTrigger value="all">Both</TabsTrigger>
             <TabsTrigger value="long">Long</TabsTrigger>
             <TabsTrigger value="short">Short</TabsTrigger>
           </TabsList>
         </Tabs>
+        <span className="w-px h-5 bg-glass-border mx-0.5" />
         <input
           type="date"
           value={fromDate}
@@ -282,9 +301,9 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
           placeholder="search ticket / side / reason…"
           className="glass rounded-ds-sm px-2 py-1 text-ds-xs text-ink-secondary bg-transparent border border-glass-border flex-1 min-w-[160px]"
         />
-        {(sideFilter !== "all" || fromDate || toDate || search) && (
+        {(filter !== "all" || sideFilter !== "all" || fromDate || toDate || search) && (
           <button
-            onClick={() => { setSideFilter("all"); setFromDate(""); setToDate(""); setSearch(""); }}
+            onClick={() => { setFilter("all"); setSideFilter("all"); setFromDate(""); setToDate(""); setSearch(""); }}
             className="text-ds-xs text-ink-muted hover:text-ink-primary underline"
           >
             clear
