@@ -54,3 +54,7 @@ dashboard/node_modules/
 scripts/windows/Caddyfile.runtime
 scripts/windows/deploy_exec.log
 logs/debug_exec.log
+# local-only cruft (never commit)
+.agents/
+golddigger_bt*.dump
+/LIVE_DISABLED
