@@ -38,6 +38,11 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
   // Open trades have no realised net_r/broker_net_usd yet — this fills that gap.
   const [livePos, setLivePos] = useState<Record<string, LivePos>>({});
   const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+  // Client-side refinements applied on top of the loaded rows.
+  const [sideFilter, setSideFilter] = useState<"all" | "long" | "short">("all");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
     key: "entry_timestamp",
     dir: "desc",
@@ -139,8 +144,31 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     return r;
   }, [rows, sort]);
 
+  // Client-side refinements (side / date range / ticket search) on top of the
+  // loaded + sorted rows. KPIs + grid both consume this filtered set.
+  const filtered = useMemo(() => {
+    const fromT = fromDate ? new Date(fromDate).getTime() : null;
+    const toT = toDate ? new Date(toDate).getTime() + 86_400_000 : null; // inclusive end-of-day
+    const q = search.trim().toLowerCase();
+    return sorted.filter((t) => {
+      if (sideFilter === "long" && t.side <= 0) return false;
+      if (sideFilter === "short" && t.side >= 0) return false;
+      if (fromT != null || toT != null) {
+        const et = t.entry_timestamp ? new Date(t.entry_timestamp).getTime() : null;
+        if (et == null) return false;
+        if (fromT != null && et < fromT) return false;
+        if (toT != null && et >= toT) return false;
+      }
+      if (q) {
+        const hay = `${t.broker_ticket ?? ""} ${legName(t.leg)} ${t.exit_reason ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [sorted, sideFilter, fromDate, toDate, search]);
+
   const stats = useMemo(() => {
-    const closed = sorted.filter((t) => t.net_r != null);
+    const closed = filtered.filter((t) => t.net_r != null);
     const wins = closed.filter((t) => (t.net_r ?? 0) > 0);
     const losses = closed.filter((t) => (t.net_r ?? 0) < 0);
     const netSum = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
@@ -154,7 +182,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
       0
     );
     return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd };
-  }, [sorted, symbol]);
+  }, [filtered, symbol]);
 
   const setSortKey = (k: SortKey) =>
     setSort((s) =>
@@ -212,7 +240,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
       <SectionHeader
         index="02"
         title="Trade Ledger"
-        question={`${sorted.length} loaded`}
+        question={`${filtered.length} of ${sorted.length}`}
         right={
           <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
             <TabsList>
@@ -223,9 +251,49 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
           </Tabs>
         }
       />
+      {/* Filter bar: side / date range / search. Filter-aware KPIs recompute. */}
+      <div className="flex flex-wrap items-center gap-2 shrink-0 -mt-2">
+        <Tabs value={sideFilter} onValueChange={(v) => setSideFilter(v as typeof sideFilter)}>
+          <TabsList>
+            <TabsTrigger value="all">All sides</TabsTrigger>
+            <TabsTrigger value="long">Long</TabsTrigger>
+            <TabsTrigger value="short">Short</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          className="glass rounded-ds-sm px-2 py-1 text-ds-xs font-mono text-ink-secondary bg-transparent border border-glass-border"
+          title="From date (entry)"
+        />
+        <span className="text-ink-dim text-ds-xs">→</span>
+        <input
+          type="date"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          className="glass rounded-ds-sm px-2 py-1 text-ds-xs font-mono text-ink-secondary bg-transparent border border-glass-border"
+          title="To date (entry)"
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="search ticket / side / reason…"
+          className="glass rounded-ds-sm px-2 py-1 text-ds-xs text-ink-secondary bg-transparent border border-glass-border flex-1 min-w-[160px]"
+        />
+        {(sideFilter !== "all" || fromDate || toDate || search) && (
+          <button
+            onClick={() => { setSideFilter("all"); setFromDate(""); setToDate(""); setSearch(""); }}
+            className="text-ds-xs text-ink-muted hover:text-ink-primary underline"
+          >
+            clear
+          </button>
+        )}
+      </div>
       <Pane className="flex-1 min-h-0">
         <DataGrid<Trade>
-          rows={sorted}
+          rows={filtered}
           rowKey={(t) => t.trade_id}
           onRowClick={(t) => nav(`/journal?trade=${t.trade_id}`)}
           columns={[
