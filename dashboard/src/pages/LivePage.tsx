@@ -63,6 +63,9 @@ export function LivePage({
   const flashTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   // Debounce per-leg open-trade refetch on WS trade bursts (avoid N² storm).
   const tradeRefetch = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Realized $ from trades CLOSED today (since 00:00 UTC), broker-truth. Added
+  // to the open float for a genuine Day P&L (distinct from Open P&L).
+  const [realizedToday, setRealizedToday] = useState<number>(0);
   const [, setTick] = useState(0);
   // Broker-truth live account (balance/equity/open_pnl), streamed tick-by-tick
   // from account_info.json via the WS 'account_live' channel. Account-WIDE
@@ -126,6 +129,47 @@ export function LivePage({
     const t = setInterval(hydrate, 60_000);
     return () => clearInterval(t);
   }, [hydrate]);
+
+  // Realized-today: sum broker_net_usd of trades CLOSED since 00:00 UTC today,
+  // across the active live strategies. Day P&L = this + open float (below), so
+  // it's genuinely distinct from Open P&L. Polled with the discovery loop.
+  const hydrateRealizedToday = useCallback(async () => {
+    try {
+      const runsAll = await api.runs(200, "live");
+      const activeStrats = new Set(
+        runsAll.filter((r) => !r.end_ts).map((r) => r.strategy_id)
+      );
+      const runs = runsAll.filter((r) => activeStrats.has(r.strategy_id));
+      const lists = await Promise.all(
+        runs.map((r) =>
+          api.runTrades(r.run_id, "closed", 1, 5000).then((x) => x.items).catch(() => [] as Trade[])
+        )
+      );
+      const startOfDayUtc = new Date();
+      startOfDayUtc.setUTCHours(0, 0, 0, 0);
+      const cutoff = startOfDayUtc.getTime();
+      const seen = new Set<string>();
+      let sum = 0;
+      for (const t of lists.flat()) {
+        if (t.exit_timestamp == null) continue;
+        if (new Date(t.exit_timestamp).getTime() < cutoff) continue;
+        // Dedup by broker_ticket (A+D dual-adopt writes 2 rows) else trade_id.
+        const key = (t.broker_ticket && t.broker_ticket.trim()) || t.trade_id;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        sum += t.broker_net_usd ?? 0;
+      }
+      setRealizedToday(sum);
+    } catch {
+      /* keep prior */
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrateRealizedToday();
+    const t = setInterval(hydrateRealizedToday, 60_000);
+    return () => clearInterval(t);
+  }, [hydrateRealizedToday]);
 
   // One-time price seed on mount per distinct symbol so the P&L band isn't
   // blank before the first WS `price` push arrives. No interval — the WS
@@ -425,10 +469,11 @@ export function LivePage({
     (s, t) => s + (t.risk_units ?? 0) * 100,
     0
   );
+  // Day P&L = realized $ from trades CLOSED today + current open float.
+  // (NOT equity−balance, which is just the open float and duplicates Open P&L.)
+  const openFloat = combined.openPnl;
   const dayPnl =
-    combined.equity != null && combined.balance != null
-      ? combined.equity - combined.balance
-      : null;
+    openFloat != null ? realizedToday + openFloat : realizedToday || null;
   const strategiesLive = legList.length;
 
   return (
@@ -486,7 +531,11 @@ export function LivePage({
               unit="USD"
               tone={dayPnl == null ? "neutral" : dayPnl >= 0 ? "bull" : "bear"}
               animateOn={dayPnl}
-              sub="today"
+              sub={
+                realizedToday !== 0
+                  ? `${realizedToday >= 0 ? "+" : "−"}${fmtMoneyBare(realizedToday)} closed + float`
+                  : "closed today + float"
+              }
             />
           </div>
           <div className="glass rounded-ds-lg">
