@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Radio,
   BarChart2,
@@ -7,6 +7,7 @@ import {
   Layers,
   Activity,
   Home,
+  LogOut,
 } from "lucide-react";
 import {
   Tooltip,
@@ -14,6 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { useAuth } from "../lib/auth";
 
 const SECTIONS = [
   { to: "/", label: "Home", icon: Home },
@@ -27,6 +29,12 @@ const SECTIONS = [
 
 export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const loc = useLocation();
+  const nav = useNavigate();
+  const { logout } = useAuth();
+  const doLogout = () => {
+    logout();
+    nav("/login", { replace: true });
+  };
   return (
     <TooltipProvider delayDuration={0}>
       <nav
@@ -82,6 +90,32 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             );
           })}
         </ul>
+
+        {/* Logout pinned to the bottom of the rail. */}
+        <div className="mt-auto pt-2">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={doLogout}
+                  aria-label="Log out"
+                  className="w-full flex items-center justify-center h-10 rounded-ds-sm text-ink-muted hover:text-bear hover:bg-glass transition-colors"
+                >
+                  <LogOut size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Log out</TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={doLogout}
+              className="w-full flex items-center gap-3 h-10 pl-3 pr-2.5 rounded-ds-sm text-[13.5px] font-medium text-ink-muted hover:text-bear hover:bg-glass transition-colors"
+            >
+              <LogOut size={16} />
+              <span>Log out</span>
+            </button>
+          )}
+        </div>
       </nav>
     </TooltipProvider>
   );

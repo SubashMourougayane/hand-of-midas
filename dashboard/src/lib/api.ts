@@ -143,4 +143,22 @@ export const api = {
   // for live mode; the last bar's `close` is the freshest available price.
   bars: (symbol: string, tf = "M15") =>
     j<Bar[]>(`/api/bars?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`),
+  login: async (username: string, password: string) => {
+    const r = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      throw new Error(detail.detail || `Login failed (${r.status})`);
+    }
+    return r.json() as Promise<{ token: string; username: string; exp: number }>;
+  },
+  verify: async (token: string) => {
+    const r = await fetch("/api/auth/verify", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return r.ok;
+  },
 };

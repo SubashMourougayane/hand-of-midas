@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AccountSnap, api, Run } from "./lib/api";
 import { useWsLive } from "./lib/ws";
+import { AuthProvider, useAuth } from "./lib/auth";
 import { TopBar } from "./components/TopBar";
 import { Sidebar } from "./components/Sidebar";
 import { MobileNav } from "./components/MobileNav";
 import { StatusBar } from "./components/StatusBar";
 import { LandingPage } from "./pages/LandingPage";
+import { LoginPage } from "./pages/LoginPage";
 import { LivePage } from "./pages/LivePage";
 import { JournalPage } from "./pages/JournalPage";
 import { TradesPage } from "./pages/TradesPage";
@@ -16,13 +18,40 @@ import { ArchitecturePage } from "./pages/ArchitecturePage";
 
 export default function AppRoot() {
   return (
-    <Routes>
-      {/* Full-bleed landing — no app shell. */}
-      <Route path="/" element={<LandingPage />} />
-      {/* Everything else runs inside the terminal shell. */}
-      <Route path="*" element={<App />} />
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        {/* Full-bleed landing — no app shell, public. */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        {/* Everything else runs inside the terminal shell — behind the login wall. */}
+        <Route
+          path="*"
+          element={
+            <ProtectedRoute>
+              <App />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </AuthProvider>
   );
+}
+
+// Bounce unauthenticated visitors to /login, remembering where they wanted to go.
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { token, ready } = useAuth();
+  const loc = useLocation();
+  if (!ready) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-bg-base text-ink-muted text-ds-sm">
+        Checking your keys…
+      </div>
+    );
+  }
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+  }
+  return <>{children}</>;
 }
 
 function App() {
@@ -30,6 +59,7 @@ function App() {
   const [allRuns, setAllRuns] = useState<Run[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [account, setAccount] = useState<AccountSnap | null>(null);
+  const [xauPrice, setXauPrice] = useState<number | null>(null);
   const [signalsSeen, setSignalsSeen] = useState(0);
   // Collapsible sidebar — persisted so it survives reloads.
   const [collapsed, setCollapsed] = useState<boolean>(
@@ -126,6 +156,24 @@ function App() {
         }));
         return;
       }
+      // Real-time XAU quote (run_id null on price envelopes) — feeds the TopBar
+      // ticker so every page shows the live mark, not just the Live cockpit.
+      if (env.channel === "price") {
+        const p = env.payload as any;
+        const sym = p.symbol ?? "";
+        if (sym === "XAUUSD.ecn" || sym === "XAUUSD") {
+          const mid =
+            typeof p.mid === "number"
+              ? p.mid
+              : typeof p.bid === "number" && typeof p.ask === "number"
+              ? (p.bid + p.ask) / 2
+              : typeof p.bid === "number"
+              ? p.bid
+              : null;
+          if (mid != null) setXauPrice(mid);
+        }
+        return;
+      }
       if (env.run_id !== selectedRunId) return;
       if (env.channel === "account") {
         const p = env.payload as any;
@@ -158,6 +206,9 @@ function App() {
         selectedRunId={selectedRunId}
         onSelectRun={setSelectedRunId}
         onToggleSidebar={toggleSidebar}
+        equity={account?.equity ?? null}
+        balance={account?.balance ?? null}
+        xauPrice={xauPrice}
       />
       <div className="flex-1 min-h-0 overflow-hidden flex">
         <Sidebar collapsed={collapsed} />

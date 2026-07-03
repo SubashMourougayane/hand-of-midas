@@ -125,6 +125,24 @@ body,
   animation: sheen 6s linear infinite;
 }
 
+/* Molten-gold sheen for the "Gold" word — warm brass gradient that sweeps. */
+.text-gold-sheen {
+  background: linear-gradient(
+    100deg,
+    #b8860b 12%, #e8c65a 30%, #fff3c4 46%, #f2d67a 56%, #c9992b 74%, #b8860b 90%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: sheen 5s linear infinite;
+  filter: drop-shadow(0 2px 24px rgba(232, 198, 90, 0.28));
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-gold-sheen { animation: none !important; }
+}
+
 /* Slow conic aurora behind hero */
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .anim-aurora { animation: spin-slow 40s linear infinite; }
@@ -158,6 +176,156 @@ body,
 .tick-up { animation: roll-up-in 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 .tick-down { animation: roll-down-in 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 
+/* ---- Perspective / 3D tilt (skill: perspective) ------------------------- */
+/* A scene establishes the vanishing point; children with .tilt-card rotate
+   toward the pointer. Depth layers ride on translateZ for real parallax.
+   All driven by CSS vars set from JS pointer tracking (--rx/--ry/--mx/--my). */
+.tilt-scene {
+  perspective: 1100px;
+  perspective-origin: center;
+}
+.tilt-card {
+  --rx: 0deg;
+  --ry: 0deg;
+  --mx: 50%;
+  --my: 50%;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rx)) rotateY(var(--ry));
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.tilt-card.is-live { transition: transform 0.08s linear; }
+/* Depth lift for inner content — pops toward the viewer on hover. */
+.tilt-layer { transform: translateZ(28px); transform-style: preserve-3d; }
+.tilt-layer-deep { transform: translateZ(52px); }
+/* Pointer-following glare sheen. */
+.tilt-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background: radial-gradient(
+    340px circle at var(--mx) var(--my),
+    rgba(232, 198, 90, 0.14),
+    transparent 42%
+  );
+}
+.tilt-card:hover .tilt-glare { opacity: 1; }
+
+/* Scroll-driven parallax layers on the hero (translateY by --pscroll). */
+.parallax { will-change: transform; }
+
+/* ---- Login vault motion --------------------------------------------------- */
+@keyframes login-shake {
+  0%, 100% { transform: translateX(0) rotateX(var(--rx)) rotateY(var(--ry)); }
+  20% { transform: translateX(-9px) rotateX(var(--rx)) rotateY(var(--ry)); }
+  40% { transform: translateX(8px) rotateX(var(--rx)) rotateY(var(--ry)); }
+  60% { transform: translateX(-6px) rotateX(var(--rx)) rotateY(var(--ry)); }
+  80% { transform: translateX(4px) rotateX(var(--rx)) rotateY(var(--ry)); }
+}
+.login-shake { animation: login-shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
+@keyframes coin-flip {
+  0% { transform: rotateY(0) scale(1); }
+  50% { transform: rotateY(540deg) scale(1.14); }
+  100% { transform: rotateY(1080deg) scale(1); }
+}
+.coin-flip { animation: coin-flip 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Lock seal gently breathes at idle. */
+.seal-breathe { animation: seal-breathe 3s ease-in-out infinite; }
+@keyframes seal-breathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 40px -8px rgba(232,198,90,0.6); }
+  50% { transform: scale(1.04); box-shadow: 0 0 52px -6px rgba(232,198,90,0.8); }
+}
+
+/* ---- Guardian (vault spirit) --------------------------------------------- */
+.guardian {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 150px;
+  height: 168px;
+  margin-left: -75px;
+  z-index: 5;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 22px rgba(232, 198, 90, 0.5));
+}
+/* Hidden compartment: clipped behind the top edge, only emerges on cue. */
+.guardian-hidden { transform: translateY(-116px); opacity: 0; transition: transform 0.5s ease, opacity 0.5s ease; }
+.guardian-emerge { transform: translateY(-78px); opacity: 1; transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease; }
+.guardian-bob { animation: guardian-bob 3.4s ease-in-out infinite; transform-origin: center bottom; }
+@keyframes guardian-bob {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-4px) rotate(1.5deg); }
+}
+.guardian-aura { animation: guardian-aura 2.6s ease-in-out infinite; transform-origin: center; }
+@keyframes guardian-aura {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+/* genie wisp tail sway */
+.guardian-tail { transform-origin: 75px 120px; animation: guardian-tail 2.4s ease-in-out infinite; }
+@keyframes guardian-tail {
+  0%,100% { transform: rotate(-5deg) scaleY(1); }
+  50% { transform: rotate(5deg) scaleY(1.06); }
+}
+/* crown + gem shimmer */
+.guardian-gem { animation: guardian-aura 1.8s ease-in-out infinite; transform-origin: 75px 8px; }
+/* idle arms drift gently */
+.guardian-arm-l { transform-origin: 48px 100px; animation: arm-idle-l 3.2s ease-in-out infinite; }
+.guardian-arm-r { transform-origin: 102px 100px; animation: arm-idle-r 3.2s ease-in-out infinite; }
+@keyframes arm-idle-l { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-6deg); } }
+@keyframes arm-idle-r { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(6deg); } }
+/* wagging arm (No-No-No) */
+.guardian-arm-wag { transform-origin: 48px 100px; animation: arm-wag 0.34s ease-in-out infinite; }
+@keyframes arm-wag { 0%,100% { transform: rotate(-18deg); } 50% { transform: rotate(14deg); } }
+/* silent laugh — shoulder/body shake */
+.guardian-emerge.laugh .guardian-bob { animation: guardian-laugh 0.32s ease-in-out infinite; }
+@keyframes guardian-laugh {
+  0%,100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-2px) rotate(2deg); }
+}
+
+/* ---- Vault shatter transition -------------------------------------------- */
+@keyframes vault-crack {
+  0% { box-shadow: inset 0 0 0 rgba(232,198,90,0); }
+  100% { box-shadow: inset 0 0 60px rgba(232,198,90,0.65), 0 0 80px rgba(232,198,90,0.5); }
+}
+.vault-charging { animation: vault-crack 1.8s ease-in forwards; position: relative; }
+.vault-crack-line {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    linear-gradient(105deg, transparent 46%, rgba(255,243,196,0.9) 49%, transparent 52%),
+    linear-gradient(20deg, transparent 62%, rgba(232,198,90,0.8) 64%, transparent 67%);
+  opacity: 0; animation: crack-in 1.8s ease-in forwards;
+}
+@keyframes crack-in { to { opacity: 1; } }
+@keyframes vault-shatter {
+  0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+  35% { transform: scale(1.04); opacity: 1; filter: brightness(1.8); }
+  100% { transform: scale(1.5); opacity: 0; filter: brightness(3); }
+}
+.vault-shatter { animation: vault-shatter 1.8s cubic-bezier(0.5, 0, 0.75, 0) forwards; }
+/* full-screen gold flash + zoom for the reveal */
+@keyframes vault-flash {
+  0% { opacity: 0; }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+.vault-flash { animation: vault-flash 2s ease-out forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .guardian-bob, .guardian-aura, .guardian-wing-l, .guardian-wing-r,
+  .guardian-finger, .vault-charging, .vault-crack-line, .vault-shatter, .vault-flash,
+  .seal-breathe {
+    animation: none !important;
+  }
+  .guardian-hidden, .guardian-emerge { transition: none !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-up, .anim-float, .text-sheen, .anim-aurora, .anim-marquee, .anim-count,
   .tick-up, .tick-down {
@@ -165,6 +333,12 @@ body,
     opacity: 1 !important;
     transform: none !important;
   }
+  .tilt-card, .tilt-layer, .tilt-layer-deep {
+    transform: none !important;
+    transition: none !important;
+  }
+  .tilt-glare { display: none !important; }
+  .login-shake, .coin-flip { animation: none !important; }
 }
 
 /* Tabular numerics on numbers */
