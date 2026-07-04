@@ -120,12 +120,18 @@ class PriceStreamer:
         bal = _f(a.get("balance"))
         eq = _f(a.get("equity"))
         profit = _f(a.get("profit"))
+        margin = _f(a.get("margin"))
+        free_margin = _f(a.get("free_margin"))
+        margin_level = _f(a.get("margin_level"))
+        leverage = _f(a.get("leverage"))
         # Torn-read guard: reject if equity jumps >20% vs last good (partial write).
         if self._last_acct is not None and eq is not None:
             prev_eq = self._last_acct[1]
             if prev_eq and prev_eq > 0 and abs(eq - prev_eq) / prev_eq > 0.20:
                 return
-        key = (bal, eq, profit)
+        # Include margin in the dedup key so a change in deployed capital
+        # (position opened/closed) re-broadcasts even if bal/eq/profit are steady.
+        key = (bal, eq, profit, margin)
         if self._last_acct == key:
             return
         self._last_acct = key
@@ -137,8 +143,10 @@ class PriceStreamer:
                 "balance": bal,
                 "equity": eq,
                 "open_pnl": profit,   # MT5 'profit' = open floating P&L
-                "margin": _f(a.get("margin")),
-                "free_margin": _f(a.get("free_margin")),
+                "margin": margin,             # MT5 truth: total capital deployed
+                "free_margin": free_margin,
+                "margin_level": margin_level, # MT5 truth: equity/margin %
+                "leverage": leverage,         # account leverage (for per-trade margin calc)
             },
         })
 
@@ -207,29 +215,30 @@ class PriceStreamer:
             file_profit = _f(v.get("profit"))
             side = str(v.get("type", "")).upper()  # BUY / SELL
 
-            # Recompute unrealised P&L from the LIVE tick rather than the file's
-            # lagging 'profit'. The EA writes open_orders.json in slow bursts
-            # (~8s stale on fast moves); market_data updates ~1s. Same close-out
-            # convention MT5 uses: longs mark to bid, shorts to ask.
-            unrealized = file_profit  # fallback to file value
-            price_source = "file"
+            # SINGLE SOURCE OF TRUTH = MT5. `profit` in open_orders.json is MT5's
+            # OWN per-position P&L (its exact mark, incl swap/commission). Use it
+            # verbatim so every card ties to the broker and Σcards == equity−balance.
+            # The old code RECOMPUTED (price−entry)×lots from the tick and only fell
+            # back to MT5's value — an approximation (no commission, different mark)
+            # that made cards disagree with the account line + flicker as WS pushes
+            # raced. We keep a SECONDARY tick estimate (`tick_usd`) purely for a
+            # fresher-but-approximate readout on fast moves; the authoritative
+            # `unrealized_usd` is always MT5's `profit`.
+            unrealized = file_profit  # MT5 truth
+            tick_usd = None
             quote = self._last.get(symbol) if symbol else None
             contract = _CONTRACT_SIZE.get(str(symbol).split(".")[0]) if symbol else None
             if quote and open_price and vol and contract:
                 bid, ask = quote
-                mark = None
                 if side == "BUY" and bid:
-                    mark = bid
-                    px_pnl = (mark - open_price) * vol * contract
+                    tick_usd = round((bid - open_price) * vol * contract + swap, 2)
                 elif side == "SELL" and ask:
-                    mark = ask
-                    px_pnl = (open_price - mark) * vol * contract
-                else:
-                    px_pnl = None
-                if px_pnl is not None:
-                    unrealized = round(px_pnl + swap, 2)
-                    price_source = "tick"
+                    tick_usd = round((open_price - ask) * vol * contract + swap, 2)
 
+            if unrealized is None:
+                # MT5 profit missing (rare) → fall back to the tick estimate so the
+                # card isn't blank; never drop a real open position.
+                unrealized = tick_usd
             if unrealized is None:
                 continue
             b = booked.get(str(ticket))
@@ -240,11 +249,12 @@ class PriceStreamer:
                 "open_price": open_price,
                 "sl": _f(v.get("sl")),
                 "tp": _f(v.get("tp")),
-                "unrealized_usd": unrealized,          # floating, open remainder
+                "unrealized_usd": unrealized,          # MT5 truth (floating, open remainder)
+                "tick_usd": tick_usd,                  # secondary tick estimate (approx)
                 "booked_usd": b["booked_usd"] if b else None,      # realised partial(s)
                 "booked_volume": b["booked_volume"] if b else None,
                 "swap": swap,
-                "price_source": price_source,  # 'tick' (live) or 'file' (lagging)
+                "price_source": "mt5",  # authoritative value is always MT5 'profit'
             }
         # Snapshot key = ticket -> (float, booked); skip broadcast if unchanged.
         key = {

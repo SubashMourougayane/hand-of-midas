@@ -18,7 +18,23 @@ def get_db_url() -> str:
 
 
 def make_engine(url: str | None = None) -> Engine:
-    return create_engine(url or get_db_url(), future=True, pool_pre_ping=True)
+    # Pool sizing: the dashboard backend fans a single page load into many
+    # concurrent GET requests (per-run trades/signals/funnel/account), and
+    # multiple open browser tabs multiply that. The SQLAlchemy default
+    # (pool_size=5, max_overflow=10) exhausted under a few tabs → requests
+    # blocked 30s on checkout, timed out, and the frontend retried into a
+    # pile-up (observed 216 pending). Give real headroom + fail FAST on
+    # genuine exhaustion (5s, not 30s) so a spike degrades gracefully instead
+    # of wedging. pool_recycle guards against stale server-side conns.
+    return create_engine(
+        url or get_db_url(),
+        future=True,
+        pool_pre_ping=True,
+        pool_size=20,
+        max_overflow=40,
+        pool_timeout=5,
+        pool_recycle=1800,
+    )
 
 
 _engine: Engine | None = None

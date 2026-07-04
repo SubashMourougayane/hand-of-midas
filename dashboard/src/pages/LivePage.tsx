@@ -75,6 +75,10 @@ export function LivePage({
     balance: number | null;
     equity: number | null;
     open_pnl: number | null;
+    margin: number | null;
+    free_margin: number | null;
+    margin_level: number | null;
+    leverage: number | null;
   } | null>(null);
 
   // 1s heartbeat so staleness / age render live.
@@ -83,56 +87,75 @@ export function LivePage({
     return () => clearInterval(t);
   }, []);
 
-  // Discover the live legs (both A + D), then hydrate each with REST.
+  // Hydrate the whole cockpit from ONE backend call. /api/live/summary returns
+  // active legs + open trades (deduped, gathered across all a strategy's runs so
+  // a position stranded on an ended run is never hidden) + realized-today +
+  // freshest account snapshot — all computed server-side in a few set queries.
+  // Replaces the old per-run N+1 fan-out that hammered the DB (dozens of calls,
+  // most dead runs returning []) and exhausted the connection pool.
+  //
+  // Per-leg funnel + last-signal aren't in the summary (they're mostly WS-driven);
+  // fetch them ONLY for the active legs (≤2 calls), not every historical run.
   const hydrate = useCallback(async () => {
-    let allRuns: Run[] = [];
+    let summary: Awaited<ReturnType<typeof api.liveSummary>>;
     try {
-      allRuns = await api.runs(200, "live");
+      summary = await api.liveSummary();
     } catch {
       return; // keep whatever we have
     }
-    const activeRuns = allRuns.filter((r) => !r.end_ts);
-    // Open positions can be stranded on an ENDED run when the leg restarted
-    // before re-pointing (broker still holds them; DB row's run_id lags). To
-    // never hide a real open position, gather open trades for the strategy
-    // across ALL its runs (active + ended) and attach to the active leg,
-    // deduped by broker_ticket. (Frontend safety net for run-bookkeeping lag.)
-    const runsByStrat: Record<string, Run[]> = {};
-    for (const r of allRuns) (runsByStrat[r.strategy_id] ??= []).push(r);
+    setRealizedToday(summary.realized_today_usd ?? 0);
 
-    const next: Record<string, LegState> = {};
-    await Promise.all(
-      activeRuns.map(async (run) => {
-        const stratRuns = runsByStrat[run.strategy_id] ?? [run];
-        const [sigs, fn, acc, ...tradeLists] = await Promise.all([
-          api.signalsRecent({ run_id: run.run_id, limit: 1 }).catch(() => [] as SignalRowT[]),
-          api.funnel(run.run_id).catch(() => ({ buckets: [] as FunnelBucket[] })),
-          api.accountLatest(run.run_id).catch(() => ({ items: [] as AccountSnap[] })),
-          ...stratRuns.map((sr) =>
-            api.runTrades(sr.run_id, "open").then((x) => x.items).catch(() => [] as Trade[])
-          ),
+    // Seed liveAcct from the summary's MT5 account (margin/leverage/equity) so
+    // Capital Deployed + per-trade margin populate even without a WS tick (closed
+    // market). WS account_live still overrides live. Never clobber a fresher WS
+    // value: only seed when we don't already have a live one.
+    if (summary.account) {
+      const a = summary.account;
+      setLiveAcct((prev) =>
+        prev
+          ? {
+              ...prev,
+              margin: prev.margin ?? a.margin ?? null,
+              free_margin: prev.free_margin ?? a.free_margin ?? null,
+              margin_level: prev.margin_level ?? a.margin_level ?? null,
+              leverage: prev.leverage ?? a.leverage ?? null,
+            }
+          : {
+              balance: a.balance ?? null,
+              equity: a.equity ?? null,
+              open_pnl: a.open_pnl ?? null,
+              margin: a.margin ?? null,
+              free_margin: a.free_margin ?? null,
+              margin_level: a.margin_level ?? null,
+              leverage: a.leverage ?? null,
+            }
+      );
+    }
+
+    const funnelSignal = await Promise.all(
+      summary.legs.map(async (leg) => {
+        const [sigs, fn] = await Promise.all([
+          api.signalsRecent({ run_id: leg.run.run_id, limit: 1 }).catch(() => [] as SignalRowT[]),
+          api.funnel(leg.run.run_id).catch(() => ({ buckets: [] as FunnelBucket[] })),
         ]);
-        // Dedup open trades by broker_ticket (re-adopt makes 2 rows/ticket).
-        const seen = new Set<string>();
-        const trades: Trade[] = [];
-        for (const t of (tradeLists as Trade[][]).flat()) {
-          const key = (t.broker_ticket && t.broker_ticket.trim()) || t.trade_id;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          trades.push(t);
-        }
-        next[run.run_id] = {
-          run,
-          trades,
-          account: acc.items?.[0] ?? null,
-          funnel: fn.buckets,
-          lastSignal: sigs[0] ?? null,
-          lastEventAt: 0,
-        };
+        return { runId: leg.run.run_id, sigs, buckets: fn.buckets };
       })
     );
+    const extraById = new Map(funnelSignal.map((x) => [x.runId, x]));
+
+    const next: Record<string, LegState> = {};
+    for (const leg of summary.legs) {
+      const extra = extraById.get(leg.run.run_id);
+      next[leg.run.run_id] = {
+        run: leg.run,
+        trades: leg.open_trades,
+        account: summary.account ?? null,
+        funnel: extra?.buckets ?? [],
+        lastSignal: extra?.sigs?.[0] ?? null,
+        lastEventAt: 0,
+      };
+    }
     setLegs((prev) => {
-      // Preserve any lastEventAt we already tracked from the WS stream.
       const merged: Record<string, LegState> = {};
       for (const [id, ls] of Object.entries(next)) {
         merged[id] = { ...ls, lastEventAt: prev[id]?.lastEventAt ?? 0 };
@@ -141,56 +164,13 @@ export function LivePage({
     });
   }, []);
 
-  // Initial hydrate + slow poll to detect a freshly-started/ended leg. The run
-  // list is NOT part of the WS feed, so this poll is discovery-only; live
-  // trade/signal/account/price updates all arrive via WS in real time. 60s is
-  // plenty for spotting a leg that started/stopped.
+  // Initial hydrate + slow discovery poll (60s). Live trade/signal/account/price
+  // updates arrive via WS in real time; this only catches a leg starting/stopping.
   useEffect(() => {
     hydrate();
     const t = setInterval(hydrate, 60_000);
     return () => clearInterval(t);
   }, [hydrate]);
-
-  // Realized-today: sum broker_net_usd of trades CLOSED since 00:00 UTC today,
-  // across the active live strategies. Day P&L = this + open float (below), so
-  // it's genuinely distinct from Open P&L. Polled with the discovery loop.
-  const hydrateRealizedToday = useCallback(async () => {
-    try {
-      const runsAll = await api.runs(200, "live");
-      const activeStrats = new Set(
-        runsAll.filter((r) => !r.end_ts).map((r) => r.strategy_id)
-      );
-      const runs = runsAll.filter((r) => activeStrats.has(r.strategy_id));
-      const lists = await Promise.all(
-        runs.map((r) =>
-          api.runTrades(r.run_id, "closed", 1, 5000).then((x) => x.items).catch(() => [] as Trade[])
-        )
-      );
-      const startOfDayUtc = new Date();
-      startOfDayUtc.setUTCHours(0, 0, 0, 0);
-      const cutoff = startOfDayUtc.getTime();
-      const seen = new Set<string>();
-      let sum = 0;
-      for (const t of lists.flat()) {
-        if (t.exit_timestamp == null) continue;
-        if (new Date(t.exit_timestamp).getTime() < cutoff) continue;
-        // Dedup by broker_ticket (A+D dual-adopt writes 2 rows) else trade_id.
-        const key = (t.broker_ticket && t.broker_ticket.trim()) || t.trade_id;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        sum += t.broker_net_usd ?? 0;
-      }
-      setRealizedToday(sum);
-    } catch {
-      /* keep prior */
-    }
-  }, []);
-
-  useEffect(() => {
-    hydrateRealizedToday();
-    const t = setInterval(hydrateRealizedToday, 60_000);
-    return () => clearInterval(t);
-  }, [hydrateRealizedToday]);
 
   // One-time price seed on mount per distinct symbol so the P&L band isn't
   // blank before the first WS `price` push arrives. No interval — the WS
@@ -249,6 +229,10 @@ export function LivePage({
           balance: typeof p.balance === "number" ? p.balance : null,
           equity: typeof p.equity === "number" ? p.equity : null,
           open_pnl: typeof p.open_pnl === "number" ? p.open_pnl : null,
+          margin: typeof p.margin === "number" ? p.margin : null,
+          free_margin: typeof p.free_margin === "number" ? p.free_margin : null,
+          margin_level: typeof p.margin_level === "number" ? p.margin_level : null,
+          leverage: typeof p.leverage === "number" ? p.leverage : null,
         });
         return;
       }
@@ -385,10 +369,11 @@ export function LivePage({
     [prices]
   );
 
-  // Live $ unrealized for one trade: (current - entry) * side * qty * contract.
-  // qty stored in raw_features.qty_lots; contract 100 for XAU. Falls back null
-  // when no live price. This is broker-truth-ish (matches MT5 profit sans
-  // commission/swap) and updates on every price tick.
+  // FALLBACK ONLY. Per-trade cards prefer lp.unrealized_usd (MT5's own `profit`
+  // from open_orders.json — the source of truth). This (price−entry)×lots×contract
+  // estimate is used ONLY when the positions_live WS has no entry for a ticket
+  // (e.g. brief gap after a restart). It's an approximation — no commission, tick
+  // mark not MT5's — so it must never override MT5's value, only stand in for it.
   const unrealUsdFor = useCallback(
     (t: Trade, symbol: string): number | null => {
       const cur = prices[symbol];
@@ -448,11 +433,14 @@ export function LivePage({
     if (liveAcct?.open_pnl != null) {
       openPnl = liveAcct.open_pnl;
       live = true;
-    } else if (liveAcct?.equity != null && liveAcct?.balance != null) {
-      // Broker equity + balance present but open_pnl field missing → derive it
-      // on the SAME (broker) basis instead of switching to the per-trade sum.
-      openPnl = liveAcct.equity - liveAcct.balance;
-      live = true;
+    } else if (equity != null && balance != null) {
+      // Whenever equity + balance are BOTH known (broker WS or DB snapshot),
+      // derive Open P&L = equity − balance so the float ALWAYS reconciles with
+      // the displayed equity. Using the per-trade price×lots sum here instead
+      // made "balance + float" ≠ equity (e.g. 10526.77 + 327.07 ≠ 10846.06,
+      // which is +319.29). Same-basis derive keeps the card internally consistent.
+      openPnl = equity - balance;
+      live = liveAcct != null;
     } else if (haveLive) {
       openPnl = livePnl;
       live = true;
@@ -460,7 +448,14 @@ export function LivePage({
       openPnl = latest?.open_pnl ?? null;
       live = false;
     }
-    return { equity, balance, openPnl, openPnlLive: live, positions, snapTs: latest?.ts ?? null };
+    return {
+      equity, balance, openPnl, openPnlLive: live, positions, snapTs: latest?.ts ?? null,
+      // MT5 truth: total capital deployed (margin) + free margin + level + leverage.
+      margin: liveAcct?.margin ?? null,
+      freeMargin: liveAcct?.free_margin ?? null,
+      marginLevel: liveAcct?.margin_level ?? null,
+      leverage: liveAcct?.leverage ?? null,
+    };
   }, [legList, unrealUsdFor, liveAcct]);
 
   const totalUnrealR = useMemo(() => {
@@ -591,8 +586,8 @@ export function LivePage({
           </div>
         </div>
 
-        {/* ── Supporting row: now / today / risk / market ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        {/* ── Supporting row: now / today / risk / capital / market ── */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
           <div className="glass rounded-ds-lg">
             <StatTile
               label="Open P&L · now"
@@ -634,6 +629,21 @@ export function LivePage({
               unit="USD"
               sub={`${combined.positions} pos · ${nLong}L ${nShort}S`}
               tone={combined.positions > 0 ? "neutral" : "neutral"}
+            />
+          </div>
+          <div className="glass rounded-ds-lg">
+            <StatTile
+              label="Capital Deployed"
+              value={combined.margin != null ? fmtMoneyBare(combined.margin) : "—"}
+              unit="USD"
+              tone="neutral"
+              sub={
+                combined.marginLevel != null
+                  ? `margin lvl ${Math.round(combined.marginLevel).toLocaleString()}%`
+                  : combined.equity != null && combined.margin != null && combined.margin > 0
+                  ? `${((combined.margin / combined.equity) * 100).toFixed(1)}% of equity`
+                  : "broker margin"
+              }
             />
           </div>
           <div className="glass rounded-ds-lg">
@@ -690,6 +700,10 @@ export function LivePage({
                 // Prefer broker-truth live $; else per-trade price math.
                 const liveUsd = lp?.unrealized_usd ?? unrealUsdFor(t, symbol);
                 const liveLots = lp?.volume ?? null;
+                // NOTE: no per-trade "capital/margin" — the account is HEDGE mode,
+                // so MT5 nets margin on offsetting positions and the true per-ticket
+                // margin can't be reconstructed (MT5 doesn't stream it per-ticket).
+                // Account-level Capital Deployed KPI shows MT5's real total margin.
                 const stateCls =
                   u == null
                     ? "border-l-2 border-l-line-base"

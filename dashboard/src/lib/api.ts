@@ -139,6 +139,22 @@ export const api = {
   accountSeries: (run_id: string, limit = 500) =>
     j<AccountSnap[]>(`/api/account/series?run_id=${run_id}&limit=${limit}`),
   scanStatus: () => j<{ runs: any[] }>("/api/scan-status"),
+  // ONE call for the whole Live cockpit — active legs + open trades (deduped) +
+  // realized-today + freshest account snapshot. Replaces the per-run N+1 fan-out.
+  liveSummary: () =>
+    j<{
+      legs: { run: Run; open_trades: Trade[] }[];
+      realized_today_usd: number;
+      account:
+        | (AccountSnap & {
+            margin?: number | null;
+            free_margin?: number | null;
+            margin_level?: number | null;
+            leverage?: number | null;
+          })
+        | null;
+      server_ts: string;
+    }>("/api/live/summary"),
   // Recent OHLC bars for a symbol/timeframe. Sourced from the DWX live dump
   // for live mode; the last bar's `close` is the freshest available price.
   bars: (symbol: string, tf = "M15") =>

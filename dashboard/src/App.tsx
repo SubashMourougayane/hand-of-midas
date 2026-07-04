@@ -147,39 +147,19 @@ function App() {
     }
   }, [runs, selectedRunId, onBacktest]);
 
-  // Initial account snap fetch. After that, WS `account`/`account_live` pushes
-  // update setAccount. A+D share ONE broker account, so any live run's snapshot
-  // reflects the same equity/balance — fetch across ALL live runs and keep the
-  // FRESHEST. Fetching only selectedRunId broke when a leg was freshly
-  // (re)started onto a run with no snapshot yet → pill went blank on a closed
-  // market (no WS ticks to backfill). Poll every 60s as a closed-market safety
-  // net so equity/return never sit empty.
+  // Account snapshot for the TopBar pill + StatusBar. ONE call
+  // (/api/live/summary) returns the freshest snapshot across all live runs
+  // (A+D share one account). After this, WS `account`/`account_live` pushes keep
+  // it live. Poll 60s as a closed-market safety net so equity/return never blank.
+  // (Was: a per-run fan-out that added to the request storm.)
   useEffect(() => {
     let mounted = true;
-    const liveRuns = allRuns.filter((r) => r.mode === "live");
-    const targets = liveRuns.length > 0
-      ? liveRuns.map((r) => r.run_id)
-      : selectedRunId
-      ? [selectedRunId]
-      : [];
-    if (targets.length === 0) {
-      setAccount(null);
-      return;
-    }
     const load = async () => {
       try {
-        const results = await Promise.all(
-          targets.map((id) =>
-            api.accountLatest(id).then(({ items }) => items[0] ?? null).catch(() => null)
-          )
-        );
-        const freshest = results
-          .filter((s): s is NonNullable<typeof s> => s != null)
-          .sort((a, b) => (a.ts < b.ts ? 1 : -1))[0];
-        if (mounted && freshest) {
-          // Never clobber a live WS value with an older DB snapshot.
+        const s = await api.liveSummary();
+        if (mounted && s.account) {
           setAccount((prev) =>
-            prev && prev.ts && freshest.ts && prev.ts > freshest.ts ? prev : freshest
+            prev && prev.ts && s.account!.ts && prev.ts > s.account!.ts ? prev : s.account
           );
         }
       } catch {
@@ -192,7 +172,7 @@ function App() {
       mounted = false;
       clearInterval(t);
     };
-  }, [allRuns, selectedRunId]);
+  }, []);
 
   // Live updates via ws.
   useEffect(() => {
