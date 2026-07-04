@@ -38,13 +38,24 @@ BASE = "https://datafeed.dukascopy.com/datafeed"
 def fetch_hour(symbol: str, dt: datetime) -> list[tuple[float, float, float]]:
     """Returns list of (ts_epoch_s, mid_price, volume) ticks for the hour."""
     url = f"{BASE}/{symbol}/{dt.year:04d}/{(dt.month-1):02d}/{dt.day:02d}/{dt.hour:02d}h_ticks.bi5"
-    try:
-        resp = urlopen(url, timeout=20)
-        data = resp.read()
-    except HTTPError as e:
-        if e.code == 404:
-            return []
-        raise
+    import time as _t
+    data = None
+    for _att in range(6):
+        try:
+            resp = urlopen(url, timeout=30)
+            data = resp.read()
+            break
+        except HTTPError as e:
+            if e.code == 404:
+                return []
+            if e.code in (503, 429, 500):
+                _t.sleep(1.5 * (_att + 1))  # backoff on rate-limit
+                continue
+            raise
+        except Exception:
+            _t.sleep(1.5 * (_att + 1)); continue
+    if data is None:
+        return []
     if not data:
         return []
     raw = lzma.decompress(data)
