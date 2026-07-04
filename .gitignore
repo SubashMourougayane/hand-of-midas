@@ -58,3 +58,4 @@ logs/debug_exec.log
 .agents/
 golddigger_bt*.dump
 /LIVE_DISABLED
+research/data/btc/BTCUSDT_M1.parquet
