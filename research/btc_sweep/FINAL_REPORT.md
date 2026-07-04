@@ -9,9 +9,29 @@ cost = 12 bps round-trip, adversarial battery (delay/WF/bootstrap/B&H). No phant
 ## Headline result
 
 **BTC intraday (M5) has NO tradeable edge — honest zero.** BTC's edge lives on
-**higher timeframes, long-biased trend/momentum.** The optimal survivor:
+**higher timeframes (H4), long-biased.** ALL 16 XAU families ported (594 configs
+total across M5/M15/H1/H4/D1). Only H4-long variants of momentum, VWAP-momentum,
+MA-cross, FVG-break survive. Every short config and every intraday config failed.
 
-### ★ WINNER — H4 Momentum-Long
+### ★★ TOP WINNER — H4 VWAP-Momentum-Long  (best of all 16 families)
+`H4 · prior close > session-VWAP(lagged) AND > EMA50(lagged) → long · SL 1.0×ATR · TP 3R · 5-day horizon`
+
+| Metric | Value |
+|---|---|
+| Trades | 750 (113/yr) over 6.6yr |
+| Net | +287.9 R |
+| PF | 1.56 · MAR **2.22** |
+| Positive years | **7/8** (only 2022 flat −0.2R, 2019 stub −16.7R) |
+| +1-bar delay | PF 1.56→1.57 (survives) |
+| Walk-forward | IS 1.50 / **OOS 1.62** |
+| Bootstrap P(net≤0) | **0.000** |
+| **@1% risk compounding** | **$10k → $154,316 (+1443%), maxDD 18%** |
+| **vs Buy&Hold** | B&H +797% @ 77% DD → risk-adj **80.4 vs 10.3 (beats B&H ~8×)** |
+
+Higher frequency (113/yr) AND higher MAR than the H4-momentum winner below — this
+is the recommended BTC strategy.
+
+### ★ RUNNER-UP — H4 Momentum-Long
 `H4 · 20-bar ROC > +5% (lagged) → long · SL 1.5×ATR · TP 2R · 30-bar (5-day) horizon`
 
 | Metric | Value |
