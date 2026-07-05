@@ -1,0 +1,32 @@
+[05:21:39] === S9 SMT (XAU/XAG divergence) ===
+[05:21:39] aligned M15: 158,672 bars
+[05:21:39] XAU M5 exec: 476,058 bars
+[05:21:39] running SMT sweep …
+[05:21:40] k=2: 6957 raw SMT divergences
+[05:21:40]   ** BEST PF=0.929 n=2762 /yr=412 MAR=-0.07 pos=3/8 :: k2 cb4 sl0.1 2R (1,)
+[05:21:40]   ** BEST PF=1.041 n=2762 /yr=412 MAR=0.05 pos=4/8 :: k2 cb4 sl0.1 3R (1,)
+[05:21:41]   ** BEST PF=1.063 n=2762 /yr=412 MAR=0.09 pos=4/8 :: k2 cb4 sl0.25 3R (1,)
+[05:21:41]   ** BEST PF=1.067 n=2762 /yr=412 MAR=0.10 pos=4/8 :: k2 cb4 sl0.5 3R (1,)
+[05:21:41]   ** BEST PF=1.079 n=2895 /yr=432 MAR=0.12 pos=4/8 :: k2 cb8 sl0.25 3R (1,)
+[05:21:42]   ** BEST PF=1.084 n=2895 /yr=432 MAR=0.12 pos=4/8 :: k2 cb8 sl0.5 3R (1,)
+[05:21:42]   ** BEST PF=1.089 n=2978 /yr=444 MAR=0.15 pos=4/8 :: k2 cb12 sl0.25 3R (1,)
+[05:21:42]   ** BEST PF=1.094 n=2978 /yr=444 MAR=0.15 pos=4/8 :: k2 cb12 sl0.5 3R (1,)
+[05:21:43] k=3: 5034 raw SMT divergences
+[05:21:43]   ** BEST PF=1.097 n=1968 /yr=293 MAR=0.21 pos=5/8 :: k3 cb4 sl0.1 3R (1,)
+[05:21:44]   ** BEST PF=1.101 n=1968 /yr=293 MAR=0.28 pos=5/8 :: k3 cb4 sl0.25 3R (1,)
+[05:21:44]   ** BEST PF=1.129 n=1968 /yr=293 MAR=0.33 pos=5/8 :: k3 cb4 sl0.5 3R (1,)
+[05:21:44]   ** BEST PF=1.161 n=2068 /yr=308 MAR=0.50 pos=5/8 :: k3 cb8 sl0.5 3R (1,)
+[05:21:46] k=4: 3963 raw SMT divergences
+[05:21:46]   ** BEST PF=1.165 n=1516 /yr=226 MAR=0.52 pos=6/8 :: k4 cb4 sl0.5 3R (1,)
+[05:21:47]   ** BEST PF=1.175 n=1582 /yr=236 MAR=0.58 pos=6/8 :: k4 cb8 sl0.5 3R (1,)
+[05:21:47] DONE [S9] 162 configs, 0 gate-passes, best PF=1.175 -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S9_leaderboard.csv
+[05:21:47] TOP by PF (n>=80):
+ k  confirm_bars  sl_buf tp_mode sides    n  per_yr    pf  net_r  mar    wr pos_years  gate_pass
+ 4             8     0.5      3R  (1,) 1582     236 1.175  169.3 0.58 0.382       6/8      False
+ 4             4     0.5      3R  (1,) 1516     226 1.165  153.2 0.52 0.379       6/8      False
+ 4            12     0.5      3R  (1,) 1639     244 1.162  163.0 0.53 0.381       7/8      False
+ 3             8     0.5      3R  (1,) 2068     308 1.161  214.4 0.50 0.370       5/8      False
+ 3            12     0.5      3R  (1,) 2125     317 1.159  218.0 0.54 0.372       5/8      False
+ 4             8     0.1      3R  (1,) 1582     236 1.159  169.3 0.39 0.355       6/8      False
+ 4             4     0.1      3R  (1,) 1516     226 1.147  150.5 0.36 0.352       6/8      False
+ 4            12     0.1      3R  (1,) 1639     244 1.145  160.7 0.32 0.353       5/8      False

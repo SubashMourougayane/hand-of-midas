@@ -1,0 +1,372 @@
+[05:02:56] Loading base M1/M5/M15 (causal_sim) …
+[05:02:56]   m1=2,374,995 m5=475,810 m15=158,645
+[05:02:56]   resampling 4h …
+[05:02:56]     4h: 10,385 bars
+[05:02:56] 
+########## S1: 31,104 configs ##########
+[05:02:56] levers: rule=2, k=3, ote=4, sl_buf=3, tp_mode=2, sweep_lb=3, need_conf=3, use_idm=2, h4_trend=2, session=2, sides=3
+[05:02:56]   resampling 15min …
+[05:02:56]     15min: 158,659 bars
+[05:03:55]   ** BEST PF=0.907 n=7243 /yr=1079 MAR=-0.10 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:03:55]   ** BEST PF=0.908 n=3714 /yr=554 MAR=-0.09 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:03:55]   ** BEST PF=0.942 n=3805 /yr=567 MAR=-0.07 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:03:56]   ** BEST PF=0.977 n=4177 /yr=622 MAR=-0.04 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:03:56]   ** BEST PF=0.981 n=2086 /yr=311 MAR=-0.03 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:03:57]   ** BEST PF=0.984 n=4723 /yr=704 MAR=-0.03 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:03:57]   ** BEST PF=0.987 n=2342 /yr=349 MAR=-0.02 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:03:57]   ** BEST PF=0.991 n=2496 /yr=372 MAR=-0.01 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:03:59]   ** BEST PF=0.997 n=2627 /yr=392 MAR=-0.00 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:03:59]   ** BEST PF=1.023 n=7243 /yr=1079 MAR=0.05 pos=5/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:03:59]   ** BEST PF=1.049 n=3805 /yr=567 MAR=0.09 pos=5/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:00]   ** BEST PF=1.049 n=3460 /yr=516 MAR=0.10 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:00]   ** BEST PF=1.080 n=4177 /yr=622 MAR=0.22 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:04:00]   ** BEST PF=1.087 n=2235 /yr=333 MAR=0.14 pos=5/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:02]   ** BEST PF=1.093 n=4723 /yr=704 MAR=0.34 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'all', 'sides': (1,)}
+[05:04:02]   ** BEST PF=1.106 n=2496 /yr=372 MAR=0.18 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:03]   ** BEST PF=1.120 n=2627 /yr=392 MAR=0.20 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:03]   ** BEST PF=1.126 n=1371 /yr=205 MAR=0.15 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:16]   [S1] 1,000/31,104 (3%) 79s ETA2389s kept=1,000 passes=0 bestPF=1.126
+[05:04:20]   ** BEST PF=1.137 n=2527 /yr=377 MAR=0.22 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:20]   ** BEST PF=1.151 n=1327 /yr=198 MAR=0.14 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:22]   ** BEST PF=1.155 n=2659 /yr=397 MAR=0.26 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:04:22]   ** BEST PF=1.179 n=1393 /yr=208 MAR=0.18 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:36]   [S1] 2,000/31,104 (6%) 100s ETA1451s kept=2,000 passes=0 bestPF=1.179
+[05:04:37]   ** BEST PF=1.189 n=1211 /yr=181 MAR=0.26 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:46]   ** BEST PF=1.213 n=1235 /yr=185 MAR=0.29 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:48]   ** BEST PF=1.220 n=1292 /yr=193 MAR=0.31 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:04:56]   [S1] 3,000/31,104 (10%) 120s ETA1124s kept=3,000 passes=0 bestPF=1.220
+[05:05:05]   ** BEST PF=1.221 n=1172 /yr=175 MAR=0.26 pos=5/8 :: {'rule': '15min', 'k': 2, 'ote': 0.705, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:14]   ** BEST PF=1.262 n=897 /yr=134 MAR=0.75 pos=6/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '2R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:15]   [S1] 4,000/31,104 (13%) 139s ETA944s kept=4,000 passes=0 bestPF=1.262
+[05:05:18]   ** BEST PF=1.287 n=1567 /yr=234 MAR=0.73 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:18]   ** BEST PF=1.329 n=1581 /yr=236 MAR=1.18 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:05:18]   ** BEST PF=1.450 n=897 /yr=134 MAR=1.60 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:21]   ** BEST PF=1.453 n=1049 /yr=157 MAR=1.54 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:26]   ** BEST PF=1.474 n=904 /yr=135 MAR=2.01 pos=7/8 :: {'rule': '15min', 'k': 2, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:05:34]   [S1] 5,000/31,104 (16%) 158s ETA824s kept=5,000 passes=0 bestPF=1.474
+[05:06:25]   [S1] 6,000/31,104 (19%) 209s ETA876s kept=6,000 passes=0 bestPF=1.474
+[05:06:42]   [S1] 7,000/31,104 (23%) 226s ETA778s kept=7,000 passes=0 bestPF=1.474
+[05:06:58]   [S1] 8,000/31,104 (26%) 242s ETA699s kept=8,000 passes=0 bestPF=1.474
+[05:07:14]   [S1] 9,000/31,104 (29%) 258s ETA633s kept=9,000 passes=0 bestPF=1.474
+[05:07:19]   ★ GATE PASS PF=1.374 /yr=209 MAR=1.72 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:19]   ** BEST PF=1.627 n=761 /yr=115 MAR=2.14 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:07:19]   ★ GATE PASS PF=1.374 /yr=209 MAR=1.72 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:20]   ★ GATE PASS PF=1.353 /yr=238 MAR=1.55 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:20]   ★ GATE PASS PF=1.344 /yr=222 MAR=1.61 pos=7/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:07:20]   ★ GATE PASS PF=1.353 /yr=238 MAR=1.55 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:20]   ★ GATE PASS PF=1.344 /yr=222 MAR=1.61 pos=7/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 1, 'session': 'all', 'sides': (1,)}
+[05:07:21]   ★ GATE PASS PF=1.353 /yr=253 MAR=1.58 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:21]   ★ GATE PASS PF=1.353 /yr=253 MAR=1.58 pos=8/8 :: {'rule': '15min', 'k': 3, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:07:29]   [S1] 10,000/31,104 (32%) 273s ETA575s kept=10,000 passes=8 bestPF=1.627
+[05:08:06]   [S1] 11,000/31,104 (35%) 310s ETA567s kept=11,000 passes=8 bestPF=1.627
+[05:08:20]   [S1] 12,000/31,104 (39%) 324s ETA516s kept=12,000 passes=8 bestPF=1.627
+[05:08:34]   [S1] 13,000/31,104 (42%) 338s ETA470s kept=13,000 passes=8 bestPF=1.627
+[05:08:47]   [S1] 14,000/31,104 (45%) 351s ETA428s kept=14,000 passes=8 bestPF=1.627
+[05:08:53]   ★ GATE PASS PF=1.365 /yr=225 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:53]   ★ GATE PASS PF=1.365 /yr=225 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:53]   ★ GATE PASS PF=1.388 /yr=219 MAR=1.65 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:54]   ★ GATE PASS PF=1.388 /yr=219 MAR=1.65 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:54]   ** BEST PF=1.728 n=612 /yr=93 MAR=2.17 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:08:54]   ★ GATE PASS PF=1.385 /yr=252 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:54]   ★ GATE PASS PF=1.385 /yr=252 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.456 /yr=205 MAR=2.01 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ** BEST PF=1.764 n=694 /yr=104 MAR=2.62 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.456 /yr=205 MAR=2.01 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.345 /yr=276 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.345 /yr=276 MAR=1.55 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 3, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.367 /yr=267 MAR=1.77 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:55]   ★ GATE PASS PF=1.367 /yr=267 MAR=1.77 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:56]   ★ GATE PASS PF=1.432 /yr=216 MAR=1.88 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:56]   ★ GATE PASS PF=1.432 /yr=216 MAR=1.88 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:59]   ★ GATE PASS PF=1.362 /yr=227 MAR=1.76 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:59]   ★ GATE PASS PF=1.362 /yr=227 MAR=1.76 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:59]   ★ GATE PASS PF=1.378 /yr=221 MAR=1.85 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:08:59]   ★ GATE PASS PF=1.378 /yr=221 MAR=1.85 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:00]   [S1] 15,000/31,104 (48%) 363s ETA390s kept=15,000 passes=26 bestPF=1.764
+[05:09:00]   ★ GATE PASS PF=1.365 /yr=254 MAR=1.68 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:00]   ★ GATE PASS PF=1.365 /yr=254 MAR=1.68 pos=7/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:00]   ★ GATE PASS PF=1.430 /yr=206 MAR=2.20 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:00]   ★ GATE PASS PF=1.430 /yr=206 MAR=2.20 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 6, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:01]   ★ GATE PASS PF=1.348 /yr=269 MAR=1.65 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 4, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:01]   ★ GATE PASS PF=1.348 /yr=269 MAR=1.65 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 4, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:01]   ★ GATE PASS PF=1.409 /yr=218 MAR=1.97 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:01]   ★ GATE PASS PF=1.409 /yr=218 MAR=1.97 pos=8/8 :: {'rule': '15min', 'k': 4, 'ote': 0.786, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 10, 'need_conf': 5, 'use_idm': 1, 'h4_trend': 0, 'session': 'kz', 'sides': (1,)}
+[05:09:07]   resampling 1h …
+[05:09:07]     1h: 39,693 bars
+[05:09:16]   [S1] 16,000/31,104 (51%) 380s ETA359s kept=16,000 passes=34 bestPF=1.764
+[05:09:22]   [S1] 17,000/31,104 (55%) 386s ETA320s kept=17,000 passes=34 bestPF=1.764
+[05:09:28]   [S1] 18,000/31,104 (58%) 392s ETA285s kept=18,000 passes=34 bestPF=1.764
+[05:09:34]   [S1] 19,000/31,104 (61%) 398s ETA254s kept=19,000 passes=34 bestPF=1.764
+[05:09:40]   [S1] 20,000/31,104 (64%) 404s ETA224s kept=20,000 passes=34 bestPF=1.764
+[05:09:50]   [S1] 21,000/31,104 (68%) 414s ETA199s kept=21,000 passes=34 bestPF=1.764
+[05:09:55]   [S1] 22,000/31,104 (71%) 419s ETA173s kept=22,000 passes=34 bestPF=1.764
+[05:10:00]   [S1] 23,000/31,104 (74%) 424s ETA149s kept=23,000 passes=34 bestPF=1.764
+[05:10:06]   [S1] 24,000/31,104 (77%) 429s ETA127s kept=24,000 passes=34 bestPF=1.764
+[05:10:11]   [S1] 25,000/31,104 (80%) 434s ETA106s kept=25,000 passes=34 bestPF=1.764
+[05:10:19]   [S1] 26,000/31,104 (84%) 442s ETA87s kept=26,000 passes=34 bestPF=1.764
+[05:10:21]   ** BEST PF=1.849 n=108 /yr=17 MAR=0.61 pos=6/8 :: {'rule': '1h', 'k': 4, 'ote': 0.5, 'sl_buf': 0.1, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:10:23]   [S1] 27,000/31,104 (87%) 447s ETA68s kept=27,000 passes=34 bestPF=1.849
+[05:10:23]   ** BEST PF=1.885 n=134 /yr=21 MAR=0.60 pos=6/8 :: {'rule': '1h', 'k': 4, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 3, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:10:23]   ** BEST PF=2.028 n=108 /yr=17 MAR=0.66 pos=6/8 :: {'rule': '1h', 'k': 4, 'ote': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'sweep_lb': 3, 'need_conf': 5, 'use_idm': 0, 'h4_trend': 1, 'session': 'kz', 'sides': (1,)}
+[05:10:28]   [S1] 28,000/31,104 (90%) 451s ETA50s kept=28,000 passes=34 bestPF=2.028
+[05:10:32]   [S1] 29,000/31,104 (93%) 456s ETA33s kept=29,000 passes=34 bestPF=2.028
+[05:10:37]   [S1] 30,000/31,104 (96%) 461s ETA17s kept=30,000 passes=34 bestPF=2.028
+[05:10:41]   [S1] 31,000/31,104 (100%) 465s ETA2s kept=31,000 passes=34 bestPF=2.028
+[05:10:42] DONE [S1] 31104 kept, 34 gate-passes, best PF=2.028, 465s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S1_leaderboard.csv
+[05:10:42] TOP by PF (n>=100):
+rule  k  ote  sl_buf tp_mode  sweep_lb  need_conf  use_idm  h4_trend session sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+  1h  4  0.5    0.25      3R         3          5        1         1      kz  (1,) 108      17 2.028   53.8 0.66 0.491 -12.6       6/8    2.92      False
+  1h  4  0.5    0.25      3R         3          5        0         1      kz  (1,) 108      17 2.028   53.8 0.66 0.491 -12.6       6/8    2.92      False
+  1h  4  0.5    0.25      3R         3          3        1         1      kz  (1,) 134      21 1.885   60.4 0.60 0.478 -15.6       6/8    2.90      False
+  1h  4  0.5    0.25      3R         3          3        0         1      kz  (1,) 134      21 1.885   60.4 0.60 0.478 -15.6       6/8    2.90      False
+  1h  4  0.5    0.25      3R         3          4        0         1      kz  (1,) 132      20 1.877   58.9 0.58 0.477 -15.6       6/8    2.90      False
+  1h  4  0.5    0.25      3R         3          4        1         1      kz  (1,) 132      20 1.877   58.9 0.58 0.477 -15.6       6/8    2.90      False
+[05:10:42] BEST full-gate INTRADAY by MAR:
+ rule  k   ote  sl_buf tp_mode  sweep_lb  need_conf  use_idm  h4_trend session sides    n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+15min  4 0.786    0.10      3R         6          5        1         0      kz  (1,) 1381     206 1.430  421.1 2.20 0.427 -28.6       8/8    2.65       True
+15min  4 0.786    0.10      3R         6          5        0         0      kz  (1,) 1381     206 1.430  421.1 2.20 0.427 -28.6       8/8    2.65       True
+15min  4 0.786    0.05      3R         6          5        1         0      kz  (1,) 1372     205 1.456  440.9 2.01 0.436 -32.7       8/8    2.63       True
+15min  4 0.786    0.05      3R         6          5        0         0      kz  (1,) 1372     205 1.456  440.9 2.01 0.436 -32.7       8/8    2.63       True
+15min  4 0.786    0.10      3R        10          5        1         0      kz  (1,) 1460     218 1.409  426.9 1.97 0.425 -32.3       8/8    2.64       True
+[05:10:42] 
+########## S2: 432 configs ##########
+[05:10:42] levers: rule=2, k=3, tp_mode=3, sl_buf=4, h4_trend=2, sides=3
+[05:10:42]   ** BEST PF=0.372 n=10275 /yr=1530 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.05, 'h4_trend': 0, 'sides': (1,)}
+[05:10:42]   ** BEST PF=0.378 n=6143 /yr=915 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.05, 'h4_trend': 1, 'sides': (1,)}
+[05:10:42]   ** BEST PF=0.386 n=10354 /yr=1542 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.1, 'h4_trend': 0, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.391 n=6193 /yr=923 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.1, 'h4_trend': 1, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.426 n=10598 /yr=1579 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.25, 'h4_trend': 0, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.431 n=6342 /yr=945 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.25, 'h4_trend': 1, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.483 n=10911 /yr=1625 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.5, 'h4_trend': 0, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.488 n=6532 /yr=973 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.5, 'h4_trend': 1, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.567 n=10275 /yr=1530 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.05, 'h4_trend': 0, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.572 n=6143 /yr=915 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.05, 'h4_trend': 1, 'sides': (1,)}
+[05:10:43]   ** BEST PF=0.581 n=10354 /yr=1542 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.1, 'h4_trend': 0, 'sides': (1,)}
+[05:10:44]   ** BEST PF=0.587 n=6193 /yr=923 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.1, 'h4_trend': 1, 'sides': (1,)}
+[05:10:44]   ** BEST PF=0.621 n=10598 /yr=1579 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.25, 'h4_trend': 0, 'sides': (1,)}
+[05:10:44]   ** BEST PF=0.628 n=6342 /yr=945 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.25, 'h4_trend': 1, 'sides': (1,)}
+[05:10:44]   ** BEST PF=0.683 n=10911 /yr=1625 MAR=-0.14 pos=2/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.5, 'h4_trend': 0, 'sides': (1,)}
+[05:10:44]   ** BEST PF=0.687 n=6532 /yr=973 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.5, 'h4_trend': 1, 'sides': (1,)}
+[05:10:51]   ** BEST PF=0.716 n=1346 /yr=201 MAR=-0.12 pos=2/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.05, 'h4_trend': 1, 'sides': (1,)}
+[05:10:51]   ** BEST PF=0.739 n=1354 /yr=202 MAR=-0.12 pos=2/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.1, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.755 n=1381 /yr=206 MAR=-0.11 pos=2/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.25, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.805 n=2242 /yr=334 MAR=-0.11 pos=2/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.5, 'h4_trend': 0, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.817 n=1432 /yr=213 MAR=-0.10 pos=2/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.5, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.921 n=2121 /yr=316 MAR=-0.06 pos=3/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.05, 'h4_trend': 0, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.937 n=1346 /yr=201 MAR=-0.05 pos=3/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.05, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.944 n=1354 /yr=202 MAR=-0.04 pos=3/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.1, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=0.961 n=1381 /yr=206 MAR=-0.03 pos=3/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.25, 'h4_trend': 1, 'sides': (1,)}
+[05:10:52]   ** BEST PF=1.004 n=2242 /yr=334 MAR=0.01 pos=4/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.5, 'h4_trend': 0, 'sides': (1,)}
+[05:10:52]   ** BEST PF=1.006 n=1432 /yr=213 MAR=0.01 pos=4/8 :: {'rule': '1h', 'k': 2, 'tp_mode': '3R', 'sl_buf': 0.5, 'h4_trend': 1, 'sides': (1,)}
+[05:10:54] DONE [S2] 432 kept, 0 gate-passes, best PF=1.006, 13s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S2_leaderboard.csv
+[05:10:54] TOP by PF (n>=100):
+rule  k tp_mode  sl_buf  h4_trend sides    n  per_yr    pf  net_r  mar    wr     dd pos_years  avg_rr  gate_pass
+  1h  4      3R     0.5         1  (1,) 1432     213 1.006    6.4 0.01 0.395 -177.2       4/8    2.39      False
+  1h  2      3R     0.5         1  (1,) 1432     213 1.006    6.4 0.01 0.395 -177.2       4/8    2.39      False
+  1h  3      3R     0.5         1  (1,) 1432     213 1.006    6.4 0.01 0.395 -177.2       4/8    2.39      False
+  1h  2      3R     0.5         0  (1,) 2242     334 1.004    7.3 0.01 0.403 -198.7       4/8    2.37      False
+  1h  4      3R     0.5         0  (1,) 2241     334 1.003    4.7 0.00 0.402 -198.7       4/8    2.37      False
+  1h  3      3R     0.5         0  (1,) 2241     334 1.003    4.7 0.00 0.402 -198.7       4/8    2.37      False
+[05:10:54] 
+########## S3: 288 configs ##########
+[05:10:54] levers: rule=2, k=3, sl_buf=4, tp_mode=2, h4_trend=2, sides=3
+[05:10:54]   ** BEST PF=0.308 n=7074 /yr=1054 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '2R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:54]   ** BEST PF=0.314 n=7550 /yr=1125 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '2R', 'h4_trend': 0, 'sides': (-1,)}
+[05:10:55]   ** BEST PF=0.319 n=3943 /yr=588 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '2R', 'h4_trend': 1, 'sides': (1,)}
+[05:10:55]   ** BEST PF=0.496 n=7074 /yr=1054 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:55]   ** BEST PF=0.507 n=7550 /yr=1125 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (-1,)}
+[05:10:55]   ** BEST PF=0.524 n=3943 /yr=588 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:10:55]   ** BEST PF=0.524 n=7628 /yr=1136 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (-1,)}
+[05:10:55]   ** BEST PF=0.539 n=3967 /yr=591 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:10:55]   ** BEST PF=0.549 n=7270 /yr=1083 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.25, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:55]   ** BEST PF=0.562 n=7816 /yr=1164 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.25, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (-1,)}
+[05:10:55]   ** BEST PF=0.577 n=4040 /yr=602 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.25, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:10:56]   ** BEST PF=0.594 n=7517 /yr=1120 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:56]   ** BEST PF=0.619 n=8078 /yr=1203 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (-1,)}
+[05:10:56]   ** BEST PF=0.636 n=3061 /yr=456 MAR=-0.14 pos=2/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (-1,)}
+[05:10:59]   ** BEST PF=0.771 n=1482 /yr=221 MAR=-0.12 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:59]   ** BEST PF=0.792 n=579 /yr=87 MAR=-0.13 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (-1,)}
+[05:10:59]   ** BEST PF=0.794 n=583 /yr=87 MAR=-0.13 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (-1,)}
+[05:10:59]   ** BEST PF=0.861 n=1516 /yr=226 MAR=-0.10 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.25, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:59]   ** BEST PF=0.895 n=1558 /yr=232 MAR=-0.10 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:10:59]   ** BEST PF=0.903 n=611 /yr=92 MAR=-0.09 pos=2/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (-1,)}
+[05:11:01] DONE [S3] 288 kept, 0 gate-passes, best PF=0.903, 6s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S3_leaderboard.csv
+[05:11:01] TOP by PF (n>=100):
+rule  k  sl_buf tp_mode  h4_trend sides    n  per_yr    pf  net_r   mar    wr     dd pos_years  avg_rr  gate_pass
+  1h  3     0.5      3R         1 (-1,)  611      92 0.903  -47.5 -0.09 0.391  -75.8       2/8    2.30      False
+  1h  2     0.5      3R         1 (-1,)  611      92 0.903  -47.5 -0.09 0.391  -75.8       2/8    2.30      False
+  1h  4     0.5      3R         1 (-1,)  611      92 0.903  -47.5 -0.09 0.391  -75.8       2/8    2.30      False
+  1h  3     0.5      3R         0  (1,) 1558     232 0.895 -136.5 -0.10 0.383 -209.3       2/8    2.34      False
+  1h  2     0.5      3R         0  (1,) 1558     232 0.895 -136.5 -0.10 0.383 -209.3       2/8    2.34      False
+  1h  4     0.5      3R         0  (1,) 1558     232 0.895 -136.5 -0.10 0.383 -209.3       2/8    2.34      False
+[05:11:01] 
+########## S4: 576 configs ##########
+[05:11:01] levers: rule=2, k=3, block=2, sl_buf=4, tp_mode=2, h4_trend=2, sides=3
+[05:11:01]   ** BEST PF=0.979 n=1154 /yr=172 MAR=-0.03 pos=4/8 :: {'rule': '15min', 'k': 2, 'block': 'breaker', 'sl_buf': 0.05, 'tp_mode': '2R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:01]   ** BEST PF=0.995 n=716 /yr=107 MAR=-0.01 pos=3/8 :: {'rule': '15min', 'k': 2, 'block': 'breaker', 'sl_buf': 0.05, 'tp_mode': '2R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:01]   ** BEST PF=1.034 n=1154 /yr=172 MAR=0.06 pos=4/8 :: {'rule': '15min', 'k': 2, 'block': 'breaker', 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:01]   ** BEST PF=1.072 n=716 /yr=107 MAR=0.12 pos=5/8 :: {'rule': '15min', 'k': 2, 'block': 'breaker', 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:02]   ** BEST PF=1.131 n=2258 /yr=336 MAR=0.36 pos=5/8 :: {'rule': '15min', 'k': 2, 'block': 'mitigation', 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:02]   ** BEST PF=1.163 n=1375 /yr=205 MAR=0.26 pos=5/8 :: {'rule': '15min', 'k': 2, 'block': 'mitigation', 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:02]   ** BEST PF=1.186 n=1419 /yr=211 MAR=0.38 pos=5/8 :: {'rule': '15min', 'k': 2, 'block': 'mitigation', 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:04]   ** BEST PF=1.201 n=927 /yr=138 MAR=0.37 pos=4/8 :: {'rule': '15min', 'k': 3, 'block': 'mitigation', 'sl_buf': 0.3, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:04]   ** BEST PF=1.245 n=938 /yr=140 MAR=0.54 pos=4/8 :: {'rule': '15min', 'k': 3, 'block': 'mitigation', 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:04]   ** BEST PF=1.305 n=357 /yr=53 MAR=0.71 pos=5/8 :: {'rule': '15min', 'k': 4, 'block': 'breaker', 'sl_buf': 0.05, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:04]   ** BEST PF=1.361 n=361 /yr=54 MAR=0.92 pos=7/8 :: {'rule': '15min', 'k': 4, 'block': 'breaker', 'sl_buf': 0.15, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:07] DONE [S4] 576 kept, 0 gate-passes, best PF=1.361, 6s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S4_leaderboard.csv
+[05:11:07] TOP by PF (n>=100):
+ rule  k      block  sl_buf tp_mode  h4_trend sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+15min  4    breaker    0.15      3R         1  (1,) 361      54 1.361   86.6 0.92 0.377 -14.1       7/8    2.88      False
+15min  4    breaker    0.05      3R         1  (1,) 357      53 1.305   75.3 0.71 0.364 -15.8       5/8    2.87      False
+15min  4 mitigation    0.50      3R         1  (1,) 669     100 1.259  109.8 0.55 0.375 -30.0       7/8    2.91      False
+15min  3 mitigation    0.50      3R         1  (1,) 938     140 1.245  153.4 0.54 0.361 -42.4       4/8    2.91      False
+15min  4    breaker    0.30      3R         1  (1,) 367      55 1.214   53.2 0.34 0.354 -23.5       5/8    2.89      False
+   1h  2    breaker    0.15      3R         0  (1,) 227      34 1.211   29.2 0.16 0.379 -27.0       5/8    2.91      False
+[05:11:07] 
+########## S5: 288 configs ##########
+[05:11:07] levers: rule=2, k=3, sl_buf=4, tp_mode=2, h4_trend=2, sides=3
+[05:11:22]   ** BEST PF=0.822 n=1322 /yr=197 MAR=-0.07 pos=3/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '2R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:22]   ** BEST PF=0.859 n=738 /yr=110 MAR=-0.06 pos=3/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '2R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:22]   ** BEST PF=1.246 n=1322 /yr=197 MAR=0.26 pos=4/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:22]   ** BEST PF=1.294 n=738 /yr=110 MAR=0.32 pos=4/8 :: {'rule': '15min', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1,)}
+[05:11:35]   ** BEST PF=1.354 n=664 /yr=99 MAR=0.49 pos=5/8 :: {'rule': '15min', 'k': 4, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:36]   ** BEST PF=1.568 n=165 /yr=25 MAR=0.79 pos=7/8 :: {'rule': '1h', 'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'h4_trend': 0, 'sides': (1,)}
+[05:11:37]   ** BEST PF=1.572 n=113 /yr=17 MAR=0.59 pos=6/8 :: {'rule': '1h', 'k': 3, 'sl_buf': 0.5, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1, -1)}
+[05:11:37]   ** BEST PF=1.606 n=117 /yr=18 MAR=0.96 pos=7/8 :: {'rule': '1h', 'k': 3, 'sl_buf': 1.0, 'tp_mode': '2R', 'h4_trend': 1, 'sides': (1, -1)}
+[05:11:37]   ** BEST PF=1.663 n=117 /yr=18 MAR=0.67 pos=7/8 :: {'rule': '1h', 'k': 3, 'sl_buf': 1.0, 'tp_mode': '3R', 'h4_trend': 1, 'sides': (1, -1)}
+[05:11:38] DONE [S5] 276 kept, 0 gate-passes, best PF=1.663, 31s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S5_leaderboard.csv
+[05:11:38] TOP by PF (n>=100):
+rule  k  sl_buf tp_mode  h4_trend   sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+  1h  3     1.0      3R         1 (1, -1) 117      18 1.663   38.3 0.67 0.479  -8.6       7/8    2.94      False
+  1h  4     0.1      3R         0 (1, -1) 125      19 1.620   51.5 0.53 0.496 -15.1       5/8    2.52      False
+  1h  3     1.0      2R         1 (1, -1) 117      18 1.606   33.6 0.96 0.504  -5.2       7/8    1.96      False
+  1h  3     0.5      3R         1 (1, -1) 113      17 1.572   41.2 0.59 0.398 -10.5       6/8    2.89      False
+  1h  2     0.1      3R         0    (1,) 165      25 1.568   63.7 0.79 0.527 -12.3       7/8    2.45      False
+  1h  2     1.0      3R         1    (1,) 109      17 1.505   30.7 0.57 0.431  -8.3       6/8    2.94      False
+[05:11:38] 
+########## S6: 24 configs ##########
+[05:11:38] levers: sl_atr=4, tp_mode=2, sides=3
+[05:11:38]   resampling 1d …
+[05:11:38]     1d: 1,733 bars
+[05:11:38]   ** BEST PF=1.043 n=234 /yr=35 MAR=0.07 pos=4/8 :: {'sl_atr': 0.5, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:38]   ** BEST PF=1.045 n=234 /yr=35 MAR=0.05 pos=5/8 :: {'sl_atr': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:38]   ** BEST PF=1.368 n=234 /yr=35 MAR=0.52 pos=6/8 :: {'sl_atr': 1.0, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:38]   ** BEST PF=1.401 n=234 /yr=35 MAR=0.42 pos=6/8 :: {'sl_atr': 1.5, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:38]   ** BEST PF=1.411 n=234 /yr=35 MAR=0.43 pos=6/8 :: {'sl_atr': 1.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:38] DONE [S6] 24 kept, 0 gate-passes, best PF=1.411, 0s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S6_leaderboard.csv
+[05:11:38] TOP by PF (n>=100):
+ sl_atr tp_mode sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+    1.5      3R  (1,) 234      35 1.411   24.9 0.43 0.560  -8.7       6/8    3.00      False
+    1.5      2R  (1,) 234      35 1.401   24.3 0.42 0.560  -8.7       6/8    2.00      False
+    1.0      2R  (1,) 234      35 1.368   32.5 0.52 0.513  -9.5       6/8    2.01      False
+    1.0      3R  (1,) 234      35 1.312   28.2 0.36 0.504 -11.8       6/8    3.02      False
+    2.0      3R  (1,) 234      35 1.307   15.3 0.27 0.564  -8.5       6/8    3.00      False
+    2.0      2R  (1,) 234      35 1.280   14.0 0.25 0.564  -8.5       6/8    2.00      False
+[05:11:38] 
+########## S7: 54 configs ##########
+[05:11:38] levers: k=3, sl_buf=3, tp_mode=2, sides=3
+[05:11:39]   ** BEST PF=1.008 n=1295 /yr=193 MAR=0.01 pos=5/8 :: {'k': 2, 'sl_buf': 0.1, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:39]   ** BEST PF=1.137 n=1295 /yr=193 MAR=0.40 pos=4/8 :: {'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:41] DONE [S7] 54 kept, 0 gate-passes, best PF=1.137, 3s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S7_leaderboard.csv
+[05:11:41] TOP by PF (n>=100):
+ k  sl_buf tp_mode sides    n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+ 2    0.10      3R  (1,) 1295     193 1.137  114.0 0.40 0.376 -42.0       4/8    2.92      False
+ 2    0.25      3R  (1,) 1300     194 1.137  110.1 0.38 0.383 -43.7       5/8    2.93      False
+ 3    0.25      3R  (1,) 1007     150 1.134   82.7 0.29 0.387 -42.9       5/8    2.94      False
+ 4    0.10      3R  (1,)  833     124 1.134   68.4 0.23 0.383 -44.2       5/8    2.93      False
+ 4    0.25      3R  (1,)  834     124 1.133   65.6 0.20 0.392 -48.0       6/8    2.94      False
+ 3    0.10      3R  (1,) 1006     150 1.114   73.0 0.26 0.375 -41.3       4/8    2.93      False
+[05:11:41] 
+########## S8: 54 configs ##########
+[05:11:41] levers: k=3, sl_buf=3, tp_mode=2, sides=3
+[05:11:44]   ** BEST PF=1.215 n=364 /yr=55 MAR=0.44 pos=7/8 :: {'k': 2, 'sl_buf': 0.1, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:44]   ** BEST PF=1.329 n=364 /yr=55 MAR=0.71 pos=7/8 :: {'k': 2, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:44]   ** BEST PF=1.370 n=365 /yr=55 MAR=0.92 pos=7/8 :: {'k': 2, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:44]   ** BEST PF=1.458 n=365 /yr=55 MAR=1.18 pos=8/8 :: {'k': 2, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:48]   ** BEST PF=1.513 n=310 /yr=46 MAR=1.36 pos=8/8 :: {'k': 4, 'sl_buf': 0.5, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:48] DONE [S8] 54 kept, 0 gate-passes, best PF=1.513, 7s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S8_leaderboard.csv
+[05:11:48] TOP by PF (n>=100):
+ k  sl_buf tp_mode sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+ 4    0.50      2R  (1,) 310      46 1.513   86.2 1.36 0.474  -9.5       8/8    1.96      False
+ 4    0.50      3R  (1,) 310      46 1.500   94.3 0.63 0.410 -22.6       7/8    2.95      False
+ 2    0.50      3R  (1,) 365      55 1.458  110.5 1.18 0.373 -14.0       8/8    2.93      False
+ 4    0.25      2R  (1,) 310      46 1.394   70.5 1.11 0.452  -9.6       7/8    1.95      False
+ 4    0.25      3R  (1,) 310      46 1.382   77.2 0.85 0.381 -13.6       8/8    2.94      False
+ 2    0.25      3R  (1,) 365      55 1.370   93.2 0.92 0.353 -15.2       7/8    2.92      False
+[05:11:48] 
+########## S10: 972 configs ##########
+[05:11:48] levers: rule=2, k=3, ob_level=3, os_level=3, sl_buf=3, tp_mode=2, sides=3
+[05:11:52]   ** BEST PF=1.189 n=148 /yr=22 MAR=0.09 pos=5/8 :: {'rule': '15min', 'k': 2, 'ob_level': 65, 'os_level': 25, 'sl_buf': 0.1, 'tp_mode': '2R', 'sides': (1,)}
+[05:11:52]   ** BEST PF=1.374 n=148 /yr=22 MAR=0.25 pos=4/8 :: {'rule': '15min', 'k': 2, 'ob_level': 65, 'os_level': 25, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:11:52]   ** BEST PF=1.392 n=148 /yr=22 MAR=0.20 pos=4/8 :: {'rule': '15min', 'k': 2, 'ob_level': 65, 'os_level': 25, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:10]   ** BEST PF=1.425 n=155 /yr=23 MAR=0.30 pos=4/8 :: {'rule': '1h', 'k': 2, 'ob_level': 65, 'os_level': 35, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:15]   ** BEST PF=1.454 n=134 /yr=20 MAR=0.55 pos=4/8 :: {'rule': '1h', 'k': 3, 'ob_level': 65, 'os_level': 35, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:15]   ** BEST PF=1.459 n=134 /yr=20 MAR=0.52 pos=4/8 :: {'rule': '1h', 'k': 3, 'ob_level': 65, 'os_level': 35, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:21] DONE [S10] 954 kept, 0 gate-passes, best PF=1.459, 93s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S10_leaderboard.csv
+[05:13:21] TOP by PF (n>=100):
+rule  k  ob_level  os_level  sl_buf tp_mode sides   n  per_yr    pf  net_r  mar    wr   dd pos_years  avg_rr  gate_pass
+  1h  3        75        35    0.50      3R  (1,) 134      20 1.459   18.6 0.52 0.522 -5.4       4/8    2.97      False
+  1h  3        70        35    0.50      3R  (1,) 134      20 1.459   18.6 0.52 0.522 -5.4       4/8    2.97      False
+  1h  3        65        35    0.50      3R  (1,) 134      20 1.459   18.6 0.52 0.522 -5.4       4/8    2.97      False
+  1h  3        70        35    0.25      3R  (1,) 134      20 1.454   21.9 0.55 0.522 -6.0       4/8    2.96      False
+  1h  3        65        35    0.25      3R  (1,) 134      20 1.454   21.9 0.55 0.522 -6.0       4/8    2.96      False
+  1h  3        75        35    0.25      3R  (1,) 134      20 1.454   21.9 0.55 0.522 -6.0       4/8    2.96      False
+[05:13:21] 
+########## S11: 864 configs ##########
+[05:13:21] levers: rule=2, k=3, fib=4, sl_buf=3, tp_mode=2, ema_confirm=2, sides=3
+[05:13:22]   ** BEST PF=0.785 n=12948 /yr=1929 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'ema_confirm': 0, 'sides': (1,)}
+[05:13:22]   ** BEST PF=0.791 n=7148 /yr=1065 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '2R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:22]   ** BEST PF=0.879 n=12948 /yr=1929 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 0, 'sides': (1,)}
+[05:13:22]   ** BEST PF=0.903 n=7148 /yr=1065 MAR=-0.10 pos=2/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:23]   ** BEST PF=0.915 n=7214 /yr=1075 MAR=-0.09 pos=2/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.1, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:23]   ** BEST PF=0.921 n=7398 /yr=1103 MAR=-0.08 pos=3/8 :: {'rule': '15min', 'k': 2, 'fib': 0.5, 'sl_buf': 0.25, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:24]   ** BEST PF=0.927 n=6674 /yr=995 MAR=-0.08 pos=3/8 :: {'rule': '15min', 'k': 2, 'fib': 0.618, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:25]   ** BEST PF=0.941 n=6891 /yr=1027 MAR=-0.07 pos=4/8 :: {'rule': '15min', 'k': 2, 'fib': 0.618, 'sl_buf': 0.25, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:26]   ** BEST PF=0.942 n=6280 /yr=936 MAR=-0.08 pos=4/8 :: {'rule': '15min', 'k': 2, 'fib': 0.705, 'sl_buf': 0.1, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:26]   ** BEST PF=0.951 n=6431 /yr=958 MAR=-0.07 pos=4/8 :: {'rule': '15min', 'k': 2, 'fib': 0.705, 'sl_buf': 0.25, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:27]   ** BEST PF=0.981 n=10399 /yr=1549 MAR=-0.03 pos=4/8 :: {'rule': '15min', 'k': 2, 'fib': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 0, 'sides': (1,)}
+[05:13:32]   ** BEST PF=0.994 n=7236 /yr=1078 MAR=-0.01 pos=4/8 :: {'rule': '15min', 'k': 3, 'fib': 0.786, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 0, 'sides': (1,)}
+[05:13:36]   ** BEST PF=1.018 n=2713 /yr=404 MAR=0.02 pos=4/8 :: {'rule': '1h', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 0, 'sides': (1,)}
+[05:13:37]   ** BEST PF=1.081 n=1573 /yr=234 MAR=0.12 pos=4/8 :: {'rule': '1h', 'k': 2, 'fib': 0.5, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:37]   ** BEST PF=1.158 n=1405 /yr=209 MAR=0.50 pos=5/8 :: {'rule': '1h', 'k': 2, 'fib': 0.618, 'sl_buf': 0.05, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:37]   ** BEST PF=1.164 n=1412 /yr=210 MAR=0.62 pos=5/8 :: {'rule': '1h', 'k': 2, 'fib': 0.618, 'sl_buf': 0.1, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:37]   ** BEST PF=1.175 n=1446 /yr=215 MAR=0.61 pos=5/8 :: {'rule': '1h', 'k': 2, 'fib': 0.618, 'sl_buf': 0.25, 'tp_mode': '3R', 'ema_confirm': 1, 'sides': (1,)}
+[05:13:41] DONE [S11] 864 kept, 0 gate-passes, best PF=1.175, 19s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S11_leaderboard.csv
+[05:13:41] TOP by PF (n>=100):
+rule  k   fib  sl_buf tp_mode  ema_confirm sides    n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+  1h  2 0.618    0.25      3R            1  (1,) 1446     215 1.175  174.3 0.61 0.338 -42.2       5/8    2.90      False
+  1h  2 0.618    0.10      3R            1  (1,) 1412     210 1.164  164.2 0.62 0.330 -39.5       5/8    2.89      False
+  1h  2 0.618    0.05      3R            1  (1,) 1405     209 1.158  158.1 0.50 0.327 -47.2       5/8    2.88      False
+  1h  4 0.786    0.05      3R            1  (1,)  532      79 1.150   59.1 0.35 0.323 -25.5       6/8    2.84      False
+  1h  4 0.786    0.05      3R            0  (1,)  909     136 1.148  100.0 0.34 0.323 -43.6       8/8    2.84      False
+  1h  4 0.786    0.25      3R            1  (1,)  552      82 1.147   58.9 0.34 0.324 -25.7       6/8    2.86      False
+[05:13:41] 
+########## S12: 1,296 configs ##########
+[05:13:41] levers: rule=2, k=3, vol_mult=3, use_rsi=2, h4_trend=2, sl_buf=3, tp_mode=2, sides=3
+[05:13:42]   ** BEST PF=0.815 n=2769 /yr=413 MAR=-0.12 pos=2/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.1, 'tp_mode': '2R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=0.979 n=2769 /yr=413 MAR=-0.03 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=0.987 n=2824 /yr=421 MAR=-0.02 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=1.030 n=2913 /yr=434 MAR=0.10 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=1.031 n=1640 /yr=245 MAR=0.08 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 1, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=1.075 n=1678 /yr=250 MAR=0.25 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.5, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=1.095 n=1710 /yr=255 MAR=0.27 pos=4/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.5, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:42]   ** BEST PF=1.140 n=1760 /yr=262 MAR=0.54 pos=7/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 1.5, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:43]   ** BEST PF=1.223 n=611 /yr=91 MAR=0.59 pos=6/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 2.0, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:43]   ** BEST PF=1.260 n=622 /yr=93 MAR=0.73 pos=7/8 :: {'rule': '15min', 'k': 2, 'vol_mult': 2.0, 'use_rsi': 0, 'h4_trend': 0, 'sl_buf': 0.25, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.272 n=309 /yr=46 MAR=0.64 pos=5/8 :: {'rule': '15min', 'k': 4, 'vol_mult': 2.0, 'use_rsi': 0, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.329 n=505 /yr=75 MAR=0.77 pos=8/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 1, 'sl_buf': 0.1, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.366 n=520 /yr=78 MAR=0.73 pos=6/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 0, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.454 n=455 /yr=68 MAR=0.83 pos=6/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 1.2, 'use_rsi': 1, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.567 n=342 /yr=51 MAR=0.95 pos=6/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 1.5, 'use_rsi': 0, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:48]   ** BEST PF=1.683 n=300 /yr=45 MAR=1.06 pos=6/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 1.5, 'use_rsi': 1, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:49]   ** BEST PF=1.716 n=169 /yr=27 MAR=0.55 pos=6/8 :: {'rule': '1h', 'k': 2, 'vol_mult': 2.0, 'use_rsi': 1, 'h4_trend': 1, 'sl_buf': 0.5, 'tp_mode': '3R', 'sides': (1,)}
+[05:13:49]   [S12] 1,000/1,296 (77%) 9s ETA3s kept=1,000 passes=0 bestPF=1.716
+[05:13:51] DONE [S12] 1296 kept, 0 gate-passes, best PF=1.716, 10s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S12_leaderboard.csv
+[05:13:51] TOP by PF (n>=100):
+rule  k  vol_mult  use_rsi  h4_trend  sl_buf tp_mode sides   n  per_yr    pf  net_r  mar    wr    dd pos_years  avg_rr  gate_pass
+  1h  2       2.0        1         1     0.5      3R  (1,) 169      27 1.716   69.1 0.55 0.467 -19.8       6/8    2.81      False
+  1h  3       2.0        1         1     0.5      3R  (1,) 153      25 1.695   60.0 0.45 0.464 -21.6       7/8    2.81      False
+  1h  3       1.5        1         1     0.5      3R  (1,) 266      40 1.687  106.6 0.67 0.444 -23.9       6/8    2.82      False
+  1h  2       1.5        1         1     0.5      3R  (1,) 300      45 1.683  120.4 1.06 0.447 -17.0       6/8    2.81      False
+  1h  3       2.0        0         1     0.5      3R  (1,) 175      28 1.648   60.8 0.43 0.474 -22.6       7/8    2.83      False
+  1h  2       2.0        0         1     0.5      3R  (1,) 198      31 1.647   69.4 0.51 0.480 -21.7       6/8    2.83      False

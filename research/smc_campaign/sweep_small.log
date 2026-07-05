@@ -1,0 +1,12 @@
+[04:46:40] Loading base M1/M5/M15 (causal_sim) …
+[04:46:40]   m1=2,374,995 m5=475,810 m15=158,645
+[04:46:40]   resampling 4h …
+[04:46:40]     4h: 10,385 bars
+[04:46:40] 
+########## S2: 576 configs ##########
+[04:46:40] === SWEEP [S2]: 576 configs, 8 levers ===
+[04:46:40] levers: rule=2, k=3, tp_mode=2, sl_buf=4, h4_trend=2, sides=3, wait_bars=2, slip_atr=1
+[04:46:40]   resampling 15min …
+[04:46:40]     15min: 158,659 bars
+[04:48:44]   ** BEST PF=0.355 n=9431 /yr=1405 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.05, 'h4_trend': 0, 'sides': (1,), 'wait_bars': 48, 'slip_atr': 0.05}
+[04:50:07]   ** BEST PF=0.372 n=10275 /yr=1530 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'tp_mode': '2R', 'sl_buf': 0.05, 'h4_trend': 0, 'sides': (1,), 'wait_bars': 96, 'slip_atr': 0.05}

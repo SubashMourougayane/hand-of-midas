@@ -1,0 +1,62 @@
+[05:37:15] Loading base M1/M5/M15 (causal_sim) …
+[05:37:15]   m1=2,374,995 m5=475,810 m15=158,645
+[05:37:15]   resampling 4h …
+[05:37:15]     4h: 10,385 bars
+[05:37:15] === QML-BEARISH sweep: 1,296 configs ===
+[05:37:15]   resampling 15min …
+[05:37:15]     15min: 158,659 bars
+[05:37:22]   ** BEST PF=0.007 n=768 /yr=115 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.0, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.009 n=1238 /yr=185 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.0, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.013 n=470 /yr=71 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.0, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.014 n=267 /yr=40 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.0, 'session': 'kz', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.053 n=768 /yr=115 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.054 n=1238 /yr=185 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.055 n=470 /yr=71 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.057 n=428 /yr=64 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'kz', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.061 n=695 /yr=104 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'kz', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.068 n=267 /yr=40 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 1.5, 'session': 'kz', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.155 n=768 /yr=115 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.156 n=1238 /yr=185 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.159 n=470 /yr=71 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.184 n=428 /yr=64 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'kz', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.187 n=695 /yr=104 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'kz', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.190 n=267 /yr=40 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 2.0, 'session': 'kz', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.461 n=768 /yr=115 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.483 n=1238 /yr=185 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.520 n=470 /yr=71 MAR=-0.13 pos=2/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.592 n=428 /yr=64 MAR=-0.13 pos=2/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.599 n=695 /yr=104 MAR=-0.13 pos=2/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.610 n=267 /yr=40 MAR=-0.12 pos=2/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.05, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.611 n=867 /yr=129 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 2.0, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.625 n=1393 /yr=208 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 2.0, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=0.648 n=526 /yr=79 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 2.0, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=0.790 n=482 /yr=72 MAR=-0.09 pos=3/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 2.0, 'session': 'kz', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.953 n=867 /yr=129 MAR=-0.03 pos=4/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'all', 'ctx': 'up'}
+[05:37:22]   ** BEST PF=0.975 n=1393 /yr=208 MAR=-0.03 pos=4/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'all', 'ctx': 'off'}
+[05:37:22]   ** BEST PF=1.013 n=526 /yr=79 MAR=0.02 pos=4/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'all', 'ctx': 'down'}
+[05:37:22]   ** BEST PF=1.197 n=482 /yr=72 MAR=0.24 pos=7/8 :: {'rule': '15min', 'k': 2, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'up'}
+[05:37:27]   ** BEST PF=1.346 n=203 /yr=30 MAR=0.41 pos=7/8 :: {'rule': '15min', 'k': 3, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'down'}
+[05:37:31]   ** BEST PF=1.433 n=157 /yr=24 MAR=0.46 pos=8/8 :: {'rule': '15min', 'k': 4, 'entry_off': 0.0, 'sl_buf': 0.1, 'tp_r': 3.0, 'session': 'kz', 'ctx': 'down'}
+[05:37:32]   resampling 1h …
+[05:37:32]     1h: 39,693 bars
+[05:37:34] DONE [QML-SHORT] 1176 kept, 0 gate-passes, best PF=1.433, 20s
+[05:37:34] TOP by PF (n>=100):
+ rule  k  entry_off  sl_buf  tp_r session  ctx   n  per_yr    pf  mar    wr pos_years
+15min  4        0.0    0.10   3.0      kz down 157      24 1.433 0.46 0.561       8/8
+15min  3        0.0    0.10   3.0      kz down 203      30 1.346 0.41 0.567       7/8
+15min  4        0.0    0.25   3.0      kz down 194      29 1.338 0.43 0.407       7/8
+15min  3        0.0    0.25   3.0      kz down 247      37 1.321 0.44 0.417       6/8
+   1h  3        0.0    0.10   3.0     all  off 107      16 1.281 0.21 0.449       5/8
+15min  3        0.1    0.10   3.0      kz down 248      37 1.281 0.52 0.435       6/8
+15min  4        0.1    0.05   3.0      kz down 187      28 1.257 0.44 0.455       7/8
+15min  3        0.1    0.05   3.0      kz down 237      36 1.230 0.30 0.468       5/8
+15min  3        0.1    0.10   3.0      kz  off 661      99 1.200 0.45 0.415       6/8
+15min  4        0.1    0.10   3.0      kz down 195      29 1.197 0.20 0.405       5/8
+[05:37:34] TOP by MAR (n>=100):
+ rule  k  entry_off  sl_buf  tp_r session  ctx   n  per_yr    pf  mar    wr pos_years
+15min  2        0.1    0.05   3.0      kz   up 561      84 1.166 0.54 0.478       8/8
+15min  3        0.1    0.10   3.0      kz down 248      37 1.281 0.52 0.435       6/8
+15min  2        0.0    0.25   3.0      kz  off 925     138 1.136 0.48 0.395       7/8
+15min  4        0.0    0.10   3.0      kz down 157      24 1.433 0.46 0.561       8/8
+15min  3        0.1    0.10   3.0      kz  off 661      99 1.200 0.45 0.415       6/8
+15min  2        0.0    0.25   3.0      kz down 346      52 1.191 0.45 0.405       7/8

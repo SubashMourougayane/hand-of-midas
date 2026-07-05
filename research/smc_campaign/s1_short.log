@@ -1,0 +1,99 @@
+[05:28:52] Loading base M1/M5/M15 (causal_sim) …
+[05:28:52]   m1=2,374,995 m5=475,810 m15=158,645
+[05:28:52]   resampling 4h …
+[05:28:52]     4h: 10,385 bars
+[05:28:52] === S1-SHORT sweep: 15,552 configs ===
+[05:28:52] levers: rule=2, k=3, ote=4, sl_buf=3, tp_r=4, sweep_lb=3, need_conf=3, trend_mode=3, session=2
+[05:28:52]   resampling 15min …
+[05:28:52]     15min: 158,659 bars
+[05:29:49]   ** BEST PF=0.612 n=2845 /yr=426 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'all'}
+[05:29:49]   ** BEST PF=0.615 n=1508 /yr=226 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:49]   ** BEST PF=0.626 n=7816 /yr=1165 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'off', 'session': 'all'}
+[05:29:49]   ** BEST PF=0.633 n=4043 /yr=603 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'off', 'session': 'kz'}
+[05:29:49]   ** BEST PF=0.635 n=4971 /yr=741 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:49]   ** BEST PF=0.643 n=2535 /yr=378 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'fade', 'session': 'kz'}
+[05:29:49]   ** BEST PF=0.643 n=2303 /yr=343 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 4, 'trend_mode': 'fade', 'session': 'kz'}
+[05:29:49]   ** BEST PF=0.669 n=810 /yr=121 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:49]   ** BEST PF=0.677 n=4277 /yr=638 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'off', 'session': 'all'}
+[05:29:49]   ** BEST PF=0.698 n=2716 /yr=405 MAR=-0.15 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:50]   ** BEST PF=0.702 n=3282 /yr=489 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.0, 'sweep_lb': 10, 'need_conf': 5, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:50]   ** BEST PF=0.725 n=2845 /yr=426 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'all'}
+[05:29:50]   ** BEST PF=0.750 n=1508 /yr=226 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:50]   ** BEST PF=0.766 n=7816 /yr=1165 MAR=-0.15 pos=0/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'off', 'session': 'all'}
+[05:29:50]   ** BEST PF=0.779 n=4043 /yr=603 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'off', 'session': 'kz'}
+[05:29:50]   ** BEST PF=0.791 n=4971 /yr=741 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:50]   ** BEST PF=0.796 n=2535 /yr=378 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'fade', 'session': 'kz'}
+[05:29:50]   ** BEST PF=0.827 n=810 /yr=121 MAR=-0.13 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:50]   ** BEST PF=0.837 n=2716 /yr=405 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:51]   ** BEST PF=0.838 n=3282 /yr=489 MAR=-0.14 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 1.5, 'sweep_lb': 10, 'need_conf': 5, 'trend_mode': 'fade', 'session': 'all'}
+[05:29:51]   ** BEST PF=0.856 n=1508 /yr=226 MAR=-0.13 pos=1/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:51]   ** BEST PF=0.910 n=810 /yr=121 MAR=-0.08 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:52]   ** BEST PF=0.947 n=1508 /yr=226 MAR=-0.07 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:52]   ** BEST PF=0.948 n=1353 /yr=203 MAR=-0.06 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 4, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:52]   ** BEST PF=0.953 n=810 /yr=121 MAR=-0.04 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:52]   ** BEST PF=0.956 n=1803 /yr=270 MAR=-0.06 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 10, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:55]   ** BEST PF=0.963 n=1515 /yr=227 MAR=-0.05 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.1, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:29:55]   ** BEST PF=0.974 n=1360 /yr=204 MAR=-0.03 pos=3/8 :: {'rule': '15min', 'k': 2, 'ote': 0.5, 'sl_buf': 0.1, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 4, 'trend_mode': 'down', 'session': 'kz'}
+[05:30:02]   ** BEST PF=1.002 n=734 /yr=110 MAR=0.00 pos=5/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:30:05]   1,000/15,552 (6%) 73s ETA1060s kept=1,000 passes=0 bestPF=1.002
+[05:30:05]   ** BEST PF=1.005 n=736 /yr=110 MAR=0.00 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.1, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:30:08]   ** BEST PF=1.008 n=745 /yr=112 MAR=0.01 pos=4/8 :: {'rule': '15min', 'k': 2, 'ote': 0.618, 'sl_buf': 0.25, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:30:19]   2,000/15,552 (13%) 87s ETA593s kept=2,000 passes=0 bestPF=1.008
+[05:31:04]   ** BEST PF=1.016 n=701 /yr=105 MAR=0.02 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:06]   ** BEST PF=1.016 n=705 /yr=106 MAR=0.02 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.5, 'sl_buf': 0.1, 'tp_r': 2.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:07]   ** BEST PF=1.021 n=705 /yr=106 MAR=0.03 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.5, 'sl_buf': 0.1, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:07]   3,000/15,552 (19%) 135s ETA567s kept=3,000 passes=0 bestPF=1.021
+[05:31:12]   ** BEST PF=1.045 n=921 /yr=138 MAR=0.06 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 3, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:12]   ** BEST PF=1.061 n=877 /yr=131 MAR=0.08 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 4, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:12]   ** BEST PF=1.155 n=633 /yr=95 MAR=0.26 pos=5/8 :: {'rule': '15min', 'k': 3, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:31:19]   4,000/15,552 (26%) 148s ETA427s kept=4,000 passes=0 bestPF=1.155
+[05:31:31]   5,000/15,552 (32%) 159s ETA336s kept=5,000 passes=0 bestPF=1.155
+[05:32:05]   6,000/15,552 (39%) 193s ETA308s kept=6,000 passes=0 bestPF=1.155
+[05:32:16]   7,000/15,552 (45%) 204s ETA249s kept=7,000 passes=0 bestPF=1.155
+[05:32:24]   resampling 1h …
+[05:32:24]     1h: 39,693 bars
+[05:32:31]   ** BEST PF=1.188 n=130 /yr=21 MAR=0.17 pos=5/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   ** BEST PF=1.259 n=149 /yr=24 MAR=0.24 pos=5/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 6, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   ** BEST PF=1.307 n=155 /yr=24 MAR=0.29 pos=6/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 2.0, 'sweep_lb': 10, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   ** BEST PF=1.424 n=130 /yr=21 MAR=0.39 pos=6/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   ** BEST PF=1.494 n=149 /yr=24 MAR=0.52 pos=6/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 6, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   ** BEST PF=1.552 n=155 /yr=24 MAR=0.59 pos=6/8 :: {'rule': '1h', 'k': 2, 'ote': 0.5, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 10, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:31]   8,000/15,552 (51%) 219s ETA207s kept=8,000 passes=0 bestPF=1.552
+[05:32:36]   9,000/15,552 (58%) 224s ETA163s kept=9,000 passes=0 bestPF=1.552
+[05:32:41]   10,000/15,552 (64%) 229s ETA127s kept=10,000 passes=0 bestPF=1.552
+[05:32:50]   11,000/15,552 (71%) 239s ETA99s kept=11,000 passes=0 bestPF=1.552
+[05:32:51]   ** BEST PF=1.671 n=121 /yr=19 MAR=0.61 pos=6/8 :: {'rule': '1h', 'k': 3, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 3, 'need_conf': 4, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:51]   ** BEST PF=1.687 n=102 /yr=16 MAR=0.52 pos=6/8 :: {'rule': '1h', 'k': 3, 'ote': 0.618, 'sl_buf': 0.05, 'tp_r': 3.0, 'sweep_lb': 10, 'need_conf': 5, 'trend_mode': 'down', 'session': 'kz'}
+[05:32:55]   12,000/15,552 (77%) 243s ETA72s kept=12,000 passes=0 bestPF=1.687
+[05:33:02]   13,000/15,552 (84%) 250s ETA49s kept=13,000 passes=0 bestPF=1.687
+[05:33:06]   14,000/15,552 (90%) 254s ETA28s kept=14,000 passes=0 bestPF=1.687
+[05:33:09]   15,000/15,552 (96%) 258s ETA9s kept=15,000 passes=0 bestPF=1.687
+[05:33:11] DONE [S1-SHORT] 15552 kept, 0 gate-passes, best PF=1.687, 260s -> /Users/subash/SUBASH/GoldDigger/research/smc_campaign/results/S1_SHORT_leaderboard.csv
+[05:33:11] TOP by PF (n>=100):
+rule  k   ote  sl_buf  tp_r  sweep_lb  need_conf trend_mode session   n  per_yr    pf  mar    wr pos_years
+  1h  3 0.618    0.05   3.0        10          5       down      kz 102      16 1.687 0.52 0.402       6/8
+  1h  3 0.618    0.05   3.0         3          4       down      kz 121      19 1.671 0.61 0.405       6/8
+  1h  3 0.618    0.10   3.0         3          4       down      kz 121      19 1.589 0.59 0.397       7/8
+  1h  3 0.618    0.10   3.0        10          5       down      kz 102      16 1.588 0.45 0.392       5/8
+  1h  3 0.618    0.05   3.0         6          4       down      kz 133      20 1.574 0.39 0.391       5/8
+  1h  3 0.618    0.05   3.0        10          4       down      kz 149      23 1.561 0.40 0.389       5/8
+  1h  2 0.500    0.05   3.0        10          5       down      kz 155      24 1.552 0.59 0.394       6/8
+  1h  3 0.618    0.05   3.0         3          3       down      kz 138      21 1.548 0.43 0.391       5/8
+  1h  3 0.500    0.05   3.0         6          5       down      kz 108      17 1.539 0.48 0.417       7/8
+  1h  3 0.618    0.05   3.0         3          5       down     all 137      21 1.533 0.42 0.394       4/8
+[05:33:11] TOP by MAR (n>=100):
+rule  k   ote  sl_buf  tp_r  sweep_lb  need_conf trend_mode session   n  per_yr    pf  mar    wr pos_years
+  1h  3 0.618    0.10   2.0         3          5       down     all 137      21 1.417 0.64 0.467       6/8
+  1h  3 0.618    0.05   3.0         3          4       down      kz 121      19 1.671 0.61 0.405       6/8
+  1h  3 0.618    0.10   3.0         3          4       down      kz 121      19 1.589 0.59 0.397       7/8
+  1h  2 0.500    0.05   3.0        10          5       down      kz 155      24 1.552 0.59 0.394       6/8
+  1h  2 0.500    0.10   3.0        10          5       down      kz 155      24 1.509 0.54 0.387       6/8
+  1h  3 0.786    0.05   2.0         6          4       down      kz 100      15 1.403 0.54 0.510       6/8
+[05:33:11] BEST with >=100/yr:
+rule  k   ote  sl_buf  tp_r  sweep_lb  need_conf trend_mode session   n  per_yr    pf  mar    wr pos_years
+  1h  2 0.500    0.05   3.0         3          4        off      kz 673     100 1.146 0.20 0.333       3/8
+  1h  2 0.618    0.05   3.0         6          4        off      kz 669     100 1.132 0.21 0.332       5/8
+  1h  2 0.618    0.05   3.0         3          3        off      kz 681     102 1.131 0.21 0.336       5/8
+  1h  2 0.618    0.10   3.0         6          4        off      kz 670     100 1.128 0.22 0.330       4/8
+  1h  2 0.500    0.05   3.0         3          3        off      kz 780     116 1.123 0.16 0.331       5/8
+  1h  2 0.618    0.05   3.0         6          3        off      kz 786     117 1.122 0.20 0.335       5/8
