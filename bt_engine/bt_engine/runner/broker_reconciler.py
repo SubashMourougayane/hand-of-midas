@@ -238,6 +238,41 @@ def reconcile_trade(
         session.commit()
         return ReconciliationResult(trade_id=trade_id, ticket=ticket, matched=False)
 
+    # GUARD 3 (F7): never BANK+LOCK a partial-TP position when only part of its
+    # volume has closed at the broker. `find_closed_deal` aggregates all deals
+    # sharing the ticket, but the partial-close deal and the final-close deal do
+    # NOT land in closed_orders.json at the same instant — a reconcile firing in
+    # that window sees only the (usually profitable) partial and, without this
+    # check, banks it as the whole result and sets broker_reconciled_at forever.
+    # That is the +$544-instead-of-+$5 overstatement (ticket 2125574587).
+    #
+    # We KNOW the full submitted size (raw_features.qty_lots, recorded at order
+    # time). If the summed closed volume is materially less than that, only part
+    # of the position has settled → defer (matched=False) and retry next bar,
+    # accumulating the remaining deal(s) until Σvolume ≈ full size. GUARD 1
+    # (_ticket_still_open) already catches this when open_orders is FRESH; this
+    # backstop covers the case where open_orders is stale (>15s) so GUARD 1
+    # passed through. Unknown full size (old/dry-run rows) → skip the check.
+    _VOL_EPS = 1e-6
+    full_lots = 0.0
+    try:
+        full_lots = float((trade.raw_features or {}).get("qty_lots") or 0.0)
+    except (TypeError, ValueError):
+        full_lots = 0.0
+    closed_lots = float(deal.get("volume") or 0.0)
+    if full_lots > _VOL_EPS and closed_lots + _VOL_EPS < full_lots:
+        log.warning(
+            "[RECONCILER] ticket=%s only %.4f/%.4f lots closed at broker "
+            "(deals=%s) — partial not fully settled, defer + retry",
+            ticket, closed_lots, full_lots, deal.get("_deal_count", 1),
+        )
+        # Persist broker_ticket so a later sweep re-finds it; do NOT lock.
+        session.execute(
+            update(BtTrade).where(BtTrade.trade_id == trade_id).values(broker_ticket=str(ticket))
+        )
+        session.commit()
+        return ReconciliationResult(trade_id=trade_id, ticket=ticket, matched=False)
+
     gross = float(deal.get("profit") or 0.0)
     comm = float(deal.get("commission") or 0.0)
     swap = float(deal.get("swap") or 0.0)

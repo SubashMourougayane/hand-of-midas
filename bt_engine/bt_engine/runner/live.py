@@ -1172,8 +1172,14 @@ def _sl_at_be(post_pos: dict[str, Any] | None, new_sl: float, tol: float = 0.01)
 
 
 def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, timeframe: str) -> BtTrade:
-    extra = tr.order.extra or {}
+    extra = dict(tr.order.extra or {})
     direction = str(extra.get("direction") or ("long" if tr.side > 0 else "short"))
+    # Record the FULL submitted lot size in raw_features so the reconciler's F7
+    # volume-completeness guard can tell a partial-close from a full close. The
+    # strategy's order.extra doesn't carry qty (sized at submit); the actual fill
+    # qty does. Re-adopted trades already inject qty_lots explicitly upstream.
+    if extra.get("qty_lots") is None and tr.fill is not None and tr.fill.qty:
+        extra["qty_lots"] = float(tr.fill.qty)
     return BtTrade(
         trade_id=tr.trade_id,
         trade_ref=f"{strategy_id.upper()}-{tr.trade_id.hex[:12]}",

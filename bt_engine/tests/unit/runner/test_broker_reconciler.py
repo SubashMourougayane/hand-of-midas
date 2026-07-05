@@ -406,3 +406,108 @@ def test_reconcile_proceeds_when_fresh_and_not_open(session) -> None:
                           max_retries=2, backoff_s=0.01)
     assert res.matched is True
     assert res.broker_gross_usd == 5.0
+
+
+# ---------------------------------------------------------------------------
+# GUARD 3 (F7): volume-completeness backstop for partial-TP positions.
+#
+# find_closed_deal aggregates all deals sharing the ticket, but the partial-close
+# deal and the final-close deal do NOT land in closed_orders.json simultaneously.
+# A reconcile firing in that window sees only the (usually profitable) partial and
+# would bank it as the whole trade + lock it forever. That is the +$544-instead-
+# of-+$5 overstatement (ticket 2125574587). GUARD 1 catches this when open_orders
+# is FRESH; GUARD 3 is the backstop for when open_orders is STALE.
+# ---------------------------------------------------------------------------
+
+
+def _make_partial_trade(session: Session, run_id, trade_id, full_lots: float) -> None:
+    """A trade whose FULL submitted size is recorded in raw_features.qty_lots."""
+    run = BtRun(
+        run_id=run_id, ref=f"TEST-{run_id.hex[:8]}", mode="live",
+        strategy_id="test", strategy_config={}, symbol="XAUUSD.ecn",
+        timeframe="M15", start_ts=datetime.now(timezone.utc), data_provider="test",
+    )
+    session.add(run)
+    session.flush()
+    session.add(BtTrade(
+        trade_id=trade_id, trade_ref=f"TT-{trade_id.hex[:8]}",
+        run_id=run_id, strategy_id="test",
+        symbol="XAUUSD.ecn", timeframe="M15", direction="long", side=1,
+        entry_timestamp=datetime(2026, 7, 3, 13, 30, tzinfo=timezone.utc),
+        entry_price=4171.49, stop_price=4160.03, risk_units=11.46,
+        exit_timestamp=datetime(2026, 7, 3, 16, 7, tzinfo=timezone.utc),
+        exit_price=4160.03, exit_reason="SL",
+        partial_taken=True,
+        raw_features={"qty_lots": full_lots, "leg": "intraday_a_long"},
+    ))
+    session.commit()
+
+
+def test_reconcile_defers_when_only_partial_volume_closed(session) -> None:
+    """GUARD 3: full size 0.12 but only the 0.06 partial deal has landed (stale
+    open_orders so GUARD 1 passed) -> defer, do NOT bank/lock the partial."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_partial_trade(session, run_id, trade_id, full_lots=0.12)
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=999.0,  # stale -> GUARD 1 off
+                         closed_orders_age_s=1.0)                       # fresh -> GUARD 2 off
+    # Only the profitable partial deal present so far.
+    bridge.prime([{"ticket": "2125574587", "symbol": "XAUUSD.ecn", "type": "BUY",
+                   "volume": 0.06, "close_price": 4254.80,
+                   "close_time": "2026.07.03 14:15:06",
+                   "profit": 73.80, "swap": 0.0, "commission": 0.0,
+                   "deal_reason": "TP"}], appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="2125574587", server_utc_offset_hours=0,
+                          max_retries=2, backoff_s=0.01)
+    assert res.matched is False                 # deferred, not banked
+    session.expire_all()
+    tr = session.get(BtTrade, trade_id)
+    assert tr.broker_ticket == "2125574587"     # ticket persisted for retry
+    assert tr.broker_reconciled_at is None       # NOT locked
+    assert tr.broker_net_usd is None             # phantom +73.80 NOT banked
+
+
+def test_reconcile_banks_when_full_volume_closed(session) -> None:
+    """GUARD 3: once BOTH deals landed (0.06 partial +73.80, 0.06 remainder
+    -68.76) Σvol == 0.12 == full size -> bank the true net +5.04 + lock."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_partial_trade(session, run_id, trade_id, full_lots=0.12)
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=999.0,
+                         closed_orders_age_s=1.0)
+    bridge.prime([
+        {"ticket": "2125574587", "symbol": "XAUUSD.ecn", "type": "BUY",
+         "volume": 0.06, "close_price": 4254.80, "close_time": "2026.07.03 14:15:06",
+         "profit": 73.80, "swap": 0.0, "commission": 0.0, "deal_reason": "TP"},
+        {"ticket": "2125574587", "symbol": "XAUUSD.ecn", "type": "BUY",
+         "volume": 0.06, "close_price": 4160.03, "close_time": "2026.07.03 16:07:00",
+         "profit": -68.76, "swap": 0.0, "commission": 0.0, "deal_reason": "SL"},
+    ], appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="2125574587", server_utc_offset_hours=0,
+                          max_retries=2, backoff_s=0.01)
+    assert res.matched is True
+    assert res.broker_net_usd == pytest.approx(5.04)   # true net, not +73.80
+    assert res.broker_exit_reason == "SL"              # last deal wins
+    session.expire_all()
+    tr = session.get(BtTrade, trade_id)
+    assert tr.broker_reconciled_at is not None          # now safe to lock
+    assert tr.broker_net_usd == pytest.approx(5.04)
+
+
+def test_reconcile_no_full_size_skips_volume_check(session) -> None:
+    """Backward-compat: a row with no qty_lots (old/dry-run) must still reconcile
+    on a single closed deal exactly as before — GUARD 3 only fires when the full
+    size is known."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_run_and_trade(session, run_id, trade_id)   # no raw_features.qty_lots
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=999.0,
+                         closed_orders_age_s=1.0)
+    bridge.prime([{"ticket": "T3", "volume": 0.01, "profit": 5.0, "commission": 0.0,
+                   "swap": 0.0, "close_price": 100.0,
+                   "close_time": "2026.07.01 10:00:00", "deal_reason": "TP"}],
+                 appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="T3", server_utc_offset_hours=0,
+                          max_retries=2, backoff_s=0.01)
+    assert res.matched is True
+    assert res.broker_gross_usd == 5.0
