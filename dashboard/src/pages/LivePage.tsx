@@ -602,7 +602,7 @@ export function LivePage({
         </div>
 
         {/* ── Supporting row: now / today / risk / capital / market ── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
           <div className="glass rounded-ds-lg">
             <StatTile
               label="Open P&L · now"

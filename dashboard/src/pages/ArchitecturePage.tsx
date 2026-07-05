@@ -10,7 +10,7 @@ export function ArchitecturePage() {
   return (
     <div className="h-full overflow-auto px-4 sm:px-6 py-5">
       <div className="max-w-[1400px] mx-auto space-y-4 anim-fade-up">
-        <header className="flex items-baseline justify-between">
+        <header className="flex flex-col gap-3 lg:flex-row lg:items-baseline lg:justify-between">
           <div>
             <h1 className="text-ds-2xl font-semibold text-ink-primary tracking-tight">
               Strategy Rulebook
@@ -19,7 +19,7 @@ export function ArchitecturePage() {
               Fib V2 intraday · M15 base · lb=3 pivot confirmation · PTP+1R · $0.65 broker cost
             </p>
           </div>
-          <div className="flex items-center gap-1 glass rounded-ds p-1">
+          <div className="flex items-center gap-1 glass rounded-ds p-1 overflow-x-auto scroll-slim max-w-full">
             <TabBtn
               active={tab === "long"}
               onClick={() => setTab("long")}
@@ -163,15 +163,15 @@ function GateGroup({
       </div>
       <div className="space-y-2">
         {gates.map((g, i) => (
-          <div key={i} className="grid grid-cols-12 gap-3 items-baseline">
-            <div className="col-span-3 text-ds-sm text-ink-primary font-medium leading-snug">
+          <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-1.5 md:gap-3 items-baseline border-b border-line-subtle md:border-0 pb-2 md:pb-0">
+            <div className="md:col-span-3 text-ds-sm text-ink-primary font-medium leading-snug">
               {g.label}
             </div>
-            <div className="col-span-5 text-ds-xs text-bull grid grid-cols-[14px_1fr] gap-1 leading-snug">
+            <div className="md:col-span-5 text-ds-xs text-bull grid grid-cols-[14px_1fr] gap-1 leading-snug">
               <span className="text-center">✓</span>
               <span>{g.ok}</span>
             </div>
-            <div className="col-span-4 text-ds-xs text-bear grid grid-cols-[14px_1fr] gap-1 leading-snug">
+            <div className="md:col-span-4 text-ds-xs text-bear grid grid-cols-[14px_1fr] gap-1 leading-snug">
               <span className="text-center">✗</span>
               <span>{g.fail}</span>
             </div>
@@ -729,12 +729,12 @@ function PerTickIO() {
           { file: "commands/*.txt", op: "write", detail: "OPEN/MODIFY/CLOSE (only on trade action)" },
           { file: "responses/*.json", op: "read", detail: "broker ack + fill price" },
         ].map((row, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-baseline">
-            <code className="col-span-5 text-info">{row.file}</code>
-            <span className={`col-span-2 text-ds-xs uppercase font-semibold ${
+          <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-2 items-baseline">
+            <code className="md:col-span-5 text-info break-all">{row.file}</code>
+            <span className={`md:col-span-2 text-ds-xs uppercase font-semibold ${
               row.op === "read" ? "text-bull" : "text-warn"
             }`}>{row.op}</span>
-            <span className="col-span-5 text-ink-secondary">{row.detail}</span>
+            <span className="md:col-span-5 text-ink-secondary">{row.detail}</span>
           </div>
         ))}
       </div>
@@ -762,9 +762,9 @@ function StateFootprint() {
           ["consumed_setup_keys", "grows monotonically (dedup)"],
           ["prev_open / prev_close", "2 floats (confirm candle)"],
         ].map(([k, v], i) => (
-          <div key={i} className="grid grid-cols-12 gap-2">
-            <code className="col-span-5 text-info">{k}</code>
-            <span className="col-span-7 text-ink-secondary">{v}</span>
+          <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-2">
+            <code className="md:col-span-5 text-info break-all">{k}</code>
+            <span className="md:col-span-7 text-ink-secondary">{v}</span>
           </div>
         ))}
       </div>

@@ -168,7 +168,7 @@ export function LoginPage() {
   const sealing = phase === "celebrate" || phase === "unlocking" || phase === "shatter";
 
   return (
-    <div className="h-full w-full overflow-hidden bg-bg-base text-ink-primary font-sans flex items-center justify-center px-5 tilt-scene relative">
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden bg-bg-base text-ink-primary font-sans flex items-center justify-center px-5 py-6 tilt-scene relative">
       {/* ambient gold field */}
       <div className="pointer-events-none absolute inset-0 neon-grid opacity-60" />
       <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[70vw] h-[70vw] rounded-full bg-[radial-gradient(circle,rgba(232,198,90,0.10),transparent_60%)] blur-[130px]" />

@@ -381,6 +381,23 @@ table th {
   scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
+/* Slim always-thin scrollbar for horizontally-scrolling regions (mobile tables,
+   filter rows) where the hover-to-reveal default leaves no scroll affordance on
+   touch. Thin, faintly visible so the user knows there's more to scroll. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+}
+
 /* Selection — frosted white */
 ::selection {
   background: rgba(255, 255, 255, 0.22);

@@ -146,7 +146,7 @@ export function FilterBar({
             className="
               bg-bg-input border border-line-base rounded-ds-sm
               text-ds-sm text-ink-primary placeholder:text-ink-muted
-              pl-7 pr-2 py-1 w-72
+              pl-7 pr-2 py-1 w-full sm:w-72
               focus:outline-none focus:border-brass
             "
           />

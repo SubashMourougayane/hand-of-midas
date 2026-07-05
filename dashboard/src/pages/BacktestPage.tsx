@@ -69,7 +69,7 @@ function RunPicker({
       </span>
       <select
         className="
-          flex-1 min-w-[360px] bg-bg-elevated border border-line-base rounded-ds-sm
+          flex-1 w-full sm:min-w-[280px] bg-bg-elevated border border-line-base rounded-ds-sm
           text-ds-sm text-ink-primary px-3 py-1.5
           focus:outline-none focus:border-brass
         "
@@ -329,7 +329,7 @@ export function BacktestPage({
 
   return (
     <div className="h-full overflow-auto">
-      <div className="flex flex-col gap-3 p-3 min-h-0 max-w-[1800px] mx-auto">
+      <div className="flex flex-col gap-3 px-4 sm:px-6 py-5 min-h-0 w-full">
         {/* Header strip — latest run + period + symbol context. */}
         <div className="flex items-center gap-3 shrink-0 flex-wrap py-1">
           <div className="flex items-center gap-2">
@@ -495,7 +495,7 @@ export function BacktestPage({
 
         {/* Year-by-year — primary $ PnL, secondary R underneath */}
         <Pane title="Year-by-Year" subtitle={`${analytics.yearCount} years`}>
-          <div className="px-3 py-2 grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-11 gap-2">
+          <div className="px-3 py-2 grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-7 gap-2">
             {Object.entries(analytics.byYearUsd)
               .sort()
               .map(([y, usd]) => {

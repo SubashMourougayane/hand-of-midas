@@ -247,7 +247,7 @@ function App() {
       />
       <div className="flex-1 min-h-0 overflow-hidden flex">
         <Sidebar collapsed={collapsed} />
-        <main className="flex-1 min-w-0 overflow-hidden pb-14 md:pb-0">
+        <main className="flex-1 min-w-0 overflow-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <Routes>
             <Route
               path="/live"

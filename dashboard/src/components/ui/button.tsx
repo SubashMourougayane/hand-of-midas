@@ -13,10 +13,12 @@ const buttonVariants = cva(
         ghost: "text-ink-secondary hover:text-ink-primary hover:bg-glass",
         outline: "border border-glass-border text-ink-secondary hover:text-ink-primary hover:bg-glass",
       },
+      // On touch (<md) every size gets a ≥44px tap target; desktop keeps the
+      // compact heights so the dense terminal layout is unchanged.
       size: {
-        sm: "h-8 px-3",
-        default: "h-9 px-4",
-        icon: "h-8 w-8",
+        sm: "h-8 px-3 max-md:min-h-11",
+        default: "h-9 px-4 max-md:min-h-11",
+        icon: "h-8 w-8 max-md:min-h-11 max-md:min-w-11",
       },
     },
     defaultVariants: { variant: "glass", size: "default" },

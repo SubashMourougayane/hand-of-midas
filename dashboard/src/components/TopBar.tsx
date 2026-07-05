@@ -91,6 +91,24 @@ export function TopBar({
           <Divider />
           <XauTicker price={xauPrice ?? null} />
         </div>
+
+        {/* Compact account strip for tablet + phone (< lg), where the full pulse
+            block is hidden. Keeps equity / return / XAU visible on EVERY page —
+            previously these vanished entirely below 1024px. */}
+        <div className="flex lg:hidden items-center gap-2 min-w-0 font-mono tabular-nums text-[11px]">
+          <span className="text-ink-primary font-semibold truncate">
+            {equity == null ? "—" : fmtMoney(equity, 0)}
+          </span>
+          <span className={`shrink-0 ${TONE_CLS[tone]}`}>
+            {totalReturn == null
+              ? ""
+              : `${totalReturn >= 0 ? "+" : "−"}${fmtMoney(Math.abs(totalReturn), 0)}`}
+          </span>
+          <span className="shrink-0 text-ink-muted hidden sm:inline">·</span>
+          <span className="shrink-0 text-ink-secondary hidden sm:inline">
+            XAU {xauPrice == null ? "—" : xauPrice.toFixed(2)}
+          </span>
+        </div>
       </div>
 
       {/* Leg switcher only on Backtest (Live shows all positions together). */}

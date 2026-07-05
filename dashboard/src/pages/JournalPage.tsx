@@ -142,7 +142,7 @@ export function JournalPage({ runId }: { runId: string | null }) {
       </Pane>
 
       {/* ── Main: trade story ── */}
-      <div className="col-span-9 xl:col-span-10 min-h-0 overflow-auto">
+      <div className="lg:col-span-9 xl:col-span-10 min-h-0 overflow-auto">
         {!trade ? (
           <Pane className="h-full">
             <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-6">

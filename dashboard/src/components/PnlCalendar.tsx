@@ -192,7 +192,7 @@ export function PnlCalendar({
                 onMouseLeave={() => setTooltip(null)}
               >
                 {has && (
-                  <span className="font-mono text-[8px] font-semibold text-white/90">
+                  <span className="font-mono text-[10px] font-semibold text-white/90">
                     {dn}
                   </span>
                 )}
@@ -238,7 +238,7 @@ export function PnlCalendar({
                 {["M", "T", "W", "T", "F"].map((d, i) => (
                   <span
                     key={d + i}
-                    className="text-[7px] text-center text-ink-muted"
+                    className="text-[9px] text-center text-ink-muted"
                   >
                     {d}
                   </span>

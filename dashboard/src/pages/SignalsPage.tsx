@@ -293,12 +293,12 @@ function BarHeartbeatRow({ bar }: { bar: AccountSnap }) {
   const t = new Date(bar.ts);
   const hhmm = t.toISOString().slice(11, 16);
   return (
-    <div className="border-b border-line-subtle px-3 py-1.5 flex items-center gap-3 text-ds-xs opacity-60 hover:opacity-100 transition-opacity">
-      <span className="w-1.5 h-1.5 rounded-full bg-ink-muted" />
-      <span className="font-mono text-ink-muted">{hhmm}Z</span>
-      <span className="text-ink-muted uppercase tracking-wide">BAR</span>
-      <span className="text-ink-secondary">bar closed — strategy silent (no active setup)</span>
-      <span className="ml-auto font-mono text-ink-muted">
+    <div className="border-b border-line-subtle px-3 py-1.5 flex items-center flex-wrap gap-x-3 gap-y-1 text-ds-xs opacity-60 hover:opacity-100 transition-opacity">
+      <span className="w-1.5 h-1.5 rounded-full bg-ink-muted shrink-0" />
+      <span className="font-mono text-ink-muted shrink-0">{hhmm}Z</span>
+      <span className="text-ink-muted uppercase tracking-wide shrink-0">BAR</span>
+      <span className="text-ink-secondary min-w-0 truncate">bar closed — strategy silent (no active setup)</span>
+      <span className="ml-auto font-mono text-ink-muted shrink-0">
         {bar.equity !== null ? `eq $${bar.equity.toFixed(2)}` : ""}
         {bar.open_position !== null ? ` · pos ${bar.open_position}` : ""}
       </span>

@@ -21,7 +21,7 @@ export function ChipGroup({
       {onClear && active && (
         <button
           onClick={onClear}
-          className="text-ink-muted hover:text-ink-primary p-0.5"
+          className="text-ink-muted hover:text-ink-primary p-0.5 max-md:min-h-11 max-md:min-w-11 max-md:inline-flex max-md:items-center max-md:justify-center"
           title={`Clear ${label.toLowerCase()}`}
         >
           <X size={11} />
@@ -60,7 +60,7 @@ export function Chip({
       onClick={onClick}
       className={`
         inline-flex items-center gap-1.5
-        px-2 py-0.5 rounded-ds-sm border
+        px-2 py-0.5 max-md:min-h-9 rounded-ds-sm border
         text-ds-xs font-medium
         transition-colors duration-ds
         ${toneCls}
