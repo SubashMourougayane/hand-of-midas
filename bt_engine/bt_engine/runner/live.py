@@ -891,6 +891,11 @@ def run_live(
         on_strategy_event=on_event,
         on_partial_tp=on_partial_tp,
         on_bar_close=on_bar_close,
+        # H1 FIX: each bar, detect broker-side closes (intrabar SL/TP wick the
+        # close-based walker misses) BEFORE walking → no ghost management.
+        on_broker_closed_check=(
+            None if dry_run else (lambda ots, bar: _broker_closed_outcomes(ots, bar, bridge))
+        ),
         initial_open_trades=_open_trades_from_positions(
             broker.positions(), symbol=symbol, strategy_id=strategy,
             server_utc_offset_hours=server_utc_offset_hours,
@@ -1078,6 +1083,50 @@ def _close_partial_succeeded_retry(
         if i < attempts - 1:
             time.sleep(backoff_s * (i + 1))
     return False
+
+
+def _broker_closed_outcomes(
+    open_trades, bar, bridge: DwxBridge,
+) -> list:
+    """H1 detector: return [(trade, BracketOutcome)] for trades the BROKER has
+    already closed (server-side SL/TP wick the close-based walker missed).
+
+    MT5 = source of truth for open/closed. If a trade's ticket is no longer in a
+    FRESH open_orders.json, the broker closed it → we book it so the engine's
+    walker stops managing a ghost. Real P&L is filled in later by reconcile_trade
+    (called from on_close); here we mark reason=BROKER_CLOSED with the bar close as
+    a provisional exit price. Conservative: only act when open_orders is readable
+    (a failed read returns nothing → no spurious closes)."""
+    from ..core.bracket import BracketOutcome
+    try:
+        orders = bridge.open_orders()
+    except Exception:
+        return []
+    if not isinstance(orders, dict):
+        return []
+    inner = orders.get("orders", orders) if "orders" in orders else orders
+    live_tickets = {str(k) for k in inner.keys()} if isinstance(inner, dict) else set()
+    out = []
+    for tr in open_trades:
+        tkt = getattr(tr, "broker_ticket", None)
+        if not tkt:
+            continue  # no ticket to check (never adopted/opened) — leave to walker
+        if str(tkt) not in live_tickets:
+            # Broker no longer holds it → closed intrabar. Provisional outcome;
+            # reconcile_trade (on_close) overwrites with the broker's real fill/P&L.
+            side = tr.side
+            prov_r = ((bar.close - tr.entry_price) * side / tr.risk_units
+                      if tr.risk_units > 0 else 0.0)
+            out.append((tr, BracketOutcome(
+                exit_timestamp=bar.timestamp,
+                exit_price=bar.close,
+                reason="BROKER_CLOSED",
+                bars_held=tr.bars_held,
+                bracket_1r_outcome=prov_r,
+                event_type="EXIT_BROKER_CLOSED",
+                detail={"broker_ticket": str(tkt), "note": "detected gone from open_orders; real P&L via reconcile"},
+            )))
+    return out
 
 
 def _close_live_position_verified(

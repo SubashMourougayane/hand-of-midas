@@ -41,6 +41,13 @@ class EngineDeps:
     on_strategy_event: Callable[[StrategyEvent], None] | None = None
     on_bar_close: Callable[[Bar, list[OpenTrade]], None] | None = None
     on_partial_tp: Callable[[OpenTrade, Bar], None] | None = None
+    # H1 FIX (live only): each bar, BEFORE walking brackets, detect positions the
+    # BROKER already closed intrabar (wick through server-side SL/TP that the
+    # close-based walker would miss). Returns the subset of open_trades the broker
+    # no longer holds. The engine books each via on_trade_close and drops it, so the
+    # walker never manages a position that is already gone at the broker (no ghost).
+    # None in BT → no-op → identical BT behavior (determinism/parity preserved).
+    on_broker_closed_check: Callable[[list[OpenTrade], Bar], list[tuple[OpenTrade, BracketOutcome]]] | None = None
     initial_open_trades: Sequence[OpenTrade] = ()
     max_bars_held: int | None = None
     # BT realism knobs — pass through to bracket walker.
@@ -137,6 +144,22 @@ def run_engine(
                 pending.remove(o)
                 if deps.on_trade_open:
                     deps.on_trade_open(trade)
+
+        # 1.5) H1 FIX (live): book positions the BROKER already closed intrabar
+        # (server-side SL/TP wick the close-based walker would miss) BEFORE walking,
+        # so the walker never manages a ghost. MT5 = source of truth for open/closed.
+        if mode == "live" and deps.on_broker_closed_check is not None and open_trades:
+            try:
+                broker_closed = deps.on_broker_closed_check(list(open_trades), bar)
+            except Exception:
+                log.exception("[ENGINE] on_broker_closed_check failed; continuing")
+                broker_closed = []
+            for tr, outcome in broker_closed:
+                if tr in open_trades:
+                    run.closed_trades.append((tr, outcome))
+                    if deps.on_trade_close:
+                        deps.on_trade_close(tr, outcome)
+                    open_trades.remove(tr)
 
         # 2) walk brackets on this just-closed bar; record bar-walk for active trades
         for tr in list(open_trades):
