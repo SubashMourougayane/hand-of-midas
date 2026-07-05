@@ -258,12 +258,12 @@ class PriceStreamer:
                 "price_source": "mt5",  # authoritative value is always MT5 'profit'
             }
         # Snapshot key = ticket -> (float, booked); skip broadcast if unchanged —
-        # BUT force a re-broadcast every ~15s (heartbeat) so a client that connects
+        # BUT force a re-broadcast every ~3s (heartbeat) so a client that connects
         # mid-stream (e.g. Trades page) gets the current MT5 snapshot even when the
         # market is closed and profit hasn't ticked. Without this, a new socket
         # would receive nothing until a value changes.
         self._tick_n += 1
-        heartbeat = (self._tick_n % 15 == 0)
+        heartbeat = (self._tick_n % 3 == 0)  # ~3s re-broadcast so a new client shows floating fast
         key = {
             t: (round(p["unrealized_usd"], 2),
                 round(p["booked_usd"], 2) if p["booked_usd"] is not None else None)
