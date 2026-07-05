@@ -224,19 +224,31 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
 
   const stats = useMemo(() => {
     // A trade counts as CLOSED for KPIs only if the broker no longer holds it.
-    // MT5 truth: broker_open===true (or null-unknown + still holding a stale
-    // net_r) must NOT be booked as a realised result — it's a live float.
+    // MT5 truth: broker_open===true (or null-unknown + still open) must NOT be
+    // booked as a realised result — it's a live float.
     const isBrokerOpen = (t: Trade) =>
       t.broker_open === true || (t.broker_open == null && t.exit_timestamp == null);
-    const closed = filtered.filter((t) => t.net_r != null && !isBrokerOpen(t));
-    const wins = closed.filter((t) => (t.net_r ?? 0) > 0);
-    const losses = closed.filter((t) => (t.net_r ?? 0) < 0);
-    const netSum = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
+    // CLOSED = broker done with it AND it has SOME realised result (net_r OR a
+    // reconciled broker_net_usd). Broker-closed rows (H1 intrabar close) have
+    // net_r=null but a real broker_net_usd — they were previously dropped from
+    // BOTH KPIs while still showing in the ledger, so Net R and $ P&L counted
+    // different sets and disagreed. Now the $ set includes them.
+    const closed = filtered.filter(
+      (t) => !isBrokerOpen(t) && (t.net_r != null || t.broker_net_usd != null)
+    );
+    // R-metrics only make sense on rows that carry an R value; reconciled
+    // broker-closed rows (no net_r) contribute $ but are excluded from R math.
+    const withR = closed.filter((t) => t.net_r != null);
+    const wins = withR.filter((t) => (t.net_r ?? 0) > 0);
+    const losses = withR.filter((t) => (t.net_r ?? 0) < 0);
+    const netSum = withR.reduce((s, t) => s + (t.net_r ?? 0), 0);
     const winSum = wins.reduce((s, t) => s + (t.net_r ?? 0), 0);
     const lossSum = Math.abs(losses.reduce((s, t) => s + (t.net_r ?? 0), 0));
-    const wr = closed.length ? (wins.length / closed.length) * 100 : 0;
+    const wr = withR.length ? (wins.length / withR.length) * 100 : 0;
     const pf = lossSum > 0 ? winSum / lossSum : winSum > 0 ? Infinity : 0;
-    const avg = closed.length ? netSum / closed.length : 0;
+    const avg = withR.length ? netSum / withR.length : 0;
+    // $ P&L counts EVERY closed row (incl. reconciled broker-closed) so it ties
+    // to the ledger's visible $ column and to the account balance move.
     const usd = closed.reduce(
       (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0),
       0
@@ -259,7 +271,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             : 0;
         return s + booked;
       }, 0);
-    return { n: closed.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd: usd + openBooked };
+    return { n: closed.length, nR: withR.length, wins: wins.length, losses: losses.length, netSum, wr, pf, avg, usd: usd + openBooked };
   }, [filtered, symbol, livePos]);
 
   const setSortKey = (k: SortKey) =>
@@ -278,7 +290,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
               label="Net R"
               value={fmtR(stats.netSum)}
               tone={stats.netSum >= 0 ? "bull" : "bear"}
-              sub={`${stats.n} closed`}
+              sub={`${stats.nR} scored · ${stats.n} closed`}
             />
           </div>
           <div className="glass rounded-ds-lg">
