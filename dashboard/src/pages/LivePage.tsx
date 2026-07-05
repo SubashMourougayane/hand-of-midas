@@ -14,7 +14,7 @@ import { Pill } from "../components/Pill";
 import { PositionCard } from "../components/PositionCard";
 import { LiveChart } from "../components/LiveChart";
 import { Funnel } from "../components/Funnel";
-import { fmtMoney, fmtTs, colorForR } from "../lib/format";
+import { fmtMoney, fmtTs, colorForR, contractSizeFor } from "../lib/format";
 import { legName, sideLabel, gateLabel } from "../lib/labels";
 import { SectionHeader } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
@@ -491,10 +491,25 @@ export function LivePage({
   const openTrades = legList.flatMap((l) => l.trades);
   const nLong = openTrades.filter((t) => t.side > 0).length;
   const nShort = openTrades.filter((t) => t.side < 0).length;
-  const riskUsd = openTrades.reduce(
-    (s, t) => s + (t.risk_units ?? 0) * 100,
-    0
-  );
+  // REAL $ at risk RIGHT NOW = |current stop − entry| × lots × contract, summed.
+  // Mirrors PositionCard's loseUsd EXACTLY (never the "1-lot fantasy" ×100), so a
+  // stop moved to breakeven correctly contributes $0. Lots from live WS volume
+  // (MT5 truth), else stored qty_lots; a trade with no known lots is skipped.
+  const riskUsd = openTrades.reduce((s, t) => {
+    const lp = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
+    const storedQty = Number(
+      (t.raw_features as Record<string, unknown> | null)?.["qty_lots"]
+    );
+    const lots =
+      lp?.volume != null && lp.volume > 0
+        ? lp.volume
+        : Number.isFinite(storedQty) && storedQty > 0
+        ? storedQty
+        : null;
+    if (lots == null || t.stop_price == null) return s;
+    const loss = (t.stop_price - t.entry_price) * t.side * lots * contractSizeFor(t.symbol);
+    return s + Math.min(loss, 0) * -1; // only downside risk (breakeven/locked = 0)
+  }, 0);
   // Booked $ already realised on STILL-OPEN trades (partial-TP). Prefer live WS
   // booked, else the DB raw_features fallback (deal aged off the bridge). Counted
   // the same way the Trades page counts it, so the two pages stay consistent.
