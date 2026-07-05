@@ -98,3 +98,13 @@ class FibV2State(StrategyState):
           3. We never compare state snapshots across bars.
         """
         return self
+
+    def clear_pending_entries(self) -> None:
+        """Drop entries queued during warmup so live trading fires only on
+        signals from NEW post-launch bars. The live runner calls this after the
+        warmup replay. Kept as a method (not a bare attr poke) so a COMPOSITE
+        state can recurse into its per-leg states — a bare
+        `hasattr(state, 'pending_entries')` check silently no-ops on the
+        composite (which nests a_state/d_state), leaving warmup entries armed
+        (F7-class dup-order on first live bar)."""
+        self.pending_entries = []

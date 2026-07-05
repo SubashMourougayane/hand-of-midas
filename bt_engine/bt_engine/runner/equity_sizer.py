@@ -210,6 +210,37 @@ class EquitySizer:
             eq, skimmed, self.state.current_equity,
         )
 
+    # ---------------- restart hydration (F2) ----------------
+
+    def hydrate_equity(self, broker_balance: float, *, source: str = "broker") -> bool:
+        """Reset current_equity to the broker's REALIZED balance on live restart.
+
+        F2: without this, every process restart re-seeds current_equity to
+        config.start_balance (a fixed number, e.g. $10,000). After 43 restarts
+        in 4 days the sizer risks 1.5% of a stale constant, not the real account
+        — over-risking when the account grew, under-risking when it shrank.
+
+        Broker `balance` (NOT equity) is the correct source: it is realized-only
+        (closed trades + deposits), exactly matching the sizer's realized-PnL
+        model — floating P&L must never feed sizing (no mark-to-market peek).
+
+        Only hydrates a positive, finite balance; a bad read leaves the seed
+        untouched (fail-safe). Does NOT touch current_month/skim_history — those
+        re-seed correctly on the first post-restart action. Returns True if it
+        applied a new equity value."""
+        try:
+            bal = float(broker_balance)
+        except (TypeError, ValueError):
+            return False
+        if not (bal > 0 and bal == bal and bal != float("inf")):  # >0, not NaN/inf
+            log.warning("[SIZER] hydrate skipped — implausible balance %r", broker_balance)
+            return False
+        old = self.state.current_equity
+        self.state.current_equity = bal
+        self.state.month_start_equity = bal
+        log.info("[SIZER] hydrated equity from %s: $%.2f -> $%.2f", source, old, bal)
+        return True
+
     # ---------------- inspection helpers ----------------
 
     def equity(self) -> float:

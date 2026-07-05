@@ -349,6 +349,20 @@ def run_live(
     if not bridge.is_alive():
         raise RuntimeError("DWX bridge not alive (account_info.json stale or missing)")
     live_safety = live_safety or LiveSafetyConfig()
+
+    # F2: hydrate the equity sizer from the broker's REALIZED balance so a
+    # restart sizes off the live account, not the fixed --start-balance seed.
+    # balance (not equity) = realized-only, matching the sizer's model (no
+    # mark-to-market peek). Live only — dry-run keeps the configured seed.
+    if equity_sizer is not None and not dry_run:
+        acct = _safe_account_info(bridge)
+        bal = acct.get("balance") if isinstance(acct, dict) else None
+        if bal is not None:
+            equity_sizer.hydrate_equity(float(bal), source="mt5_account_info")
+        else:
+            log.warning("[SIZER] no broker balance to hydrate from — keeping seed $%.2f",
+                        equity_sizer.equity())
+
     if not dry_run:
         _assert_live_safety(bridge, symbol, live_safety)
         log.info(
@@ -435,7 +449,13 @@ def run_live(
                     events_emitted += len(step.new_events)
                 # Clear any pending entries that the warmup queued — those
                 # signals belong to past bars, not the upcoming live bar.
-                if hasattr(state, "pending_entries"):
+                # Prefer clear_pending_entries() so a COMPOSITE state recurses
+                # into its per-leg states (F5): a bare pending_entries poke only
+                # touches the top object and silently misses a_state/d_state,
+                # leaving warmup entries armed = dup order on first live bar.
+                if hasattr(state, "clear_pending_entries"):
+                    state.clear_pending_entries()
+                elif hasattr(state, "pending_entries"):
                     state.pending_entries = []
                 warmup_state = state
                 log.info(

@@ -41,6 +41,16 @@ class FibV2IntradayADState(StrategyState):
         # in place inside each leg's on_bar. Composite mirrors that contract.
         return self
 
+    def clear_pending_entries(self) -> None:
+        """Recurse into BOTH leg states. The composite holds no pending_entries
+        of its own — a bare attr clear on this object would miss the warmup
+        entries queued inside a_state / d_state (F5). Called by the live runner
+        after warmup replay."""
+        if self.a_state is not None:
+            self.a_state.clear_pending_entries()
+        if self.d_state is not None:
+            self.d_state.clear_pending_entries()
+
 
 class FibV2IntradayAPlusD:
     """Composite strategy — A + D under one on_bar.

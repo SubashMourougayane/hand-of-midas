@@ -180,3 +180,44 @@ def test_lifetime_skim_aggregates_across_months():
     s.size_order(symbol="XAUUSD.ecn", stop_distance=1.0, ts=_ts("2026-09-01 09:00:00+00:00"))
     assert s.lifetime_skim() == 3500.0
     assert len(s.state.skim_history) == 2
+
+
+# ---------------- F2: restart equity hydration ----------------
+
+def test_hydrate_equity_resets_to_broker_balance():
+    """F2: a restart must size off the live broker balance, not the fixed seed."""
+    s = EquitySizer(EquitySizerConfig(start_balance=10000.0))
+    assert s.equity() == 10000.0            # seeded to config on init
+    ok = s.hydrate_equity(10526.77, source="mt5_account_info")
+    assert ok is True
+    assert s.equity() == pytest.approx(10526.77)
+    assert s.state.month_start_equity == pytest.approx(10526.77)
+
+
+def test_hydrate_then_size_uses_hydrated_equity():
+    """1.5% risk must be computed off the hydrated balance, not the seed."""
+    s = EquitySizer(EquitySizerConfig(start_balance=10000.0, risk_pct=0.015))
+    s.hydrate_equity(20000.0)
+    # risk_$ = 20000 * 0.015 = 300; lot = 300 / (10 * 100) = 0.30
+    lot = s.size_order(symbol="XAUUSD.ecn", stop_distance=10.0,
+                       ts=_ts("2026-07-05 12:00:00+00:00"))
+    assert lot == pytest.approx(0.30)
+
+
+def test_hydrate_rejects_nonpositive_and_nan():
+    s = EquitySizer(EquitySizerConfig(start_balance=10000.0))
+    assert s.hydrate_equity(0.0) is False
+    assert s.hydrate_equity(-50.0) is False
+    assert s.hydrate_equity(float("nan")) is False
+    assert s.hydrate_equity(float("inf")) is False
+    assert s.equity() == 10000.0            # untouched on bad input
+
+
+def test_hydrate_does_not_disturb_month_or_skim_history():
+    s = EquitySizer(EquitySizerConfig(start_balance=10000.0))
+    s.on_trade_closed(pnl_dollars=500.0, close_ts=_ts("2026-07-15 12:00:00+00:00"))
+    before_month = s.state.current_month
+    before_hist = list(s.state.skim_history)
+    s.hydrate_equity(12345.0)
+    assert s.state.current_month == before_month
+    assert s.state.skim_history == before_hist
