@@ -47,6 +47,9 @@ export type Trade = {
   broker_exit_reason?: string | null;
   broker_close_ts?: string | null;
   broker_reconciled_at?: string | null;
+  // MT5 truth for open/closed status (live only). true = broker STILL holds this
+  // ticket, false = broker closed it, null/undefined = unknown (trust DB).
+  broker_open?: boolean | null;
   raw_features?: Record<string, unknown> | null;
 };
 

@@ -8,11 +8,27 @@ from sqlalchemy import select, func, text, case
 from sqlalchemy.orm import Session
 
 from bt_engine.db.models import BtRun, BtTrade
+from bt_engine.data.broker_state import parse_open_positions
 
 from ..deps import get_session
 from ..models import RunSummary
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+
+def _mt5_open_tickets() -> set[str] | None:
+    """MT5 = source of truth for OPEN positions. Set of open tickets, or None if
+    the open_orders.json is missing/corrupt (unknown → callers keep DB view, never
+    treat as 'all closed'). Shared parser guarantees a bad read is never 'empty'."""
+    import json
+    from ..ws.price_stream import OPEN_ORDERS_FILE
+    try:
+        if not OPEN_ORDERS_FILE.is_file():
+            return None
+        raw = json.loads(OPEN_ORDERS_FILE.read_text())
+    except Exception:
+        return None
+    return {p.ticket for p in parse_open_positions(raw)}
 
 
 def _run_to_summary(r: BtRun) -> RunSummary:
@@ -88,11 +104,12 @@ def run_trades(
     ).scalar_one()
     q = q.order_by(BtTrade.entry_timestamp.desc()).offset((page - 1) * page_size).limit(page_size)
     rows = s.execute(q).scalars().all()
+    mt5_open = _mt5_open_tickets()  # MT5 truth for open/closed status
     return {
         "total": int(total),
         "page": page,
         "page_size": page_size,
-        "items": [_trade_to_dict(t) for t in rows],
+        "items": [_trade_to_dict(t, mt5_open=mt5_open) for t in rows],
     }
 
 
@@ -107,12 +124,23 @@ def _is_overnight(t: BtTrade) -> bool | None:
     return t.entry_timestamp.date() != t.exit_timestamp.date()
 
 
-def _trade_to_dict(t: BtTrade) -> dict:
+def _trade_to_dict(t: BtTrade, *, mt5_open: set[str] | None = None) -> dict:
+    # MT5 truth for open/closed. broker_open is:
+    #   True  → broker STILL holds this ticket (row is genuinely open, even if a
+    #           stale DB row marked it SUPERSEDED/closed).
+    #   False → broker no longer holds it (closed at broker).
+    #   None  → unknown (MT5 unreadable, or row has no broker_ticket) → trust DB.
+    broker_open: bool | None = None
+    if mt5_open is not None:
+        tkt = (t.broker_ticket or "").strip()
+        if tkt:
+            broker_open = tkt in mt5_open
     return {
         "trade_id": str(t.trade_id),
         "trade_ref": t.trade_ref,
         "run_id": str(t.run_id),
         "symbol": t.symbol,
+        "broker_open": broker_open,
         "direction": t.direction,
         "side": int(t.side),
         "overnight": _is_overnight(t),

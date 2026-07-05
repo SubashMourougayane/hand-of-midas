@@ -121,6 +121,10 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
               (x.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
             );
             return (
+              // MT5 truth first: a row the broker STILL holds beats a stale
+              // SUPERSEDED/closed duplicate for the same ticket (fixes the
+              // cockpit-open / trades-SUPERSEDED disagreement).
+              (x.broker_open === true ? 16 : 0) +
               (Number.isFinite(booked) && Math.abs(booked) > 0.001 ? 8 : 0) +
               (x.partial_r ? Math.abs(x.partial_r) : 0) +
               (x.broker_net_usd != null ? 1 : 0) +
@@ -365,10 +369,16 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
           columns={[
             {
               header: "Status",
-              cell: (t) =>
-                t.exit_timestamp == null ? (
-                  <Pill tone="info">OPEN</Pill>
-                ) : (
+              // MT5 is the source of truth for open/closed:
+              //  - broker_open === true  → OPEN (even if a stale DB row says SUPERSEDED/closed)
+              //  - broker_open === false → closed at broker (show the exit reason if any)
+              //  - broker_open == null   → unknown → trust DB (exit_timestamp)
+              cell: (t) => {
+                const isOpen =
+                  t.broker_open === true ||
+                  (t.broker_open == null && t.exit_timestamp == null);
+                if (isOpen) return <Pill tone="info">OPEN</Pill>;
+                return (
                   <Pill
                     tone={
                       t.exit_reason === "TP" || (t.net_r ?? 0) >= 0
@@ -380,7 +390,8 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
                   >
                     {t.exit_reason ?? "CLOSED"}
                   </Pill>
-                ),
+                );
+              },
             },
             {
               header: "Strategy",
