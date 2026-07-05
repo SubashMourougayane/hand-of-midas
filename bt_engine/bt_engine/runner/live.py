@@ -581,6 +581,27 @@ def run_live(
             oc.bars_held,
             oc.bracket_1r_outcome,
         )
+        # ─── C1 FIX: walker TIMEOUT has NO server-side equivalent. SL/TP are hard
+        # server-side levels (sent on OPEN) so those exits self-close at the broker.
+        # But a TIMEOUT (max-hold cap) is a bot-only decision — without this, the DB
+        # marks the trade closed while the real MT5 position keeps running unmanaged.
+        # Send a REAL close and verify (slow-ack safe). Never route SL/SL_BE/TP here.
+        if oc.reason == "TIMEOUT" and not dry_run and tr.broker_ticket:
+            ok = _close_live_position_verified(broker, bridge, str(tr.broker_ticket))
+            if ok:
+                log.info("[TIMEOUT_CLOSE] ticket=%s closed at broker on max-hold exit", tr.broker_ticket)
+            else:
+                log.error(
+                    "[TIMEOUT_CLOSE] FAILED to confirm broker close for ticket=%s — "
+                    "position may still be OPEN at broker; reconcile will retry",
+                    tr.broker_ticket,
+                )
+                journal_repo.insert(
+                    trade_id=tr.trade_id, run_id=run_id,
+                    ts=_to_dt(oc.exit_timestamp),
+                    event_type="TIMEOUT_CLOSE_FAILED",
+                    detail={"broker_ticket": str(tr.broker_ticket), "reason": oc.reason},
+                )
         gross_r = oc.bracket_1r_outcome
         cost_r = float(tr.order.extra.get("cost_r", 0.0))
         # Equity sizer: update with realized $ pnl on every closed trade.
@@ -1057,6 +1078,37 @@ def _close_partial_succeeded_retry(
         if i < attempts - 1:
             time.sleep(backoff_s * (i + 1))
     return False
+
+
+def _close_live_position_verified(
+    broker, bridge: DwxBridge, ticket: str,
+    *, attempts: int = 4, backoff_s: float = 0.5,
+) -> bool:
+    """Send a full CLOSE to the broker for `ticket` and VERIFY it left open_orders.
+
+    Used for walker-decided exits that have NO server-side equivalent — i.e.
+    TIMEOUT (the strategy's max-hold cap). SL/TP are already server-side and must
+    NOT be routed here. Reuses the slow-ack discipline: DWX may ack (and rewrite
+    open_orders.json) slower than the 5s command wait, so a raised error is not a
+    reject — re-read the broker with backoff before judging.
+
+    Returns True if the position is confirmed gone at the broker, else False.
+    """
+    if not ticket:
+        return False
+    # If it's already not open (e.g. SL/TP hit intrabar), treat as closed.
+    if _live_position(bridge, ticket) is None:
+        return True
+    try:
+        broker.cancel(str(ticket))  # DWX: CLOSE|<ticket>
+    except Exception as e:
+        log.warning("[TIMEOUT_CLOSE] cancel raised for ticket=%s (%s) — verifying", ticket, e)
+    for i in range(attempts):
+        if _live_position(bridge, ticket) is None:
+            return True
+        if i < attempts - 1:
+            time.sleep(backoff_s * (i + 1))
+    return _live_position(bridge, ticket) is None
 
 
 def _sl_at_be(post_pos: dict[str, Any] | None, new_sl: float, tol: float = 0.01) -> bool:
