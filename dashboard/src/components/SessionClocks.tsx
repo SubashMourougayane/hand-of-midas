@@ -19,10 +19,20 @@ function timeIn(tz: string, d: Date): string {
   }
 }
 
+// The FX week runs Sun 21:00 UTC (Sydney open) → Fri 22:00 UTC (NY close).
+// Saturday is fully shut; Sunday before 21:00 and Friday after 22:00 are shut.
+function fxWeekOpen(d: Date): boolean {
+  const day = d.getUTCDay(); // 0 Sun … 6 Sat
+  const h = d.getUTCHours() + d.getUTCMinutes() / 60;
+  if (day === 6) return false;           // Saturday — shut all day
+  if (day === 0) return h >= 21;         // Sunday — opens at 21:00 UTC (Sydney)
+  if (day === 5) return h < 22;          // Friday — closes at 22:00 UTC (NY)
+  return true;                            // Mon–Thu — open
+}
+
 function isOpen(openUtc: [number, number] | null, d: Date): boolean {
   if (!openUtc) return false;
-  const day = d.getUTCDay(); // 0 Sun, 6 Sat — FX shut on weekend
-  if (day === 0 || day === 6) return false;
+  if (!fxWeekOpen(d)) return false;      // FX market shut → no session is open
   const h = d.getUTCHours() + d.getUTCMinutes() / 60;
   const [lo, hi] = openUtc;
   // Wrap window (e.g. Sydney 21→6 UTC crosses midnight): open if before hi OR at/after lo.
