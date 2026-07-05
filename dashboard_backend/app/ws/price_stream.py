@@ -71,6 +71,7 @@ class PriceStreamer:
         self._last: dict[str, tuple[float, float]] = {}  # symbol -> (bid, ask)
         self._last_acct: tuple | None = None  # (balance, equity, profit)
         self._last_pos: dict | None = None  # ticket -> unrealized profit snapshot
+        self._tick_n = 0  # heartbeat counter for periodic force-rebroadcast
 
     async def start(self) -> None:
         if self._task is not None:
@@ -256,13 +257,19 @@ class PriceStreamer:
                 "swap": swap,
                 "price_source": "mt5",  # authoritative value is always MT5 'profit'
             }
-        # Snapshot key = ticket -> (float, booked); skip broadcast if unchanged.
+        # Snapshot key = ticket -> (float, booked); skip broadcast if unchanged —
+        # BUT force a re-broadcast every ~15s (heartbeat) so a client that connects
+        # mid-stream (e.g. Trades page) gets the current MT5 snapshot even when the
+        # market is closed and profit hasn't ticked. Without this, a new socket
+        # would receive nothing until a value changes.
+        self._tick_n += 1
+        heartbeat = (self._tick_n % 15 == 0)
         key = {
             t: (round(p["unrealized_usd"], 2),
                 round(p["booked_usd"], 2) if p["booked_usd"] is not None else None)
             for t, p in positions.items()
         }
-        if self._last_pos == key:
+        if self._last_pos == key and not heartbeat:
             return
         self._last_pos = key
         await self._broker.broadcast({
