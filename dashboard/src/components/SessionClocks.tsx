@@ -2,6 +2,7 @@
 // time in that zone, and an open/closed dot for FX session hours.
 // Session windows are in UTC (approx, no DST nuance — good enough for a glance).
 const SESSIONS = [
+  { flag: "🇦🇺", name: "Sydney", tz: "Australia/Sydney", openUtc: [21, 6] as [number, number] }, // wraps midnight UTC
   { flag: "🇯🇵", name: "Asia", tz: "Asia/Tokyo", openUtc: [0, 9] as [number, number] },
   { flag: "🇬🇧", name: "London", tz: "Europe/London", openUtc: [7, 16] as [number, number] },
   { flag: "🇺🇸", name: "New York", tz: "America/New_York", openUtc: [13, 22] as [number, number] },
@@ -24,7 +25,8 @@ function isOpen(openUtc: [number, number] | null, d: Date): boolean {
   if (day === 0 || day === 6) return false;
   const h = d.getUTCHours() + d.getUTCMinutes() / 60;
   const [lo, hi] = openUtc;
-  return h >= lo && h < hi;
+  // Wrap window (e.g. Sydney 21→6 UTC crosses midnight): open if before hi OR at/after lo.
+  return lo > hi ? h >= lo || h < hi : h >= lo && h < hi;
 }
 
 export function SessionClocks({ now }: { now: number }) {
