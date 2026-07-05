@@ -45,7 +45,10 @@ class _Bridge:
 
 
 def _open(*tickets):
-    return {t: {"ticket": t, "volume": 0.1} for t in tickets}
+    # Must be a REAL position shape (the shared broker_state parser validates
+    # volume>0 + entry>0, else it correctly treats the record as not-a-position).
+    return {t: {"ticket": t, "type": "buy", "volume": 0.1, "open_price": 2000.0,
+                "sl": 1995.0, "tp": 2015.0} for t in tickets}
 
 
 def test_gone_ticket_emits_broker_closed():

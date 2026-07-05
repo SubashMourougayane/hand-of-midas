@@ -1098,14 +1098,12 @@ def _broker_closed_outcomes(
     a provisional exit price. Conservative: only act when open_orders is readable
     (a failed read returns nothing → no spurious closes)."""
     from ..core.bracket import BracketOutcome
-    try:
-        orders = bridge.open_orders()
-    except Exception:
+    from ..data.broker_state import open_tickets_from_bridge
+    # Shared MT5-truth reader. None = read FAILED (unknown) → do nothing (never
+    # treat a bad read as 'all closed'). A real empty set = genuinely no positions.
+    live_tickets = open_tickets_from_bridge(bridge)
+    if live_tickets is None:
         return []
-    if not isinstance(orders, dict):
-        return []
-    inner = orders.get("orders", orders) if "orders" in orders else orders
-    live_tickets = {str(k) for k in inner.keys()} if isinstance(inner, dict) else set()
     out = []
     for tr in open_trades:
         tkt = getattr(tr, "broker_ticket", None)

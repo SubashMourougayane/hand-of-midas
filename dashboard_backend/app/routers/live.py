@@ -22,9 +22,27 @@ from sqlalchemy.orm import Session
 
 from bt_engine.db.models import BtRun, BtTrade, BtAccountSnapshot
 
+from bt_engine.data.broker_state import (
+    read_open_positions_from_file, parse_open_positions,
+)
+
 from ..deps import get_session
-from ..ws.price_stream import ACCOUNT_FILE
+from ..ws.price_stream import ACCOUNT_FILE, OPEN_ORDERS_FILE
 from .runs import _trade_to_dict, _run_to_summary
+
+
+def _mt5_open_tickets() -> set[str] | None:
+    """MT5 = source of truth for OPEN positions. Returns the set of open tickets,
+    or None if the file can't be read OR is corrupt/unparseable (unknown → callers
+    must NOT treat as 'all closed'; fall back to the DB view). Only a file that is
+    present AND valid JSON yields a set (possibly empty = genuinely no positions)."""
+    try:
+        if not OPEN_ORDERS_FILE.is_file():
+            return None
+        raw = json.loads(OPEN_ORDERS_FILE.read_text())
+    except Exception:
+        return None  # missing / unreadable / corrupt → unknown, keep DB view
+    return {p.ticket for p in parse_open_positions(raw)}
 
 router = APIRouter(prefix="/api/live", tags=["live"])
 
@@ -92,9 +110,27 @@ def live_summary(s: Session = Depends(get_session)) -> dict:
             if t.run_id in active_run_ids and prev.run_id not in active_run_ids:
                 best_by_key[key] = t
 
+    # OPTION A — MT5 is the source of truth for OPEN positions. Filter the DB's
+    # open rows to only those the broker STILL holds, so a mid-bar broker close
+    # (SL/TP wick) vanishes from the cockpit INSTANTLY — no waiting for the engine's
+    # per-bar H1 sweep to book it. If MT5 can't be read (None), keep the DB view
+    # (never blank the board on a bad read). A DB-open row with NO broker_ticket
+    # (never adopted) is kept — MT5 has nothing to check it against.
+    mt5_open = _mt5_open_tickets()
+
+    def _broker_still_holds(t: BtTrade) -> bool:
+        if mt5_open is None:
+            return True  # unknown → trust DB
+        tkt = (t.broker_ticket or "").strip()
+        if not tkt:
+            return True  # no ticket to verify against MT5
+        return tkt in mt5_open
+
     # Group deduped open trades by their strategy (via run).
     open_by_strat: dict[str, list[BtTrade]] = {}
     for t in best_by_key.values():
+        if not _broker_still_holds(t):
+            continue  # broker already closed it — MT5 truth wins
         run = run_by_id.get(t.run_id)
         if run is None:
             continue
