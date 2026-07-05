@@ -219,7 +219,12 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
   }, [sorted, sideFilter, fromDate, toDate, search]);
 
   const stats = useMemo(() => {
-    const closed = filtered.filter((t) => t.net_r != null);
+    // A trade counts as CLOSED for KPIs only if the broker no longer holds it.
+    // MT5 truth: broker_open===true (or null-unknown + still holding a stale
+    // net_r) must NOT be booked as a realised result — it's a live float.
+    const isBrokerOpen = (t: Trade) =>
+      t.broker_open === true || (t.broker_open == null && t.exit_timestamp == null);
+    const closed = filtered.filter((t) => t.net_r != null && !isBrokerOpen(t));
     const wins = closed.filter((t) => (t.net_r ?? 0) > 0);
     const losses = closed.filter((t) => (t.net_r ?? 0) < 0);
     const netSum = closed.reduce((s, t) => s + (t.net_r ?? 0), 0);
@@ -236,7 +241,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     // live WS booked, else the DB raw_features fallback. This is locked profit,
     // so it belongs in the $ P&L total even while the remainder floats.
     const openBooked = filtered
-      .filter((t) => t.exit_timestamp == null)
+      .filter((t) => isBrokerOpen(t))
       .reduce((s, t) => {
         const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
         const dbBooked = Number(
@@ -482,21 +487,34 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
             },
             {
               header: sortHeader("Net R", "net_r", sort, setSortKey),
-              cell: (t) => (
-                <span className={`font-mono ${colorForR(t.net_r)}`}>
-                  {fmtR(t.net_r)}
-                </span>
-              ),
+              cell: (t) => {
+                // Broker-open (MT5 truth) → no realised R yet even if a stale DB row
+                // carries net_r (SUPERSEDED re-adopt). Show — (floating shown in $ PnL).
+                const stillOpen =
+                  t.broker_open === true ||
+                  (t.broker_open == null && t.exit_timestamp == null);
+                return (
+                  <span className={`font-mono ${colorForR(stillOpen ? null : t.net_r)}`}>
+                    {stillOpen ? "—" : fmtR(t.net_r)}
+                  </span>
+                );
+              },
               align: "right",
             },
             {
               header: "$ PnL",
               cell: (t) => {
                 const realized = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd);
-                // OPEN trade with no realised P&L → show live floating $ (broker truth via WS).
-                const isOpen = t.exit_timestamp == null;
+                // OPEN trade → show live floating $ (broker truth via WS). MT5 is the
+                // source of truth: broker_open===true means the position is open even
+                // if a stale DB row carries an exit_timestamp (SUPERSEDED re-adopt).
+                const isOpen =
+                  t.broker_open === true ||
+                  (t.broker_open == null && t.exit_timestamp == null);
                 const live = t.broker_ticket ? livePos[t.broker_ticket] : undefined;
-                if (isOpen && realized == null && live) {
+                // Broker-open → floating wins even if a stale DB row has a realised
+                // net_r (SUPERSEDED re-adopt). Otherwise keep the "no realised yet" gate.
+                if (isOpen && live && (realized == null || t.broker_open === true)) {
                   // Prefer live WS booked $; fall back to DB raw_features
                   // partial_booked_usd (for trades whose partial deal aged off
                   // the DWX buffer, e.g. pre-cutover).
