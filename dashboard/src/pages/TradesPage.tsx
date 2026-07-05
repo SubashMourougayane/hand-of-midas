@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, Trade } from "../lib/api";
-import { WsEnvelope } from "../lib/ws";
+import { WsEnvelope, useWsLive } from "../lib/ws";
 import { legName } from "../lib/labels";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
@@ -32,7 +32,7 @@ type WsHook = {
   onMessage: (fn: (env: WsEnvelope) => void) => () => void;
 };
 
-export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook }) {
+export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
   const [rows, setRows] = useState<Trade[]>([]);
   // Live per-ticket unrealised P&L (broker truth) keyed by broker_ticket.
   // Open trades have no realised net_r/broker_net_usd yet — this fills that gap.
@@ -50,6 +50,10 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
   const [symbol, setSymbol] = useState<string | null>(null);
   const [tf, setTf] = useState<string>("M5");
   const nav = useNavigate();
+  // Floating P&L feed: positions_live is ACCOUNT-WIDE (run_id=null). The App ws is
+  // run-scoped and doesn't deliver it here, so open the same account-wide socket
+  // LivePage uses. This is why the cockpit showed floating but the ledger didn't.
+  const acctWs = useWsLive(null);
 
   useEffect(() => {
     if (!runId) return;
@@ -145,10 +149,10 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
     };
   }, [runId, filter]);
 
-  // Subscribe to live per-ticket unrealised P&L (broker truth via WS).
+  // Subscribe to live per-ticket unrealised P&L (broker truth via WS). Use the
+  // account-wide socket (acctWs) — positions_live is not run-scoped.
   useEffect(() => {
-    if (!ws) return;
-    return ws.onMessage((env) => {
+    return acctWs.onMessage((env) => {
       if (env.channel !== "positions_live") return;
       const positions = (env.payload as any)?.positions as
         | Record<
@@ -175,7 +179,7 @@ export function TradesPage({ runId, ws }: { runId: string | null; ws?: WsHook })
       }
       setLivePos(next);
     });
-  }, [ws]);
+  }, [acctWs]);
 
   const sorted = useMemo(() => {
     const r = [...rows];
