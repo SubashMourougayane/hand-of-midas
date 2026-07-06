@@ -136,13 +136,54 @@ def live_summary(s: Session = Depends(get_session)) -> dict:
             continue
         open_by_strat.setdefault(run.strategy_id, []).append(t)
 
+    # Booked $ (partial-TP) can live on a SUPERSEDED sibling row from a PRIOR run:
+    # a partial closes, then a live restart re-adopts the remainder into a NEW run
+    # whose fresh open row has partial_booked_usd = null (the runner recomputes
+    # booked per-session). Build a ticket -> booked map from ALL rows so the open
+    # card can show "+$X booked" that already sits in the balance. Prefer the row
+    # that actually carries a non-trivial booked value.
+    booked_by_ticket: dict[str, float] = {}
+    all_rows_for_booked = s.execute(
+        select(BtTrade).where(BtTrade.run_id.in_(run_ids))
+    ).scalars().all()
+    for t in all_rows_for_booked:
+        tkt = (t.broker_ticket or "").strip()
+        if not tkt:
+            continue
+        rf = t.raw_features or {}
+        try:
+            b = float(rf.get("partial_booked_usd"))
+        except (TypeError, ValueError):
+            continue
+        if abs(b) <= 0.001:
+            continue
+        # Keep the largest-magnitude booked seen for the ticket (the real partial).
+        if abs(b) > abs(booked_by_ticket.get(tkt, 0.0)):
+            booked_by_ticket[tkt] = b
+
+    def _trade_dict_with_booked(t: BtTrade) -> dict:
+        d = _trade_to_dict(t)
+        tkt = (t.broker_ticket or "").strip()
+        b = booked_by_ticket.get(tkt)
+        if b is not None:
+            rf = dict(d.get("raw_features") or {})
+            # Only fill when the open row doesn't already carry its own booked.
+            try:
+                own = float(rf.get("partial_booked_usd"))
+            except (TypeError, ValueError):
+                own = 0.0
+            if abs(own) <= 0.001:
+                rf["partial_booked_usd"] = b
+                d["raw_features"] = rf
+        return d
+
     legs = []
     for strat, run in active_by_strat.items():
         trades = open_by_strat.get(strat, [])
         trades.sort(key=lambda t: (t.entry_timestamp or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
         legs.append({
             "run": _run_to_summary(run).model_dump(mode="json"),
-            "open_trades": [_trade_to_dict(t) for t in trades],
+            "open_trades": [_trade_dict_with_booked(t) for t in trades],
         })
 
     # 3) Realized-today = Σ broker_net_usd of trades CLOSED since 00:00 UTC, across
