@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { PanelLeft } from "lucide-react";
 import { Run } from "../lib/api";
-import { SpireMark } from "./SpireMark";
+import { MidasMark } from "./MidasMark";
 import { legInfo } from "../lib/labels";
 import { fmtMoney } from "../lib/format";
 
@@ -49,10 +49,10 @@ export function TopBar({
           <PanelLeft size={17} />
         </button>
       )}
-      {/* Brand → home (landing). Mark sits in a soft gold coin for presence. */}
+      {/* Brand → home (landing). The coin lockup mark carries its own coin. */}
       <Link to="/" className="flex items-center gap-3 group shrink-0">
-        <span className="relative flex items-center justify-center w-9 h-9 rounded-ds-sm bg-gradient-to-br from-[#3a2f10] to-[#1a1608] border border-[#5a4a18]/40 shadow-[0_0_18px_-6px_rgba(212,175,55,0.5)] transition-transform duration-500 group-hover:rotate-[8deg]">
-          <SpireMark size={20} bodyColor="#e8c65a" ariaLabel="Hand of Midas" />
+        <span className="relative shrink-0 shadow-[0_0_18px_-6px_rgba(212,175,55,0.5)] rounded-ds-sm">
+          <MidasMark size={36} animate spinOnHover ariaLabel="Hand of Midas" />
         </span>
         <span className="flex flex-col leading-none">
           <span className="display text-[16px] text-ink-primary tracking-[0.09em] hidden sm:inline">

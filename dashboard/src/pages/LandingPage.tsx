@@ -14,7 +14,7 @@ import {
   Sparkles,
   Zap,
 } from "lucide-react";
-import { SpireMark } from "../components/SpireMark";
+import { MidasMark } from "../components/MidasMark";
 import { TiltCard } from "../components/TiltCard";
 
 /**
@@ -44,7 +44,7 @@ function Nav() {
     <header className="sticky top-0 z-30 backdrop-blur-xl bg-bg-base/70 border-b border-glass-border">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-5 sm:px-8 h-16">
         <div className="flex items-center gap-2.5">
-          <SpireMark size={26} bodyColor="#f5f6f7" ariaLabel="Hand of Midas" />
+          <MidasMark size={34} animate spinOnHover ariaLabel="Hand of Midas" className="group" />
           <span className="display text-[15px] sm:text-ds-md tracking-[0.14em] text-ink-primary">
             HAND OF MIDAS
           </span>
@@ -362,7 +362,7 @@ function Footer() {
     <footer className="px-5 sm:px-8 py-10 border-t border-glass-border">
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-ds-xs text-ink-dim">
         <div className="flex items-center gap-2">
-          <SpireMark size={18} compact bodyColor="#f5f6f7" />
+          <MidasMark size={24} ariaLabel="Hand of Midas" />
           <span className="display tracking-[0.16em] text-ink-muted">HAND OF MIDAS</span>
         </div>
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">

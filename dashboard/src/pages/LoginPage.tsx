@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { ArrowRight, Loader2, Lock, LogIn } from "lucide-react";
-import { SpireMark } from "../components/SpireMark";
+import { MidasMark } from "../components/MidasMark";
 import { Guardian, GuardianExpr } from "../components/Guardian";
 import { GoldParticles } from "../components/GoldParticles";
 import { useAuth } from "../lib/auth";
@@ -207,7 +207,7 @@ export function LoginPage() {
               }`}
             >
               {sealing ? (
-                <SpireMark size={40} bodyColor="#e8c65a" ariaLabel="Unlocked" />
+                <MidasMark size={44} variant="bare" animate ariaLabel="Unlocked" />
               ) : (
                 <Lock size={30} className="text-[#e8c65a]" strokeWidth={1.8} />
               )}

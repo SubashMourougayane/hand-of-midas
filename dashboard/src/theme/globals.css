@@ -147,6 +147,28 @@ body,
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .anim-aurora { animation: spin-slow 40s linear infinite; }
 
+/* Midas brand mark — gold shimmer sweep across the core + breathing aura. */
+@keyframes midas-shimmer-sweep {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(112px); }
+}
+@keyframes midas-aura-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.midas-shimmer {
+  animation: midas-shimmer-sweep 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.midas-aura {
+  animation: midas-aura-breathe 3.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .midas-shimmer, .midas-aura { animation: none !important; }
+  .midas-shimmer { opacity: 0 !important; }
+}
+
 /* Marquee ticker */
 @keyframes marquee {
   from { transform: translateX(0); }
