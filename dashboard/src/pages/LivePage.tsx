@@ -715,6 +715,19 @@ export function LivePage({
                 // Prefer broker-truth live $; else per-trade price math.
                 const liveUsd = lp?.unrealized_usd ?? unrealUsdFor(t, symbol);
                 const liveLots = lp?.volume ?? null;
+                // Booked $ on this still-open partial-TP leg: prefer live WS
+                // booked, else the DB raw_features fallback (partial deal aged
+                // off the bridge / booked pre-restart). Same rule the KPI uses,
+                // so the card's "booked" line matches the TODAY tile.
+                const dbBookedCard = Number(
+                  (t.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
+                );
+                const cardBooked =
+                  lp?.booked_usd != null && Math.abs(lp.booked_usd) > 0.001
+                    ? lp.booked_usd
+                    : Number.isFinite(dbBookedCard) && Math.abs(dbBookedCard) > 0.001
+                    ? dbBookedCard
+                    : null;
                 // NOTE: no per-trade "capital/margin" — the account is HEDGE mode,
                 // so MT5 nets margin on offsetting positions and the true per-ticket
                 // margin can't be reconstructed (MT5 doesn't stream it per-ticket).
@@ -735,7 +748,7 @@ export function LivePage({
                       unrealR={u}
                       liveUsd={liveUsd}
                       liveLots={liveLots}
-                      bookedUsd={lp?.booked_usd ?? null}
+                      bookedUsd={cardBooked}
                       now={now}
                       onClick={() => nav(`/journal?trade=${t.trade_id}`)}
                     />

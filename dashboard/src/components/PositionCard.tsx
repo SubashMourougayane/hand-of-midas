@@ -4,6 +4,7 @@ import { RangeBar } from "./RangeBar";
 import { fmtMoney, fmtPrice, fmtR, colorForR } from "../lib/format";
 import { sideLabel } from "../lib/labels";
 import { AnimatedNumber } from "./ui/AnimatedNumber";
+import { CopyTag } from "./ui/CopyTag";
 
 const CONTRACT: Record<string, number> = {
   XAUUSD: 100, BRENT: 1000, EURUSD: 100_000, GBPUSD: 100_000, USDJPY: 100_000,
@@ -84,6 +85,14 @@ export function PositionCard({
           <span className="font-mono text-ds-xs text-ink-muted">
             @ {fmtPrice(trade.entry_price)}
           </span>
+          {trade.broker_ticket && (
+            <CopyTag
+              text={`#${trade.broker_ticket}`}
+              value={trade.broker_ticket}
+              title={`Copy ticket ${trade.broker_ticket}`}
+              className="text-ds-xs text-ink-dim"
+            />
+          )}
           {hasBooked && (
             <Pill tone="bull">PART-CLOSED</Pill>
           )}

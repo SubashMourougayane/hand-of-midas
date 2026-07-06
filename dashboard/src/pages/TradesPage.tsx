@@ -9,6 +9,7 @@ import { DataGrid } from "../components/DataGrid";
 import { SectionHeader } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { CopyTag } from "../components/ui/CopyTag";
 import {
   barsToDuration,
   colorForR,
@@ -424,11 +425,16 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             },
             {
               header: "Ticket",
-              cell: (t) => (
-                <span className="font-mono text-ds-xs text-ink-secondary">
-                  {t.broker_ticket || "—"}
-                </span>
-              ),
+              cell: (t) =>
+                t.broker_ticket ? (
+                  <CopyTag
+                    text={t.broker_ticket}
+                    title={`Copy ticket ${t.broker_ticket}`}
+                    className="text-ds-xs text-ink-secondary"
+                  />
+                ) : (
+                  <span className="font-mono text-ds-xs text-ink-secondary">—</span>
+                ),
             },
             {
               header: sortHeader("Entry", "entry_timestamp", sort, setSortKey),
