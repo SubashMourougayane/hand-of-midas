@@ -107,7 +107,13 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
         const flat = all.flat().filter(
           (t) => t.exit_reason !== "RECONCILED_FLAT" && t.exit_reason !== "RECON_PENDING"
         );
-        const byTicket = new Map<string, Trade>();
+        // Group ALL rows per broker ticket first, then reduce each group to ONE
+        // representative row. The A+D dual-run adoption + restarts write MULTIPLE
+        // rows per ticket: a SUPERSEDED intermediate (carries the partial's booked $
+        // but broker_net_usd=NULL) + the real terminal close (TIMEOUT/SL/TP with the
+        // reconciled broker_net_usd). Picking the wrong one either shows "PENDING"
+        // or drops the banked partial from $ P&L (the 2118599832 +$62.88 loss).
+        const groups = new Map<string, Trade[]>();
         const noTicket: Trade[] = [];
         const seenTid = new Set<string>();
         for (const t of flat) {
@@ -116,30 +122,38 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             if (!seenTid.has(t.trade_id)) { seenTid.add(t.trade_id); noTicket.push(t); }
             continue;
           }
-          const cur = byTicket.get(tk);
-          if (!cur) { byTicket.set(tk, t); continue; }
-          // Keep the richest row: prefer real booked $ (raw_features), then a
-          // set partial_r, then broker_net_usd, then partial_taken. The A+D
-          // dual-adopt writes 2 rows/ticket and only ONE carries the full
-          // partial detail.
-          const score = (x: Trade) => {
-            const booked = Number(
-              (x.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]
-            );
-            return (
-              // MT5 truth first: a row the broker STILL holds beats a stale
-              // SUPERSEDED/closed duplicate for the same ticket (fixes the
-              // cockpit-open / trades-SUPERSEDED disagreement).
-              (x.broker_open === true ? 16 : 0) +
-              (Number.isFinite(booked) && Math.abs(booked) > 0.001 ? 8 : 0) +
-              (x.partial_r ? Math.abs(x.partial_r) : 0) +
-              (x.broker_net_usd != null ? 1 : 0) +
-              (x.partial_taken ? 0.5 : 0)
-            );
-          };
-          if (score(t) > score(cur)) byTicket.set(tk, t);
+          (groups.get(tk) ?? groups.set(tk, []).get(tk)!).push(t);
         }
-        const merged = [...byTicket.values(), ...noTicket];
+        const bookedOf = (x: Trade) =>
+          Number((x.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]);
+        // Winner = the row best representing the CURRENT/FINAL truth:
+        //  broker-open (still live) > terminal close w/ reconciled $ > has $ > richest.
+        const rank = (x: Trade) =>
+          (x.broker_open === true ? 1000 : 0) +
+          (x.exit_reason !== "SUPERSEDED" && x.broker_net_usd != null ? 500 : 0) +
+          (x.broker_net_usd != null ? 100 : 0) +
+          (x.exit_reason !== "SUPERSEDED" ? 50 : 0) +
+          (x.partial_taken ? 1 : 0);
+        const merged: Trade[] = [...noTicket];
+        for (const [, rows] of groups) {
+          const winner = rows.reduce((a, b) => (rank(b) > rank(a) ? b : a));
+          // Carry the LARGEST booked partial $ seen on ANY sibling onto the winner,
+          // so a partial that landed on a superseded row still shows + counts. Only
+          // fill when the winner doesn't already carry its own booked.
+          const maxBooked = rows.reduce((m, r) => {
+            const b = bookedOf(r);
+            return Number.isFinite(b) && Math.abs(b) > Math.abs(m) ? b : m;
+          }, 0);
+          const ownBooked = bookedOf(winner);
+          if ((!Number.isFinite(ownBooked) || Math.abs(ownBooked) <= 0.001) &&
+              Math.abs(maxBooked) > 0.001) {
+            const rf = { ...(winner.raw_features as Record<string, unknown> | null ?? {}) };
+            rf["partial_booked_usd"] = maxBooked;
+            merged.push({ ...winner, raw_features: rf, partial_taken: true });
+          } else {
+            merged.push(winner);
+          }
+        }
         setRows(merged);
       } else {
         const { items } = await api.runTrades(runId, f, 1, 50000);
@@ -282,10 +296,20 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
     const avg = withR.length ? netSum / withR.length : 0;
     // $ P&L counts EVERY closed row (incl. reconciled broker-closed) so it ties
     // to the ledger's visible $ column and to the account balance move.
-    const usd = closed.reduce(
-      (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd, t.broker_ticket) ?? 0),
-      0
-    );
+    //  base = the row's realized $ (broker_net_usd for the terminal leg).
+    //  + booked = the partial banked on a SIBLING (SUPERSEDED) row that the dedup
+    //    carried onto the winner. broker_net_usd on a partial-TP close is the
+    //    REMAINDER only, so the banked partial must be ADDED to tie to the account.
+    //    (A full-close winner — no partial — has booked=0, so no double-count.)
+    const usd = closed.reduce((s, t) => {
+      const base = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd, t.broker_ticket) ?? 0;
+      const dbBooked = Number((t.raw_features as Record<string, unknown> | null)?.["partial_booked_usd"]);
+      const booked =
+        t.broker_net_usd != null && t.partial_taken && Number.isFinite(dbBooked) && Math.abs(dbBooked) > 0.001
+          ? dbBooked
+          : 0;
+      return s + base + booked;
+    }, 0);
     // Add realised $ ALREADY BOOKED on still-open trades (partial-TP). Prefer
     // live WS booked, else the DB raw_features fallback. This is locked profit,
     // so it belongs in the $ P&L total even while the remainder floats.
