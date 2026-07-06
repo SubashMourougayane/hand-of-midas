@@ -51,7 +51,7 @@ export function StatTile({
   const pct =
     progress == null ? null : Math.max(0, Math.min(1, progress)) * 100;
   return (
-    <div className="flex flex-col gap-1.5 px-5 py-4 min-w-0">
+    <div className="flex flex-col gap-1.5 px-5 py-4 min-w-0 h-full">
       <div className="flex items-center justify-between gap-2">
         <span className="font-mono text-ds-xs uppercase tracking-[0.14em] text-ink-muted truncate">
           {label}
@@ -71,12 +71,15 @@ export function StatTile({
         {unit && <span className="font-mono text-[10px] text-ink-muted shrink-0">{unit}</span>}
       </div>
       {sub && <div className="text-ds-xs text-ink-muted truncate">{sub}</div>}
+      {/* Push the bar to the tile floor so every tile in a row lines up. */}
       {pct != null && (
-        <div className="mt-1 h-1 w-full rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className={`h-full rounded-full ${BAR_TONE[progressTone ?? tone]}`}
-            style={{ width: `${pct}%` }}
-          />
+        <div className="mt-auto pt-1.5 h-1.5 w-full">
+          <div className="h-1 w-full rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className={`h-full rounded-full ${BAR_TONE[progressTone ?? tone]} transition-[width] duration-500`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

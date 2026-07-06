@@ -285,7 +285,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
       {/* ══ SECTION 01 · performance ══ */}
       <section className="flex flex-col gap-3 shrink-0">
         <SectionHeader index="01" title="Performance" question="How is this book doing?" />
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 items-stretch [&>div]:h-full">
           <div className="glass rounded-ds-lg">
             <StatTile
               label="Net R"
@@ -308,7 +308,13 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             <StatTile label="Wins" value={String(stats.wins)} sub={`${stats.losses} losses`} />
           </div>
           <div className="glass rounded-ds-lg">
-            <StatTile label="Win Rate" value={`${stats.wr.toFixed(1)}`} unit="%" />
+            <StatTile
+              label="Win Rate"
+              value={`${stats.wr.toFixed(1)}`}
+              unit="%"
+              progress={stats.wr / 100}
+              progressTone={stats.wr >= 50 ? "bull" : "warn"}
+            />
           </div>
           <div className="glass rounded-ds-lg">
             <StatTile
@@ -334,8 +340,9 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
         question={`${filtered.length} of ${sorted.length}`}
       />
       {/* ONE cohesive filter bar: status · side · date range · search. All
-          filter-aware — KPIs + table recompute together. */}
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
+          filter-aware — KPIs + table recompute together. Wrapped in a single
+          glass rail so every control shares one baseline + height (h-8). */}
+      <div className="glass rounded-ds-lg px-2.5 py-2 flex flex-wrap items-center gap-2 shrink-0">
         <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
           <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
@@ -343,7 +350,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             <TabsTrigger value="closed">Closed</TabsTrigger>
           </TabsList>
         </Tabs>
-        <span className="w-px h-5 bg-glass-border mx-0.5" />
+        <span className="w-px h-6 bg-glass-border mx-0.5" />
         <Tabs value={sideFilter} onValueChange={(v) => setSideFilter(v as typeof sideFilter)}>
           <TabsList>
             <TabsTrigger value="all">Both</TabsTrigger>
@@ -351,35 +358,37 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             <TabsTrigger value="short">Short</TabsTrigger>
           </TabsList>
         </Tabs>
-        <span className="w-px h-5 bg-glass-border mx-0.5" />
-        <input
-          type="date"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          className="glass rounded-ds-sm px-2 py-1 text-ds-xs font-mono text-ink-secondary bg-transparent border border-glass-border"
-          title="From date (entry)"
-        />
-        <span className="text-ink-dim text-ds-xs">→</span>
-        <input
-          type="date"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          className="glass rounded-ds-sm px-2 py-1 text-ds-xs font-mono text-ink-secondary bg-transparent border border-glass-border"
-          title="To date (entry)"
-        />
+        <span className="w-px h-6 bg-glass-border mx-0.5" />
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="h-8 rounded-ds-sm px-2 text-ds-xs font-mono text-ink-secondary bg-glass-strong border border-glass-border focus:border-ink-dim focus:outline-none transition-colors"
+            title="From date (entry)"
+          />
+          <span className="text-ink-dim text-ds-xs">→</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="h-8 rounded-ds-sm px-2 text-ds-xs font-mono text-ink-secondary bg-glass-strong border border-glass-border focus:border-ink-dim focus:outline-none transition-colors"
+            title="To date (entry)"
+          />
+        </div>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="search ticket / side / reason…"
-          className="glass rounded-ds-sm px-2 py-1 text-ds-xs text-ink-secondary bg-transparent border border-glass-border flex-1 min-w-[160px]"
+          placeholder="Search ticket / side / reason…"
+          className="h-8 rounded-ds-sm px-3 text-ds-xs text-ink-secondary bg-glass-strong border border-glass-border focus:border-ink-dim focus:outline-none transition-colors flex-1 min-w-[160px]"
         />
         {(filter !== "all" || sideFilter !== "all" || fromDate || toDate || search) && (
           <button
             onClick={() => { setFilter("all"); setSideFilter("all"); setFromDate(""); setToDate(""); setSearch(""); }}
-            className="text-ds-xs text-ink-muted hover:text-ink-primary underline"
+            className="h-8 px-3 rounded-ds-sm text-ds-xs text-ink-muted hover:text-ink-primary hover:bg-glass-strong border border-transparent hover:border-glass-border transition-colors"
           >
-            clear
+            Clear
           </button>
         )}
       </div>

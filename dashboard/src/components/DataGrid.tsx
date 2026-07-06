@@ -38,11 +38,11 @@ export function DataGrid<T>({
       <div className="hidden md:block w-full overflow-x-auto scroll-slim">
         <table className="w-full min-w-[820px] text-ds-sm">
           <thead className="sticky top-0 z-10 bg-glass-strong backdrop-blur-md">
-            <tr className="text-ink-muted text-ds-xs uppercase tracking-wide border-b border-glass-border">
+            <tr className="text-ink-muted text-ds-xs uppercase tracking-[0.1em] border-b border-glass-border">
               {columns.map((c, i) => (
                 <th
                   key={i}
-                  className={`px-3 py-2 font-medium ${
+                  className={`px-3 py-3 font-medium ${
                     c.align === "right"
                       ? "text-right"
                       : c.align === "center"
@@ -80,7 +80,7 @@ export function DataGrid<T>({
                   {columns.map((c, ci) => (
                     <td
                       key={ci}
-                      className={`px-3 py-2 ${
+                      className={`px-3 py-2.5 ${
                         c.align === "right"
                           ? "text-right"
                           : c.align === "center"
