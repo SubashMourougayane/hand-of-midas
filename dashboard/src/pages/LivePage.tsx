@@ -164,13 +164,26 @@ export function LivePage({
     });
   }, []);
 
-  // Initial hydrate + slow discovery poll (60s). Live trade/signal/account/price
-  // updates arrive via WS in real time; this only catches a leg starting/stopping.
+  // Initial hydrate + discovery poll (20s). Live trade/signal/account/price updates
+  // arrive via WS in real time; this catches a leg starting/stopping + backfills any
+  // REST-sourced value (legs/account/realized-today) that a dropped socket missed.
   useEffect(() => {
     hydrate();
-    const t = setInterval(hydrate, 60_000);
+    const t = setInterval(hydrate, 20_000);
     return () => clearInterval(t);
   }, [hydrate]);
+
+  // Re-hydrate on WS (re)connect. After a dashboard restart or a dropped socket the
+  // tab shows a STALE frame until the next poll; firing on the rising edge of the
+  // socket status (→ "open") pulls fresh REST state within a couple seconds. A ref
+  // tracks the previous status so this fires ONLY on the transition, not every render.
+  const prevWsStatus = useRef<WsStatus>("connecting");
+  useEffect(() => {
+    if (cockpitWs.status === "open" && prevWsStatus.current !== "open") {
+      hydrate();
+    }
+    prevWsStatus.current = cockpitWs.status;
+  }, [cockpitWs.status, hydrate]);
 
   // One-time price seed on mount per distinct symbol so the P&L band isn't
   // blank before the first WS `price` push arrives. No interval — the WS

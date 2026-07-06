@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, Trade } from "../lib/api";
-import { WsEnvelope, useWsLive } from "../lib/ws";
+import { WsEnvelope, WsStatus, useWsLive } from "../lib/ws";
 import { legName } from "../lib/labels";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
@@ -56,19 +56,20 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
   // LivePage uses. This is why the cockpit showed floating but the ledger didn't.
   const acctWs = useWsLive(null);
 
-  useEffect(() => {
+  // Load (or reload) the ledger. Extracted to a stable callback so it can be
+  // driven by: mount, filter change, a 20s poll, a WS (re)connect, and a `trade`
+  // channel event (exit/reconcile) — killing the stale-frame-until-manual-refresh
+  // problem where a reconciled broker $ didn't land until the next fetch.
+  const refetch = useCallback(async () => {
     if (!runId) return;
-    let cancelled = false;
-    (async () => {
+    {
       // Resolve the selected run to know if we're in BT or live context.
       let selfRun: any = null;
       try {
         const d: any = await api.runDetail(runId);
         selfRun = d?.run ?? null;
-        if (!cancelled) {
-          setSymbol(selfRun?.symbol ?? null);
-          setTf(selfRun?.timeframe ?? "M5");
-        }
+        setSymbol(selfRun?.symbol ?? null);
+        setTf(selfRun?.timeframe ?? "M5");
       } catch {
         /* ignore */
       }
@@ -139,16 +140,42 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
           if (score(t) > score(cur)) byTicket.set(tk, t);
         }
         const merged = [...byTicket.values(), ...noTicket];
-        if (!cancelled) setRows(merged);
+        setRows(merged);
       } else {
         const { items } = await api.runTrades(runId, f, 1, 50000);
-        if (!cancelled) setRows(items);
+        setRows(items);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    }
   }, [runId, filter]);
+
+  // Mount + filter change → load. Plus a 20s poll so a reconciled broker $ (or any
+  // REST-sourced change a dropped socket missed) lands without a manual refresh.
+  useEffect(() => {
+    refetch();
+    const t = setInterval(refetch, 20_000);
+    return () => clearInterval(t);
+  }, [refetch]);
+
+  // Re-load on WS (re)connect — rising edge only (status-ref), so a dashboard
+  // restart / dropped socket refreshes the ledger within a couple seconds.
+  const prevWsStatus = useRef<WsStatus>("connecting");
+  useEffect(() => {
+    if (acctWs.status === "open" && prevWsStatus.current !== "open") {
+      refetch();
+    }
+    prevWsStatus.current = acctWs.status;
+  }, [acctWs.status, refetch]);
+
+  // Debounced re-load on a `trade` WS event (a fill / exit / reconcile fires the
+  // bt_trades NOTIFY). Coalesce a burst of A+D events into one refetch per 3s.
+  const tradeRefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return acctWs.onMessage((env) => {
+      if (env.channel !== "trade") return;
+      if (tradeRefetchTimer.current) clearTimeout(tradeRefetchTimer.current);
+      tradeRefetchTimer.current = setTimeout(() => { refetch(); }, 3000);
+    });
+  }, [acctWs, refetch]);
 
   // Subscribe to live per-ticket unrealised P&L (broker truth via WS). Use the
   // account-wide socket (acctWs) — positions_live is not run-scoped.
