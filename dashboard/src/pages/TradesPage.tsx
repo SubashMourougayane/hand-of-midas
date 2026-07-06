@@ -239,12 +239,17 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
     );
     // R-metrics only make sense on rows that carry an R value; reconciled
     // broker-closed rows (no net_r) contribute $ but are excluded from R math.
+    // TOTAL R = banked partial_r + remainder net_r (the DB net_r is remainder-only,
+    // so a partial-TP winner that scratched the remainder at BE would otherwise
+    // score negative and drag Net R / win-rate / PF below the real result).
+    const totalRof = (t: Trade) =>
+      (t.net_r ?? 0) + (t.partial_taken && t.partial_r ? t.partial_r : 0);
     const withR = closed.filter((t) => t.net_r != null);
-    const wins = withR.filter((t) => (t.net_r ?? 0) > 0);
-    const losses = withR.filter((t) => (t.net_r ?? 0) < 0);
-    const netSum = withR.reduce((s, t) => s + (t.net_r ?? 0), 0);
-    const winSum = wins.reduce((s, t) => s + (t.net_r ?? 0), 0);
-    const lossSum = Math.abs(losses.reduce((s, t) => s + (t.net_r ?? 0), 0));
+    const wins = withR.filter((t) => totalRof(t) > 0);
+    const losses = withR.filter((t) => totalRof(t) < 0);
+    const netSum = withR.reduce((s, t) => s + totalRof(t), 0);
+    const winSum = wins.reduce((s, t) => s + totalRof(t), 0);
+    const lossSum = Math.abs(losses.reduce((s, t) => s + totalRof(t), 0));
     const wr = withR.length ? (wins.length / withR.length) * 100 : 0;
     const pf = lossSum > 0 ? winSum / lossSum : winSum > 0 ? Infinity : 0;
     const avg = withR.length ? netSum / withR.length : 0;
@@ -524,9 +529,26 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
                 const stillOpen =
                   t.broker_open === true ||
                   (t.broker_open == null && t.exit_timestamp == null);
+                // TOTAL R = banked partial R + the remainder-leg net_r. The DB net_r
+                // is ONLY the final leg, so a partial-TP winner whose remainder
+                // scratched at BE shows e.g. -0.06 while $PnL is +$144. Add partial_r
+                // back so R reconciles with the $ and reads as the real trade result.
+                const totalR =
+                  t.net_r == null
+                    ? null
+                    : t.partial_taken && t.partial_r
+                    ? t.net_r + t.partial_r
+                    : t.net_r;
                 return (
-                  <span className={`font-mono ${colorForR(stillOpen ? null : t.net_r)}`}>
-                    {stillOpen ? "—" : fmtR(t.net_r)}
+                  <span
+                    className={`font-mono ${colorForR(stillOpen ? null : totalR)}`}
+                    title={
+                      t.partial_taken && t.partial_r
+                        ? `+${t.partial_r.toFixed(2)}R banked (partial) ${t.net_r != null ? `${t.net_r >= 0 ? "+" : ""}${t.net_r.toFixed(2)}R remainder` : ""}`
+                        : undefined
+                    }
+                  >
+                    {stillOpen ? "—" : fmtR(totalR)}
                   </span>
                 );
               },
