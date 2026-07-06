@@ -19,6 +19,7 @@ export function PositionCard({
   liveUsd,
   liveLots,
   bookedUsd,
+  liveSl,
   now,
   onClick,
 }: {
@@ -29,11 +30,20 @@ export function PositionCard({
   liveLots?: number | null;
   /** realised $ already booked (partial-TP) on this position, if any */
   bookedUsd?: number | null;
+  /** live broker SL (MT5 truth). When at/through entry → position is at BE. */
+  liveSl?: number | null;
   /** epoch ms for the live hold timer */
   now?: number;
   onClick?: () => void;
 }) {
   const tone = trade.side > 0 ? "bull" : "bear";
+
+  // Effective stop = live broker SL when we have it, else the DB stop. This is
+  // what actually protects the position, so risk + the range bar must use it.
+  const effStop = liveSl != null && liveSl > 0 ? liveSl : trade.stop_price;
+  // Breakeven = stop has reached (or passed) entry: long stop>=entry, short stop<=entry.
+  const atBE =
+    trade.side > 0 ? effStop >= trade.entry_price - 1e-6 : effStop <= trade.entry_price + 1e-6;
 
   const storedQty = Number(
     (trade.raw_features as Record<string, unknown> | null)?.["qty_lots"]
@@ -57,7 +67,7 @@ export function PositionCard({
       : null;
   const loseUsd =
     lots != null
-      ? (trade.stop_price - trade.entry_price) * trade.side * lots * contract
+      ? (effStop - trade.entry_price) * trade.side * lots * contract
       : null;
 
   const hasBooked = bookedUsd != null && Math.abs(bookedUsd) > 0.001;
@@ -139,7 +149,7 @@ export function PositionCard({
       <RangeBar
         side={trade.side as 1 | -1}
         entry={trade.entry_price}
-        stop={trade.stop_price}
+        stop={effStop}
         tp={trade.take_profit_price ?? trade.entry_price}
         current={currentPrice}
       />
@@ -152,10 +162,16 @@ export function PositionCard({
             {lots != null ? `${lots.toFixed(2)}` : "—"}
           </span>
         }/>
-        <Stat label="Risk" value={
-          <span className="font-mono text-bear">
-            {loseUsd != null ? fmtMoney(loseUsd, 0) : riskUsd != null ? `−${fmtMoney(riskUsd, 0).replace("$", "$")}` : "—"}
-          </span>
+        <Stat label={atBE ? "Risk · BE" : "Risk"} value={
+          atBE ? (
+            <span className="font-mono text-ink-secondary" title="Stop at breakeven (entry) — no downside risk on the remainder.">
+              $0 <span className="text-ds-xs text-ink-muted uppercase">be</span>
+            </span>
+          ) : (
+            <span className="font-mono text-bear">
+              {loseUsd != null ? fmtMoney(loseUsd, 0) : riskUsd != null ? `−${fmtMoney(riskUsd, 0).replace("$", "$")}` : "—"}
+            </span>
+          )
         }/>
         <Stat label="Reward" value={
           <span className="font-mono text-bull">
@@ -164,7 +180,9 @@ export function PositionCard({
         }/>
         <Stat label="R:R" value={
           <span className="font-mono text-ink-secondary">
-            {winUsd != null && loseUsd != null && loseUsd !== 0
+            {atBE
+              ? "∞"
+              : winUsd != null && loseUsd != null && Math.abs(loseUsd) > 1e-6
               ? (Math.abs(winUsd / loseUsd)).toFixed(1)
               : "—"}
           </span>

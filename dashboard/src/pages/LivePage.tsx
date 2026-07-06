@@ -58,7 +58,7 @@ export function LivePage({
   const [prices, setPrices] = useState<Record<string, number | null>>({});
   // Per-ticket broker-truth live P&L + size, keyed by broker_ticket.
   const [livePos, setLivePos] = useState<
-    Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null }>
+    Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null; sl: number | null }>
   >({});
   const flashTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   // Debounce per-leg open-trade refetch on WS trade bursts (avoid N² storm).
@@ -240,16 +240,17 @@ export function LivePage({
       // Per-ticket live P&L + size (broker truth) — run_id null. Before guard.
       if (env.channel === "positions_live") {
         const positions = (env.payload as any)?.positions as
-          | Record<string, { unrealized_usd?: number; volume?: number | null; booked_usd?: number | null }>
+          | Record<string, { unrealized_usd?: number; volume?: number | null; booked_usd?: number | null; sl?: number | null }>
           | undefined;
         if (!positions) return;
-        const next: Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null }> = {};
+        const next: Record<string, { unrealized_usd: number; volume: number | null; booked_usd: number | null; sl: number | null }> = {};
         for (const [ticket, p] of Object.entries(positions)) {
           if (typeof p.unrealized_usd === "number") {
             next[ticket] = {
               unrealized_usd: p.unrealized_usd,
               volume: p.volume ?? null,
               booked_usd: typeof p.booked_usd === "number" ? p.booked_usd : null,
+              sl: typeof p.sl === "number" ? p.sl : null,
             };
           }
         }
@@ -749,6 +750,7 @@ export function LivePage({
                       liveUsd={liveUsd}
                       liveLots={liveLots}
                       bookedUsd={cardBooked}
+                      liveSl={lp?.sl ?? null}
                       now={now}
                       onClick={() => nav(`/journal?trade=${t.trade_id}`)}
                     />
