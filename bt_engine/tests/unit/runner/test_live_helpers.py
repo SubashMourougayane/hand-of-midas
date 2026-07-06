@@ -17,7 +17,9 @@ from bt_engine.runner.live import (
     _bt_trade_from_open,
     _close_partial_succeeded,
     _close_partial_succeeded_retry,
+    _elapsed_m15_bars_fx,
     _find_ticket_by_tag,
+    _fx_open_at,
     _leg_owns_position,
     _open_trades_from_positions,
     _sl_at_be,
@@ -296,3 +298,60 @@ def test_adopt_breakeven_sl_recovers_risk_from_db():
     assert tr.broker_ticket == "2125844421"
     assert abs(tr.risk_units - 48.6672) < 1e-6  # recovered, not 0
     assert tr.order.extra["qty_lots"] == 0.18
+
+
+def test_fx_open_at_weekend_guard():
+    T = lambda s: pd.Timestamp(s, tz="UTC").to_pydatetime()
+    assert _fx_open_at(T("2026-07-01 12:00")) is True    # Wed
+    assert _fx_open_at(T("2026-07-04 12:00")) is False   # Sat
+    assert _fx_open_at(T("2026-07-05 12:00")) is False   # Sun before 21:00
+    assert _fx_open_at(T("2026-07-05 21:30")) is True    # Sun after 21:00 (reopen)
+    assert _fx_open_at(T("2026-07-03 21:00")) is True    # Fri before 22:00
+    assert _fx_open_at(T("2026-07-03 22:30")) is False   # Fri after 22:00 (close)
+
+
+def test_elapsed_m15_bars_weekday():
+    # 2026-07-01 (Wed) 12:00 -> 13:00 UTC = 4 M15 closes (12:15,12:30,12:45,13:00).
+    start = pd.Timestamp("2026-07-01 12:00", tz="UTC")
+    end = pd.Timestamp("2026-07-01 13:00", tz="UTC")
+    assert _elapsed_m15_bars_fx(start, end) == 4
+
+
+def test_elapsed_m15_bars_excludes_weekend():
+    # Fri 2026-07-03 21:00 UTC -> Sun 2026-07-05 21:00 UTC. Only Fri 21:15..22:00
+    # (4 closes, market shuts 22:00) count; all of Sat + Sun-before-21:00 are shut.
+    start = pd.Timestamp("2026-07-03 21:00", tz="UTC")
+    end = pd.Timestamp("2026-07-05 21:00", tz="UTC")
+    n = _elapsed_m15_bars_fx(start, end)
+    assert n == 4, n
+
+
+def test_adopt_seeds_bars_held_from_true_age():
+    """2026-07-06 fix: a re-adopted position seeds bars_held from real elapsed
+    FX-open M15 bars, so its hold cap honors true age across restarts instead of
+    resetting to 0 every adoption (which let A-longs run 74h/119h past a 12h cap).
+    open_time is broker-local (UTC+3 here); with a recent open the seed is > 0."""
+    import datetime as _dt
+    # open ~2h ago in broker-local time. server_utc_offset_hours=0 for the test so
+    # the parsed open_time is treated as UTC; 2h => ~8 M15 bars (market open).
+    now = _dt.datetime.now(_dt.timezone.utc)
+    open_utc = now - _dt.timedelta(hours=2)
+    # Skip if the 2h window straddles a weekend edge (keeps the test deterministic).
+    pos = {
+        "ticket": "9999001", "type": "BUY", "volume": 0.03,
+        "open_price": 4100.0, "sl": 4080.0, "tp": 4200.0,
+        "comment": "intraday_a_long_test",
+        "open_time": open_utc.strftime("%Y.%m.%d %H:%M:%S"),
+    }
+    adopted = _open_trades_from_positions(
+        [pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_a",
+        server_utc_offset_hours=0,
+    )
+    assert len(adopted) == 1
+    tr = adopted[0]
+    # In market hours a 2h-old trade seeds ~8 bars (not 0). If the window was fully
+    # weekend-shut it'd be 0 — accept >=0 but assert it's not silently negative and
+    # that a clearly-open recent window seeds > 0 when _fx_open_at(now) is True.
+    if _fx_open_at(now) and _fx_open_at(open_utc):
+        assert tr.bars_held >= 6, tr.bars_held
+    assert tr.bars_held >= 0

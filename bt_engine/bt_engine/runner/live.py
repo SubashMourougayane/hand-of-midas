@@ -1268,6 +1268,53 @@ def _leg_owns_position(strategy_id: str | None, pos: dict, side: int) -> bool:
     return True
 
 
+def _fx_open_at(d: datetime) -> bool:
+    """FX market open at UTC instant `d`? Sun>=21:00 UTC → Fri<22:00 UTC; Sat shut.
+    Mirrors the dashboard SessionClocks guard so BT/live/UI agree on trading hours."""
+    day = d.weekday()  # Mon=0 .. Sun=6
+    h = d.hour + d.minute / 60.0
+    if day == 5:            # Saturday
+        return False
+    if day == 6:            # Sunday
+        return h >= 21.0
+    if day == 4:            # Friday
+        return h < 22.0
+    return True             # Mon–Thu
+
+
+def _elapsed_m15_bars_fx(open_utc: pd.Timestamp, now_utc: pd.Timestamp) -> int:
+    """Count M15 bar-CLOSES that fell in FX-open hours in (open_utc, now_utc].
+
+    This is the number of bars the walker WOULD have processed since entry had the
+    engine run continuously — weekends (no bars) are naturally skipped. Seeding a
+    re-adopted trade's bars_held with this makes the hold-cap honor the position's
+    TRUE age across restarts, instead of resetting to 0 on every adoption (which
+    let a trade dodge its 12h/24h cap indefinitely under frequent restarts).
+    Bounded to one week of slots as a safety cap.
+    """
+    try:
+        start = pd.Timestamp(open_utc).tz_convert("UTC") if open_utc.tzinfo else pd.Timestamp(open_utc, tz="UTC")
+        end = pd.Timestamp(now_utc).tz_convert("UTC") if now_utc.tzinfo else pd.Timestamp(now_utc, tz="UTC")
+    except Exception:
+        return 0
+    if end <= start:
+        return 0
+    # First M15 close strictly after entry (round entry UP to next :00/:15/:30/:45).
+    step = pd.Timedelta(minutes=15)
+    first_close = start.ceil("15min")
+    if first_close <= start:
+        first_close = first_close + step
+    n = 0
+    t = first_close
+    guard = 0
+    while t <= end and guard < 672:  # 672 = 1 week of M15 slots
+        if _fx_open_at(t.to_pydatetime()):
+            n += 1
+        t = t + step
+        guard += 1
+    return n
+
+
 def _open_trades_from_positions(
     positions, *, symbol: str, strategy_id: str | None = None,
     server_utc_offset_hours: int = 0,
@@ -1323,11 +1370,16 @@ def _open_trades_from_positions(
                 except Exception:
                     ts = now_ts
             # Per-leg max hold (M15 bars): A long = 12h = 48, D short = 24h = 96.
-            # Applied from adoption FORWARD only (bars_held starts at 0) — we do
-            # NOT retroactively force-close a position that's already past its
-            # cap at adoption time (avoids surprise market-closes of existing
-            # trades on restart). New over-holds will time-exit normally.
             max_hold_bars = 48 if side > 0 else 96
+            # Seed bars_held from the TRUE elapsed FX-open M15 bars since the broker
+            # open_time, so the hold cap honors the position's real age across
+            # restarts. Previously bars_held reset to 0 on every adoption, so a
+            # trade could dodge its 12h/24h cap indefinitely under frequent
+            # restarts (observed 2026-07-06: A-longs held 74h/119h, cap 12h).
+            # Weekends contribute no bars (mirrors BT). We STILL don't retro-close
+            # on the adoption bar itself — the walker force-closes on the next bar
+            # once seeded bars_held >= cap, so no surprise market-close mid-adopt.
+            seeded_bars = _elapsed_m15_bars_fx(ts, now_ts)
             order = Order(
                 symbol=str(pos.get("symbol") or symbol),
                 side=side,
@@ -1364,6 +1416,7 @@ def _open_trades_from_positions(
                 take_profit=tp,
                 risk_units=risk,
                 broker_ticket=str(ticket),
+                bars_held=seeded_bars,
             )
             out.append(adopted)
         except (TypeError, ValueError):
