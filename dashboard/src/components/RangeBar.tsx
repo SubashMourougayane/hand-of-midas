@@ -19,14 +19,17 @@ export function RangeBar({
   showLabels?: boolean;
 }) {
   if (tp == null) return null;
-  // Normalize to a [0..1] axis with stop=0 and tp=1.
-  const lo = Math.min(stop, tp);
-  const hi = Math.max(stop, tp);
-  const span = hi - lo || 1;
-  const pct = (v: number) => ((v - lo) / span) * 100;
+  // Axis is ALWAYS oriented SL(0%) → TP(100%), independent of price direction.
+  // For a long tp>stop; for a short tp<stop — anchoring to stop/tp (not min/max)
+  // keeps SL on the left + TP on the right for BOTH, so the live tick moves
+  // RIGHT as the trade profits and LEFT as it loses, matching the labels.
+  // (The old min/max axis flipped shorts: price rising = losing moved the tick
+  // toward the "TP" label on the right — visually backwards.)
+  const span = tp - stop || 1;
+  const pct = (v: number) => ((v - stop) / span) * 100;
   const entryPct = pct(entry);
-  const stopPct = pct(stop);
-  const tpPct = pct(tp);
+  const stopPct = pct(stop);   // = 0
+  const tpPct = pct(tp);       // = 100
   const curPct = current != null ? Math.max(0, Math.min(100, pct(current))) : null;
 
   const stopColor = "bg-bear";
