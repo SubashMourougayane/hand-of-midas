@@ -376,11 +376,13 @@ def test_reconcile_defers_when_ticket_still_open(session) -> None:
 
 
 def test_reconcile_skips_when_closed_orders_stale(session) -> None:
-    """GUARD 2: stale closed_orders.json -> skip, retry later."""
+    """GUARD 2: stale closed_orders.json AND open_orders too stale to confirm the
+    ticket is gone -> skip, retry later. (open_orders stale => cannot prove
+    closure => the ghost-row risk the guard exists for is still live.)"""
     run_id = uuid.uuid4(); trade_id = uuid.uuid4()
     _make_run_and_trade(session, run_id, trade_id)
-    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=1.0,
-                         closed_orders_age_s=9500.0)  # 2.6h stale
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=9999.0,
+                         closed_orders_age_s=9500.0)  # both stale
     bridge.prime([{"ticket": "T1", "profit": 5.0, "commission": 0.0, "swap": 0.0,
                    "close_price": 100.0, "close_time": "2026.07.01 10:00:00",
                    "deal_reason": "TP"}], appear_at_call=0)
@@ -390,6 +392,28 @@ def test_reconcile_skips_when_closed_orders_stale(session) -> None:
     session.expire_all()
     tr = session.get(BtTrade, trade_id)
     assert tr.broker_reconciled_at is None
+
+
+def test_reconcile_proceeds_when_stale_but_ticket_confirmed_gone(session) -> None:
+    """2026-07-06 fix: stale closed_orders.json is OK to trust when a FRESH
+    open_orders.json positively confirms the ticket is gone (e.g. a weekend SL
+    that closed while the book was quiet, so closed_orders never rewrote). This
+    is what backfills broker_net_usd for exit_reason=BROKER_CLOSED trades that
+    would otherwise stay $-NULL forever (the +$384 dashboard overstatement)."""
+    run_id = uuid.uuid4(); trade_id = uuid.uuid4()
+    _make_run_and_trade(session, run_id, trade_id)
+    bridge = _FakeBridge(open_tickets=set(), open_orders_age_s=1.0,     # fresh
+                         closed_orders_age_s=9500.0)                     # stale
+    bridge.prime([{"ticket": "T1", "profit": 85.68, "commission": 0.0, "swap": 0.0,
+                   "close_price": 4181.13, "close_time": "2026.07.06 01:07:11",
+                   "deal_reason": "SL"}], appear_at_call=0)
+    res = reconcile_trade(bridge=bridge, session=session, trade_id=trade_id,
+                          ticket="T1", max_retries=2, backoff_s=0.01)
+    assert res.matched is True
+    assert res.broker_net_usd == 85.68
+    session.expire_all()
+    tr = session.get(BtTrade, trade_id)
+    assert tr.broker_reconciled_at is not None
 
 
 def test_reconcile_proceeds_when_fresh_and_not_open(session) -> None:

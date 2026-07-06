@@ -250,7 +250,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
     // $ P&L counts EVERY closed row (incl. reconciled broker-closed) so it ties
     // to the ledger's visible $ column and to the account balance move.
     const usd = closed.reduce(
-      (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd) ?? 0),
+      (s, t) => s + (tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd, t.broker_ticket) ?? 0),
       0
     );
     // Add realised $ ALREADY BOOKED on still-open trades (partial-TP). Prefer
@@ -520,7 +520,7 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
             {
               header: "$ PnL",
               cell: (t) => {
-                const realized = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd);
+                const realized = tradePnlReal(symbol, t.net_r, t.risk_units, t.raw_features, t.broker_net_usd, t.broker_ticket);
                 // OPEN trade → show live floating $ (broker truth via WS). MT5 is the
                 // source of truth: broker_open===true means the position is open even
                 // if a stale DB row carries an exit_timestamp (SUPERSEDED re-adopt).
@@ -563,6 +563,18 @@ export function TradesPage({ runId }: { runId: string | null; ws?: WsHook }) {
                         <span className="ml-1 text-ds-xs text-ink-muted uppercase">float</span>
                       </span>
                     </div>
+                  );
+                }
+                // Broker-closed but $ not yet reconciled (deal aged off the DWX
+                // buffer before USD backfill): show "pending" not the 1.0-lot fantasy.
+                if (realized == null && t.broker_ticket) {
+                  return (
+                    <span
+                      className="font-mono text-ink-muted"
+                      title="Broker-closed; exact $ P&L pending reconcile (deal aged off the DWX buffer). R is scored; $ backfills from MT5 History."
+                    >
+                      — <span className="text-ds-xs uppercase">pending</span>
+                    </span>
                   );
                 }
                 return (

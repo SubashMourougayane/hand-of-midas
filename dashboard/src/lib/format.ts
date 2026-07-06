@@ -149,11 +149,17 @@ export const tradePnlReal = (
   net_r?: number | null,
   risk_units?: number | null,
   raw_features?: Record<string, unknown> | null,
-  broker_net_usd?: number | null
+  broker_net_usd?: number | null,
+  broker_ticket?: string | null
 ): number | null => {
   if (typeof broker_net_usd === "number") return broker_net_usd;
   const sized = raw_features?.["pnl_usd"];
   if (typeof sized === "number") return sized;
+  // LIVE trade (has a broker ticket) but broker_net_usd not yet reconciled
+  // (e.g. the deal aged off the ~57-deal DWX buffer before USD backfill):
+  // return null = "pending reconcile" rather than the 1.0-lot fantasy, which
+  // is ~30-1000x the real live lot and grossly overstates $ P&L.
+  if (broker_ticket) return null;
   return tradePnlUsd(symbol, net_r, risk_units);
 };
 

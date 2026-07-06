@@ -155,6 +155,32 @@ def _closed_orders_is_fresh(bridge: DwxBridge, *, max_age_s: float = CLOSED_ORDE
     return age <= max_age_s
 
 
+def _ticket_confirmed_gone(bridge: DwxBridge, ticket: str, *, max_age_s: float = 15.0) -> bool:
+    """True ONLY if a FRESH open_orders.json positively shows `ticket` is absent.
+
+    This is the strong form of "the position is closed": we have a recent
+    open_orders snapshot and the ticket is not in it. Unlike GUARD 2's staleness
+    check, this lets us trust a closed_orders match even when closed_orders.json
+    is itself a bit old — because MT5 position tickets are unique, so a match in
+    closed_orders for a ticket we've PROVEN is not open cannot be a "ghost" that
+    would wrongly close a live position. If open_orders is stale or unreadable we
+    return False (cannot confirm) and the normal freshness guard still applies.
+    """
+    try:
+        age = time.time() - bridge.mtime("open_orders.json")
+        if age > max_age_s:
+            return False
+        orders = bridge.open_orders()
+    except Exception:
+        return False
+    if not isinstance(orders, dict):
+        return False
+    inner = orders.get("orders", orders)
+    if not isinstance(inner, dict):
+        return False
+    return str(ticket) not in {str(k) for k in inner}
+
+
 def _to_utc_dt(naive: datetime | None, server_utc_offset_hours: int) -> datetime | None:
     if naive is None:
         return None
@@ -211,9 +237,19 @@ def reconcile_trade(
 
     # GUARD 2: distrust a stale closed_orders.json. If the EA hasn't rewritten it
     # recently, any match may be a ghost from a much earlier close event.
-    if not _closed_orders_is_fresh(bridge):
+    #
+    # EXCEPTION (2026-07-06): on a quiet book closed_orders.json only rewrites when
+    # a NEW deal closes, so it can sit stale for days — permanently blocking the $
+    # backfill for a trade that closed (e.g. a weekend SL, exit_reason BROKER_CLOSED)
+    # during the quiet window. That leaves broker_net_usd NULL forever while net_r
+    # is scored (the +$384 dashboard overstatement, ticket 2125844421). Skip the
+    # staleness guard when a FRESH open_orders.json POSITIVELY confirms the ticket
+    # is gone: closure is then proven independently, and unique MT5 tickets mean a
+    # closed_orders match cannot be a ghost that wrongly closes a live position.
+    if not _closed_orders_is_fresh(bridge) and not _ticket_confirmed_gone(bridge, ticket):
         log.warning(
-            "[RECONCILER] closed_orders.json stale (>%.0fs) — skip ticket=%s, retry later",
+            "[RECONCILER] closed_orders.json stale (>%.0fs) and ticket=%s not "
+            "confirmed gone — skip, retry later",
             CLOSED_ORDERS_MAX_AGE_S, ticket,
         )
         return ReconciliationResult(trade_id=trade_id, ticket=ticket, matched=False)
