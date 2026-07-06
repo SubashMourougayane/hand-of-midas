@@ -214,8 +214,13 @@ CREATE TRIGGER trg_notify_bt_trade_insert
 
 DROP TRIGGER IF EXISTS trg_notify_bt_trade_update ON bt_trades;
 CREATE TRIGGER trg_notify_bt_trade_update
-  AFTER UPDATE OF exit_timestamp, exit_price, exit_reason, net_r ON bt_trades
+  AFTER UPDATE OF exit_timestamp, exit_price, exit_reason, net_r,
+                  broker_net_usd, broker_reconciled_at ON bt_trades
   FOR EACH ROW EXECUTE FUNCTION notify_bt_trade();
+-- broker_net_usd / broker_reconciled_at added 2026-07-06: the reconciler stamps
+-- the real broker $ in a separate UPDATE that touches none of the original
+-- columns, so no NOTIFY fired when the exact $ landed. The Telegram notifier's
+-- "wait-for-exact-$" close alert needs this broadcast.
 
 CREATE OR REPLACE FUNCTION notify_bt_account_snapshot() RETURNS trigger AS $$
 BEGIN
