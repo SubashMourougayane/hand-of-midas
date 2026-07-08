@@ -13,6 +13,7 @@ from datetime import timezone
 import pandas as pd
 
 from bt_engine.core.order import Fill, OpenTrade, Order
+from bt_engine.core.bar import Bar
 from bt_engine.runner.live import (
     _bt_trade_from_open,
     _close_partial_succeeded,
@@ -21,7 +22,9 @@ from bt_engine.runner.live import (
     _find_ticket_by_tag,
     _fx_open_at,
     _leg_owns_position,
+    _needs_be_sync,
     _open_trades_from_positions,
+    _reconcile_partial_be,
     _sl_at_be,
     _to_dt,
 )
@@ -355,3 +358,171 @@ def test_adopt_seeds_bars_held_from_true_age():
     if _fx_open_at(now) and _fx_open_at(open_utc):
         assert tr.bars_held >= 6, tr.bars_held
     assert tr.bars_held >= 0
+
+
+# ---------------------------------------------------------------------------
+# Per-bar breakeven self-heal (2026-07-08 ticket 2138348483).
+#
+# on_partial_tp is one-shot: a CLOSE_PARTIAL whose ack timed out can book the
+# partial on the broker yet skip the SL->BE modify, orphaning the runner on its
+# original (far) stop with no retry. _reconcile_partial_be re-issues the BE
+# modify every bar from broker ground truth. _needs_be_sync is the pure guard.
+# ---------------------------------------------------------------------------
+
+
+def test_needs_be_sync_true_when_partial_done_and_sl_far():
+    # vol halved (0.09 -> 0.04) AND sl still original (far above entry 4128.34).
+    pos = {"volume": 0.04, "sl": 4149.31}
+    assert _needs_be_sync(pos, 4128.34, 0.09) is True
+
+
+def test_needs_be_sync_false_when_already_at_be():
+    # partial done but SL already at entry → idempotent skip.
+    pos = {"volume": 0.04, "sl": 4128.34}
+    assert _needs_be_sync(pos, 4128.34, 0.09) is False
+
+
+def test_needs_be_sync_false_when_volume_still_full():
+    # partial NOT reflected on broker → must NOT touch a full position's SL.
+    pos = {"volume": 0.09, "sl": 4149.31}
+    assert _needs_be_sync(pos, 4128.34, 0.09) is False
+
+
+def test_needs_be_sync_false_when_no_position_or_missing_fields():
+    assert _needs_be_sync(None, 4128.34, 0.09) is False
+    assert _needs_be_sync({"sl": 4149.31}, 4128.34, 0.09) is False  # no volume
+    assert _needs_be_sync({"volume": 0.04, "sl": 4149.31}, 4128.34, 0.0) is False  # full_qty=0
+
+
+def _partial_trade(*, ticket="2138348483", entry=4128.34, full_qty=0.09,
+                   tp=3946.20, partial=True) -> OpenTrade:
+    ts = pd.Timestamp("2026-07-08 05:15:00+00:00")
+    order = Order(
+        symbol="XAUUSD.ecn", side=-1, qty=full_qty, intended_entry_bar=ts,
+        stop_price=entry + 20.97, take_profit=tp, risk_units=34.56,
+        tag="intraday_d_short", bracket_kind="fixed_tp", trade_id=uuid.uuid4(),
+        extra={"partial_tp_at_r": 1.0, "partial_tp_pct": 0.5},
+    )
+    fill = Fill("XAUUSD.ecn", -1, full_qty, entry, ts)
+    tr = OpenTrade(
+        trade_id=order.trade_id, order=order, fill=fill,
+        entry_price=entry, entry_timestamp=ts, side=-1,
+        stop_price=entry, take_profit=tp, risk_units=34.56, broker_ticket=ticket,
+    )
+    tr.partial_taken = partial  # walker sets this True before on_partial_tp
+    return tr
+
+
+def _bar_now() -> Bar:
+    return Bar(
+        symbol="XAUUSD.ecn", timeframe="M15",
+        timestamp=pd.Timestamp("2026-07-08 08:30:00+00:00"),
+        open=4090.0, high=4092.0, low=4055.0, close=4056.72, volume=100.0,
+    )
+
+
+class _ReconBridge:
+    """Fake DWX bridge: open_orders() from a mutable {ticket: {volume, sl}} map."""
+
+    def __init__(self, positions):
+        self._positions = positions
+
+    def open_orders(self):
+        return {t: dict(p) for t, p in self._positions.items()}
+
+    def set_sl(self, ticket, sl):
+        self._positions[ticket]["sl"] = sl
+
+
+class _ReconBroker:
+    def __init__(self, *, raise_on_modify=False, bridge=None, apply_on_raise=False):
+        self.calls = []
+        self._raise = raise_on_modify
+        self._bridge = bridge
+        self._apply_on_raise = apply_on_raise
+
+    def modify(self, ticket, *, sl, tp=0.0):
+        self.calls.append((ticket, sl, tp))
+        if self._apply_on_raise and self._bridge is not None:
+            self._bridge.set_sl(ticket, sl)  # slow-ack: applied despite raising
+        if self._raise:
+            raise TimeoutError("No response within 5.0s")
+
+
+def test_reconcile_repairs_orphaned_breakeven():
+    # ticket 2138348483 real case: 0.09 -> 0.04, SL stuck at original 4149.31.
+    bridge = _ReconBridge({"2138348483": {"volume": 0.04, "sl": 4149.31}})
+    broker = _ReconBroker()
+    events = []
+    tr = _partial_trade()
+    n = _reconcile_partial_be(
+        [tr], bridge, broker, _bar_now(),
+        persist_event=lambda *a: events.append(a),
+    )
+    assert n == 1
+    assert broker.calls == [("2138348483", 4128.34, 3946.20)]
+    assert events and events[0][0] == "BE_RECONCILE_APPLIED"
+
+
+def test_reconcile_noop_when_already_at_be():
+    bridge = _ReconBridge({"42": {"volume": 0.04, "sl": 4128.34}})
+    broker = _ReconBroker()
+    tr = _partial_trade(ticket="42")
+    n = _reconcile_partial_be([tr], bridge, broker, _bar_now())
+    assert n == 0
+    assert broker.calls == []
+
+
+def test_reconcile_skips_when_partial_not_taken():
+    bridge = _ReconBridge({"42": {"volume": 0.09, "sl": 4149.31}})
+    broker = _ReconBroker()
+    tr = _partial_trade(ticket="42", partial=False)
+    assert _reconcile_partial_be([tr], bridge, broker, _bar_now()) == 0
+    assert broker.calls == []
+
+
+def test_reconcile_skips_when_no_broker_ticket():
+    bridge = _ReconBridge({})
+    broker = _ReconBroker()
+    tr = _partial_trade(ticket="42")
+    tr.broker_ticket = None
+    assert _reconcile_partial_be([tr], bridge, broker, _bar_now()) == 0
+    assert broker.calls == []
+
+
+def test_reconcile_does_not_touch_full_size_position():
+    # partial_taken flagged but broker still full volume (partial genuinely failed)
+    # → must NOT move SL to BE on the full position.
+    bridge = _ReconBridge({"42": {"volume": 0.09, "sl": 4149.31}})
+    broker = _ReconBroker()
+    tr = _partial_trade(ticket="42")
+    assert _reconcile_partial_be([tr], bridge, broker, _bar_now()) == 0
+    assert broker.calls == []
+
+
+def test_reconcile_treats_slow_ack_modify_as_applied():
+    # modify() raises TimeoutError but the EA DID apply it → SL reads BE on re-read.
+    bridge = _ReconBridge({"42": {"volume": 0.04, "sl": 4149.31}})
+    broker = _ReconBroker(raise_on_modify=True, bridge=bridge, apply_on_raise=True)
+    events = []
+    tr = _partial_trade(ticket="42")
+    n = _reconcile_partial_be(
+        [tr], bridge, broker, _bar_now(),
+        persist_event=lambda *a: events.append(a),
+    )
+    assert n == 1
+    assert events[0][0] == "BE_RECONCILE_APPLIED"
+
+
+def test_reconcile_reports_failure_when_modify_truly_fails():
+    # modify() raises AND SL never reaches BE → FAILED event, retry deferred to next bar.
+    bridge = _ReconBridge({"42": {"volume": 0.04, "sl": 4149.31}})
+    broker = _ReconBroker(raise_on_modify=True, bridge=bridge, apply_on_raise=False)
+    events = []
+    tr = _partial_trade(ticket="42")
+    n = _reconcile_partial_be(
+        [tr], bridge, broker, _bar_now(),
+        persist_event=lambda *a: events.append(a),
+    )
+    assert n == 0
+    assert events[0][0] == "BE_RECONCILE_FAILED"

@@ -888,6 +888,18 @@ def run_live(
         )
         live_session.commit()
 
+        # Self-heal any orphaned breakeven stop: a slow-ack partial-TP can leave
+        # the runner on its ORIGINAL (far) SL. Idempotent, live-only, retries next
+        # bar on failure. (2026-07-08 ticket 2138348483.)
+        if not dry_run:
+            try:
+                _reconcile_partial_be(
+                    open_trades, bridge, broker, bar,
+                    persist_event=_persist_partial_tp_event,
+                )
+            except Exception as e:
+                log.debug("[BE_RECONCILE] pass failed: %s", e)
+
         # Cheap sweep for previously-unreconciled trades.
         try:
             retry_unreconciled_trades(
@@ -1189,6 +1201,98 @@ def _sl_at_be(post_pos: dict[str, Any] | None, new_sl: float, tol: float = 0.01)
     if live_sl is None:
         return False
     return abs(live_sl - new_sl) <= tol
+
+
+def _needs_be_sync(
+    post_pos: dict[str, Any] | None,
+    entry_price: float,
+    full_qty: float,
+    *,
+    reduced_frac: float = 0.9,
+    sl_tol: float = 0.01,
+) -> bool:
+    """True when a partial-taken trade's broker SL must be (re)moved to breakeven.
+
+    Ground-truth guard for the slow-ack orphan (2026-07-08 ticket 2138348483):
+    `on_partial_tp` is one-shot, so a CLOSE_PARTIAL whose ack timed out (detector
+    false-negative) can book the partial on the broker yet skip the SL->BE modify,
+    stranding the runner on its ORIGINAL (far) stop with no retry.
+
+    Fires ONLY when BOTH hold, read from the broker's own open_orders:
+      * volume already reduced (`live_vol < full_qty*reduced_frac`) — proves the
+        partial really executed; prevents moving SL->BE on a still-full position
+        whose partial genuinely failed (a different divergence, left untouched).
+      * live SL is NOT already at breakeven — makes the check idempotent so the
+        per-bar reconciler never spams a modify once the SL is correct.
+    """
+    if post_pos is None:
+        return False
+    live_vol = _float_or_none(post_pos.get("volume"))
+    if live_vol is None or full_qty <= 0:
+        return False
+    if live_vol >= full_qty * reduced_frac:
+        return False  # partial not reflected on broker → do not touch SL
+    if _sl_at_be(post_pos, entry_price, tol=sl_tol):
+        return False  # already at BE → nothing to do
+    return True
+
+
+def _reconcile_partial_be(
+    open_trades: list[OpenTrade],
+    bridge: DwxBridge,
+    broker: Any,
+    bar: Bar,
+    *,
+    persist_event: Any | None = None,
+) -> int:
+    """Per-bar self-heal for orphaned breakeven stops (LIVE only).
+
+    `on_partial_tp` moves the stop to BE exactly once; if that modify was skipped
+    or failed under a slow-ack, nothing ever retries and the runner sits on its
+    original (far) stop until TP/TIMEOUT. This pass runs every bar and re-issues
+    the BE modify for any partial-taken trade whose broker SL drifted off BE while
+    its volume already shrank. Idempotent (`_needs_be_sync` short-circuits once the
+    SL is correct), so steady-state cost is a single open_orders read per trade.
+
+    Returns the number of trades repaired this bar.
+    """
+    repaired = 0
+    for tr in open_trades:
+        if not getattr(tr, "partial_taken", False):
+            continue
+        ticket = getattr(tr, "broker_ticket", None)
+        if ticket is None:
+            continue
+        pos = _live_position(bridge, ticket)
+        be = float(tr.entry_price)
+        full_qty = float(tr.fill.qty)
+        if not _needs_be_sync(pos, be, full_qty):
+            continue
+        tp = float(tr.take_profit) if tr.take_profit is not None else 0.0
+        try:
+            broker.modify(ticket, sl=be, tp=tp)
+            log.warning(
+                "[BE_RECONCILE] repaired orphaned breakeven ticket=%s sl->%.5f", ticket, be,
+            )
+            repaired += 1
+            if persist_event is not None:
+                persist_event("BE_RECONCILE_APPLIED", tr, bar, ticket, 0.0, be, None)
+        except Exception as e:
+            # Slow-ack: the MODIFY may have applied even though the wait timed out.
+            if _sl_at_be(_live_position(bridge, ticket), be):
+                log.warning(
+                    "[BE_RECONCILE] modify raised (%s) but SL already at BE ticket=%s", e, ticket,
+                )
+                repaired += 1
+                if persist_event is not None:
+                    persist_event("BE_RECONCILE_APPLIED", tr, bar, ticket, 0.0, be, None)
+            else:
+                log.error(
+                    "[BE_RECONCILE] modify failed ticket=%s: %s — retry next bar", ticket, e,
+                )
+                if persist_event is not None:
+                    persist_event("BE_RECONCILE_FAILED", tr, bar, ticket, 0.0, be, str(e))
+    return repaired
 
 
 def _bt_trade_from_open(tr: OpenTrade, *, run_id: uuid.UUID, strategy_id: str, timeframe: str) -> BtTrade:
