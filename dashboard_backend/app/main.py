@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import account, auth, bars, live, runs, signals, trades
+from .routers import account, auth, bars, live, positions, runs, signals, trades
 from .ws.live import broker, router as ws_router
 from .ws.price_stream import PriceStreamer
 
@@ -57,6 +57,7 @@ app.include_router(runs.router)
 app.include_router(trades.router)
 app.include_router(signals.router)
 app.include_router(account.router)
+app.include_router(positions.router)
 app.include_router(bars.router)
 app.include_router(ws_router)
 

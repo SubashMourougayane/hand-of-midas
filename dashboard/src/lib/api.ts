@@ -180,4 +180,18 @@ export const api = {
     });
     return r.ok;
   },
+  // Manual close of a live position. Auth-required (mutating). The broker close
+  // is sent + verified server-side; the trade row finalises when the engine
+  // books it next bar. Returns {status:"closing", ticket, trade_id}.
+  closePosition: async (ticket: string, token: string) => {
+    const r = await fetch(`/api/positions/${encodeURIComponent(ticket)}/close`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!r.ok) {
+      const detail = await r.json().catch(() => ({}));
+      throw new Error(detail.detail || `Close failed (${r.status})`);
+    }
+    return r.json() as Promise<{ status: string; ticket: string; trade_id: string; note?: string }>;
+  },
 };

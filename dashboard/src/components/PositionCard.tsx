@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Trade } from "../lib/api";
 import { Pill } from "./Pill";
 import { RangeBar } from "./RangeBar";
@@ -22,6 +23,8 @@ export function PositionCard({
   liveSl,
   now,
   onClick,
+  onClose,
+  closing,
 }: {
   trade: Trade;
   currentPrice?: number | null;
@@ -35,8 +38,15 @@ export function PositionCard({
   /** epoch ms for the live hold timer */
   now?: number;
   onClick?: () => void;
+  /** manual-close handler — omit to hide the close control (e.g. on BT rows) */
+  onClose?: (ticket: string) => void;
+  /** true while a close is in flight for this ticket */
+  closing?: boolean;
 }) {
   const tone = trade.side > 0 ? "bull" : "bear";
+  // Two-step inline confirm so a single stray tap never closes a live position.
+  const [armed, setArmed] = useState(false);
+  const canClose = !!onClose && !!trade.broker_ticket && !trade.exit_timestamp;
 
   // Effective stop = live broker SL when we have it, else the DB stop. This is
   // what actually protects the position, so risk + the range bar must use it.
@@ -193,6 +203,57 @@ export function PositionCard({
           </span>
         }/>
       </div>
+
+      {/* Manual close — two-step confirm. All clicks stopPropagation so the
+          card's navigate-on-click never fires while acting on the button. */}
+      {canClose && (
+        <div
+          className="flex items-center justify-end gap-2 pt-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {closing ? (
+            <span className="font-mono text-ds-xs text-ink-muted uppercase tracking-wide">
+              Closing…
+            </span>
+          ) : armed ? (
+            <>
+              <span className="font-mono text-ds-xs text-ink-muted">Close at market?</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setArmed(false);
+                  onClose!(trade.broker_ticket!);
+                }}
+                className="font-mono text-ds-xs px-2.5 py-1 rounded-ds bg-bear/15 text-bear border border-bear/40 hover:bg-bear/25 transition-colors"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setArmed(false);
+                }}
+                className="font-mono text-ds-xs px-2 py-1 rounded-ds text-ink-muted hover:text-ink-secondary transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setArmed(true);
+              }}
+              className="font-mono text-ds-xs px-2.5 py-1 rounded-ds text-ink-muted border border-glass-border hover:text-bear hover:border-bear/40 transition-colors"
+            >
+              Close
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
   Trade,
 } from "../lib/api";
 import { useWsLive, WsEnvelope, WsStatus } from "../lib/ws";
+import { useAuth } from "../lib/auth";
 import { Pane } from "../components/Pane";
 import { Pill } from "../components/Pill";
 import { PositionCard } from "../components/PositionCard";
@@ -49,6 +50,33 @@ export function LivePage({
 }) {
   void _appWs;
   const nav = useNavigate();
+  const { token } = useAuth();
+  // Tickets with a manual-close in flight — keeps the card in "Closing…" until
+  // the engine books the exit and the position drops out of the open list.
+  const [closingTickets, setClosingTickets] = useState<Set<string>>(new Set());
+
+  const handleClosePosition = useCallback(
+    async (ticket: string) => {
+      if (!token) {
+        window.alert("Session expired — please log in again to close positions.");
+        return;
+      }
+      setClosingTickets((prev) => new Set(prev).add(ticket));
+      try {
+        await api.closePosition(ticket, token);
+        // Leave it flagged "closing": the broker is already flat; the engine
+        // finalises the row next bar and the WS/refetch drops it from the list.
+      } catch (e) {
+        setClosingTickets((prev) => {
+          const next = new Set(prev);
+          next.delete(ticket);
+          return next;
+        });
+        window.alert(`Close failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
+    [token]
+  );
 
   // Listen-all WS — server filters by run_id when one is passed, so we pass
   // none to receive events for every live leg simultaneously.
@@ -766,6 +794,8 @@ export function LivePage({
                       liveSl={lp?.sl ?? null}
                       now={now}
                       onClick={() => nav(`/journal?trade=${t.trade_id}`)}
+                      onClose={handleClosePosition}
+                      closing={!!t.broker_ticket && closingTickets.has(t.broker_ticket)}
                     />
                   </div>
                 );
