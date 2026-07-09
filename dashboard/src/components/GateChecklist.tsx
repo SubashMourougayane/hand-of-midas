@@ -209,8 +209,14 @@ export function checklistFor(eventType: string, detail: Detail): CheckItem[] {
     items.push(pivotItem);
     items.push(setupItem);
     items.push({ label: "Not invalidated — price still respecting setup", status: "pass" });
+    const miss =
+      close != null && zoneLo != null && close < zoneLo
+        ? "below"
+        : close != null && zoneHi != null && close > zoneHi
+        ? "above"
+        : "outside";
     items.push({
-      label: "Price is in the fib retrace zone (78.6% → 38.2%)",
+      label: `Price is ${miss} the fib retrace zone — missed (needs 78.6% → 38.2%)`,
       status: "fail",
       detail: [
         { k: "Close", v: `$${fmt(close)}` },
