@@ -166,10 +166,15 @@ export function PositionCard({
 
       {/* Stats row — compact. Risk (red) + Reward (green) side by side.
           Reflows 2→3→5 cols so the cells never squash on a phone. */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 pt-1">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
         <Stat label="Size" value={
           <span className="font-mono text-ink-primary">
             {lots != null ? `${lots.toFixed(2)}` : "—"}
+          </span>
+        }/>
+        <Stat label="1R" value={
+          <span className="font-mono text-ink-secondary" title="Dollar value of one risk-unit (initial stop distance × size). Partial books +1R here.">
+            {riskUsd != null ? fmtMoney(riskUsd, 0) : "—"}
           </span>
         }/>
         <Stat label={atBE ? "Risk · BE" : "Risk"} value={

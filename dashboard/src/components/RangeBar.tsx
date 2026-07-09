@@ -27,10 +27,16 @@ export function RangeBar({
   // toward the "TP" label on the right — visually backwards.)
   const span = tp - stop || 1;
   const pct = (v: number) => ((v - stop) / span) * 100;
+  const clamp = (x: number) => Math.max(0, Math.min(100, x));
   const entryPct = pct(entry);
   const stopPct = pct(stop);   // = 0
   const tpPct = pct(tp);       // = 100
-  const curPct = current != null ? Math.max(0, Math.min(100, pct(current))) : null;
+  const curPct = current != null ? clamp(pct(current)) : null;
+  // +1R = the partial-TP / breakeven level: one risk-unit in profit from entry.
+  const risk = Math.abs(entry - stop);
+  const oneR = side === 1 ? entry + risk : entry - risk;
+  const oneRPct = clamp(pct(oneR));
+  const entryPctC = clamp(entryPct);
 
   const stopColor = "bg-bear";
   const tpColor = "bg-bull";
@@ -47,10 +53,25 @@ export function RangeBar({
   return (
     <div className={`relative ${className}`}>
       {showLabels && (
-        <div className="flex justify-between text-ds-xs text-ink-muted mb-1">
-          <span className="font-mono">{stop.toFixed(2)}</span>
-          <span className="font-mono">{entry.toFixed(2)}</span>
-          <span className="font-mono">{tp.toFixed(2)}</span>
+        // Absolute-positioned so each price sits ABOVE its real marker (entry
+        // near the SL for a tight-stop short, +1R between entry and TP), not
+        // spread to fixed thirds.
+        <div className="relative h-3.5 mb-1 text-ds-xs font-mono text-ink-muted">
+          <span className="absolute left-0">{stop.toFixed(2)}</span>
+          <span
+            className="absolute text-ink-secondary whitespace-nowrap"
+            style={{ left: `${entryPctC}%`, transform: "translateX(-50%)" }}
+          >
+            {entry.toFixed(2)}
+          </span>
+          <span
+            className="absolute text-warn whitespace-nowrap"
+            style={{ left: `${oneRPct}%`, transform: "translateX(-50%)" }}
+            title="+1R — partial-TP books here, stop moves to breakeven"
+          >
+            {oneR.toFixed(2)}
+          </span>
+          <span className="absolute right-0">{tp.toFixed(2)}</span>
         </div>
       )}
       <div className="relative h-2 bg-bg-input rounded-full overflow-hidden border border-line-subtle">
@@ -75,6 +96,19 @@ export function RangeBar({
         <div
           className={`absolute top-[-2px] bottom-[-2px] w-[2px] ${entryColor} z-10`}
           style={{ left: `calc(${entryPct}% - 1px)` }}
+        />
+        {/* +1R marker (partial-TP / breakeven trigger) */}
+        <div
+          className="absolute top-[-2px] bottom-[-2px] w-[2px] bg-warn z-10"
+          style={{ left: `calc(${oneRPct}% - 1px)` }}
+        />
+        {/* +1R zone (entry ↔ +1R) — subtle amber to show the partial band */}
+        <div
+          className="absolute top-0 h-full bg-warn/20"
+          style={{
+            left: `${Math.min(entryPctC, oneRPct)}%`,
+            width: `${Math.abs(oneRPct - entryPctC)}%`,
+          }}
         />
         {/* stop marker */}
         <div
