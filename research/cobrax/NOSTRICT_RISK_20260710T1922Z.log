@@ -1,0 +1,54 @@
+==============================================================================
+NO-STRICT A+D risk-cliff + causal audit   run=2026-07-10 19:22Z
+==============================================================================
+DATA: OANDA XAU M5 parquet -> resample M15 (label=left, closed=left).
+  M5 rows=1,446,193  M15 bars=485,374  range=2006-03-19 20:15:00+00:00 .. 2026-06-30 23:45:00+00:00
+  A hold=48 M15 (12h), D hold=96 M15 (24h). Cost from leg config. BTExecutionModel (fill=next M15 open).
+
+GENERATING TRADES:
+  [A strict] trades=10649 netR=+3446.4 avgR=+0.3236 WR=51.2% tag_sample=intraday_a_long_2006-03-20T17:30:00+00:00
+  [D strict] trades=17316 netR=+4208.8 avgR=+0.2431 WR=47.3% tag_sample=intraday_d_short_2006-03-21T09:15:00+00:00
+  [A nostrict] trades=11520 netR=+3692.3 avgR=+0.3205 WR=50.9% tag_sample=intraday_a_long_2006-03-20T17:30:00+00:00
+  [D nostrict] trades=18756 netR=+4430.7 avgR=+0.2362 WR=46.8% tag_sample=intraday_d_short_2006-03-20T10:45:00+00:00
+
+  A+D STRICT  : trades=27965 netR=+7655.2 avgR=+0.2737
+  A+D NOSTRICT: trades=30276 netR=+8123.0 avgR=+0.2683
+  DELTA       : trades +2311 (+8.3%)  netR +467.8 (+6.1%)
+
+  --- DECISION-BAR CAUSAL AUDIT [A+D nostrict] ---
+    trades=30276  tag-encoded signal_ts present=30276 (missing=0)
+    signal_ts < fill_ts violations: 0   (LOOK-AHEAD if >0)
+    signal_ts >= fill_ts (decision at/after entry): 0
+    signal->fill gap (min): min=15 median=90 max=4905  (>=15 expected; fill = next M15 open)
+    fills at exactly +15min (next-bar-open): 17%
+
+  --- DECISION-BAR CAUSAL AUDIT [A+D strict] ---
+    trades=27965  tag-encoded signal_ts present=27965 (missing=0)
+    signal_ts < fill_ts violations: 0   (LOOK-AHEAD if >0)
+    signal_ts >= fill_ts (decision at/after entry): 0
+    signal->fill gap (min): min=30 median=105 max=4905  (>=15 expected; fill = next M15 open)
+    fills at exactly +15min (next-bar-open): 0%
+
+  --- STRUCTURE: strict vs no-strict (superset expectation) ---
+    strict signals=27965  no-strict signals=30276
+    strict preserved in no-strict: 27478/27965 (98.3%)
+    NEW signals in no-strict (the +delta): 2798
+    strict-only (dropped by no-strict): 487  (should be ~0 if pure superset)
+
+  === RISK-CLIFF [A+D STRICT (live baseline)]  (real EquitySizer, $5k start, 20yr exact path) ===
+     risk |       final $    min-eq  maxDD% | P(ruin@20%)
+     1.5% | $    766,468 $  1,567   94.6% |       0.0%
+     2.0% | $  1,182,808 $    999   98.0% |       0.0%  <-- LIVE
+     2.5% | $  1,761,532 $    538   99.3% |       0.1%
+     3.0% | $  2,633,375 $    289   99.8% |       0.2%
+
+  === RISK-CLIFF [A+D NO-STRICT]  (real EquitySizer, $5k start, 20yr exact path) ===
+     risk |       final $    min-eq  maxDD% | P(ruin@20%)
+     1.5% | $    854,955 $    848   95.5% |       0.0%
+     2.0% | $  1,366,518 $    390   98.5% |       0.0%  <-- LIVE
+     2.5% | $  2,155,595 $    188   99.6% |       0.1%
+     3.0% | $    525,113 $ -1,222  100.6% |       0.4%  RUIN
+
+==============================================================================
+VERDICT INPUTS: nostrict look-ahead violations=0 (0 = causal). Compare NO-STRICT min-eq @2% vs STRICT @2%; if NO-STRICT min-eq at/below 0 or much worse -> needs <=1.5%. Judge from the tables above.
+==============================================================================
