@@ -123,6 +123,31 @@ class TradeRepo:
         except (TypeError, ValueError):
             return None
 
+    def partial_state_for_ticket(self, broker_ticket: str) -> tuple[bool, float | None] | None:
+        """(partial_taken, partial_r) for a broker ticket, from its most recent row.
+
+        Used when adopting a position across a restart: the walker fires partial-TP
+        exactly ONCE, so a re-adopted trade that ALREADY booked its partial must not
+        be re-armed (that would double-close). partial_taken is engine-persisted on
+        the +1R event; returns None if we've never seen the ticket."""
+        from sqlalchemy import select as _select
+        if not broker_ticket:
+            return None
+        row = self.s.execute(
+            _select(BtTrade.partial_taken, BtTrade.partial_r)
+            .where(BtTrade.broker_ticket == str(broker_ticket))
+            .order_by(BtTrade.entry_timestamp.desc())
+            .limit(1)
+        ).first()
+        if row is None:
+            return None
+        taken = bool(row[0])
+        try:
+            pr = float(row[1]) if row[1] is not None else None
+        except (TypeError, ValueError):
+            pr = None
+        return taken, pr
+
     def supersede_stale_open_ticket(
         self, broker_ticket: str, keep_trade_id: uuid.UUID, run_id: uuid.UUID
     ) -> int:

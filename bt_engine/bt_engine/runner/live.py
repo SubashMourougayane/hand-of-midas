@@ -933,6 +933,13 @@ def run_live(
             broker.positions(), symbol=symbol, strategy_id=strategy,
             server_utc_offset_hours=server_utc_offset_hours,
             risk_lookup=trade_repo.risk_units_for_ticket,
+            # Carry the leg's partial-TP config into adoption so a position open
+            # across a restart still books its +1R partial (walker reads
+            # order.extra["partial_tp_at_r"]). partial_lookup prevents re-arming a
+            # trade that already booked its partial pre-restart.
+            partial_tp_at_r=getattr(strat.config, "partial_tp_at_r", None),
+            partial_tp_pct=float(getattr(strat.config, "partial_tp_pct", 0.5) or 0.5),
+            partial_lookup=trade_repo.partial_state_for_ticket,
         ),
     )
 
@@ -1425,6 +1432,9 @@ def _open_trades_from_positions(
     server_utc_offset_hours: int = 0,
     risk_lookup: Callable[[str], float | None] | None = None,
     fallback_target_r: float = 2.618,
+    partial_tp_at_r: float | None = None,
+    partial_tp_pct: float = 0.5,
+    partial_lookup: "Callable[[str], tuple[bool, float | None] | None] | None" = None,
 ) -> list[OpenTrade]:
     out: list[OpenTrade] = []
     for pos in positions:
@@ -1503,30 +1513,52 @@ def _open_trades_from_positions(
             # on the adoption bar itself — the walker force-closes on the next bar
             # once seeded bars_held >= cap, so no surprise market-close mid-adopt.
             seeded_bars = _elapsed_m15_bars_fx(ts, now_ts)
+            # ─── Partial-TP continuity across restarts ─────────────────────
+            # The walker fires partial-TP only if order.extra["partial_tp_at_r"]
+            # is set. Adopted trades previously rebuilt extra WITHOUT it → the
+            # +1R partial NEVER fired on any position open across a restart
+            # (observed 2026-07-10 ticket 2148715261: past +1R, never part-closed).
+            # Re-arm it here UNLESS the partial was already booked (DB flag) — in
+            # which case mark partial_taken + pull the stop to breakeven so the
+            # remainder is BE-protected and NOT re-partialed (double-close).
+            adopt_extra: dict = {
+                "broker_ticket": ticket,
+                "reconciled": True,
+                "leg": ("intraday_a_long" if side > 0 else "intraday_d_short"),
+                "qty_lots": qty,
+                "direction": "long" if side > 0 else "short",
+                "max_hold_bars": max_hold_bars,
+                "risk_estimated": risk_estimated,
+            }
+            partial_taken_adopt = False
+            partial_r_adopt = 0.0
+            db_partial = partial_lookup(str(ticket)) if partial_lookup else None
+            if db_partial is not None and db_partial[0]:
+                partial_taken_adopt = True
+                partial_r_adopt = (
+                    float(db_partial[1]) if db_partial[1] is not None
+                    else (partial_tp_pct * float(partial_tp_at_r or 0.0))
+                )
+            elif partial_tp_at_r is not None:
+                # Not yet taken → arm the walker to fire at +partial_tp_at_r R.
+                adopt_extra["partial_tp_at_r"] = float(partial_tp_at_r)
+                adopt_extra["partial_tp_pct"] = float(partial_tp_pct)
+            # If already partialed, pull the engine stop to breakeven (never loosen).
+            adopt_stop = sl
+            if partial_taken_adopt and entry > 0:
+                adopt_stop = max(sl, entry) if side > 0 else min(sl, entry)
             order = Order(
                 symbol=str(pos.get("symbol") or symbol),
                 side=side,
                 qty=qty,
                 intended_entry_bar=ts,
-                stop_price=sl,
+                stop_price=adopt_stop,
                 take_profit=tp,
                 risk_units=risk,
                 tag=str(pos.get("comment") or ticket),
                 bracket_kind="reconciled_live",
                 trade_id=trade_id,
-                extra={
-                    "broker_ticket": ticket,
-                    "reconciled": True,
-                    # Leg label so the UI shows Long/Short (not the fallback
-                    # literal "Strategy"). Prefer comment tag, else side.
-                    "leg": (
-                        "intraday_a_long" if side > 0 else "intraday_d_short"
-                    ),
-                    "qty_lots": qty,
-                    "direction": "long" if side > 0 else "short",
-                    "max_hold_bars": max_hold_bars,
-                    "risk_estimated": risk_estimated,
-                },
+                extra=adopt_extra,
             )
             fill = Fill(order.symbol, side, qty, entry, ts)
             adopted = OpenTrade(
@@ -1536,11 +1568,13 @@ def _open_trades_from_positions(
                 entry_price=entry,
                 entry_timestamp=ts,
                 side=side,
-                stop_price=sl,
+                stop_price=adopt_stop,
                 take_profit=tp,
                 risk_units=risk,
                 broker_ticket=str(ticket),
                 bars_held=seeded_bars,
+                partial_taken=partial_taken_adopt,
+                partial_filled_r=partial_r_adopt,
             )
             out.append(adopted)
         except (TypeError, ValueError):

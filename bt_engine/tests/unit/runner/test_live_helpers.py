@@ -556,3 +556,58 @@ def test_adopt_be_stopped_without_tp_still_skips():
             "open_price": 100.0, "sl": 100.0, "tp": 0, "comment": "x"}]
     assert _open_trades_from_positions(pos, symbol="XAUUSD.ecn",
                                        strategy_id="fib_v2_intraday_d") == []
+
+
+def test_adopt_arms_partial_tp_when_not_yet_taken():
+    """Regression (2148715261): a position adopted across a restart must carry
+    partial_tp_at_r so the walker still books the +1R partial. Previously the
+    adopted order.extra had no trigger → partial NEVER fired."""
+    from bt_engine.runner.live import _open_trades_from_positions
+    pos = [{"ticket": "2148715261", "type": "SELL", "volume": 0.16,
+            "open_price": 4109.61, "sl": 4120.61, "tp": 4027.30,
+            "comment": "intraday_d_short_2026"}]
+    ots = _open_trades_from_positions(
+        pos, symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d",
+        partial_tp_at_r=1.0, partial_tp_pct=0.5,
+        partial_lookup=lambda tk: (False, None),  # DB: not yet taken
+    )
+    assert len(ots) == 1
+    t = ots[0]
+    assert t.order.extra.get("partial_tp_at_r") == 1.0
+    assert t.order.extra.get("partial_tp_pct") == 0.5
+    assert t.partial_taken is False
+    assert t.stop_price == 4120.61  # original SL untouched (partial not yet taken)
+
+
+def test_adopt_marks_partial_taken_and_pulls_stop_to_be():
+    """If the partial was ALREADY booked pre-restart (DB flag), do NOT re-arm
+    (would double-close). Mark partial_taken + pull the short's stop to BE."""
+    from bt_engine.runner.live import _open_trades_from_positions
+    pos = [{"ticket": "2148715261", "type": "SELL", "volume": 0.08,
+            "open_price": 4109.61, "sl": 4120.61, "tp": 4027.30,
+            "comment": "intraday_d_short_2026"}]
+    ots = _open_trades_from_positions(
+        pos, symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d",
+        partial_tp_at_r=1.0, partial_tp_pct=0.5,
+        partial_lookup=lambda tk: (True, 0.5),  # DB: already taken, +0.5R booked
+    )
+    assert len(ots) == 1
+    t = ots[0]
+    assert t.partial_taken is True
+    assert t.partial_filled_r == 0.5
+    assert "partial_tp_at_r" not in t.order.extra  # NOT re-armed
+    assert t.stop_price == 4109.61  # short stop pulled DOWN to breakeven (entry)
+
+
+def test_adopt_no_partial_config_leaves_trade_unarmed():
+    """Legs without partial-TP (partial_tp_at_r=None) adopt as before — no trigger."""
+    from bt_engine.runner.live import _open_trades_from_positions
+    pos = [{"ticket": "555", "type": "BUY", "volume": 0.1,
+            "open_price": 100.0, "sl": 95.0, "tp": 130.0, "comment": "intraday_a_long"}]
+    ots = _open_trades_from_positions(
+        pos, symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_a",
+        partial_tp_at_r=None,
+    )
+    assert len(ots) == 1
+    assert "partial_tp_at_r" not in ots[0].order.extra
+    assert ots[0].partial_taken is False
