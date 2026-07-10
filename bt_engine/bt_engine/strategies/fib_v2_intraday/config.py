@@ -32,6 +32,11 @@ class FibV2IntradayConfig:
     base_tf: str = "M15"
     pivot_tf: str = "M15"
     min_risk_units: float = 0.50  # $0.50 stop floor on XAU (broker un-tradeable below)
+    strict_after: bool = True
+    """Research-parity gate (searchsorted side='right'): block entry ON the setup-confirm
+    bar (bar K); only allow from K+1. True = certified baseline behavior. False = 'no-strict'
+    (bar K is a valid entry-scan bar too; fill still K+1 open, causally clean). NOT a
+    causality requirement — it is a research bit-for-bit choice. See docs/NOSTRICT_A_D_*.md."""
 
     def __post_init__(self) -> None:
         if self.base_tf != self.pivot_tf:
@@ -65,7 +70,7 @@ INTRADAY_D_LEG = LegSpec(
 # Factory builders — production-locked params
 # -----------------------------------------------------------------------------
 
-def make_intraday_a_config() -> FibV2IntradayConfig:
+def make_intraday_a_config(*, strict_after: bool = True) -> FibV2IntradayConfig:
     """A leg: LONG  · lb=3 · hold=12h · session=london_ny · ext=2.618 · PTP+1R · cost=$0.65."""
     base = FibV2Config(
         pivot_lb=3,
@@ -78,11 +83,12 @@ def make_intraday_a_config() -> FibV2IntradayConfig:
         cost_usd=0.65,  # JustMarkets Raw Spread realistic
     )
     return FibV2IntradayConfig(
+        strict_after=strict_after,
         base=base, base_tf="M15", pivot_tf="M15", min_risk_units=0.50,
     )
 
 
-def make_intraday_d_config() -> FibV2IntradayConfig:
+def make_intraday_d_config(*, strict_after: bool = True) -> FibV2IntradayConfig:
     """D leg: SHORT · lb=3 · hold=24h · session=all       · ext=2.618 · PTP+1R · cost=$0.65."""
     base = FibV2Config(
         pivot_lb=3,
@@ -95,5 +101,6 @@ def make_intraday_d_config() -> FibV2IntradayConfig:
         cost_usd=0.65,
     )
     return FibV2IntradayConfig(
+        strict_after=strict_after,
         base=base, base_tf="M15", pivot_tf="M15", min_risk_units=0.50,
     )

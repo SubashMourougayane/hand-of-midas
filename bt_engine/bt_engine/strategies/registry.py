@@ -95,5 +95,20 @@ def _register_builtins() -> None:
     register("fib_v2_intraday_d", _fib_v2_intraday_d_factory)
     register("fib_v2_intraday_a_plus_d", _fib_v2_intraday_a_plus_d_factory)
 
+    # ----- NO-STRICT variants (strict_after=False): bar-K entry eligible, fill still K+1.
+    # Causally clean (see docs/NOSTRICT_A_D). Deploy target: run at <=2.5% risk only. -----
+    def _fib_v2_intraday_a_nostrict_factory(**kwargs) -> Strategy:
+        return FibV2IntradayA(strict_after=False, **kwargs)
+
+    def _fib_v2_intraday_d_nostrict_factory(**kwargs) -> Strategy:
+        return FibV2IntradayD(strict_after=False, **kwargs)
+
+    def _fib_v2_intraday_a_plus_d_nostrict_factory(**kwargs) -> Strategy:
+        return FibV2IntradayAPlusD(strict_after=False, **kwargs)
+
+    register("fib_v2_intraday_a_nostrict", _fib_v2_intraday_a_nostrict_factory)
+    register("fib_v2_intraday_d_nostrict", _fib_v2_intraday_d_nostrict_factory)
+    register("fib_v2_intraday_a_plus_d_nostrict", _fib_v2_intraday_a_plus_d_nostrict_factory)
+
 
 _register_builtins()

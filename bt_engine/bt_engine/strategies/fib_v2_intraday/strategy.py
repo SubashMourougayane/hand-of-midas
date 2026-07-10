@@ -110,9 +110,13 @@ class FibV2IntradayBase(FibV2EnsembleStrategy):
         The base class allows match ON the confirm bar (>=). Intraday port
         enforces strict-after to match research bit-for-bit.
 
-        Effect: setup created at bar K is eligible for entry starting bar K+1.
+        Effect (strict_after=True, certified baseline): setup created at bar K is eligible
+        for entry starting bar K+1. When strict_after=False ('no-strict'), bar K itself is a
+        valid entry-scan bar — the base class match runs. Causally clean either way: the
+        setup is fully confirmed at bar K's close and the fill is still bar K+1's open
+        (see _finalize_entry → next-bar-open queue). NOT a look-ahead relaxation.
         """
-        if bar.timestamp == setup.setup_confirm_ts:
+        if self._intraday_cfg.strict_after and bar.timestamp == setup.setup_confirm_ts:
             self._emit_gate(
                 JournalEvent.GATE_SIGNAL_STRICT_AFTER_FAIL, bar.timestamp,
                 leg_name=leg.leg_name, setup=setup,
@@ -202,11 +206,12 @@ class FibV2IntradayA(FibV2IntradayBase):
         *,
         symbol: str = "XAUUSD.ecn",
         intraday_config: Optional[FibV2IntradayConfig] = None,
+        strict_after: bool = True,
         qty: Optional[float] = None,
         cost_usd: Optional[float] = None,
         **_runner_kwargs,  # absorb runner-only kwargs (e.g. ignore_events_before)
     ) -> None:
-        cfg = intraday_config or make_intraday_a_config()
+        cfg = intraday_config or make_intraday_a_config(strict_after=strict_after)
         super().__init__(
             symbol=symbol,
             intraday_config=cfg,
@@ -226,11 +231,12 @@ class FibV2IntradayD(FibV2IntradayBase):
         *,
         symbol: str = "XAUUSD.ecn",
         intraday_config: Optional[FibV2IntradayConfig] = None,
+        strict_after: bool = True,
         qty: Optional[float] = None,
         cost_usd: Optional[float] = None,
         **_runner_kwargs,  # absorb runner-only kwargs (e.g. ignore_events_before)
     ) -> None:
-        cfg = intraday_config or make_intraday_d_config()
+        cfg = intraday_config or make_intraday_d_config(strict_after=strict_after)
         super().__init__(
             symbol=symbol,
             intraday_config=cfg,
