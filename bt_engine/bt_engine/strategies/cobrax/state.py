@@ -65,6 +65,7 @@ class CobraxState(StrategyState):
     win_l: deque = field(default_factory=lambda: deque())
     win_c: deque = field(default_factory=lambda: deque())
     win_idx: deque = field(default_factory=lambda: deque())  # absolute idx per window bar
+    win_bias: deque = field(default_factory=lambda: deque())  # HTF bias at each bar's close
 
     armed: list[ArmedSetup] = field(default_factory=list)
     armed_keys: set = field(default_factory=set)
@@ -86,8 +87,8 @@ class CobraxState(StrategyState):
 
     # ----- window maintenance -----
 
-    def push_bar(self, bar, *, maxlen: int) -> int:
-        """Append a closed bar; trim the window to maxlen. Returns its absolute idx."""
+    def push_bar(self, bar, *, bias: int, maxlen: int) -> int:
+        """Append a closed bar + its HTF bias; trim to maxlen. Returns absolute idx."""
         idx = self.bars_seen
         self.win_ts.append(pd.Timestamp(bar.timestamp))
         self.win_o.append(float(bar.open))
@@ -95,8 +96,10 @@ class CobraxState(StrategyState):
         self.win_l.append(float(bar.low))
         self.win_c.append(float(bar.close))
         self.win_idx.append(idx)
+        self.win_bias.append(int(bias))
         self.bars_seen += 1
         while len(self.win_idx) > maxlen:
-            for d in (self.win_ts, self.win_o, self.win_h, self.win_l, self.win_c, self.win_idx):
+            for d in (self.win_ts, self.win_o, self.win_h, self.win_l,
+                      self.win_c, self.win_idx, self.win_bias):
                 d.popleft()
         return idx

@@ -95,111 +95,147 @@ class SetupCandidate:
     fvg_i: int           # local index of the FVG bar
 
 
-def detect_setup_at(
+def _detect_setup_side(
     o: np.ndarray, h: np.ndarray, l: np.ndarray, c: np.ndarray,
-    cp: "ConfirmedPivots", i: int, bias: int, cfg,
+    cp: "ConfirmedPivots", i: int, bias: int, cfg, iside: int,
 ) -> Optional[SetupCandidate]:
-    """Port of research cobrax.py::run inner loop (lines 99-168) for ONE signal bar i,
-    up to and INCLUDING the FVG∩OTE confirmation — but NOT the forward retrace fill
-    (the streaming strategy arms this and fills on a later touch).
-
-    `cp` = confirmed_pivots(h, l, cfg.mss_lb) over the SAME arrays. `bias` = HTF bias
-    at bar i (-1/0/+1). Returns the most-recent valid setup for either side (short
-    checked first, matching research's ((-1,1)) side order), or None.
-
-    Faithful to research: sweep of the most-recent swept swing (reject close required),
-    reversal MSS = first close through the most-recent opposite swing level after the
-    sweep, FVG = first gap after the MSS within fvg_wait, OTE band on the entry level.
-    """
+    """Research run() inner logic (cobrax.py:99-168) for ONE signal bar i + ONE side,
+    up to FVG∩OTE (retrace fill handled separately). Faithful line-for-line."""
     n = len(h)
     shi_ci, shi_px = cp.hi_confirm_idx, cp.hi_price
     slo_ci, slo_px = cp.lo_confirm_idx, cp.lo_price
     sweep_lb = cfg.sweep_lb
     mss_lb = cfg.mss_lb
-    fvg_min = cfg.fvg_min
-    fvg_wait = cfg.fvg_wait
-    ote_lo, ote_hi = cfg.ote_lo, cfg.ote_hi
-
     w0 = max(0, i - sweep_lb)
+
+    if iside < 0:  # short: sweep a HIGH, MSS breaks a LOW
+        a = int(np.searchsorted(shi_ci, w0 - mss_lb, "left"))
+        b = int(np.searchsorted(shi_ci, i, "left"))
+        if b <= a:
+            return None
+        sw_level = sw_ext = sw_k = None
+        for si in range(b - 1, a - 1, -1):
+            ci = int(shi_ci[si]); lvl = float(shi_px[si]); s = max(ci, w0)
+            hh = h[s:i + 1]
+            if len(hh) == 0:
+                continue
+            if hh.max() > lvl:
+                k = s + int(np.argmax(hh > lvl))
+                if cfg.sweep_reject and not (c[k] < lvl):
+                    continue
+                sw_level = lvl; sw_ext = float(hh.max()); sw_k = k; break
+        if sw_level is None:
+            return None
+        lb_ = int(np.searchsorted(slo_ci, i, "left"))
+        if lb_ <= 0:
+            return None
+        mss_lvl = float(slo_px[lb_ - 1]); mss_bar = -1
+        for k in range(sw_k + 1, i + 1):
+            if c[k] < mss_lvl:
+                mss_bar = k; break
+        if mss_bar < 0:
+            return None
+    else:  # long: sweep a LOW, MSS breaks a HIGH
+        a = int(np.searchsorted(slo_ci, w0 - mss_lb, "left"))
+        b = int(np.searchsorted(slo_ci, i, "left"))
+        if b <= a:
+            return None
+        sw_level = sw_ext = sw_k = None
+        for si in range(b - 1, a - 1, -1):
+            ci = int(slo_ci[si]); lvl = float(slo_px[si]); s = max(ci, w0)
+            ll = l[s:i + 1]
+            if len(ll) == 0:
+                continue
+            if ll.min() < lvl:
+                k = s + int(np.argmax(ll < lvl))
+                if cfg.sweep_reject and not (c[k] > lvl):
+                    continue
+                sw_level = lvl; sw_ext = float(ll.min()); sw_k = k; break
+        if sw_level is None:
+            return None
+        hb = int(np.searchsorted(shi_ci, i, "left"))
+        if hb <= 0:
+            return None
+        mss_lvl = float(shi_px[hb - 1]); mss_bar = -1
+        for k in range(sw_k + 1, i + 1):
+            if c[k] > mss_lvl:
+                mss_bar = k; break
+        if mss_bar < 0:
+            return None
+
+    if cfg.bias_align and bias != iside:
+        return None
+
+    fvg = None
+    for k in range(max(mss_bar, 2), min(mss_bar + cfg.fvg_wait, n)):
+        f = detect_fvg(h, l, k, iside, cfg.fvg_min)
+        if f is not None:
+            fvg = f; break
+    if fvg is None:
+        return None
+    elvl = fvg["ce"] if cfg.entry == "ce" else fvg["prox"]
+
+    rr = ote_ratio(iside, sw_ext, sw_k, fvg["k"], elvl, h, l)
+    if rr is None or not (cfg.ote_lo <= rr <= cfg.ote_hi):
+        return None
+
+    stop = sw_ext if cfg.sl == "sweep" else fvg["far"]
+    return SetupCandidate(
+        side=iside, entry_level=float(elvl), stop=float(stop), sweep_ext=float(sw_ext),
+        sweep_i=int(sw_k), mss_i=int(mss_bar), fvg_i=int(fvg["k"]),
+    )
+
+
+def detect_setup_at(
+    o: np.ndarray, h: np.ndarray, l: np.ndarray, c: np.ndarray,
+    cp: "ConfirmedPivots", i: int, bias: int, cfg,
+) -> Optional[SetupCandidate]:
+    """Most-recent setup at signal bar i, short side first (research side order)."""
     sides = (-1, 1) if cfg.direction == "both" else ((-1,) if cfg.direction == "short" else (1,))
     for iside in sides:
-        if iside < 0:  # short: sweep a HIGH, MSS breaks a LOW
-            a = int(np.searchsorted(shi_ci, w0 - mss_lb, "left"))
-            b = int(np.searchsorted(shi_ci, i, "left"))
-            if b <= a:
-                continue
-            sw_level = sw_ext = sw_k = None
-            for si in range(b - 1, a - 1, -1):
-                ci = int(shi_ci[si]); lvl = float(shi_px[si]); s = max(ci, w0)
-                hh = h[s:i + 1]
-                if len(hh) == 0:
-                    continue
-                if hh.max() > lvl:
-                    k = s + int(np.argmax(hh > lvl))
-                    if cfg.sweep_reject and not (c[k] < lvl):
-                        continue
-                    sw_level = lvl; sw_ext = float(hh.max()); sw_k = k; break
-            if sw_level is None:
-                continue
-            lb_ = int(np.searchsorted(slo_ci, i, "left"))
-            if lb_ <= 0:
-                continue
-            mss_lvl = float(slo_px[lb_ - 1]); mss_bar = -1
-            for k in range(sw_k + 1, i + 1):
-                if c[k] < mss_lvl:
-                    mss_bar = k; break
-            if mss_bar < 0:
-                continue
-        else:  # long: sweep a LOW, MSS breaks a HIGH
-            a = int(np.searchsorted(slo_ci, w0 - mss_lb, "left"))
-            b = int(np.searchsorted(slo_ci, i, "left"))
-            if b <= a:
-                continue
-            sw_level = sw_ext = sw_k = None
-            for si in range(b - 1, a - 1, -1):
-                ci = int(slo_ci[si]); lvl = float(slo_px[si]); s = max(ci, w0)
-                ll = l[s:i + 1]
-                if len(ll) == 0:
-                    continue
-                if ll.min() < lvl:
-                    k = s + int(np.argmax(ll < lvl))
-                    if cfg.sweep_reject and not (c[k] > lvl):
-                        continue
-                    sw_level = lvl; sw_ext = float(ll.min()); sw_k = k; break
-            if sw_level is None:
-                continue
-            hb = int(np.searchsorted(shi_ci, i, "left"))
-            if hb <= 0:
-                continue
-            mss_lvl = float(shi_px[hb - 1]); mss_bar = -1
-            for k in range(sw_k + 1, i + 1):
-                if c[k] > mss_lvl:
-                    mss_bar = k; break
-            if mss_bar < 0:
-                continue
-
-        if cfg.bias_align and bias != iside:
-            continue
-
-        fvg = None
-        for k in range(max(mss_bar, 2), min(mss_bar + fvg_wait, n)):
-            f = detect_fvg(h, l, k, iside, fvg_min)
-            if f is not None:
-                fvg = f; break
-        if fvg is None:
-            continue
-        elvl = fvg["ce"] if cfg.entry == "ce" else fvg["prox"]
-
-        rr = ote_ratio(iside, sw_ext, sw_k, fvg["k"], elvl, h, l)
-        if rr is None or not (ote_lo <= rr <= ote_hi):
-            continue
-
-        stop = sw_ext if cfg.sl == "sweep" else fvg["far"]
-        return SetupCandidate(
-            side=iside, entry_level=float(elvl), stop=float(stop), sweep_ext=float(sw_ext),
-            sweep_i=int(sw_k), mss_i=int(mss_bar), fvg_i=int(fvg["k"]),
-        )
+        s = _detect_setup_side(o, h, l, c, cp, i, bias, cfg, iside)
+        if s is not None:
+            return s
     return None
+
+
+def _retrace_fill(h: np.ndarray, l: np.ndarray, setup: "SetupCandidate", cfg, n: int) -> int:
+    """First retrace touch of the entry level after the FVG bar (cobrax.py:170-174).
+    Returns the local fill index, or -1 if untouched within retrace_wait."""
+    elvl = setup.entry_level
+    for k in range(setup.fvg_i + 1, min(setup.fvg_i + 1 + cfg.retrace_wait, n)):
+        if setup.side < 0 and h[k] >= elvl:
+            return k
+        if setup.side > 0 and l[k] <= elvl:
+            return k
+    return -1
+
+
+def fills_at_bar(
+    o: np.ndarray, h: np.ndarray, l: np.ndarray, c: np.ndarray,
+    cp: "ConfirmedPivots", bias_arr: np.ndarray, cfg, m: int, lookback: int = 120,
+) -> list["SetupCandidate"]:
+    """All trades whose retrace fill lands EXACTLY on local bar m — one per side, using
+    the SMALLEST signal bar i that produces it (== research's greedy `used=set((fi,side))`
+    dedup, since all candidate i for fill m lie within [m - (fvg_wait+retrace_wait), m]).
+
+    This reproduces research's outer-loop enumeration causally: at bar m (just closed)
+    we know h[m]/l[m], so a fill touching on m is detectable now with NO forward peek.
+    Returns SetupCandidate(s) (side/entry/stop/geometry) to fill at bar m.
+    """
+    out: list[SetupCandidate] = []
+    sides = (-1, 1) if cfg.direction == "both" else ((-1,) if cfg.direction == "short" else (1,))
+    lo = max(cfg.mss_lb + 2, m - lookback)
+    for iside in sides:
+        for i in range(lo, m + 1):  # ascending → first (smallest i) wins, like research
+            setup = _detect_setup_side(o, h, l, c, cp, i, int(bias_arr[i]), cfg, iside)
+            if setup is None:
+                continue
+            fi = _retrace_fill(h, l, setup, cfg, len(h))
+            if fi == m:
+                out.append(setup)
+                break  # smallest-i winner for this side
+    return out
 
 
 def ote_ratio(

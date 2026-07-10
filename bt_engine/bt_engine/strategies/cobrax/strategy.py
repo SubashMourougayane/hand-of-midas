@@ -1,18 +1,20 @@
 """CobraxStrategy — streaming causal port of research/cobrax/cobrax.py.
 
-Per closed M5 bar (on_bar):
-  1. push the bar to the rolling window; update the HTF-bias tracker.
-  2. run detect_setup_at (research sweep→MSS→FVG∩OTE inner logic) for THIS bar as the
-     signal → ARM the setup (limit at the FVG edge, SL past the swept extreme, expiry
-     `retrace_wait` bars out).
-  3. for each armed setup, if THIS bar retraced into the limit (strictly after the FVG
-     bar, before expiry), emit an Order filled AT the limit on this bar. Dedup fills by
-     (fill_idx, side) — mirrors research `used=set((fi, iside))`.
+Faithful reproduction of research's VECTORIZED re-scan enumeration, causally:
 
-Causal contract: sweep/MSS/FVG/OTE/bias all read CLOSED bars strictly before the fill
-bar; the limit price is known at the FVG bar; the bracket walks from the NEXT bar (the
-engine appends the trade after this bar's bracket step) — a deterministic 1-bar
-conservatism vs research (never manufactures edge). Phase-2 parity measures the delta.
+  Per closed M5 bar (on_bar):
+    1. update the HTF-bias tracker; push the bar + its bias to a rolling window.
+    2. call fills_at_bar(m=newest) — enumerate signal bars i over the window (research's
+       outer loop), reproduce the sweep→MSS→FVG∩OTE→retrace-fill chain, and return the
+       trade(s) whose FIRST retrace touch lands EXACTLY on this bar, using the smallest
+       signal i (== research's greedy `used=set((fi,side))` dedup). All candidate i for a
+       fill at m lie within [m-(fvg_wait+retrace_wait), m], so a bounded window is exact.
+    3. emit an Order for each — filled AT the FVG-edge limit on this bar (CobraxLimitExecution).
+
+Causal contract: the fill touch is read from the JUST-CLOSED bar (h[m]/l[m]) — no forward
+peek; sweep/MSS/FVG/OTE/bias are all strictly ≤ the fill bar. The engine appends the trade
+AFTER this bar's bracket step, so the bracket walks from the NEXT bar — a deterministic
+1-bar offset vs research measured in Phase-2 parity (never manufactures edge).
 """
 from __future__ import annotations
 
@@ -26,9 +28,9 @@ from ...core.bar import Bar
 from ...core.order import Order
 from ...core.signal import StepResult
 from .config import COBRAX_LONG_LEG, COBRAX_SHORT_LEG, CobraxConfig, make_cobrax_config
-from .detectors import confirmed_pivots, detect_setup_at
+from .detectors import SetupCandidate, confirmed_pivots, fills_at_bar
 from .htf_bias import HtfBiasTracker
-from .state import ArmedSetup, CobraxState
+from .state import CobraxState
 
 
 class CobraxStrategy:
@@ -43,11 +45,12 @@ class CobraxStrategy:
     ) -> None:
         self.symbol = symbol
         self.config = config or make_cobrax_config()
-        # window must hold enough history to detect a setup at the newest bar:
-        # sweep look-back + FVG scan + margin (the retrace fill checks the live bar
-        # directly, so future fill bars need not be buffered).
+        # signal-bar lookback for fills_at_bar: every candidate i for a fill at m lies in
+        # [m-(fvg_wait+retrace_wait), m]; a small margin covers the MSS/sweep chain.
+        self.lookback = self.config.fvg_wait + self.config.retrace_wait + 5
+        # window must also hold each signal i's own sweep look-back + pivot confirmation.
         self.window = (
-            self.config.sweep_lb + self.config.fvg_wait + 4 * self.config.mss_lb + 40
+            self.config.sweep_lb + self.lookback + 4 * self.config.mss_lb + 40
         )
 
     # ----- lifecycle -----
@@ -68,91 +71,53 @@ class CobraxStrategy:
 
     def on_bar(self, state: CobraxState, bar: Bar, history: pd.DataFrame) -> StepResult:
         cfg = state.cfg
-        cur_abs = state.push_bar(bar, maxlen=self.window)
         state.bias.update(bar)
         bias = state.bias.bias()
+        state.push_bar(bar, bias=bias, maxlen=self.window)
 
-        m = len(state.win_idx) - 1  # local index of the current (newest) bar
-        if m < 2 * cfg.mss_lb + 2:
+        m = len(state.win_idx) - 1
+        if m < cfg.sweep_lb + 2 * cfg.mss_lb + 2:
             return StepResult(state)
 
         o = np.fromiter(state.win_o, dtype=float)
         h = np.fromiter(state.win_h, dtype=float)
         l = np.fromiter(state.win_l, dtype=float)
         c = np.fromiter(state.win_c, dtype=float)
-        win_idx = list(state.win_idx)
+        bias_arr = np.fromiter(state.win_bias, dtype=int)
         win_ts = list(state.win_ts)
 
-        # 1) detect + arm a setup confirmed at this bar
         cp = confirmed_pivots(h, l, cfg.mss_lb)
-        setup = detect_setup_at(o, h, l, c, cp, m, bias, cfg)
-        if setup is not None:
-            armed = ArmedSetup(
-                side=setup.side,
-                entry_level=setup.entry_level,
-                stop=setup.stop,
-                sweep_ext=setup.sweep_ext,
-                fvg_abs_idx=win_idx[setup.fvg_i],
-                expiry_abs_idx=win_idx[setup.fvg_i] + cfg.retrace_wait,
-                setup_ts=win_ts[setup.mss_i],
-                sweep_ts=win_ts[setup.sweep_i],
-                fvg_ts=win_ts[setup.fvg_i],
-            )
-            if armed.key() not in state.armed_keys:
-                state.armed.append(armed)
-                state.armed_keys.add(armed.key())
+        setups = fills_at_bar(o, h, l, c, cp, bias_arr, cfg, m, lookback=self.lookback)
 
-        # 2) fill any armed setup retraced into on THIS bar (strictly after its FVG bar)
         orders: list[Order] = []
-        survivors: list[ArmedSetup] = []
-        for a in state.armed:
-            if cur_abs > a.expiry_abs_idx:
-                continue  # retrace window elapsed → drop
-            if cur_abs <= a.fvg_abs_idx:
-                survivors.append(a)
-                continue  # fill must be strictly after the FVG bar
-            touched = (
-                (a.side < 0 and bar.high >= a.entry_level)
-                or (a.side > 0 and bar.low <= a.entry_level)
-            )
-            if not touched:
-                survivors.append(a)
-                continue
-            fkey = (cur_abs, a.side)
-            if fkey in state.consumed_fill_keys:
-                continue  # one fill per (bar, side)
-            order = self._build_order(a, bar)
+        for s in setups:
+            order = self._build_order(s, bar, win_ts)
             if order is not None:
-                state.consumed_fill_keys.add(fkey)
                 orders.append(order)
-            # filled (or rejected by a gate) → do not carry forward
-
-        state.armed = survivors
-        state.armed_keys = {a.key() for a in survivors}
         return StepResult(state, tuple(orders))
 
     # ----- order construction -----
 
-    def _build_order(self, a: ArmedSetup, bar: Bar) -> Optional[Order]:
+    def _build_order(self, s: SetupCandidate, bar: Bar, win_ts: list) -> Optional[Order]:
         cfg = self.config
-        entry = float(a.entry_level)
-        R = abs(entry - a.stop)
+        entry = float(s.entry_level)
+        R = abs(entry - s.stop)
         if R < cfg.min_risk_units:
             return None
-        if R > cfg.max_risk_pct * entry:  # untradeably-wide stop
+        if R > cfg.max_risk_pct * entry:
             return None
         if cfg.tp_mode == "rr":
-            tp = entry - cfg.tp_r * R if a.side < 0 else entry + cfg.tp_r * R
-        else:  # next-liquidity target not yet ported — headline deploy uses rr
+            tp = entry - cfg.tp_r * R if s.side < 0 else entry + cfg.tp_r * R
+        else:
             raise NotImplementedError("tp_mode='nl' not yet ported; use tp_mode='rr'")
-        leg = COBRAX_SHORT_LEG if a.side < 0 else COBRAX_LONG_LEG
+        leg = COBRAX_SHORT_LEG if s.side < 0 else COBRAX_LONG_LEG
         cost_r = float(cfg.cost_usd) / R if R > 0 else 0.0
         return Order(
             symbol=self.symbol,
-            side=a.side,
+            side=s.side,
             qty=1.0,  # placeholder; live equity sizer overrides
             intended_entry_bar=pd.Timestamp(bar.timestamp),
-            stop_price=float(a.stop),
+            stop_price=float(s.stop),
             take_profit=float(tp),
             risk_units=float(R),
             tag=f"{leg.leg_name}_{pd.Timestamp(bar.timestamp).isoformat()}",
@@ -161,11 +126,12 @@ class CobraxStrategy:
             extra={
                 "limit_price": entry,
                 "max_hold_bars": int(cfg.max_hold_bars),
+                "bracket_wick": True,  # COBRAX SL/TP are hard levels (research + live server-side)
                 "cost_r": cost_r,
                 "leg": leg.leg_name,
                 "direction": leg.direction,
-                "sweep_ts": str(a.sweep_ts),
-                "setup_ts": str(a.setup_ts),
-                "fvg_ts": str(a.fvg_ts),
+                "sweep_ts": str(win_ts[s.sweep_i]),
+                "setup_ts": str(win_ts[s.mss_i]),
+                "fvg_ts": str(win_ts[s.fvg_i]),
             },
         )

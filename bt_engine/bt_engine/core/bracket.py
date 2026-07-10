@@ -137,13 +137,19 @@ def walk_bracket_on_bar(
     swap_r = float(getattr(trade, "accrued_swap_r", 0.0))  # negative = cost
     stop_is_be = trade.partial_taken and trade.stop_price == trade.entry_price
 
-    # stop hit (close-based, baseline semantics)
-    hit_stop = (side > 0 and close <= trade.stop_price) or (side < 0 and close >= trade.stop_price)
+    # Exit detection. Default = CLOSE-based (baseline, A+D). Opt-in WICK mode
+    # (order.extra["bracket_wick"]) hits SL/TP on the bar's intrabar high/low —
+    # matching a hard server-side SL/TP (MT5 executes intrabar) and the COBRAX
+    # research engine (bracket="wick"). A+D never set the flag → unchanged.
+    wick = bool(trade_extra.get("bracket_wick"))
+    lo_px = bar.low if wick else close
+    hi_px = bar.high if wick else close
+    hit_stop = (side > 0 and lo_px <= trade.stop_price) or (side < 0 and hi_px >= trade.stop_price)
     hit_tp = (
         trade.take_profit is not None
         and (
-            (side > 0 and close >= trade.take_profit)
-            or (side < 0 and close <= trade.take_profit)
+            (side > 0 and hi_px >= trade.take_profit)
+            or (side < 0 and lo_px <= trade.take_profit)
         )
     )
 

@@ -67,7 +67,7 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
         entry="edge", sl="sweep", tp_mode="rr", tp_r=2.0, direction="both",
         sweep_lb=60, fvg_wait=40, retrace_wait=40, max_hold=120,
         cost=0.0, bias_align=False, htf_tf=15, collect_mfe=False, fill_delay=0,
-        mode="reversal", ote=None, bracket="wick"):
+        mode="reversal", ote=None, bracket="wick", bias_at_fill=False):
     ex = resample(df, exec_tf)
     o,h,l,c = (ex[x].values for x in ("open","high","low","close"))
     tsp = pd.DatetimeIndex(ex["timestamp"])
@@ -143,7 +143,10 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
                         if c[k] > mss_lvl: mss_bar=k; break
                     if mss_bar<0: continue
 
-            if bias_align and bias_at(tsp[i].value) != iside: continue
+            # bias_at_fill=True: CAUSAL bias — checked at the FILL bar (below, after fi).
+            # Default (legacy) checks at the OUTER signal i, which can land AFTER the fill
+            # (outer_i > fill_i) → a look-ahead. Kept only for reproducing old numbers.
+            if bias_align and not bias_at_fill and bias_at(tsp[i].value) != iside: continue
 
             fvg=None
             for k in range(max(mss_bar,2), min(mss_bar+fvg_wait, n)):
@@ -172,6 +175,7 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
                 if iside<0 and h[k] >= elvl: fi=k; break
                 if iside>0 and l[k] <= elvl: fi=k; break
             if fi<0: continue
+            if bias_align and bias_at_fill and bias_at(tsp[fi].value) != iside: continue
             if fill_delay:
                 fi += fill_delay
                 if fi >= n-1: continue
@@ -212,7 +216,7 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
                 cx=c[min(fi+max_hold,n-1)]; out=((entry_px-cx) if iside<0 else (cx-entry_px))/R
             rec={"net_r":out-cost/max(R,1e-9),"side":iside,"fill_ts":tsp[fi],"exit_ts":tsp[exit_k],
                  "R_price":R,"entry_px":entry_px,"stop":stop,"tp":tp,"eff_r":eff_r,
-                 "sig_ts":tsp[mss_bar],"sweep_ts":tsp[sw_k],
+                 "sig_ts":tsp[mss_bar],"sweep_ts":tsp[sw_k],"outer_i":i,"fill_i":fi,
                  "fvg_ts":tsp[fvg["k"]]}
             if collect_mfe: rec["mfe"]=mfe; rec["mae"]=mae
             trades.append(rec)
