@@ -67,7 +67,7 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
         entry="edge", sl="sweep", tp_mode="rr", tp_r=2.0, direction="both",
         sweep_lb=60, fvg_wait=40, retrace_wait=40, max_hold=120,
         cost=0.0, bias_align=False, htf_tf=15, collect_mfe=False, fill_delay=0,
-        mode="reversal", ote=None):
+        mode="reversal", ote=None, bracket="wick"):
     ex = resample(df, exec_tf)
     o,h,l,c = (ex[x].values for x in ("open","high","low","close"))
     tsp = pd.DatetimeIndex(ex["timestamp"])
@@ -195,18 +195,24 @@ def run(df, *, session="am", exec_tf=3, mss_lb=3, fvg_min=0.0, sweep_reject=True
             eff_r = abs(tp-entry_px)/R
             out=None; mfe=0.0; mae=0.0; exit_k=min(fi+max_hold,n-1)
             for k in range(fi, min(fi+max_hold, n-1)):
+                # bracket="wick": hard SL/TP hit on intrabar high/low (server-side realism).
+                # bracket="close": SL/TP hit only when the bar CLOSE crosses (matches the
+                # bt_engine walk_bracket_on_bar close-based walker — used for parity).
+                hi_cmp = c[k] if bracket=="close" else h[k]
+                lo_cmp = c[k] if bracket=="close" else l[k]
                 if iside<0:
                     mfe=max(mfe,(entry_px-l[k])/R); mae=min(mae,-(h[k]-entry_px)/R)
-                    if h[k]>=stop: out=-1.0; exit_k=k; break
-                    if l[k]<=tp:   out=eff_r; exit_k=k; break
+                    if hi_cmp>=stop: out=-1.0; exit_k=k; break
+                    if lo_cmp<=tp:   out=eff_r; exit_k=k; break
                 else:
                     mfe=max(mfe,(h[k]-entry_px)/R); mae=min(mae,-(entry_px-l[k])/R)
-                    if l[k]<=stop: out=-1.0; exit_k=k; break
-                    if h[k]>=tp:   out=eff_r; exit_k=k; break
+                    if lo_cmp<=stop: out=-1.0; exit_k=k; break
+                    if hi_cmp>=tp:   out=eff_r; exit_k=k; break
             if out is None:
                 cx=c[min(fi+max_hold,n-1)]; out=((entry_px-cx) if iside<0 else (cx-entry_px))/R
             rec={"net_r":out-cost/max(R,1e-9),"side":iside,"fill_ts":tsp[fi],"exit_ts":tsp[exit_k],
-                 "R_price":R,"entry_px":entry_px,"sig_ts":tsp[mss_bar],"sweep_ts":tsp[sw_k],
+                 "R_price":R,"entry_px":entry_px,"stop":stop,"tp":tp,"eff_r":eff_r,
+                 "sig_ts":tsp[mss_bar],"sweep_ts":tsp[sw_k],
                  "fvg_ts":tsp[fvg["k"]]}
             if collect_mfe: rec["mfe"]=mfe; rec["mae"]=mae
             trades.append(rec)
