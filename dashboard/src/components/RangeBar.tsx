@@ -37,6 +37,11 @@ export function RangeBar({
   const oneR = side === 1 ? entry + risk : entry - risk;
   const oneRPct = clamp(pct(oneR));
   const entryPctC = clamp(entryPct);
+  // Break-even (stop trailed to entry): risk ≈ 0 collapses stop, entry AND +1R
+  // onto the same point → labels overlap. Suppress the redundant entry/+1R labels
+  // and markers; the SL label already shows that price (it IS the break-even).
+  const beLike =
+    risk === 0 || risk / Math.max(Math.abs(tp - entry), 1e-9) < 0.01;
 
   const stopColor = "bg-bear";
   const tpColor = "bg-bull";
@@ -57,20 +62,24 @@ export function RangeBar({
         // near the SL for a tight-stop short, +1R between entry and TP), not
         // spread to fixed thirds.
         <div className="relative h-3.5 mb-1 text-ds-xs font-mono text-ink-muted">
-          <span className="absolute left-0">{stop.toFixed(2)}</span>
-          <span
-            className="absolute text-ink-secondary whitespace-nowrap"
-            style={{ left: `${entryPctC}%`, transform: "translateX(-50%)" }}
-          >
-            {entry.toFixed(2)}
-          </span>
-          <span
-            className="absolute text-warn whitespace-nowrap"
-            style={{ left: `${oneRPct}%`, transform: "translateX(-50%)" }}
-            title="+1R — partial-TP books here, stop moves to breakeven"
-          >
-            {oneR.toFixed(2)}
-          </span>
+          <span className="absolute left-0">{stop.toFixed(2)}{beLike ? " · BE" : ""}</span>
+          {!beLike && (
+            <span
+              className="absolute text-ink-secondary whitespace-nowrap"
+              style={{ left: `${entryPctC}%`, transform: "translateX(-50%)" }}
+            >
+              {entry.toFixed(2)}
+            </span>
+          )}
+          {!beLike && (
+            <span
+              className="absolute text-warn whitespace-nowrap"
+              style={{ left: `${oneRPct}%`, transform: "translateX(-50%)" }}
+              title="+1R — partial-TP books here, stop moves to breakeven"
+            >
+              {oneR.toFixed(2)}
+            </span>
+          )}
           <span className="absolute right-0">{tp.toFixed(2)}</span>
         </div>
       )}
@@ -97,19 +106,23 @@ export function RangeBar({
           className={`absolute top-[-2px] bottom-[-2px] w-[2px] ${entryColor} z-10`}
           style={{ left: `calc(${entryPct}% - 1px)` }}
         />
-        {/* +1R marker (partial-TP / breakeven trigger) */}
-        <div
-          className="absolute top-[-2px] bottom-[-2px] w-[2px] bg-warn z-10"
-          style={{ left: `calc(${oneRPct}% - 1px)` }}
-        />
-        {/* +1R zone (entry ↔ +1R) — subtle amber to show the partial band */}
-        <div
-          className="absolute top-0 h-full bg-warn/20"
-          style={{
-            left: `${Math.min(entryPctC, oneRPct)}%`,
-            width: `${Math.abs(oneRPct - entryPctC)}%`,
-          }}
-        />
+        {/* +1R marker + zone (partial-TP / breakeven trigger) — hidden at BE
+            where +1R collapses onto entry. */}
+        {!beLike && (
+          <>
+            <div
+              className="absolute top-[-2px] bottom-[-2px] w-[2px] bg-warn z-10"
+              style={{ left: `calc(${oneRPct}% - 1px)` }}
+            />
+            <div
+              className="absolute top-0 h-full bg-warn/20"
+              style={{
+                left: `${Math.min(entryPctC, oneRPct)}%`,
+                width: `${Math.abs(oneRPct - entryPctC)}%`,
+              }}
+            />
+          </>
+        )}
         {/* stop marker */}
         <div
           className={`absolute top-[-1px] bottom-[-1px] w-[2px] ${stopColor}`}
