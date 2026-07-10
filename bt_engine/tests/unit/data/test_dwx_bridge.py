@@ -105,3 +105,31 @@ def test_send_command_writes_file_no_wait(tmp_path: Path) -> None:
     cmds = list((tmp_path / "commands").glob("*.txt"))
     assert len(cmds) == 1
     assert cmds[0].read_text() == "CLOSE_ALL|"
+
+
+# ----- INT32 ticket-overflow recovery (orphan bug 2026-07-10, ticket 2147543035) -----
+
+def test_normalize_ticket_recovers_int32_wrap() -> None:
+    from bt_engine.data.dwx_bridge import normalize_ticket
+    assert normalize_ticket(-2147424261) == "2147543035"  # the real orphaned ticket
+    assert normalize_ticket(2147543035) == "2147543035"    # idempotent for positive
+    assert normalize_ticket(2146419695) == "2146419695"    # below INT32_MAX unchanged
+    assert normalize_ticket("2145416103") == "2145416103"  # string form
+    assert normalize_ticket("BUY") == "BUY"                 # non-numeric passthrough
+    assert normalize_ticket(None) is None
+
+
+def test_open_orders_normalizes_wrapped_ticket_keys(tmp_path: Path) -> None:
+    bridge = DwxBridge(dwx_dir=tmp_path)
+    _write(tmp_path / "open_orders.json",
+           {"-2147424261": {"symbol": "XAUUSD.ecn", "type": "SELL", "volume": 0.35}})
+    oo = bridge.open_orders()
+    assert list(oo.keys()) == ["2147543035"]
+
+
+def test_closed_and_last_response_normalize_ticket(tmp_path: Path) -> None:
+    bridge = DwxBridge(dwx_dir=tmp_path)
+    _write(tmp_path / "closed_orders.json", [{"ticket": -2147424261, "profit": 358.0}])
+    _write(tmp_path / "last_response.json", {"success": True, "ticket": -2147424261})
+    assert bridge.closed_orders()[0]["ticket"] == "2147543035"
+    assert bridge.last_response()["ticket"] == "2147543035"

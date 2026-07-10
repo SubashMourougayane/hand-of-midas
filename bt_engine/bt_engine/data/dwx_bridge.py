@@ -42,6 +42,27 @@ def _default_dwx_dir() -> Path:
 DEFAULT_DWX_DIR = _default_dwx_dir()
 
 
+def normalize_ticket(value: Any) -> Any:
+    """Recover a true (unsigned) MT5 ticket from the DWX EA's signed-int32 wrap.
+
+    MT5 position/deal tickets are ulong (64-bit). The DWX EA serializes them as a
+    signed 32-bit int, so any ticket > INT32_MAX (2,147,483,647) is written NEGATIVE
+    (e.g. ulong 2,147,543,035 -> -2,147,424,261). Left unfixed, the engine can't match
+    the wrapped ticket against the real one -> the position orphans (no DB row, unmanaged,
+    invisible to dashboard/Telegram). Observed 2026-07-10 ticket 2147543035.
+
+    Recovery: negative int32 + 2^32 == original uint32. Idempotent for positive tickets.
+    Returns a str (broker_ticket is stored as text). Non-numeric input passes through.
+    """
+    try:
+        iv = int(value)
+    except (TypeError, ValueError):
+        return value
+    if iv < 0:
+        iv += 1 << 32
+    return str(iv)
+
+
 @dataclass
 class DwxBridge:
     """Wraps the DWX Common/Files/DWX dir as a simple JSON IPC."""
@@ -106,7 +127,12 @@ class DwxBridge:
         return self.read_json("market_data.json")
 
     def open_orders(self) -> dict[str, Any]:
-        return self.read_json("open_orders.json")
+        raw = self.read_json("open_orders.json")
+        if not isinstance(raw, dict):
+            return raw
+        # Re-key by normalized (unsigned) ticket so downstream matching uses the real
+        # ticket, not the EA's signed-int32 wrap. See normalize_ticket().
+        return {normalize_ticket(k): v for k, v in raw.items()}
 
     def closed_orders(self) -> list[dict[str, Any]]:
         """Recent closed positions written by EA on DEAL_ENTRY_OUT.
@@ -117,6 +143,9 @@ class DwxBridge:
         """
         data = self.read_json("closed_orders.json")
         if isinstance(data, list):
+            for row in data:
+                if isinstance(row, dict) and "ticket" in row:
+                    row["ticket"] = normalize_ticket(row["ticket"])
             return data
         return []
 
@@ -130,7 +159,10 @@ class DwxBridge:
         return self.read_json(f"bars_{safe}_{timeframe}.json")
 
     def last_response(self) -> dict[str, Any]:
-        return self.read_json("last_response.json")
+        resp = self.read_json("last_response.json")
+        if isinstance(resp, dict) and resp.get("ticket") is not None:
+            resp["ticket"] = normalize_ticket(resp["ticket"])
+        return resp
 
     def send_command(self, command: str, *, wait_response: bool = True, timeout_s: float = 5.0) -> dict[str, Any] | None:
         """Write a pipe-separated command to commands/<id>.txt.
