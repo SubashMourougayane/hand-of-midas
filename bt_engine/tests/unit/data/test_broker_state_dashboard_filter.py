@@ -72,3 +72,15 @@ def test_no_ticket_kept(tmp_path):
     mt5 = _mt5_open_tickets(f)
     assert _still_holds(mt5, "") is True     # never-adopted trade, no ticket → keep
     assert _still_holds(mt5, None) is True
+
+
+def test_parse_open_positions_normalizes_int32_wrapped_ticket():
+    """EA emits ticket > INT32_MAX as a negative key; the parser must recover the
+    true unsigned ticket so it matches the DB broker_ticket (else dashboard shows
+    a genuinely-open position as CLOSED). Orphan incident 2026-07-10, 2147543035."""
+    from bt_engine.data.broker_state import parse_open_positions
+    raw = {"-2147424261": {"symbol": "XAUUSD.ecn", "type": "SELL", "volume": 0.35,
+                           "open_price": 4124.30, "sl": 4124.30, "tp": 4050.85}}
+    positions = parse_open_positions(raw)
+    assert len(positions) == 1
+    assert positions[0].ticket == "2147543035"

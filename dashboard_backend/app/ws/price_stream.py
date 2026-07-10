@@ -209,6 +209,10 @@ class PriceStreamer:
         for ticket, v in orders.items():
             if not isinstance(v, dict):
                 continue
+            # Recover true unsigned ticket from EA signed-int32 wrap so the live-P&L
+            # payload keys match the DB broker_ticket the frontend joins on.
+            from bt_engine.data.dwx_bridge import normalize_ticket
+            ticket = str(normalize_ticket(ticket))
             symbol = v.get("symbol")
             vol = _f(v.get("volume"))
             open_price = _f(v.get("open_price"))

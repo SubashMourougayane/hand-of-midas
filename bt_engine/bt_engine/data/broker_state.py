@@ -87,6 +87,10 @@ def parse_open_positions(raw: Any, *, symbol: Optional[str] = None) -> list[Posi
         )
         if not ticket:
             continue
+        # Recover the true unsigned ticket from the EA's signed-int32 wrap so it
+        # matches the (normalized) broker_ticket stored in the DB. See dwx_bridge.
+        from .dwx_bridge import normalize_ticket
+        ticket = str(normalize_ticket(ticket))
         sym = str(rec.get("symbol") or symbol or "")
         if symbol is not None and sym and sym != symbol:
             continue
