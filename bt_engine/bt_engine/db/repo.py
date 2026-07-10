@@ -133,10 +133,19 @@ class TradeRepo:
         from sqlalchemy import select as _select
         if not broker_ticket:
             return None
+        # Prefer the OPEN row (exit_timestamp IS NULL). A ticket can have a
+        # SUPERSEDED sibling (the native-entry row closed when re-adoption wrote a
+        # deterministic uuid5 row) — that stale row must NOT decide partial state,
+        # else its partial_taken=f re-arms a partial the live position already took
+        # (observed 2026-07-10 ticket 2148715261: superseded row's later microsecond
+        # entry_timestamp won a plain entry_timestamp-desc order).
         row = self.s.execute(
             _select(BtTrade.partial_taken, BtTrade.partial_r)
             .where(BtTrade.broker_ticket == str(broker_ticket))
-            .order_by(BtTrade.entry_timestamp.desc())
+            .order_by(
+                BtTrade.exit_timestamp.is_(None).desc(),  # open rows first
+                BtTrade.entry_timestamp.desc(),
+            )
             .limit(1)
         ).first()
         if row is None:

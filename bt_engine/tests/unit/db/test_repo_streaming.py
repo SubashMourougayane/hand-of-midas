@@ -168,6 +168,42 @@ def test_trade_repo_close_omits_partial_when_not_supplied(db_session, run_id) ->
     assert fetched.partial_r is None
 
 
+def test_partial_state_for_ticket_prefers_open_row(db_session, run_id) -> None:
+    """Regression (2148715261): a ticket can have a SUPERSEDED native row
+    (partial_taken=False, LATER microsecond entry_ts) plus the current OPEN adopted
+    row (partial_taken=True). The lookup must return the OPEN row's state, else the
+    stale row re-arms a partial the live position already booked."""
+    from datetime import timedelta
+    RunRepo(db_session).create(
+        run_id=run_id, ref="r-partial-lookup", mode="live",
+        strategy_id="fib_v2_intraday_d", strategy_config={}, symbol="XAUUSD.ecn",
+        timeframe="M15", start_ts=_now(), data_provider="dwx",
+    )
+    repo = TradeRepo(db_session)
+    # OPEN adopted row — earlier entry_ts, partial already taken.
+    open_row = _make_trade(run_id, entry_ts=_now())
+    open_row.broker_ticket = "2148715261"
+    open_row.partial_taken = True
+    open_row.partial_r = 0.5
+    repo.upsert_open(open_row)
+    # SUPERSEDED native row — LATER microsecond entry_ts, partial not taken, closed.
+    stale = _make_trade(run_id, entry_ts=_now() + timedelta(microseconds=174577))
+    stale.broker_ticket = "2148715261"
+    stale.partial_taken = False
+    stale.partial_r = 0.0
+    stale.exit_timestamp = _now() + timedelta(minutes=22)
+    stale.exit_reason = "SUPERSEDED"
+    repo.upsert_open(stale)
+    db_session.flush()
+
+    res = repo.partial_state_for_ticket("2148715261")
+    assert res is not None
+    taken, pr = res
+    assert taken is True, "must read the OPEN row (partial taken), not the superseded one"
+    assert pr == 0.5
+    assert repo.partial_state_for_ticket("does-not-exist") is None
+
+
 def test_journal_repo_insert(db_session, run_id) -> None:
     RunRepo(db_session).create(
         run_id=run_id, ref="r", mode="bt", strategy_id="sdr001",
