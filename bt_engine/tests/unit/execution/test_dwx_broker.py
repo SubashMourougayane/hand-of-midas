@@ -121,3 +121,35 @@ def test_fills_missing_price_yields_no_malformed_fill() -> None:
     b = DWXBrokerAdapter(bridge)
     b.submit_order(_order())
     assert list(b.fills()) == []
+
+
+@dataclass
+class _RaiseOnSecondBridge:
+    """First send_command succeeds; the next one raises (slow-ack timeout)."""
+    response: dict
+    calls: int = 0
+
+    def send_command(self, command, *, wait_response=True, timeout_s=5.0):
+        self.calls += 1
+        if self.calls >= 2:
+            raise TimeoutError("No response within 5.0s")
+        return self.response
+
+    def open_orders(self):
+        return {}
+
+
+def test_raising_submit_clears_stale_response() -> None:
+    """Orphan cause #2 adapter half (2026-07 ticket 2146419695): a PRIOR order
+    left a stale success response; the NEXT OPEN slow-acks (send_command raises).
+    _last_response MUST be cleared so fills() yields nothing for this order —
+    else it synthesises a bogus fill at the prior order's price."""
+    bridge = _RaiseOnSecondBridge(
+        response={"success": True, "ticket": 111, "price": 9999.0, "volume": 0.01})
+    b = DWXBrokerAdapter(bridge)
+    b.submit_order(_order())                      # 1st: succeeds, primes stale state
+    assert b.last_response().get("price") == 9999.0
+    with pytest.raises(TimeoutError):
+        b.submit_order(_order())                  # 2nd: slow-ack raises
+    assert b.last_response() is None, "stale response must be cleared on a raising submit"
+    assert list(b.fills()) == [], "no fill may be synthesised from a cleared response"

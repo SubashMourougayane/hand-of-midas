@@ -226,9 +226,21 @@ class LiveSafetyBroker:
         intended if slip is large. Rejecting is safer than accepting.
         """
         order = self.last_submitted_order
-        yielded_any = False
+        # Slow-ack recovery is AUTHORITATIVE: the OPEN command errored, the
+        # position is confirmed live at the broker, and the underlying broker's
+        # last_response is stale/empty. Yield the synthesised fill FIRST and skip
+        # both broker.fills() and the slip-check (the position already exists —
+        # slip-checking a stale price would spuriously "reject" it and orphan the
+        # real position; observed 2026-07 ticket 2146419695).
+        if self._recovered_fill is not None:
+            log.warning(
+                "[SLIP-SKIP] yielding recovered slow-ack fill ticket=%s (position "
+                "already open at broker; not slip-checked)", self._recovered_ticket,
+            )
+            yield self._recovered_fill
+            self._recovered_fill = None
+            return
         for fill in self.broker.fills():
-            yielded_any = True
             if order is None:
                 yield fill
                 continue
@@ -264,17 +276,6 @@ class LiveSafetyBroker:
                 fill.price, order.stop_price, actual, expected, ratio,
             )
             yield fill
-        # Slow-ack recovery: underlying broker yielded nothing (its OPEN command
-        # errored) but the position IS live at the broker. Yield the synthesised
-        # fill so the engine creates + persists the trade. Skip slip-reject — the
-        # position already exists; the on_bar reconciler manages it from here.
-        if not yielded_any and self._recovered_fill is not None:
-            log.warning(
-                "[SLIP-SKIP] yielding recovered slow-ack fill ticket=%s (position "
-                "already open at broker; not slip-checked)", self._recovered_ticket,
-            )
-            yield self._recovered_fill
-            self._recovered_fill = None
 
     def positions(self):
         return self.broker.positions()

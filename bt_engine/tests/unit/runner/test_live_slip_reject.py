@@ -212,3 +212,60 @@ def test_open_slow_ack_recovers_ticket_and_fill() -> None:
     assert len(fills) == 1                           # (c) synthesised fill yielded
     assert fills[0].price == 4166.18
     assert fills[0].qty == 0.03
+
+
+@dataclass
+class _StaleAckBroker:
+    """Real-adapter fault reproduction: a PREVIOUS order left a stale success
+    response (price/ticket), and THIS OPEN slow-acks. fills() serves the stale
+    fill and last_response() returns the stale success — exactly what the real
+    DWXBrokerAdapter did before it cleared _last_response on a raising submit.
+    """
+    submitted: list = field(default_factory=list)
+    cancelled: list = field(default_factory=list)
+    # primed with a PRIOR order's response (different price + ticket)
+    _last_response: dict = field(default_factory=lambda: {
+        "success": True, "ticket": "111_PRIOR", "price": 9999.0, "volume": 0.10})
+    _stale_fill: Fill | None = field(default_factory=lambda: Fill(
+        symbol="XAUUSD.ecn", side=1, qty=0.10, price=9999.0,
+        fill_timestamp=pd.Timestamp("2026-07-01 11:00:00", tz="UTC")))
+
+    def set_current_bar(self, bar): pass
+    def submit_order(self, order):
+        self.submitted.append(order)
+        raise RuntimeError("No response within 5.0s")  # slow-ack: does NOT clear stale state
+    def cancel(self, oid): self.cancelled.append(oid)
+    def modify(self, t, *, sl, tp=0.0): pass
+    def close_partial(self, t, q): pass
+    def last_response(self): return self._last_response
+    def fills(self):
+        if self._stale_fill is not None:
+            yield self._stale_fill
+            self._stale_fill = None
+    def positions(self): return []
+
+
+def test_slow_ack_with_stale_prior_response_does_not_orphan() -> None:
+    """Orphan cause #2 (2026-07 ticket 2146419695): a prior order left a stale
+    success/price/ticket AND this OPEN slow-acks. The recovered fill must win —
+    NOT the stale fill — and no bogus cancel of the prior ticket may fire.
+
+    The real fix has two halves; this test drives the WRAPPER half (recovered
+    fill authoritative). The adapter half (clearing _last_response so fills()
+    is empty on a raising submit) is covered in test_dwx_broker."""
+    broker = _StaleAckBroker()
+    bridge = _SlowAckBridge()  # open_orders → recovered ticket 2126588609
+    config = LiveSafetyConfig(require_demo=False, max_entry_slip_ratio=1.15,
+                                kill_switch_path=__import__("pathlib").Path("/tmp/NEVER_EXISTS_KILLSWITCH"))
+    safe = LiveSafetyBroker(broker, bridge, config, sizer=None)
+    order = _order(side=1, entry=4166.18, sl=4119.77, tp=4389.6, qty=0.03,
+                   tag="intraday_a_long_2026-07-03T02:15:00+00:00")
+
+    tk = safe.submit_order(order)
+    assert tk == "2126588609"                       # recovered the REAL ticket
+
+    fills = list(safe.fills())
+    assert len(fills) == 1, "recovered fill must be yielded (position exists)"
+    assert fills[0].price == 4166.18, "must be the RECOVERED price, not stale 9999"
+    assert fills[0].qty == 0.03
+    assert broker.cancelled == [], "must NOT slip-reject / cancel the prior ticket"

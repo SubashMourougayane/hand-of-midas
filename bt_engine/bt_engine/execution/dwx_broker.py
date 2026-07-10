@@ -31,6 +31,14 @@ class DWXBrokerAdapter:
     def submit_order(self, order: Order) -> str:
         """Submit a market OPEN command. Returns the ticket id (str) or raises."""
         self._last_order = order
+        # Clear the prior response FIRST. If send_command below raises (slow-ack
+        # timeout), _last_response must NOT keep the previous order's success/
+        # price/ticket — else fills() would synthesise a bogus fill for THIS order
+        # at the prior order's price, which then slip-rejects on a garbage ratio
+        # and suppresses the genuine slow-ack recovery → the real position orphans
+        # (no DB row, unmanaged; observed 2026-07 ticket 2146419695).
+        self._last_response = None
+        self._last_ticket = None
         side_str = "BUY" if order.side > 0 else "SELL"
         tp = order.take_profit if order.take_profit is not None else 0.0
         # PRICE field is informational only; EA uses live bid/ask
