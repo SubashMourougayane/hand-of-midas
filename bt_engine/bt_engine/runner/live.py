@@ -602,25 +602,31 @@ def run_live(
             oc.bars_held,
             oc.bracket_1r_outcome,
         )
-        # ─── C1 FIX: walker TIMEOUT has NO server-side equivalent. SL/TP are hard
-        # server-side levels (sent on OPEN) so those exits self-close at the broker.
-        # But a TIMEOUT (max-hold cap) is a bot-only decision — without this, the DB
-        # marks the trade closed while the real MT5 position keeps running unmanaged.
-        # Send a REAL close and verify (slow-ack safe). Never route SL/SL_BE/TP here.
-        if oc.reason == "TIMEOUT" and not dry_run and tr.broker_ticket:
+        # ─── LIVE EXIT ENFORCEMENT: make EVERY walker exit authoritative at the broker.
+        # Old design closed only TIMEOUT, TRUSTING that SL/SL_BE/TP "self-close" via the
+        # server-side SL/TP sent on OPEN. That trust breaks the instant the engine stop
+        # != the broker SL — e.g. a stop pulled to BE in-memory without an atomic broker
+        # MODIFY — leaving the walker to book the exit while the real MT5 position runs
+        # on, ORPHANED + invisible (2026-07-10 ticket 2148715261: adoption pulled the
+        # engine stop to BE 4109.61, walker booked SL_BE, broker SL still 4120.61 → open).
+        # Verify the broker position is gone and CLOSE it if not. Idempotent: a genuine
+        # server-side SL/TP hit is already gone → _close_live_position_verified no-ops
+        # (one open_orders read). BROKER_CLOSED came from the broker itself → skip.
+        if oc.reason != "BROKER_CLOSED" and not dry_run and tr.broker_ticket:
             ok = _close_live_position_verified(broker, bridge, str(tr.broker_ticket))
             if ok:
-                log.info("[TIMEOUT_CLOSE] ticket=%s closed at broker on max-hold exit", tr.broker_ticket)
+                log.info("[EXIT_ENFORCE] ticket=%s confirmed closed at broker on %s exit",
+                         tr.broker_ticket, oc.reason)
             else:
                 log.error(
-                    "[TIMEOUT_CLOSE] FAILED to confirm broker close for ticket=%s — "
+                    "[EXIT_ENFORCE] FAILED to confirm broker close for ticket=%s reason=%s — "
                     "position may still be OPEN at broker; reconcile will retry",
-                    tr.broker_ticket,
+                    tr.broker_ticket, oc.reason,
                 )
                 journal_repo.insert(
                     trade_id=tr.trade_id, run_id=run_id,
                     ts=_to_dt(oc.exit_timestamp),
-                    event_type="TIMEOUT_CLOSE_FAILED",
+                    event_type="EXIT_CLOSE_FAILED",
                     detail={"broker_ticket": str(tr.broker_ticket), "reason": oc.reason},
                 )
         gross_r = oc.bracket_1r_outcome
