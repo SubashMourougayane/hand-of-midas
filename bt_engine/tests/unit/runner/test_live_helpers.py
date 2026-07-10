@@ -532,6 +532,47 @@ def test_reconcile_reports_failure_when_modify_truly_fails():
     assert events[0][0] == "BE_RECONCILE_FAILED"
 
 
+def _adopted_partial_trade(*, ticket="2148715261", entry=4109.61, vol=0.08,
+                           tp=4027.30) -> OpenTrade:
+    """A trade ADOPTED across a restart with partial already booked: fill.qty is the
+    POST-partial (reduced) volume and order.extra carries reconciled=True."""
+    ts = pd.Timestamp("2026-07-10 10:30:00+00:00")
+    order = Order(
+        symbol="XAUUSD.ecn", side=-1, qty=vol, intended_entry_bar=ts,
+        stop_price=entry, take_profit=tp, risk_units=11.0,
+        tag="2148715261", bracket_kind="reconciled_live", trade_id=uuid.uuid4(),
+        extra={"reconciled": True, "leg": "intraday_d_short"},
+    )
+    fill = Fill("XAUUSD.ecn", -1, vol, entry, ts)
+    tr = OpenTrade(
+        trade_id=order.trade_id, order=order, fill=fill, entry_price=entry,
+        entry_timestamp=ts, side=-1, stop_price=entry, take_profit=tp,
+        risk_units=11.0, broker_ticket=ticket,
+    )
+    tr.partial_taken = True
+    return tr
+
+
+def test_reconcile_syncs_adopted_partial_be_despite_reduced_full_qty():
+    """Adopted partial-taken trade (fill.qty already == reduced volume) must still
+    get its broker SL pushed to BE — the volume-reduced gate can't trip for it
+    (2148715261). Native trades keep the gate."""
+    bridge = _ReconBridge({"2148715261": {"volume": 0.08, "sl": 4120.61}})
+    broker = _ReconBroker()
+    tr = _adopted_partial_trade()
+    n = _reconcile_partial_be([tr], bridge, broker, _bar_now())
+    assert n == 1
+    assert broker.calls == [("2148715261", 4109.61, 4027.30)]
+
+
+def test_reconcile_adopted_noop_when_already_at_be():
+    bridge = _ReconBridge({"2148715261": {"volume": 0.08, "sl": 4109.61}})
+    broker = _ReconBroker()
+    tr = _adopted_partial_trade()
+    assert _reconcile_partial_be([tr], bridge, broker, _bar_now()) == 0
+    assert broker.calls == []
+
+
 # ----- Adoption of a breakeven-stopped orphan (2026-07-10 edge case) -----
 
 def test_adopt_be_stopped_orphan_estimates_risk_from_tp():

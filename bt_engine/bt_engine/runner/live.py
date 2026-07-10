@@ -1274,7 +1274,16 @@ def _reconcile_partial_be(
         pos = _live_position(bridge, ticket)
         be = float(tr.entry_price)
         full_qty = float(tr.fill.qty)
-        if not _needs_be_sync(pos, be, full_qty):
+        is_adopted = bool((tr.order.extra or {}).get("reconciled"))
+        if is_adopted:
+            # Adopted trade: partial_taken came from the DB (partial proven booked
+            # before this run) AND fill.qty already == the post-partial volume, so
+            # the volume-reduced gate in _needs_be_sync can NEVER trip → the broker
+            # SL would sit off breakeven forever (observed 2026-07-10 ticket
+            # 2148715261). Trust the flag; sync on SL-not-at-BE alone. Idempotent.
+            if pos is None or _sl_at_be(pos, be):
+                continue
+        elif not _needs_be_sync(pos, be, full_qty):
             continue
         tp = float(tr.take_profit) if tr.take_profit is not None else 0.0
         try:
