@@ -1423,6 +1423,7 @@ def _open_trades_from_positions(
     positions, *, symbol: str, strategy_id: str | None = None,
     server_utc_offset_hours: int = 0,
     risk_lookup: Callable[[str], float | None] | None = None,
+    fallback_target_r: float = 2.618,
 ) -> list[OpenTrade]:
     out: list[OpenTrade] = []
     for pos in positions:
@@ -1440,6 +1441,7 @@ def _open_trades_from_positions(
             if qty <= 0 or entry <= 0:
                 continue
             risk = abs(entry - sl) if sl > 0 else 0.0
+            risk_estimated = False
             if risk <= 0:
                 # Broker SL trailed to breakeven (SL==entry) or removed → live
                 # stop distance is 0. Do NOT drop the position (that strands it
@@ -1453,10 +1455,26 @@ def _open_trades_from_positions(
                         "recovered original risk_units=%.5f from DB",
                         ticket, sl, entry, risk,
                     )
+                elif tp is not None and abs(entry - float(tp)) > 0 and fallback_target_r > 0:
+                    # No DB row (e.g. the position was orphaned at OPEN and never
+                    # persisted) AND the broker SL is at breakeven, so neither the
+                    # live stop distance nor the DB gives us the original risk. Rather
+                    # than strand it unmanaged + invisible, estimate risk from the TP:
+                    # the strategy targets ext_target_pct (2.618) R, so |entry-TP| /
+                    # 2.618 is a self-consistent risk_units (TP == +2.618R). $ P&L is
+                    # EXACT regardless (risk cancels: $ = qty*contract*(exit-entry)*side);
+                    # only the reported R-multiple is an estimate. Flagged for the UI.
+                    risk = abs(entry - float(tp)) / float(fallback_target_r)
+                    risk_estimated = True
+                    log.warning(
+                        "[ADOPT] ticket %s SL at breakeven + no DB risk; ESTIMATED "
+                        "risk_units=%.5f from TP (%.5f / %.3f). $ P&L exact, R approximate.",
+                        ticket, risk, abs(entry - float(tp)), fallback_target_r,
+                    )
                 else:
                     log.warning(
-                        "[ADOPT] ticket %s has no usable stop distance and no DB "
-                        "risk to recover; skipping adoption", ticket,
+                        "[ADOPT] ticket %s has no usable stop distance, no DB risk, "
+                        "and no TP to estimate from; skipping adoption", ticket,
                     )
                     continue
             trade_id = uuid.uuid5(uuid.NAMESPACE_URL, f"gold-digger-live-position:{ticket}")
@@ -1506,6 +1524,7 @@ def _open_trades_from_positions(
                     "qty_lots": qty,
                     "direction": "long" if side > 0 else "short",
                     "max_hold_bars": max_hold_bars,
+                    "risk_estimated": risk_estimated,
                 },
             )
             fill = Fill(order.symbol, side, qty, entry, ts)

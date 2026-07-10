@@ -287,10 +287,14 @@ def test_adopt_breakeven_sl_recovers_risk_from_db():
         "comment": "intraday_d_short_2026-07-03T14:",
         "open_time": "2026.07.03 14:45:05",
     }
-    # Without a lookup → dropped (no usable risk).
-    dropped = _open_trades_from_positions([pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d")
-    assert dropped == []
-    # With a lookup returning the original stop distance → adopted + managed.
+    # Without a lookup but WITH a TP → adopt anyway with risk ESTIMATED from the TP
+    # (2026-07-10 change: a BE-stopped orphan must not be stranded/invisible; target
+    # is ext_target_pct R so risk = |entry-TP|/2.618, flagged risk_estimated).
+    est = _open_trades_from_positions([pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d")
+    assert len(est) == 1
+    assert est[0].order.extra["risk_estimated"] is True
+    assert abs(est[0].risk_units - abs(4185.89 - 4137.22) / 2.618) < 1e-6
+    # With a lookup returning the original stop distance → adopted with EXACT risk.
     adopted = _open_trades_from_positions(
         [pos], symbol="XAUUSD.ecn", strategy_id="fib_v2_intraday_d",
         risk_lookup=lambda tk: 48.6672 if tk == "2125844421" else None,
@@ -526,3 +530,29 @@ def test_reconcile_reports_failure_when_modify_truly_fails():
     )
     assert n == 0
     assert events[0][0] == "BE_RECONCILE_FAILED"
+
+
+# ----- Adoption of a breakeven-stopped orphan (2026-07-10 edge case) -----
+
+def test_adopt_be_stopped_orphan_estimates_risk_from_tp():
+    """SL trailed to breakeven + no DB row (orphaned at OPEN) must still adopt:
+    estimate risk from TP (target = ext_target_pct R). $ P&L stays exact."""
+    from bt_engine.runner.live import _open_trades_from_positions
+    pos = [{"ticket": "2147543035", "type": "SELL", "volume": 0.35,
+            "open_price": 4124.30, "sl": 4124.30, "tp": 4050.85,
+            "comment": "intraday_d_short"}]
+    ots = _open_trades_from_positions(pos, symbol="XAUUSD.ecn",
+                                      strategy_id="fib_v2_intraday_d")
+    assert len(ots) == 1
+    t = ots[0]
+    assert abs(t.risk_units - abs(4124.30 - 4050.85) / 2.618) < 1e-6
+    assert t.order.extra.get("risk_estimated") is True
+    assert t.broker_ticket == "2147543035"
+
+
+def test_adopt_be_stopped_without_tp_still_skips():
+    from bt_engine.runner.live import _open_trades_from_positions
+    pos = [{"ticket": "999", "type": "SELL", "volume": 0.1,
+            "open_price": 100.0, "sl": 100.0, "tp": 0, "comment": "x"}]
+    assert _open_trades_from_positions(pos, symbol="XAUUSD.ecn",
+                                       strategy_id="fib_v2_intraday_d") == []
