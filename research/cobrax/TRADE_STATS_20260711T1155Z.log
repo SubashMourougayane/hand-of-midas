@@ -1,0 +1,39 @@
+================================================================================
+TRADE STATS — live A+D strict, 21yr XAUUSD (OANDA M5->M15)  2026-07-11 11:55Z
+================================================================================
+DATA: 485,374 M15 bars  2006-03-19 20:15:00+00:00 .. 2026-06-30 23:45:00+00:00
+
+  ===== A+D COMBINED =====
+    trades=27965  wins=13639  losses=14326  scratch(0R)=0  WR=48.8%
+    netR=+7655.2  avgR=+0.2737  PF=1.488  expectancy=+0.2737R
+    avgWin=+1.711R  avgLoss=-1.095R  payoff=1.56
+    bestR=+36.20  worstR=-2.30  medianR=-0.038
+    partial-TP taken=15197 (54%)  avg bars held=27.4
+    exit reasons: {'SL_BE': 9874, 'TIMEOUT': 5079, 'SL': 11337, 'TP': 1675}
+    trades/yr=1379  trades/mo=115
+    longest win streak=18  longest loss streak=23
+
+  ===== A LEG (LONG only) =====
+    trades=10649  wins=5457  losses=5192  scratch(0R)=0  WR=51.2%
+    netR=+3446.4  avgR=+0.3236  PF=1.622  expectancy=+0.3236R
+    avgWin=+1.646R  avgLoss=-1.067R  payoff=1.54
+    bestR=+16.06  worstR=-2.28  medianR=+0.036
+    partial-TP taken=5672 (53%)  avg bars held=23.0
+    exit reasons: {'SL_BE': 3150, 'TIMEOUT': 3098, 'SL': 3965, 'TP': 436}
+    trades/yr=525  trades/mo=44
+    longest win streak=18  longest loss streak=15
+
+  ===== D LEG (SHORT only) =====
+    trades=17316  wins=8182  losses=9134  scratch(0R)=0  WR=47.3%
+    netR=+4208.8  avgR=+0.2431  PF=1.415  expectancy=+0.2431R
+    avgWin=+1.754R  avgLoss=-1.110R  payoff=1.58
+    bestR=+36.20  worstR=-2.30  medianR=-0.095
+    partial-TP taken=9525 (55%)  avg bars held=30.2
+    exit reasons: {'SL_BE': 6724, 'TIMEOUT': 1981, 'TP': 1239, 'SL': 7372}
+    trades/yr=854  trades/mo=71
+    longest win streak=14  longest loss streak=23
+
+  ===== WIN SPLIT =====
+    LONG wins (A)  = 5457 / 10649  (51.2%)
+    SHORT wins (D) = 8182 / 17316  (47.3%)
+    total wins = 13639 / 27965  (48.8%)  | long-share of wins=40%
