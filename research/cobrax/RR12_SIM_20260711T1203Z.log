@@ -1,0 +1,46 @@
+========================================================================================
+A+D FIXED R:R 1:2 (TP=+2R) — live engine, cost \$0.65  2026-07-11 12:03Z
+========================================================================================
+DATA 485,374 M15 bars  2006-03-19 20:15:00+00:00..2026-06-30 23:45:00+00:00  (TP override = stop+side*3*risk = +2R)
+
+### PURE 1:2 (no partial) ###
+    A+D        n= 27965 wins= 10653 WR= 38.1% netR= -6019.0 avgR=-0.2152 PF=0.721 avgWin=+1.46 avgLoss=-1.25 best=+2.0
+               exits: {'TP': 8550, 'TIMEOUT': 3492, 'SL': 15923}
+    A long     n= 10649 wins=  4363 WR= 41.0% netR= -1587.2 avgR=-0.1490 PF=0.787 avgWin=+1.34 avgLoss=-1.19 best=+2.0
+               exits: {'TP': 2963, 'TIMEOUT': 2300, 'SL': 5386}
+    D short    n= 17316 wins=  6290 WR= 36.3% netR= -4431.8 avgR=-0.2559 PF=0.686 avgWin=+1.54 avgLoss=-1.28 best=+2.0
+               exits: {'TP': 5587, 'TIMEOUT': 1192, 'SL': 10537}
+    P&L (real EquitySizer, \$5k start, min-eq / maxDD%):
+       1.0% -> \$           50   min-eq \$      50   maxDD 99.1%
+       1.5% -> \$           33   min-eq \$      33   maxDD 99.4%
+       2.0% -> \$           25   min-eq \$      25   maxDD 99.5%
+       3.0% -> \$           16   min-eq \$      16   maxDD 99.7%
+
+### CODE+2R (keep PTP+1R) ###
+    A+D        n= 27965 wins= 14454 WR= 51.7% netR= +2981.8 avgR=+0.1066 PF=1.193 avgWin=+1.28 avgLoss=-1.15 best=+2.5
+               exits: {'TP': 7072, 'TIMEOUT': 2520, 'SL': 11337, 'SL_BE': 7036}
+    A long     n= 10649 wins=  5667 WR= 53.2% netR= +1658.9 avgR=+0.1558 PF=1.302 avgWin=+1.26 avgLoss=-1.10 best=+2.5
+               exits: {'TP': 2528, 'TIMEOUT': 1766, 'SL': 3965, 'SL_BE': 2390}
+    D short    n= 17316 wins=  8787 WR= 50.7% netR= +1323.0 avgR=+0.0764 PF=1.132 avgWin=+1.29 avgLoss=-1.17 best=+2.5
+               exits: {'TP': 4544, 'TIMEOUT': 754, 'SL_BE': 4646, 'SL': 7372}
+    P&L (real EquitySizer, \$5k start, min-eq / maxDD%):
+       1.0% -> \$      147,818   min-eq \$     676   maxDD 92.9%
+       1.5% -> \$      225,495   min-eq \$     204   maxDD 98.5%
+       2.0% -> \$      145,822   min-eq \$      28   maxDD 99.8%
+       3.0% -> \$          790   min-eq \$      16   maxDD 99.7%
+
+### BASELINE (fib TP=2.618) ###
+    A+D        n= 27965 wins= 13639 WR= 48.8% netR= +7655.2 avgR=+0.2737 PF=1.488 avgWin=+1.71 avgLoss=-1.09 best=+36.2
+               exits: {'SL_BE': 9874, 'TIMEOUT': 5079, 'SL': 11337, 'TP': 1675}
+    A long     n= 10649 wins=  5457 WR= 51.2% netR= +3446.4 avgR=+0.3236 PF=1.622 avgWin=+1.65 avgLoss=-1.07 best=+16.1
+               exits: {'SL_BE': 3150, 'TIMEOUT': 3098, 'SL': 3965, 'TP': 436}
+    D short    n= 17316 wins=  8182 WR= 47.3% netR= +4208.8 avgR=+0.2431 PF=1.415 avgWin=+1.75 avgLoss=-1.11 best=+36.2
+               exits: {'SL_BE': 6724, 'TIMEOUT': 1981, 'TP': 1239, 'SL': 7372}
+    P&L (real EquitySizer, \$5k start, min-eq / maxDD%):
+       1.0% -> \$      447,647   min-eq \$   2,454   maxDD 85.6%
+       1.5% -> \$      766,468   min-eq \$   1,567   maxDD 94.6%
+       2.0% -> \$    1,182,808   min-eq \$     999   maxDD 98.0%
+       3.0% -> \$    2,633,375   min-eq \$     289   maxDD 99.8%
+
+CAVEAT: real next-bar-open fills + close-based bracket + cost \$0.65 (live). No look-ahead.
+R:R 1:2 caps winners at +2R -> loses the fib fat tail (+36R); watch if netR/PF drop vs baseline.
