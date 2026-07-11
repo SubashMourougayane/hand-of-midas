@@ -344,55 +344,74 @@ def run_live(
     live_safety: LiveSafetyConfig | None = None,
     max_wait_s: float | None = None,
     equity_sizer: EquitySizer | None = None,
+    bt_mode: bool = False,
+    provider: Any | None = None,
+    clock: Any | None = None,
+    broker: Any | None = None,
 ) -> LiveResult:
-    log.info("Starting live run strategy=%s symbol=%s tf=%s dry_run=%s", strategy, symbol, timeframe, dry_run)
-    bridge = bridge or DwxBridge()
-    if not bridge.is_alive():
-        raise RuntimeError("DWX bridge not alive (account_info.json stale or missing)")
+    log.info("Starting %s run strategy=%s symbol=%s tf=%s dry_run=%s bt_mode=%s",
+             "BT" if bt_mode else "live", strategy, symbol, timeframe, dry_run, bt_mode)
     live_safety = live_safety or LiveSafetyConfig()
 
-    # F2: hydrate the equity sizer from the broker's REALIZED balance so a
-    # restart sizes off the live account, not the fixed --start-balance seed.
-    # balance (not equity) = realized-only, matching the sizer's model (no
-    # mark-to-market peek). Live only — dry-run keeps the configured seed.
-    if equity_sizer is not None and not dry_run:
-        acct = _safe_account_info(bridge)
-        bal = acct.get("balance") if isinstance(acct, dict) else None
-        if bal is not None:
-            equity_sizer.hydrate_equity(float(bal), source="mt5_account_info")
-        else:
-            log.warning("[SIZER] no broker balance to hydrate from — keeping seed $%.2f",
-                        equity_sizer.equity())
+    if bt_mode:
+        # HARNESS (backtest) drives the SAME live code path with injected sim
+        # deps: a FakeBridge + SimBrokerAdapter + historical provider/clock. All
+        # live-only preflight (broker liveness, demo/kill safety, MT5 balance
+        # hydrate, live-start backlog skip, warmup below) is skipped — in BT the
+        # frame starts at history[0] so the strategy self-warms, and the sizer
+        # keeps its seed. EVERYTHING after this (callbacks, $-booking, engine
+        # loop) is identical to live => live == BT by construction.
+        if provider is None or clock is None or broker is None or bridge is None:
+            raise ValueError("bt_mode requires provider, clock, broker, bridge")
+        server_utc_offset_hours = 0
+        live_start_ts = None
+    else:
+        bridge = bridge or DwxBridge()
+        if not bridge.is_alive():
+            raise RuntimeError("DWX bridge not alive (account_info.json stale or missing)")
 
-    if not dry_run:
-        _assert_live_safety(bridge, symbol, live_safety)
-        log.info(
-            "[LIVE-SAFETY] demo_required=%s max_lot=%.4f max_open_positions=%s max_spread=%.4f kill_switch=%s",
-            live_safety.require_demo,
-            live_safety.max_lot,
-            live_safety.max_open_positions,
-            live_safety.max_spread,
-            live_safety.kill_switch_path,
+        # F2: hydrate the equity sizer from the broker's REALIZED balance so a
+        # restart sizes off the live account, not the fixed --start-balance seed.
+        # balance (not equity) = realized-only, matching the sizer's model (no
+        # mark-to-market peek). Live only — dry-run keeps the configured seed.
+        if equity_sizer is not None and not dry_run:
+            acct = _safe_account_info(bridge)
+            bal = acct.get("balance") if isinstance(acct, dict) else None
+            if bal is not None:
+                equity_sizer.hydrate_equity(float(bal), source="mt5_account_info")
+            else:
+                log.warning("[SIZER] no broker balance to hydrate from — keeping seed $%.2f",
+                            equity_sizer.equity())
+
+        if not dry_run:
+            _assert_live_safety(bridge, symbol, live_safety)
+            log.info(
+                "[LIVE-SAFETY] demo_required=%s max_lot=%.4f max_open_positions=%s max_spread=%.4f kill_switch=%s",
+                live_safety.require_demo,
+                live_safety.max_lot,
+                live_safety.max_open_positions,
+                live_safety.max_spread,
+                live_safety.kill_switch_path,
+            )
+
+        server_utc_offset_hours = _infer_server_utc_offset_hours(bridge, symbol)
+        log.info("[DWX] inferred server_utc_offset_hours=%s for %s", server_utc_offset_hours, symbol)
+        provider = Mt5LiveBarProvider(
+            bridge,
+            symbol=symbol,
+            timeframe=timeframe,
+            server_utc_offset_hours=server_utc_offset_hours,
         )
-
-    server_utc_offset_hours = _infer_server_utc_offset_hours(bridge, symbol)
-    log.info("[DWX] inferred server_utc_offset_hours=%s for %s", server_utc_offset_hours, symbol)
-    provider = Mt5LiveBarProvider(
-        bridge,
-        symbol=symbol,
-        timeframe=timeframe,
-        server_utc_offset_hours=server_utc_offset_hours,
-    )
-    live_start_ts = None
-    if not dry_run:
-        live_start_ts = provider.latest_closed_timestamp()
-        if live_start_ts is not None:
-            provider.mark_yielded_through(live_start_ts)
-            log.info("[LIVE-START] Skipping already-closed DWX backlog through %s", live_start_ts)
-    # For smoke testing, cap per-tick wait so the bounded loop returns even when
-    # broker has not produced a new closed bar yet.
-    per_tick_max = None if max_ticks is None else (5.0 if max_wait_s is None else max_wait_s)
-    clock = LiveClock(provider, poll_interval_s=poll_interval_s, max_wait_s=per_tick_max)
+        live_start_ts = None
+        if not dry_run:
+            live_start_ts = provider.latest_closed_timestamp()
+            if live_start_ts is not None:
+                provider.mark_yielded_through(live_start_ts)
+                log.info("[LIVE-START] Skipping already-closed DWX backlog through %s", live_start_ts)
+        # For smoke testing, cap per-tick wait so the bounded loop returns even when
+        # broker has not produced a new closed bar yet.
+        per_tick_max = None if max_ticks is None else (5.0 if max_wait_s is None else max_wait_s)
+        clock = LiveClock(provider, poll_interval_s=poll_interval_s, max_wait_s=per_tick_max)
 
     strat_kwargs = dict(strategy_kwargs or {})
     strat_kwargs.setdefault("symbol", symbol)
@@ -474,8 +493,10 @@ def run_live(
         except Exception as e:
             log.warning("[WARMUP] failed: %s (continuing with cold state)", e)
 
-    # broker: real DWX or dry-run
-    if dry_run:
+    # broker: injected sim (bt_mode) / dry-run / real DWX
+    if bt_mode:
+        pass  # broker injected by the harness (SimBrokerAdapter over FakeBridge)
+    elif dry_run:
         broker = DryRunBroker(bridge)
     else:
         broker = LiveSafetyBroker(DWXBrokerAdapter(bridge), bridge, live_safety, sizer=equity_sizer)
@@ -485,18 +506,21 @@ def run_live(
     Session = sessionmaker(bind=engine_db, expire_on_commit=False)
     s = Session()
     run_id = new_run_id()
-    run_ref = f"{make_run_ref(strategy.upper(), 'live', seq=1)}-{run_id.hex[:8]}"
+    run_mode = "bt" if bt_mode else "live"
+    run_ref = f"{make_run_ref(strategy.upper(), run_mode, seq=1)}-{run_id.hex[:8]}"
     try:
         # A force-killed prior runner (NSSM restart) never closed its run, which
         # would inflate the dashboard's live-strategy count. End any orphaned
         # open live runs for THIS strategy before opening the fresh one.
-        _stale = RunRepo(s).close_stale_live_runs(strategy, datetime.now(timezone.utc))
-        if _stale:
-            log.info("[RUN] closed %d stale open live run(s) for %s on startup", _stale, strategy)
+        # (Live-only — a BT harness run must not touch live run bookkeeping.)
+        if not bt_mode:
+            _stale = RunRepo(s).close_stale_live_runs(strategy, datetime.now(timezone.utc))
+            if _stale:
+                log.info("[RUN] closed %d stale open live run(s) for %s on startup", _stale, strategy)
         RunRepo(s).create(
             run_id=run_id,
             ref=run_ref,
-            mode="live",
+            mode=run_mode,
             strategy_id=strategy,
             strategy_config={
                 "symbol": symbol,
@@ -514,7 +538,7 @@ def run_live(
             symbol=symbol,
             timeframe=timeframe,
             start_ts=datetime.now(timezone.utc),
-            data_provider="dwx-live",
+            data_provider="sim-bt" if bt_mode else "dwx-live",
         )
         s.commit()
         log.info(
@@ -866,8 +890,31 @@ def run_live(
         )
         live_session.commit()
 
+    _bt_last_snap_day: list = [None]
+
     def on_bar_close(bar: Bar, open_trades: list[OpenTrade]) -> None:
         account = _safe_account_info(bridge)
+
+        if bt_mode:
+            # BT perf: the live per-bar machinery (snapshot+commit, BE self-heal,
+            # unreconciled sweep) runs once PER BAR — ~485k times over 21yr and
+            # dominates runtime. None of it is needed each bar in BT: the inline
+            # reconcile at trade-close is already 100%, and there is no async
+            # slow-ack lag to self-heal. Snapshot ONCE PER DAY (enough for the
+            # equity curve) and skip the sweeps.
+            bd = _to_dt(bar.timestamp).date()
+            if bd != _bt_last_snap_day[0]:
+                _bt_last_snap_day[0] = bd
+                account_repo.insert(
+                    run_id=run_id, ts=_to_dt(bar.timestamp),
+                    balance=_float_or_none(account.get("balance")),
+                    equity=_float_or_none(account.get("equity")),
+                    open_pnl=_float_or_none(account.get("profit")),
+                    open_position=len(open_trades),
+                )
+                live_session.commit()
+            return
+
         spread = None
         try:
             market = bridge.market_data()
@@ -933,7 +980,8 @@ def run_live(
         # H1 FIX: each bar, detect broker-side closes (intrabar SL/TP wick the
         # close-based walker misses) BEFORE walking → no ghost management.
         on_broker_closed_check=(
-            None if dry_run else (lambda ots, bar: _broker_closed_outcomes(ots, bar, bridge))
+            None if (dry_run or bt_mode)
+            else (lambda ots, bar: _broker_closed_outcomes(ots, bar, bridge))
         ),
         initial_open_trades=_open_trades_from_positions(
             broker.positions(), symbol=symbol, strategy_id=strategy,
