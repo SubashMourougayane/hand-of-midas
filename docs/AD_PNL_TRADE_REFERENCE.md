@@ -1,5 +1,13 @@
 # A+D — P&L & Trade Reference (21yr XAUUSD)
 
+> **⚠️ 2026-07-11 — $ NUMBERS INFLATED ~1.5×.** Confirmed: the engine over-counts partial-TP
+> trades (`outcome = full_tp_R + partial_bonus`, but only half the position runs). **Physical
+> edge = netR +3,397 / PF 1.34, not the certified +7,655 / PF 1.49 (~half).** Every $ figure
+> below (risk-cliff, prop) is on the inflated convention — **divide by ~1.5–2× for reality**
+> (winner-heavy = worse). Broker balance is physical/correct; BT projections are not.
+> See `[[partial-tp-pnl-overcount]]`. Numbers below kept as-is pending a fix + re-baseline.
+
+
 **Strategy:** Fib V2 Intraday A (long) + D (short), production strict, M15, lb=3, ext=2.618,
 PTP+1R, Model-B EquitySizer. Live code = BT mode (certified 0-delta).
 **Data:** OANDA XAU M5 → M15, 485,374 bars, **2006-03-19 → 2026-06-30 (20.3 yr)**.
