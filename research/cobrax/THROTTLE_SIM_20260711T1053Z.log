@@ -1,0 +1,21 @@
+==================================================================================
+DD-THROTTLE overlay on A+D (edge-preserving sizing)  2026-07-11 10:53Z
+==================================================================================
+A+D trades=27965 span=20.3yr  (throttle = same trades, size scaled by equity-DD only)
+
+config                            final$   maxDD% worstDay%
+  FLAT 0.50%             $15,159,524,724,586,139,648    35.3%      5.2%
+    throttle cap=8%         $2,293,787,985,446     8.0%      3.6%
+    throttle cap=10%         $49,716,250,445,317    10.0%      3.6%
+    throttle cap=12%         $375,098,787,730,685    11.9%      3.7%
+  FLAT 1.00%             $388,790,342,756,137,882,412,043,074,535,424    59.2%     10.2%
+    throttle cap=8%         $10,106,575,522     8.0%      6.7%
+    throttle cap=10%         $36,864,008,446,735    10.0%      6.9%
+    throttle cap=12%         $58,847,144,372,690,344    12.0%      7.0%
+  FLAT 1.50%             $151,803,106,225,412,652,343,334,390,115,457,224,715,272,192    74.9%     15.2%
+    throttle cap=8%         $      4,867     8.0%      6.5%
+    throttle cap=10%         $     16,266    10.0%      6.8%
+    throttle cap=12%         $23,011,642,597,048    12.0%     10.0%
+
+NOTE: maxDD is CLOSE-based exact path (one 20yr ordering). Throttle SOFT-caps (open
+trades still run past the band). Intraday/floating not modeled. Edge (R-sequence) UNCHANGED.
