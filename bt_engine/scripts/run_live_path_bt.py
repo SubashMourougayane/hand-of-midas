@@ -128,6 +128,8 @@ def main() -> None:
                     help="use a throwaway in-memory-ish run (still needs a DB for repos)")
     ap.add_argument("--log-file", default="run_live_path_bt.log",
                     help="full INFO live-code-path logs written here (auditable)")
+    ap.add_argument("--strategy", default=STRATEGY,
+                    help="registry strategy id (e.g. fib_v2_intraday_a_plus_d_edge)")
     args = ap.parse_args()
 
     _setup_logging(args.log_file)
@@ -154,7 +156,7 @@ def main() -> None:
     broker = LiveSafetyBroker(SimBrokerAdapter(bridge), bridge, safety, sizer=sizer)
 
     result = run_live(
-        strategy=STRATEGY, symbol=SYMBOL, timeframe=TIMEFRAME,
+        strategy=args.strategy, symbol=SYMBOL, timeframe=TIMEFRAME,
         bt_mode=True, provider=provider, clock=clock, broker=broker, bridge=bridge,
         equity_sizer=sizer, db_url=db_url, dry_run=False,
     )

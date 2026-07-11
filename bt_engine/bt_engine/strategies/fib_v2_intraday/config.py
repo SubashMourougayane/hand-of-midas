@@ -70,17 +70,27 @@ INTRADAY_D_LEG = LegSpec(
 # Factory builders — production-locked params
 # -----------------------------------------------------------------------------
 
-def make_intraday_a_config(*, strict_after: bool = True) -> FibV2IntradayConfig:
-    """A leg: LONG  · lb=3 · hold=12h · session=london_ny · ext=2.618 · PTP+1R · cost=$0.65."""
+# EDGE variant (audited 2026-07-12): drop the partial-TP (it capped the fat tail
+# AND was the over-count bug) + cost-robustness filter (skip trades where the $0.65
+# cost is > 12% of the stop). See docs/EDGE_AUDIT_IRONCLAD.md +
+# [[real-edge-nopartial-costfilter]]. PF 1.20 physical, OOS>IS, bootstrap p=0.0000.
+_EDGE_PARTIAL = None      # no partial (baseline was 1.0)
+_EDGE_MAX_COST_R = 0.12   # skip if cost_usd/risk_units > this
+
+
+def make_intraday_a_config(*, strict_after: bool = True, edge: bool = False) -> FibV2IntradayConfig:
+    """A leg: LONG  · lb=3 · hold=12h · session=london_ny · ext=2.618 · cost=$0.65.
+    edge=True → no partial + cost_r<=0.12 filter (audited)."""
     base = FibV2Config(
         pivot_lb=3,
         max_hold_h=12,
         session="london_ny",
         ext_target_pct=2.618,
         sl_buffer_pct=0.02,
-        partial_tp_at_r=1.0,
+        partial_tp_at_r=_EDGE_PARTIAL if edge else 1.0,
         partial_tp_pct=0.5,
         cost_usd=0.65,  # JustMarkets Raw Spread realistic
+        max_cost_r=_EDGE_MAX_COST_R if edge else None,
     )
     return FibV2IntradayConfig(
         strict_after=strict_after,
@@ -88,17 +98,19 @@ def make_intraday_a_config(*, strict_after: bool = True) -> FibV2IntradayConfig:
     )
 
 
-def make_intraday_d_config(*, strict_after: bool = True) -> FibV2IntradayConfig:
-    """D leg: SHORT · lb=3 · hold=24h · session=all       · ext=2.618 · PTP+1R · cost=$0.65."""
+def make_intraday_d_config(*, strict_after: bool = True, edge: bool = False) -> FibV2IntradayConfig:
+    """D leg: SHORT · lb=3 · hold=24h · session=all       · ext=2.618 · cost=$0.65.
+    edge=True → no partial + cost_r<=0.12 filter (audited)."""
     base = FibV2Config(
         pivot_lb=3,
         max_hold_h=24,
         session="all",
         ext_target_pct=2.618,
         sl_buffer_pct=0.02,
-        partial_tp_at_r=1.0,
+        partial_tp_at_r=_EDGE_PARTIAL if edge else 1.0,
         partial_tp_pct=0.5,
         cost_usd=0.65,
+        max_cost_r=_EDGE_MAX_COST_R if edge else None,
     )
     return FibV2IntradayConfig(
         strict_after=strict_after,

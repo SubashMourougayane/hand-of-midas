@@ -110,5 +110,14 @@ def _register_builtins() -> None:
     register("fib_v2_intraday_d_nostrict", _fib_v2_intraday_d_nostrict_factory)
     register("fib_v2_intraday_a_plus_d_nostrict", _fib_v2_intraday_a_plus_d_nostrict_factory)
 
+    # ----- EDGE variant (audited 2026-07-12): no partial-TP + cost_r<=0.12 filter.
+    # The FIRST config to survive the full iron-clad audit (PF 1.20 physical, OOS>IS,
+    # bootstrap p=0.0000, delay-robust, $5k->$56k 21yr no-wipe). See
+    # docs/EDGE_AUDIT_IRONCLAD.md + [[real-edge-nopartial-costfilter]]. -----
+    def _fib_v2_intraday_a_plus_d_edge_factory(**kwargs) -> Strategy:
+        return FibV2IntradayAPlusD(edge=True, **kwargs)
+
+    register("fib_v2_intraday_a_plus_d_edge", _fib_v2_intraday_a_plus_d_edge_factory)
+
 
 _register_builtins()

@@ -627,6 +627,15 @@ class FibV2EnsembleStrategy(Strategy):
         # Order.intended_entry_bar must == bar.timestamp.
         tid = uuid.uuid4()
         cost_r = self._cost_usd / risk if risk > 0 else 0.0
+        # Cost-robustness filter (audited): skip entries whose stop is too tight
+        # vs the fixed cost — cost_r known at entry, fully causal. See
+        # docs/EDGE_AUDIT_IRONCLAD.md Gate 4 + [[real-edge-nopartial-costfilter]].
+        if self.config.max_cost_r is not None and cost_r > self.config.max_cost_r:
+            self._emit_gate(JournalEvent.GATE_SETUP_INVALIDATED, bar.timestamp,
+                            leg_name=leg.leg_name, setup=setup,
+                            reason="cost_r_over_max", cost_r=float(cost_r),
+                            max_cost_r=float(self.config.max_cost_r))
+            return None, None
         order = Order(
             symbol=self.symbol,
             side=setup.side,

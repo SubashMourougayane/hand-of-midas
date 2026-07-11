@@ -53,6 +53,12 @@ class FibV2Config:
     partial_tp_pct: float = 0.5
     """Fraction of position to close at partial-TP trigger. Default 0.5 (research baseline)."""
 
+    max_cost_r: float | None = None
+    """If set, REJECT entries where cost_r (= cost_usd / risk_units) > this. Skips
+    trades whose stop is too tight relative to the fixed spread/commission cost —
+    the audited cost-robustness filter (docs/EDGE_AUDIT_IRONCLAD.md Gate 4). None =
+    no filter. Causal: cost_r is known at entry (stop distance)."""
+
 
 @dataclass(frozen=True)
 class LegSpec:
