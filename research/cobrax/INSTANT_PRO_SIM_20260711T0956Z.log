@@ -1,0 +1,17 @@
+==============================================================================
+GFT INSTANT PRO sim — A+D strict, 2.5K account   2026-07-11 09:56Z
+==============================================================================
+RULES: 4% TRAILING DD on equity | NO daily DD | -2% FLOATING = instant close | >=5 valid days
+close-based trailing => UPPER bound. -2% floating NOT simulated (intraday) — flagged separately.
+A+D trades=27965 avgR=+0.2737
+
+=== SURVIVE 4% TRAILING to a first +5% payout (>=5 valid days) ===
+    risk | P(survive)  medTrades | reasons
+   0.10% |     86.4%      154.0 | {'PAYOUT': 2591, 'TRAIL_DD': 409}
+   0.25% |     64.6%       58.0 | {'PAYOUT': 1937, 'TRAIL_DD': 1063}
+   0.50% |     34.7%       39.0 | {'TRAIL_DD': 1959, 'PAYOUT': 1041}
+   0.75% |     16.4%       32.0 | {'TRAIL_DD': 2508, 'PAYOUT': 492}
+
+FLOATING -2% KILLER (not in sim): A+D allows up to 4 concurrent (A long + D short).
+At R=0.5%, 4 open near-stop => ~2% floating => instant close on a routine XAU spike.
+Only R<=~0.25% keeps worst-case concurrent floating under -2% (4*0.25%=1%). Even then trailing-4% bites.
