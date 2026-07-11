@@ -1,0 +1,28 @@
+==============================================================================
+GFT 2-STEP GOAT sim — A+D strict, 5K account   2026-07-11 09:48Z
+==============================================================================
+RULES: P1 +8% P2 +6% | dailyDD 4% of day-start | maxDD 10% STATIC ($4500 floor) | >=3 valid days
+LIMITATION: gates checked on CLOSE-based equity — real intraday DD worse -> these are UPPER-BOUND pass rates.
+DATA: M15 bars=485,374  2006-03-19 20:15:00+00:00 .. 2026-06-30 23:45:00+00:00
+A+D trades=27965 netR=+7655 avgR=+0.2737 tr/yr=1379 tr/mo=115
+
+=== PHASE-1 PASS (+8%) by risk ===
+   risk |  P(pass)  medTrades | fail reasons
+  0.25% |   96.1%      101.0 | {'PASS': 2884, 'MAXDD': 116}
+  0.50% |   87.0%       43.0 | {'PASS': 2611, 'MAXDD': 324, 'DAILYDD': 65}
+  0.75% |   63.9%       27.0 | {'DAILYDD': 844, 'PASS': 1917, 'MAXDD': 239}
+  1.00% |   44.6%       20.0 | {'DAILYDD': 1528, 'PASS': 1339, 'MAXDD': 133}
+  1.50% |   28.6%       15.0 | {'DAILYDD': 2080, 'PASS': 859, 'MAXDD': 61}
+
+=== PHASE-2 PASS (+6%) by risk ===
+  0.50% | P2 pass   87.9%  medTrades=36.0  {'PASS': 2638, 'MAXDD': 307, 'DAILYDD': 55}
+  0.75% | P2 pass   66.0%  medTrades=25.0  {'DAILYDD': 784, 'PASS': 1980, 'MAXDD': 236}
+  1.00% | P2 pass   46.9%  medTrades=19.0  {'DAILYDD': 1461, 'PASS': 1408, 'MAXDD': 131}
+
+=== FUNDED $ (per month, ONE 5K account) — fixed-fractional at R, no compounding drift ===
+  R=0.50%: E[monthly return]~+15.7%  gross~$+787/mo  payout@80%=$+629  @100%=$+787   (before variance/DD haircut)
+  R=0.75%: E[monthly return]~+23.6%  gross~$+1,180/mo  payout@80%=$+944  @100%=$+1,180   (before variance/DD haircut)
+  R=1.00%: E[monthly return]~+31.5%  gross~$+1,573/mo  payout@80%=$+1,258  @100%=$+1,573   (before variance/DD haircut)
+
+NOTE: monthly $ is arithmetic-mean expectancy; realized is lumpy (some months negative).
+Combined P1*P2 challenge pass ~ product of the two above at the chosen risk.
