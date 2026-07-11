@@ -1,0 +1,71 @@
+==============================================================================================
+FULL STATS — A+D throttled (base 1% + cap 10%), funded 5K prop  2026-07-11 11:16Z
+==============================================================================================
+
+### COVERAGE ###
+  trades=27,965  span=20.3yr  2006-03-20..2026-06-30  months=244  trades/mo=115
+  longs(A)=10,649  shorts(D)=17,316
+
+### MONTHLY PAYOUT ($ per 5K, @100% split) ###
+  mean=$1,252  median=$588  std=$1,724
+  min=$0  max=$9,683  sum(20yr)=$305,572
+  percentiles: p5=$0 p25=$0 p50=$588 p75=$1,911 p90=$3,214 p95=$4,949
+  %months >0 = 73%   %months =0 (flat) = 27%
+  monthly return% (of 5K): mean=25.0% median=11.8% max=194%
+  @80% split: mean=$1,002/mo  @100%: $1,252/mo
+
+### PER-YEAR PAYOUT ($/yr @100%) ###
+  2006: $    1,738
+  2007: $    7,749
+  2008: $   17,395
+  2009: $    9,804
+  2010: $    5,010
+  2011: $   19,056
+  2012: $   21,423
+  2013: $   41,185
+  2014: $   10,445
+  2015: $   11,970
+  2016: $   11,504
+  2017: $    2,959
+  2018: $    4,289
+  2019: $    7,090
+  2020: $   17,761
+  2021: $   12,308
+  2022: $   16,116
+  2023: $   21,735
+  2024: $   13,124
+  2025: $   20,305
+  2026: $   32,605
+  year: mean=$14,551 median=$12,308 best=$41,185(2013) worst=$1,738(2006) pos-years=21/21
+
+### DRAWDOWN ###
+  realized MAX drawdown (20yr) = 9.9%   (cap target 10%)  -> FITS 10% static: True
+  worst single-DAY drawdown = 7.8%   (GFT daily rule 4%: FAILS; no-daily firms: n/a)
+  monthly maxDD: mean=7.9% median=8.2% p95=9.8% max=9.9%
+  min balance EVER = $4,503  (floor $4,500; closest approach 0.1% of start above floor)
+  BLOWUPS (account terminations, 20yr) = 0
+
+### THROTTLE ACTIVITY ###
+  entries throttled (mult<1) = 88%   fully off (mult=0, DD>=cap) = 0.0%
+  mult: mean=0.58 median=0.59 p25=0.33 min=0.01
+
+### STREAKS & CONSISTENCY ###
+  longest run of FLAT/zero months = 6
+  longest run of PROFITABLE months = 14
+  in-month trade win-rate: mean=48%
+
+### RISK-ADJUSTED (monthly returns of 5K) ###
+  monthly mean=25.0% std=34.5%  annualized Sharpe=2.52  Sortino=11.94
+  annualized return (mean*12) = 301%/yr of a static 5K (no compounding — floor est)
+
+### BOOTSTRAP ANNUAL INCOME (10k resamples of 12 monthly payouts) ###
+  annual $ @100%: p5=$6,651 p25=$10,670 median=$14,355 p75=$18,663 p95=$25,769
+  P(annual income < $3000) = 0%   P(< $6000) = 4%
+
+### HOSTILE-AUDIT CAVEATS (why the number is optimistic) ###
+  1. close-based M15 equity — intraday/floating MAE NOT modeled -> blowups=0 is a LOWER bound; real slightly worse.
+  2. monthly withdraw-to-5000 = NO compounding -> this is the per-static-5K FLOOR; prop scaling grows it.
+  3. 20yr AVG includes the strategy's best regimes; forward-realized is lumpier (28% flat months).
+  4. single historical ordering for maxDD/streaks; bootstrap above covers annual variance only.
+  5. leverage (commodities 1:10-1:20) not enforced — at 1% on 5K lots are tiny, non-binding.
+  6. assumes the prop pays out monthly in full + no consistency-rule block (true for no-daily firms).
