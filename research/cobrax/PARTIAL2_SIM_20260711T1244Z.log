@@ -1,0 +1,9 @@
+
+### PHYSICAL model (fractions actually leave the runner) — THE HONEST TEST ###
+    CERTIFIED baseline (additive)      netR= +7655.2 avgR=+0.2737 PF=1.488 WR=48.8%
+    PHYSICAL baseline 50%@1R+50%run    netR= +3396.7 avgR=+0.1215 PF=1.344 WR=48.3%
+    PHYSICAL 2-tier 50%@1R+25%@2R+run  netR= +5513.9 avgR=+0.1972 PF=1.818 WR=51.2%
+    PHYSICAL 2-tier 50%@1R+25%@3R+run  netR= +5541.7 avgR=+0.1982 PF=1.813 WR=50.2%
+    PHYSICAL 2-tier 50%@1R+33%@2R+run  netR= +6191.4 avgR=+0.2214 PF=2.067 WR=51.2%
+  -> compare PHYSICAL baseline vs PHYSICAL 2-tier. If 2-tier <= baseline, the 2nd partial
+     sacrifices the fat tail (booking small@2R forfeits the runner's +36R) — SAME lesson as 1:2.

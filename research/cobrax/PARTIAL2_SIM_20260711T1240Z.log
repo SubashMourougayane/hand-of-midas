@@ -1,0 +1,18 @@
+================================================================================
+A+D 2nd partial-TP tier test  2026-07-11 12:40Z
+================================================================================
+
+A+D trades=27965  MFE reach: >=1R 54%  >=2R 30%  >=3R 20%  >=5R 11%
+BE-survivors (SL_BE) = 9874; of those reached >=2R = 41%  >=3R = 21%  (these get upgraded by a 2nd tier)
+
+### RESULTS (same trades; 2nd tier = +pct2*trig2 R when mfe>=trig2) ###
+    BASELINE (50%@1R only)     netR= +7655.2 avgR=+0.2737 PF=1.488 WR=48.8% avgWin=+1.71
+    2-tier +25%@2R             netR=+11901.7 avgR=+0.4256 PF=1.772 WR=52.2% avgWin=+1.87
+    2-tier +25%@3R             netR=+11929.5 avgR=+0.4266 PF=1.770 WR=51.3% avgWin=+1.91
+    2-tier +33%@2R             netR=+13260.6 avgR=+0.4742 PF=1.861 WR=52.6% avgWin=+1.95
+    2-tier +25%@2R             netR=+11901.7 avgR=+0.4256 PF=1.772 WR=52.2% avgWin=+1.87
+    2-tier +50%@2R             netR=+16148.2 avgR=+0.5774 PF=2.049 WR=52.8% avgWin=+2.14
+
+NOTE: additive certified-partial convention (same as live baseline) -> comparison fair.
+A 2nd tier NEVER hurts here (it only adds R on trades that reached the tier) — the question is HOW MUCH,
+and whether it's worth the extra live execution (one more CLOSE_PARTIAL + slippage per qualifying trade).
