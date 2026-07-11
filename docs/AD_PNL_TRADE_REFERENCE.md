@@ -125,6 +125,22 @@ No-daily firms only (worst-day 7.8% > GFT's 4% daily). Best fit: FundedNext Stel
 
 ---
 
+## 4b. TARGET EXPERIMENTS — what DOESN'T work
+
+**Fixed R:R 1:2 (TP=+2R) KILLS the edge** (`research/cobrax/rr12_sim.py`, 21yr, live cost $0.65):
+| variant | WR | net R | PF | best trade |
+|---|---|---|---|---|
+| Pure 1:2 (2R TP, no partial) | 38.1% | **−6,019** | **0.72** (LOSER) | +2.0R |
+| Code + 2R TP (keep PTP+1R) | 51.7% | +2,982 | 1.19 | +2.5R |
+| **Baseline (fib TP 2.618) — KEEP** | 48.8% | **+7,655** | **1.49** | **+36.2R** |
+
+**Why:** A+D's edge lives in the FAT RIGHT TAIL — the fib-2.618 target lets winners run to +36R.
+A fixed 2R cap chops the tail (best +36.2R → +2.0R), avg-win falls +1.71R → +1.28R, netR −61%.
+Pure 1:2 has NO edge (PF 0.72). **The variable fib target is load-bearing. Do NOT switch to fixed R:R.**
+(Counter to retail "cut winners at 2R" advice — fatal here.)
+
+---
+
 ## 5. CAVEATS (all sims)
 1. **Close-based M15** — intraday/floating MAE not modeled → blowups a LOWER bound, DD optimistic.
 2. **Model-B / prop payout** — prop numbers withdraw-to-5000 monthly = NO compounding (floor, not ceiling).
