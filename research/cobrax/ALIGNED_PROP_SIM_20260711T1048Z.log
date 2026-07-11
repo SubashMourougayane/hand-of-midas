@@ -1,0 +1,20 @@
+==============================================================================
+ALIGNED PROP (no-daily, 10% static) — A+D strict 5K  2026-07-11 10:48Z
+==============================================================================
+Firms: FundedNext Stellar/Express, FXIFY, The5ers. NO daily DD, 10% STATIC max, no floating rule.
+A+D trades=27965 avgR=+0.2737 tr/mo=115
+
+=== P1 (+8%) / P2 (+5%) PASS — NO daily DD, 10% static only ===
+   risk |      P1      P2   P1*P2 | P1 fails
+  0.50% |  88.2%  89.5%  78.9% | {'PASS': 2647, 'MAXDD': 353}
+  0.75% |  80.0%  81.9%  65.5% | {'PASS': 2400, 'MAXDD': 600}
+  1.00% |  73.7%  75.6%  55.7% | {'PASS': 2211, 'MAXDD': 789}
+  1.25% |  68.6%  70.0%  48.0% | {'MAXDD': 943, 'PASS': 2057}
+  1.50% |  63.6%  64.7%  41.1% | {'MAXDD': 1093, 'PASS': 1907}
+  2.00% |  55.3%  56.2%  31.1% | {'MAXDD': 1341, 'PASS': 1659}
+
+=== FUNDED $ (per 5K/mo, arithmetic expectancy — same DD-truncation caveat as GFT) ===
+  R=1.00%: E[mo]~+31.5%  gross~$+1,573/mo  @80%=$+1,258  @100%=$+1,573
+  R=1.50%: E[mo]~+47.2%  gross~$+2,360/mo  @80%=$+1,888  @100%=$+2,360
+  R=2.00%: E[mo]~+62.9%  gross~$+3,146/mo  @80%=$+2,517  @100%=$+3,146
+CAVEAT: funded acct has SAME 10% static gate -> losing tail truncated to acct death; realized < arithmetic.
