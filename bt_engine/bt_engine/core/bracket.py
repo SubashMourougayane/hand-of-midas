@@ -100,6 +100,10 @@ def walk_bracket_on_bar(
     trade_extra = trade.order.extra or {}
     trade_cap = trade_extra.get("max_hold_bars")
     effective_cap = int(trade_cap) if trade_cap is not None else max_bars_held
+    # Fraction of the position that a partial-TP closes (the remaining
+    # `1 - partial_tp_pct` is the "runner"). Used to book partial-TP outcomes
+    # PHYSICALLY (see runner_frac below). Default 0.5 (production A+D).
+    partial_tp_pct = float(trade_extra.get("partial_tp_pct", 0.5))
 
     # update intra-bar MFE/MAE in R
     if trade.risk_units > 0:
@@ -126,6 +130,12 @@ def walk_bracket_on_bar(
             # = swap_per_lot / (contract × risk)
             contract_units = 100.0  # XAU; generalize per-symbol if needed
             swap_r = swap_per_lot / (contract_units * trade.risk_units)
+            # PHYSICAL: after a partial close only `1 - partial_tp_pct` of the
+            # position remains open, so nights AFTER the partial accrue swap on
+            # the reduced size. (Accrual runs before the partial check this bar,
+            # so the firing bar's night still charges the full pre-partial size.)
+            if trade.partial_taken:
+                swap_r *= (1.0 - partial_tp_pct)
             trade.accrued_swap_r = float(getattr(trade, "accrued_swap_r", 0.0)) + swap_r
 
     # Partial-TP safety net: must run AFTER MFE update, BEFORE exit checks.
@@ -136,6 +146,16 @@ def walk_bracket_on_bar(
     partial = trade.partial_filled_r  # locked-in R from earlier partial close (0 if none)
     swap_r = float(getattr(trade, "accrued_swap_r", 0.0))  # negative = cost
     stop_is_be = trade.partial_taken and trade.stop_price == trade.entry_price
+
+    # PHYSICAL partial-TP accounting. Once `partial_tp_pct` of the position is
+    # closed at +trigger R (that R is booked in `partial` = pct*trigger), only
+    # the remaining `1 - pct` fraction — the "runner" — reaches the bracket exit.
+    # So the runner's exit-R must be scaled by that fraction:
+    #     total R = pct*trigger  +  (1 - pct) * runner_exit_R
+    # Previously the runner exit-R was added at FULL size (additive), which
+    # over-counted every partial+winner ~2x (concentrated on the fat tail where
+    # the edge lives). No partial taken => runner_frac = 1.0 (unchanged).
+    runner_frac = (1.0 - partial_tp_pct) if trade.partial_taken else 1.0
 
     # Exit detection. Default = CLOSE-based (baseline, A+D). Opt-in WICK mode
     # (order.extra["bracket_wick"]) hits SL/TP on the bar's intrabar high/low —
@@ -171,7 +191,7 @@ def walk_bracket_on_bar(
             sl_r_on_remainder = (sl_exit_price - trade.entry_price) * side / trade.risk_units
         else:
             sl_r_on_remainder = 0.0 if stop_is_be else -1.0
-        outcome_r = sl_r_on_remainder + partial + swap_r
+        outcome_r = runner_frac * sl_r_on_remainder + partial + swap_r
         return BracketOutcome(
             exit_timestamp=bar.timestamp,
             exit_price=sl_exit_price,
@@ -184,6 +204,8 @@ def walk_bracket_on_bar(
                 "stop_price": trade.stop_price,
                 "sl_slip_pips": sl_slip_pips,
                 "partial_r": partial,
+                "runner_frac": runner_frac,
+                "runner_exit_r": sl_r_on_remainder,
                 "stop_is_be": stop_is_be,
             },
         )
@@ -197,7 +219,7 @@ def walk_bracket_on_bar(
             (tp_exit_price - trade.entry_price) * side / trade.risk_units
             if trade.risk_units > 0 else 0.0
         )
-        outcome_r = tp_r + partial + swap_r
+        outcome_r = runner_frac * tp_r + partial + swap_r
         return BracketOutcome(
             exit_timestamp=bar.timestamp,
             exit_price=tp_exit_price,
@@ -210,12 +232,14 @@ def walk_bracket_on_bar(
                 "take_profit": trade.take_profit,
                 "tp_slip_pips": tp_slip_pips,
                 "partial_r": partial,
+                "runner_frac": runner_frac,
+                "runner_exit_r": tp_r,
             },
         )
 
     if effective_cap is not None and trade.bars_held >= effective_cap:
         timeout_r = (close - trade.entry_price) * side / trade.risk_units if trade.risk_units > 0 else 0.0
-        outcome_r = timeout_r + partial + swap_r
+        outcome_r = runner_frac * timeout_r + partial + swap_r
         return BracketOutcome(
             exit_timestamp=bar.timestamp,
             exit_price=close,
@@ -227,6 +251,8 @@ def walk_bracket_on_bar(
                 "close": close,
                 "max_bars_held": effective_cap,
                 "partial_r": partial,
+                "runner_frac": runner_frac,
+                "runner_exit_r": timeout_r,
             },
         )
 

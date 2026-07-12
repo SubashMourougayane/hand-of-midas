@@ -3,9 +3,9 @@
 Verifies exact research semantics (research/fib_retrace/safety_net_sweep.simulate_with_safety):
 - On bar where MFE >= partial_tp_at_r: lock partial_tp_pct * partial_tp_at_r R,
   move stop to entry (BE on remainder).
-- Subsequent SL at BE returns 0.0 + partial_r on remainder.
-- Subsequent TP returns tp_r + partial_r.
-- Subsequent TIMEOUT returns timeout_r + partial_r.
+- Subsequent SL at BE returns (1-pct)*0.0 + partial_r on remainder (= partial_r).
+- Subsequent TP returns (1-pct)*tp_r + partial_r  (PHYSICAL: only the runner half runs).
+- Subsequent TIMEOUT returns (1-pct)*timeout_r + partial_r.
 - partial_tp_at_r=None preserves baseline behaviour (no partial).
 - Idempotent: partial only taken once.
 - Causality: partial fill ts = the bar that crossed trigger (no peek).
@@ -131,7 +131,7 @@ def test_partial_tp_then_sl_be_returns_partial_only():
 
 
 def test_partial_tp_then_tp_returns_tp_plus_partial():
-    """After partial, hitting TP gives tp_R + partial_r = (target_r) + 0.5."""
+    """After partial, hitting TP gives (1-pct)*tp_R + partial_r (PHYSICAL half-runner)."""
     tr = _trade(1, entry=1000.0, stop=990.0, tp=1020.0, partial_tp_at_r=1.0)  # tp = +2R
     walk_bracket_on_bar(tr, _bar("2026-06-29T00:05:00Z", o=1000, h=1010, l=1000, c=1005))
     assert tr.partial_taken
@@ -139,8 +139,8 @@ def test_partial_tp_then_tp_returns_tp_plus_partial():
     assert o is not None
     assert o.reason == "TP"
     assert o.exit_price == pytest.approx(1020.0)
-    # tp_r = (1020-1000)/10 = 2.0; outcome = 2.0 + 0.5 = 2.5
-    assert o.bracket_1r_outcome == pytest.approx(2.5)
+    # tp_r = (1020-1000)/10 = 2.0; only 50% runs → 0.5*2.0 + 0.5 partial = 1.5
+    assert o.bracket_1r_outcome == pytest.approx(1.5)
 
 
 def test_partial_tp_then_timeout_returns_timeout_plus_partial():
@@ -152,8 +152,8 @@ def test_partial_tp_then_timeout_returns_timeout_plus_partial():
     )
     assert o is not None
     assert o.reason == "TIMEOUT"
-    # timeout_r = (1003-1000)/10 = 0.3; total = 0.3 + 0.5 = 0.8
-    assert o.bracket_1r_outcome == pytest.approx(0.8)
+    # timeout_r = (1003-1000)/10 = 0.3; only 50% runs → 0.5*0.3 + 0.5 partial = 0.65
+    assert o.bracket_1r_outcome == pytest.approx(0.65)
 
 
 def test_partial_tp_idempotent():
@@ -187,3 +187,34 @@ def test_partial_tp_two_r_target():
     assert tr.partial_taken
     assert tr.partial_filled_r == pytest.approx(1.0)  # 0.5 * 2.0R
     assert tr.partial_fill_price == pytest.approx(1020.0)
+
+
+# ---------- PHYSICAL accounting regression guard ----------
+
+@pytest.mark.parametrize("pct,tp_r", [(0.5, 5.0), (0.5, 2.618), (0.25, 5.0), (0.33, 3.0)])
+def test_partial_tp_physical_no_overcount(pct, tp_r):
+    """REGRESSION GUARD: partial+TP must book PHYSICAL R, not additive.
+
+    partial closes `pct` at +trigger(1R); only `(1-pct)` runs to TP. Total must be
+    `pct*trigger + (1-pct)*tp_r`, NOT the old additive `tp_r + pct*trigger` that
+    over-counted the runner ~2x (worst on the fat tail — where A+D's edge lives).
+    """
+    trigger = 1.0
+    risk = 10.0
+    tp_price = 1000.0 + tp_r * risk  # +tp_r R for a long
+    tr = _trade(1, entry=1000.0, stop=990.0, tp=tp_price,
+                partial_tp_at_r=trigger, partial_tp_pct=pct, risk=risk)
+    # bar 1: high = entry + 1R → partial fires
+    walk_bracket_on_bar(tr, _bar("2026-06-29T00:05:00Z", o=1000, h=1010, l=1000, c=1005))
+    assert tr.partial_taken
+    # bar 2: hit TP (close past target)
+    o = walk_bracket_on_bar(
+        tr, _bar("2026-06-29T00:10:00Z", o=1005, h=tp_price + 1, l=1004, c=tp_price + 0.5)
+    )
+    assert o is not None and o.reason == "TP"
+    physical = pct * trigger + (1.0 - pct) * tp_r
+    additive = tp_r + pct * trigger  # the OLD (wrong) value
+    assert o.bracket_1r_outcome == pytest.approx(physical)
+    assert o.bracket_1r_outcome != pytest.approx(additive)
+    assert o.detail["runner_frac"] == pytest.approx(1.0 - pct)
+    assert o.detail["runner_exit_r"] == pytest.approx(tp_r)

@@ -165,8 +165,16 @@ def simulate_with_safety(
             max_r = (active_tp - entry) * side / risk
             outcome_r = max(-1.0, min(max_r, side * (cl[exit_i] - entry) / risk))
 
-        # Add partial-TP locked profit.
-        outcome_r += partial_r
+        # PHYSICAL partial-TP accounting (mirrors bt_engine core/bracket.py).
+        # After the partial closes 50% at +N R (booked in partial_r = 0.5*N),
+        # only the remaining 50% runs to the bracket exit — so the runner's
+        # exit-R (outcome_r above) is on HALF the position. Scale it by 0.5,
+        # then add the booked partial R. (Was `outcome_r += partial_r` with the
+        # runner at FULL size => over-counted every partial+winner ~2x.)
+        if partial_taken:
+            outcome_r = 0.5 * outcome_r + partial_r
+        else:
+            outcome_r += partial_r  # partial_r == 0.0 here; no-op
 
         outs.append({
             "entry_ts": ts[i], "side": side, "entry_price": entry,
