@@ -67,13 +67,14 @@ class FibV2IntradayAPlusD:
         symbol: str = "XAUUSD.ecn",
         strict_after: bool = True,
         edge: bool = False,
+        ote: Optional[float] = None,
         qty: Optional[float] = None,
         cost_usd: Optional[float] = None,
         **_runner_kwargs,
     ) -> None:
         self.symbol = symbol
-        self.a = FibV2IntradayA(symbol=symbol, strict_after=strict_after, edge=edge, qty=qty, cost_usd=cost_usd)
-        self.d = FibV2IntradayD(symbol=symbol, strict_after=strict_after, edge=edge, qty=qty, cost_usd=cost_usd)
+        self.a = FibV2IntradayA(symbol=symbol, strict_after=strict_after, edge=edge, ote=ote, qty=qty, cost_usd=cost_usd)
+        self.d = FibV2IntradayD(symbol=symbol, strict_after=strict_after, edge=edge, ote=ote, qty=qty, cost_usd=cost_usd)
         # Expose a config attr so runner/dashboard can inspect timeframe etc.
         # A + D share base_tf/pivot_tf ('M15') and cost. Pick A's.
         self.config = self.a._intraday_cfg

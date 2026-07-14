@@ -119,5 +119,17 @@ def _register_builtins() -> None:
 
     register("fib_v2_intraday_a_plus_d_edge", _fib_v2_intraday_a_plus_d_edge_factory)
 
+    # ----- ICT-OTE research variants: gate entries to the deeper retrace zone.
+    # Baseline enters 0.382-0.786; _ote enters 0.62-0.786; _ote705 enters
+    # 0.705-0.786. Tests whether deep "optimal trade entry" cuts losers. -----
+    def _fib_v2_intraday_a_plus_d_ote_factory(**kwargs) -> Strategy:
+        return FibV2IntradayAPlusD(ote=0.62, **kwargs)
+
+    def _fib_v2_intraday_a_plus_d_ote705_factory(**kwargs) -> Strategy:
+        return FibV2IntradayAPlusD(ote=0.705, **kwargs)
+
+    register("fib_v2_intraday_a_plus_d_ote", _fib_v2_intraday_a_plus_d_ote_factory)
+    register("fib_v2_intraday_a_plus_d_ote705", _fib_v2_intraday_a_plus_d_ote705_factory)
+
 
 _register_builtins()

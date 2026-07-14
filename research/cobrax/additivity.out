@@ -1,0 +1,17 @@
+loading M5 -> M15 ...
+Fib V2 A+D stream ...
+COBRAX stream (rr3.0) ...
+  fib trades=27965  cobrax trades=2006
+
+=== MONTHLY-R CORRELATION: +0.070 ===
+    (<0.4 diversifying · 0.4-0.7 partial · >0.7 redundant)
+
+--- portfolio monthly-R stats ---
+  Fib V2 A+D             months=244  totalR=   7655 mean=+31.37 std=33.44 Sharpe=+3.25 maxDD_R=   -50 posM=206/244
+  COBRAX rr3.0           months=244  totalR=    769 mean=+3.15 std=5.36 Sharpe=+2.04 maxDD_R=   -19 posM=172/244
+  COMBINED (equal-R)     months=244  totalR=   8424 mean=+34.53 std=34.24 Sharpe=+3.49 maxDD_R=   -57 posM=209/244
+
+  Sharpe: Fib +3.25 -> Combined +3.49 (UP +0.24)
+  maxDD_R: Fib -50 -> Combined -57
+
+  VERDICT: ADDITIVE — worth a 2nd sleeve

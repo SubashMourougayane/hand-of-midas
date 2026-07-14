@@ -46,9 +46,21 @@ class FakeBridge:
       closed       rolling list of realized deal dicts (reconciler shape)
     """
 
-    def __init__(self, *, start_balance: float = 5000.0, symbol: str = "XAUUSD.ecn") -> None:
+    def __init__(self, *, start_balance: float = 5000.0, symbol: str = "XAUUSD.ecn",
+                 spread_est: float | None = None) -> None:
         self.balance = float(start_balance)
         self.symbol = symbol
+        # Round-trip spread cost in $/unit, charged on close so `balance` is NET of
+        # trading cost — a true MT5-realized stand-in (real fills cross bid/ask).
+        # Matches the strategy's cost_r ($/unit / risk_units). Default from the
+        # per-symbol cost table (XAU = $0.30/oz round trip).
+        if spread_est is None:
+            try:
+                from bt_engine.strategies.fib_v2.config import COST_PER_LOT_DEFAULTS
+                spread_est = COST_PER_LOT_DEFAULTS.get(symbol, {}).get("spread_est", 0.30)
+            except Exception:
+                spread_est = 0.30
+        self._spread_est = float(spread_est)
         self.positions: dict[str, dict[str, Any]] = {}
         self.closed: list[dict[str, Any]] = []
         self._seq = 0
@@ -67,7 +79,9 @@ class FakeBridge:
 
     def _record_close(self, ticket: str, pos: dict, close_price: float, volume: float) -> None:
         side = 1 if pos["type"] == "BUY" else -1
-        profit = self._deal_pnl(side, pos["open_price"], close_price, volume)
+        gross = self._deal_pnl(side, pos["open_price"], close_price, volume)
+        cost = self._spread_est * volume * self._contract()  # round-trip spread on this fill
+        profit = gross - cost
         self.balance += profit
         self.closed.append({
             "ticket": ticket,

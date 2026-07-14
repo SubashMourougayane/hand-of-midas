@@ -59,6 +59,12 @@ class FibV2Config:
     the audited cost-robustness filter (docs/EDGE_AUDIT_IRONCLAD.md Gate 4). None =
     no filter. Causal: cost_r is known at entry (stop distance)."""
 
+    ote_shallow_pct: float | None = None
+    """ICT-OTE entry-zone gate. Baseline zone is fib_786..fib_382 (retrace
+    0.382-0.786). If set, replaces the SHALLOW bound (0.382) with this retrace pct,
+    so entries only fire in the deeper zone [fib_786 .. fib_{ote}]. ICT OTE = 0.62.
+    None = baseline (0.382). Causal: retrace level known at signal bar close."""
+
 
 @dataclass(frozen=True)
 class LegSpec:

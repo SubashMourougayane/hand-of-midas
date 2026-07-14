@@ -1,0 +1,73 @@
+[14:12:56] loading data...
+[14:12:58] grid: 5760 configs
+[14:14:09] [178/5760] HIT long any ny lb3 h12 ext3.618 sl0.02 vol1.5 | n=2070 tpd=0.4 PF30=1.622 WR=35.7 OOS=1.689 dly=1.952 ROBUST=0
+[14:14:19] progress 200/5760 (80s, 2.5/s)
+[14:14:24] [222/5760] HIT long any ny lb5 h12 ext2.618 sl0.02 vol1.5 | n=1493 tpd=0.3 PF30=1.61 WR=39.4 OOS=1.537 dly=1.816 ROBUST=0
+[14:14:26] [226/5760] HIT long any ny lb5 h12 ext3.618 sl0.02 vol1.5 | n=1493 tpd=0.3 PF30=1.696 WR=39.4 OOS=1.617 dly=1.911 ROBUST=0
+[14:15:19] progress 400/5760 (140s, 2.8/s)
+[14:16:26] progress 600/5760 (208s, 2.9/s)
+[14:17:09] [730/5760] HIT long bull ny lb3 h4 ext3.618 sl0.02 vol1.5 | n=871 tpd=0.2 PF30=1.606 WR=39.6 OOS=1.719 dly=1.904 ROBUST=0
+[14:17:16] [750/5760] HIT long bull ny lb3 h12 ext2.618 sl0.02 vol1.5 | n=1373 tpd=0.3 PF30=1.6 WR=36.1 OOS=1.648 dly=1.796 ROBUST=0
+[14:17:17] [754/5760] HIT long bull ny lb3 h12 ext3.618 sl0.02 vol1.5 | n=1373 tpd=0.3 PF30=1.706 WR=36.0 OOS=1.784 dly=1.922 ROBUST=0
+[14:17:23] [766/5760] HIT long bull ny lb3 h24 ext3.618 sl0.02 vol1.5 | n=1913 tpd=0.4 PF30=1.653 WR=30.0 OOS=1.688 dly=1.791 ROBUST=0
+[14:17:26] [774/5760] HIT long bull ny lb5 h4 ext2.618 sl0.02 vol1.5 | n=588 tpd=0.1 PF30=1.63 WR=42.2 OOS=1.742 dly=1.85 ROBUST=0
+[14:17:26] [778/5760] HIT long bull ny lb5 h4 ext3.618 sl0.02 vol1.5 | n=588 tpd=0.1 PF30=1.67 WR=42.2 OOS=1.793 dly=1.929 ROBUST=0
+[14:17:28] [786/5760] HIT long bull ny lb5 h8 ext2.618 sl0.02 vol1.5 | n=821 tpd=0.2 PF30=1.619 WR=40.6 OOS=1.641 dly=1.775 ROBUST=0
+[14:17:29] [790/5760] HIT long bull ny lb5 h8 ext3.618 sl0.02 vol1.5 | n=821 tpd=0.2 PF30=1.694 WR=40.6 OOS=1.726 dly=1.866 ROBUST=0
+[14:17:31] [798/5760] HIT long bull ny lb5 h12 ext2.618 sl0.02 vol1.5 | n=996 tpd=0.2 PF30=1.671 WR=39.9 OOS=1.668 dly=1.842 ROBUST=0
+[14:17:31] progress 800/5760 (273s, 2.9/s)
+[14:17:32] [802/5760] HIT long bull ny lb5 h12 ext3.618 sl0.02 vol1.5 | n=996 tpd=0.2 PF30=1.772 WR=39.9 OOS=1.765 dly=1.954 ROBUST=0
+[14:17:33] [804/5760] HIT long bull ny lb5 h12 ext3.618 sl0.1 vol1.5 | n=995 tpd=0.2 PF30=1.618 WR=41.3 OOS=1.579 dly=1.738 ROBUST=0
+[14:17:36] [813/5760] HIT long bull ny lb5 h24 ext3.618 sl0.02 volNone | n=4971 tpd=1.0 PF30=1.611 WR=34.6 OOS=1.63 dly=1.624 ROBUST=0
+[14:17:36] [814/5760] HIT long bull ny lb5 h24 ext3.618 sl0.02 vol1.5 | n=1491 tpd=0.3 PF30=1.646 WR=33.0 OOS=1.632 dly=1.753 ROBUST=0
+[14:18:24] progress 1000/5760 (325s, 3.1/s)
+[14:19:31] progress 1200/5760 (393s, 3.1/s)
+[14:20:06] [1326/5760] HIT long bull_strong ny lb3 h12 ext2.618 sl0.02 vol1.5 | n=1290 tpd=0.3 PF30=1.608 WR=36.4 OOS=1.698 dly=1.818 ROBUST=0
+[14:20:08] [1330/5760] HIT long bull_strong ny lb3 h12 ext3.618 sl0.02 vol1.5 | n=1290 tpd=0.3 PF30=1.707 WR=36.3 OOS=1.842 dly=1.94 ROBUST=0
+[14:20:13] [1341/5760] HIT long bull_strong ny lb3 h24 ext3.618 sl0.02 volNone | n=6388 tpd=1.2 PF30=1.609 WR=31.8 OOS=1.617 dly=1.627 ROBUST=0
+[14:20:14] [1342/5760] HIT long bull_strong ny lb3 h24 ext3.618 sl0.02 vol1.5 | n=1792 tpd=0.4 PF30=1.66 WR=30.2 OOS=1.715 dly=1.816 ROBUST=0
+[14:20:16] [1350/5760] HIT long bull_strong ny lb5 h4 ext2.618 sl0.02 vol1.5 | n=556 tpd=0.1 PF30=1.601 WR=41.9 OOS=1.694 dly=1.857 ROBUST=0
+[14:20:17] [1354/5760] HIT long bull_strong ny lb5 h4 ext3.618 sl0.02 vol1.5 | n=556 tpd=0.1 PF30=1.64 WR=41.9 OOS=1.747 dly=1.926 ROBUST=0
+[14:20:18] [1362/5760] HIT long bull_strong ny lb5 h8 ext2.618 sl0.02 vol1.5 | n=775 tpd=0.2 PF30=1.606 WR=40.8 OOS=1.633 dly=1.82 ROBUST=0
+[14:20:19] [1366/5760] HIT long bull_strong ny lb5 h8 ext3.618 sl0.02 vol1.5 | n=775 tpd=0.2 PF30=1.668 WR=40.8 OOS=1.722 dly=1.896 ROBUST=0
+[14:20:21] [1374/5760] HIT long bull_strong ny lb5 h12 ext2.618 sl0.02 vol1.5 | n=942 tpd=0.2 PF30=1.658 WR=40.4 OOS=1.678 dly=1.883 ROBUST=0
+[14:20:22] [1378/5760] HIT long bull_strong ny lb5 h12 ext3.618 sl0.02 vol1.5 | n=942 tpd=0.2 PF30=1.75 WR=40.4 OOS=1.78 dly=1.987 ROBUST=0
+[14:20:26] [1389/5760] HIT long bull_strong ny lb5 h24 ext3.618 sl0.02 volNone | n=4615 tpd=0.9 PF30=1.654 WR=35.1 OOS=1.672 dly=1.682 ROBUST=0
+[14:20:27] [1390/5760] HIT long bull_strong ny lb5 h24 ext3.618 sl0.02 vol1.5 | n=1403 tpd=0.3 PF30=1.649 WR=33.4 OOS=1.645 dly=1.796 ROBUST=0
+[14:20:28] progress 1400/5760 (450s, 3.1/s)
+[14:21:08] [1548/5760] HIT long bull_strong london lb8 h4 ext3.618 sl0.1 vol1.5 | n=436 tpd=0.1 PF30=1.611 WR=48.6 OOS=1.611 dly=1.894 ROBUST=0
+[14:21:20] progress 1600/5760 (502s, 3.2/s)
+[14:22:21] progress 1800/5760 (562s, 3.2/s)
+[14:23:08] progress 2000/5760 (610s, 3.3/s)
+[14:23:59] progress 2200/5760 (661s, 3.3/s)
+[14:24:52] progress 2400/5760 (714s, 3.4/s)
+[14:25:10] [2482/5760] HIT long bear_strong ny lb3 h12 ext3.618 sl0.02 vol1.5 | n=518 tpd=0.1 PF30=1.604 WR=35.1 OOS=1.683 dly=2.357 ROBUST=0
+[14:25:10] [2484/5760] HIT long bear_strong ny lb3 h12 ext3.618 sl0.1 vol1.5 | n=517 tpd=0.1 PF30=1.601 WR=39.1 OOS=1.77 dly=2.291 ROBUST=0
+[14:25:22] [2530/5760] HIT long bear_strong ny lb5 h12 ext3.618 sl0.02 vol1.5 | n=355 tpd=0.1 PF30=1.607 WR=38.3 OOS=1.222 dly=2.123 ROBUST=0
+[14:25:22] [2532/5760] HIT long bear_strong ny lb5 h12 ext3.618 sl0.1 vol1.5 | n=354 tpd=0.1 PF30=1.631 WR=41.8 OOS=1.378 dly=2.065 ROBUST=0
+[14:25:35] progress 2600/5760 (757s, 3.4/s)
+[14:26:26] progress 2800/5760 (808s, 3.5/s)
+[14:27:32] progress 3000/5760 (873s, 3.4/s)
+[14:28:36] progress 3200/5760 (937s, 3.4/s)
+[14:29:43] progress 3400/5760 (1005s, 3.4/s)
+[14:30:47] progress 3600/5760 (1069s, 3.4/s)
+[14:31:46] progress 3800/5760 (1127s, 3.4/s)
+[14:32:41] progress 4000/5760 (1183s, 3.4/s)
+[14:33:43] progress 4200/5760 (1245s, 3.4/s)
+[14:34:39] progress 4400/5760 (1301s, 3.4/s)
+[14:35:33] progress 4600/5760 (1355s, 3.4/s)
+[14:36:29] progress 4800/5760 (1411s, 3.4/s)
+[14:37:15] progress 5000/5760 (1456s, 3.4/s)
+[14:38:02] progress 5200/5760 (1503s, 3.5/s)
+[14:38:53] progress 5400/5760 (1555s, 3.5/s)
+[14:39:15] [5502/5760] HIT short bear_strong london lb3 h12 ext2.618 sl0.02 vol1.5 | n=598 tpd=0.1 PF30=1.669 WR=32.3 OOS=1.265 dly=1.938 ROBUST=0
+[14:39:16] [5506/5760] HIT short bear_strong london lb3 h12 ext3.618 sl0.02 vol1.5 | n=598 tpd=0.1 PF30=1.665 WR=31.6 OOS=1.361 dly=1.88 ROBUST=0
+[14:39:19] [5514/5760] HIT short bear_strong london lb3 h24 ext2.618 sl0.02 vol1.5 | n=839 tpd=0.2 PF30=1.611 WR=31.8 OOS=1.011 dly=1.8 ROBUST=0
+[14:39:21] [5518/5760] HIT short bear_strong london lb3 h24 ext3.618 sl0.02 vol1.5 | n=839 tpd=0.2 PF30=1.669 WR=31.0 OOS=1.08 dly=1.788 ROBUST=0
+[14:39:27] [5550/5760] HIT short bear_strong london lb5 h12 ext2.618 sl0.02 vol1.5 | n=445 tpd=0.1 PF30=1.646 WR=33.7 OOS=1.47 dly=1.758 ROBUST=0
+[14:39:36] progress 5600/5760 (1598s, 3.5/s)
+[14:39:38] [5610/5760] HIT short bear_strong london lb8 h24 ext2.618 sl0.02 vol1.5 | n=495 tpd=0.1 PF30=1.632 WR=38.0 OOS=1.165 dly=1.631 ROBUST=0
+[14:39:39] [5612/5760] HIT short bear_strong london lb8 h24 ext2.618 sl0.1 vol1.5 | n=494 tpd=0.1 PF30=1.621 WR=40.5 OOS=1.084 dly=1.605 ROBUST=0
+[14:39:53] [5658/5760] HIT short bear_strong london_ny lb3 h24 ext2.618 sl0.02 vol1.5 | n=819 tpd=0.2 PF30=1.607 WR=30.9 OOS=1.014 dly=1.824 ROBUST=0
+[14:39:54] [5662/5760] HIT short bear_strong london_ny lb3 h24 ext3.618 sl0.02 vol1.5 | n=819 tpd=0.2 PF30=1.659 WR=30.0 OOS=1.085 dly=1.803 ROBUST=0
+[14:40:14] DONE. 5754 configs scored in 1636s

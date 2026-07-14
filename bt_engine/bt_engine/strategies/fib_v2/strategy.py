@@ -528,11 +528,18 @@ class FibV2EnsembleStrategy(Strategy):
                             bar_close=float(bar.close), reason="close>fib_100")
             return False
 
-        # 2) Zone check.
-        if leg.direction == "long":
-            in_zone = setup.fib_786 <= bar.close <= setup.fib_382
+        # 2) Zone check. Shallow bound is fib_382 baseline, or fib_{ote} if the
+        # ICT-OTE gate is set (deeper entries only). Causal — retrace known now.
+        ote = self.config.ote_shallow_pct
+        if ote is not None:
+            shallow = (setup.H - ote * setup.diff) if leg.direction == "long" \
+                else (setup.L + ote * setup.diff)
         else:
-            in_zone = setup.fib_382 <= bar.close <= setup.fib_786
+            shallow = setup.fib_382
+        if leg.direction == "long":
+            in_zone = setup.fib_786 <= bar.close <= shallow
+        else:
+            in_zone = shallow <= bar.close <= setup.fib_786
         if not in_zone:
             self._emit_gate(JournalEvent.GATE_SIGNAL_ZONE_MISS, bar.timestamp,
                             leg_name=leg.leg_name, setup=setup,

@@ -208,11 +208,12 @@ class FibV2IntradayA(FibV2IntradayBase):
         intraday_config: Optional[FibV2IntradayConfig] = None,
         strict_after: bool = True,
         edge: bool = False,
+        ote: Optional[float] = None,
         qty: Optional[float] = None,
         cost_usd: Optional[float] = None,
         **_runner_kwargs,  # absorb runner-only kwargs (e.g. ignore_events_before)
     ) -> None:
-        cfg = intraday_config or make_intraday_a_config(strict_after=strict_after, edge=edge)
+        cfg = intraday_config or make_intraday_a_config(strict_after=strict_after, edge=edge, ote=ote)
         super().__init__(
             symbol=symbol,
             intraday_config=cfg,
@@ -234,11 +235,12 @@ class FibV2IntradayD(FibV2IntradayBase):
         intraday_config: Optional[FibV2IntradayConfig] = None,
         strict_after: bool = True,
         edge: bool = False,
+        ote: Optional[float] = None,
         qty: Optional[float] = None,
         cost_usd: Optional[float] = None,
         **_runner_kwargs,  # absorb runner-only kwargs (e.g. ignore_events_before)
     ) -> None:
-        cfg = intraday_config or make_intraday_d_config(strict_after=strict_after, edge=edge)
+        cfg = intraday_config or make_intraday_d_config(strict_after=strict_after, edge=edge, ote=ote)
         super().__init__(
             symbol=symbol,
             intraday_config=cfg,

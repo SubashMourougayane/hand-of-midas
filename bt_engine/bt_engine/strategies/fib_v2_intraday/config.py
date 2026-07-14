@@ -78,9 +78,11 @@ _EDGE_PARTIAL = None      # no partial (baseline was 1.0)
 _EDGE_MAX_COST_R = 0.12   # skip if cost_usd/risk_units > this
 
 
-def make_intraday_a_config(*, strict_after: bool = True, edge: bool = False) -> FibV2IntradayConfig:
+def make_intraday_a_config(*, strict_after: bool = True, edge: bool = False,
+                           ote: float | None = None) -> FibV2IntradayConfig:
     """A leg: LONG  · lb=3 · hold=12h · session=london_ny · ext=2.618 · cost=$0.65.
-    edge=True → no partial + cost_r<=0.12 filter (audited)."""
+    edge=True → no partial + cost_r<=0.12 filter (audited).
+    ote=0.62 → ICT-OTE deep-zone entry gate (research variant)."""
     base = FibV2Config(
         pivot_lb=3,
         max_hold_h=12,
@@ -91,6 +93,7 @@ def make_intraday_a_config(*, strict_after: bool = True, edge: bool = False) -> 
         partial_tp_pct=0.5,
         cost_usd=0.65,  # JustMarkets Raw Spread realistic
         max_cost_r=_EDGE_MAX_COST_R if edge else None,
+        ote_shallow_pct=ote,
     )
     return FibV2IntradayConfig(
         strict_after=strict_after,
@@ -98,9 +101,11 @@ def make_intraday_a_config(*, strict_after: bool = True, edge: bool = False) -> 
     )
 
 
-def make_intraday_d_config(*, strict_after: bool = True, edge: bool = False) -> FibV2IntradayConfig:
+def make_intraday_d_config(*, strict_after: bool = True, edge: bool = False,
+                           ote: float | None = None) -> FibV2IntradayConfig:
     """D leg: SHORT · lb=3 · hold=24h · session=all       · ext=2.618 · cost=$0.65.
-    edge=True → no partial + cost_r<=0.12 filter (audited)."""
+    edge=True → no partial + cost_r<=0.12 filter (audited).
+    ote=0.62 → ICT-OTE deep-zone entry gate (research variant)."""
     base = FibV2Config(
         pivot_lb=3,
         max_hold_h=24,
@@ -111,6 +116,7 @@ def make_intraday_d_config(*, strict_after: bool = True, edge: bool = False) -> 
         partial_tp_pct=0.5,
         cost_usd=0.65,
         max_cost_r=_EDGE_MAX_COST_R if edge else None,
+        ote_shallow_pct=ote,
     )
     return FibV2IntradayConfig(
         strict_after=strict_after,

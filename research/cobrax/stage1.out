@@ -1,0 +1,61 @@
+stage1: 384 combos | cost=0.2 | IS<2016<=OOS | gate: ISpf&OOSpf>=1.3, OOSpos>=80%, n>=300
+* ote(0.62, 0.79) tp=nl2.0 lb=3 edge/sweep | n=2006 IS pf=1.54 net=261 | OOS pf=1.60 net=303 pos=11/11 | full=564
+* ote(0.62, 0.79) tp=nl2.0 lb=5 edge/sweep | n=1267 IS pf=1.81 net=246 | OOS pf=1.64 net=225 pos=10/11 | full=470
+* ote(0.62, 0.79) tp=nl2.0 lb=5 ce/sweep | n=1746 IS pf=1.44 net=216 | OOS pf=1.56 net=276 pos=11/11 | full=492
+* ote(0.62, 0.79) tp=nl2.0 lb=8 edge/sweep | n=718  IS pf=1.50 net=97 | OOS pf=1.61 net=130 pos=10/11 | full=226
+* ote(0.62, 0.79) tp=nl2.0 lb=8 ce/sweep | n=946  IS pf=1.42 net=113 | OOS pf=1.56 net=151 pos=10/11 | full=264
+* ote(0.62, 0.79) tp=rr1.5 lb=3 edge/sweep | n=2006 IS pf=1.59 net=277 | OOS pf=1.80 net=378 pos=11/11 | full=655
+* ote(0.62, 0.79) tp=rr1.5 lb=5 edge/sweep | n=1267 IS pf=1.79 net=216 | OOS pf=1.93 net=263 pos=10/11 | full=479
+* ote(0.62, 0.79) tp=rr1.5 lb=5 ce/sweep | n=1746 IS pf=1.33 net=148 | OOS pf=1.69 net=289 pos=11/11 | full=437
+* ote(0.62, 0.79) tp=rr1.5 lb=8 edge/sweep | n=718  IS pf=1.67 net=105 | OOS pf=1.89 net=145 pos=10/11 | full=250
+* ote(0.62, 0.79) tp=rr1.5 lb=8 ce/sweep | n=946  IS pf=1.34 net=84 | OOS pf=1.69 net=154 pos=9/11 | full=237
+* ote(0.62, 0.79) tp=rr2.0 lb=3 edge/sweep | n=2006 IS pf=1.60 net=323 | OOS pf=1.74 net=417 pos=11/11 | full=740
+* ote(0.62, 0.79) tp=rr2.0 lb=5 edge/sweep | n=1267 IS pf=1.83 net=259 | OOS pf=1.85 net=289 pos=10/11 | full=548
+* ote(0.62, 0.79) tp=rr2.0 lb=5 ce/sweep | n=1746 IS pf=1.37 net=189 | OOS pf=1.66 net=329 pos=11/11 | full=518
+* ote(0.62, 0.79) tp=rr2.0 lb=8 edge/sweep | n=718  IS pf=1.68 net=122 | OOS pf=1.84 net=162 pos=11/11 | full=284
+* ote(0.62, 0.79) tp=rr2.0 lb=8 ce/sweep | n=946  IS pf=1.38 net=104 | OOS pf=1.62 net=164 pos=10/11 | full=268
+* ote(0.62, 0.79) tp=rr3.0 lb=3 edge/sweep | n=2006 IS pf=1.54 net=349 | OOS pf=1.61 net=420 pos=11/11 | full=769
+* ote(0.62, 0.79) tp=rr3.0 lb=5 edge/sweep | n=1267 IS pf=1.75 net=280 | OOS pf=1.66 net=278 pos=10/11 | full=559
+* ote(0.62, 0.79) tp=rr3.0 lb=5 ce/sweep | n=1746 IS pf=1.44 net=253 | OOS pf=1.45 net=277 pos=10/11 | full=530
+* ote(0.62, 0.79) tp=rr3.0 lb=8 edge/sweep | n=718  IS pf=1.54 net=115 | OOS pf=1.79 net=179 pos=11/11 | full=294
+* ote(0.62, 0.79) tp=rr3.0 lb=8 ce/sweep | n=946  IS pf=1.46 net=142 | OOS pf=1.54 net=168 pos=11/11 | full=310
+* ote(0.705, 0.79) tp=nl2.0 lb=3 edge/sweep | n=794  IS pf=1.84 net=155 | OOS pf=1.64 net=145 pos=9/11 | full=300
+* ote(0.705, 0.79) tp=nl2.0 lb=3 ce/sweep | n=1173 IS pf=1.53 net=180 | OOS pf=1.56 net=186 pos=11/11 | full=365
+* ote(0.705, 0.79) tp=nl2.0 lb=5 edge/sweep | n=530  IS pf=2.19 net=151 | OOS pf=1.83 net=127 pos=10/11 | full=279
+* ote(0.705, 0.79) tp=nl2.0 lb=5 ce/sweep | n=722  IS pf=1.53 net=114 | OOS pf=1.95 net=200 pos=11/11 | full=314
+* ote(0.705, 0.79) tp=nl2.0 lb=8 ce/sweep | n=409  IS pf=1.58 net=72 | OOS pf=1.86 net=109 pos=9/11 | full=182
+* ote(0.705, 0.79) tp=rr1.5 lb=2 edge/sweep | n=1094 IS pf=1.42 net=111 | OOS pf=1.43 net=132 pos=9/11 | full=243
+* ote(0.705, 0.79) tp=rr1.5 lb=3 edge/sweep | n=794  IS pf=2.01 net=152 | OOS pf=2.02 net=191 pos=10/11 | full=343
+* ote(0.705, 0.79) tp=rr1.5 lb=3 ce/sweep | n=1173 IS pf=1.47 net=139 | OOS pf=1.92 net=242 pos=11/11 | full=380
+* ote(0.705, 0.79) tp=rr1.5 lb=5 edge/sweep | n=530  IS pf=2.53 net=137 | OOS pf=2.34 net=145 pos=10/11 | full=282
+* ote(0.705, 0.79) tp=rr1.5 lb=5 ce/sweep | n=722  IS pf=1.42 net=75 | OOS pf=2.26 net=187 pos=11/11 | full=263
+* ote(0.705, 0.79) tp=rr1.5 lb=8 edge/sweep | n=300  IS pf=2.28 net=66 | OOS pf=2.17 net=77 pos=9/11 | full=142
+* ote(0.705, 0.79) tp=rr1.5 lb=8 ce/sweep | n=409  IS pf=1.48 net=47 | OOS pf=2.24 net=106 pos=10/11 | full=152
+* ote(0.705, 0.79) tp=rr2.0 lb=2 edge/sweep | n=1094 IS pf=1.35 net=112 | OOS pf=1.40 net=145 pos=9/11 | full=257
+* ote(0.705, 0.79) tp=rr2.0 lb=3 edge/sweep | n=794  IS pf=2.15 net=198 | OOS pf=1.99 net=223 pos=10/11 | full=421
+* ote(0.705, 0.79) tp=rr2.0 lb=3 ce/sweep | n=1173 IS pf=1.57 net=190 | OOS pf=1.89 net=282 pos=11/11 | full=472
+* ote(0.705, 0.79) tp=rr2.0 lb=5 edge/sweep | n=530  IS pf=2.50 net=162 | OOS pf=2.23 net=163 pos=11/11 | full=326
+* ote(0.705, 0.79) tp=rr2.0 lb=5 ce/sweep | n=722  IS pf=1.58 net=115 | OOS pf=2.25 net=225 pos=11/11 | full=340
+* ote(0.705, 0.79) tp=rr2.0 lb=8 edge/sweep | n=300  IS pf=2.35 net=81 | OOS pf=1.92 net=75 pos=9/11 | full=156
+* ote(0.705, 0.79) tp=rr2.0 lb=8 ce/sweep | n=409  IS pf=1.55 net=61 | OOS pf=2.12 net=119 pos=9/11 | full=179
+* ote(0.705, 0.79) tp=rr3.0 lb=3 ce/sweep | n=1173 IS pf=1.58 net=232 | OOS pf=1.61 net=251 pos=9/11 | full=483
+* ote(0.705, 0.79) tp=rr3.0 lb=5 edge/sweep | n=530  IS pf=2.19 net=167 | OOS pf=1.83 net=145 pos=11/11 | full=311
+* ote(0.705, 0.79) tp=rr3.0 lb=5 ce/sweep | n=722  IS pf=1.64 net=148 | OOS pf=1.87 net=209 pos=10/11 | full=357
+* ote(0.705, 0.79) tp=rr3.0 lb=8 ce/sweep | n=409  IS pf=1.73 net=91 | OOS pf=1.80 net=109 pos=10/11 | full=199
+
+=== gate-passers: 43/384 | TOP 12 by OOS net-R (revenue) ===
+  ote(0.62, 0.79) tp=rr3.0 lb=3 edge/sweep | n=2006 IS pf=1.54/OOS pf=1.61 | OOS net=420 full net=769
+  ote(0.62, 0.79) tp=rr2.0 lb=3 edge/sweep | n=2006 IS pf=1.60/OOS pf=1.74 | OOS net=417 full net=740
+  ote(0.62, 0.79) tp=rr1.5 lb=3 edge/sweep | n=2006 IS pf=1.59/OOS pf=1.80 | OOS net=378 full net=655
+  ote(0.62, 0.79) tp=rr2.0 lb=5 ce/sweep | n=1746 IS pf=1.37/OOS pf=1.66 | OOS net=329 full net=518
+  ote(0.62, 0.79) tp=nl2.0 lb=3 edge/sweep | n=2006 IS pf=1.54/OOS pf=1.60 | OOS net=303 full net=564
+  ote(0.62, 0.79) tp=rr1.5 lb=5 ce/sweep | n=1746 IS pf=1.33/OOS pf=1.69 | OOS net=289 full net=437
+  ote(0.62, 0.79) tp=rr2.0 lb=5 edge/sweep | n=1267 IS pf=1.83/OOS pf=1.85 | OOS net=289 full net=548
+  ote(0.705, 0.79) tp=rr2.0 lb=3 ce/sweep | n=1173 IS pf=1.57/OOS pf=1.89 | OOS net=282 full net=472
+  ote(0.62, 0.79) tp=rr3.0 lb=5 edge/sweep | n=1267 IS pf=1.75/OOS pf=1.66 | OOS net=278 full net=559
+  ote(0.62, 0.79) tp=rr3.0 lb=5 ce/sweep | n=1746 IS pf=1.44/OOS pf=1.45 | OOS net=277 full net=530
+  ote(0.62, 0.79) tp=nl2.0 lb=5 ce/sweep | n=1746 IS pf=1.44/OOS pf=1.56 | OOS net=276 full net=492
+  ote(0.62, 0.79) tp=rr1.5 lb=5 edge/sweep | n=1267 IS pf=1.79/OOS pf=1.93 | OOS net=263 full net=479
+
+  [headline baseline ote(.62,.79)/nl/lb3/edge/sweep] n=2006 IS pf=1.54/OOS pf=1.60 OOS net=303 full=564
+  (full grid -> stage1_results.csv)

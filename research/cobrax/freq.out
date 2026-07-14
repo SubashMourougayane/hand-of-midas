@@ -1,0 +1,32 @@
+loading M5 → M15 ...
+A ...
+D ...
+COBRAX ...
+
+### A leg (long) — 10649 trades, 2006-03-20 → 2026-06-30 (20.3yr) ###
+  per YEAR : avg    525   (range 285–604, full-year median 537)
+  per MONTH: avg   43.8   (busiest month 64, quietest 12)
+  per CALENDAR day: avg  1.44
+  per TRADING day (~252/yr): avg  2.08   (on days it trades: avg 2.2, max 7)
+  active days: 4797 of ~5109 trading days (94% of days have ≥1 trade)
+
+### D leg (short) — 17316 trades, 2006-03-21 → 2026-06-30 (20.3yr) ###
+  per YEAR : avg    854   (range 448–945, full-year median 880)
+  per MONTH: avg   71.2   (busiest month 93, quietest 22)
+  per CALENDAR day: avg  2.34
+  per TRADING day (~252/yr): avg  3.39   (on days it trades: avg 3.3, max 11)
+  active days: 5257 of ~5109 trading days (103% of days have ≥1 trade)
+
+### COBRAX — 1718 trades, 2006-03-22 → 2026-06-29 (20.3yr) ###
+  per YEAR : avg     85   (range 41–126, full-year median 88)
+  per MONTH: avg    7.1   (busiest month 18, quietest 1)
+  per CALENDAR day: avg  0.23
+  per TRADING day (~252/yr): avg  0.34   (on days it trades: avg 1.2, max 3)
+  active days: 1479 of ~5108 trading days (29% of days have ≥1 trade)
+
+### A + D + COBRAX (COMBINED) — 29683 trades, 2006-03-20 → 2026-06-30 (20.3yr) ###
+  per YEAR : avg   1464   (range 796–1645, full-year median 1475)
+  per MONTH: avg  122.0   (busiest month 160, quietest 36)
+  per CALENDAR day: avg  4.01
+  per TRADING day (~252/yr): avg  5.81   (on days it trades: avg 5.5, max 15)
+  active days: 5396 of ~5109 trading days (106% of days have ≥1 trade)

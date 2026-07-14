@@ -60,3 +60,4 @@ golddigger_bt*.dump
 /LIVE_DISABLED
 research/data/btc/BTCUSDT_M1.parquet
 research/data/jpy/
+research-baseline/data/
